@@ -106,7 +106,25 @@ function QuickCapture({ apiKey, sbKey, entries, setEntries }) {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             model: MODEL, max_tokens: 800,
-            system: `You parse raw input into a structured OpenBrain entry. Return ONLY valid JSON, no markdown.\nFormat: {"title":"...","content":"...","type":"note|person|place|idea|contact|document|reminder|color|decision","metadata":{},"tags":[]}\nTypes: person (people), place (locations/restaurants), idea (concepts), contact (services/suppliers), document (official docs), reminder (deadlines), color (paint/design), decision (choices made), note (everything else).\nBe smart: extract phone numbers into metadata, dates into metadata, infer tags from context. Keep title concise, content descriptive.`,
+            system: `You classify and structure a raw text capture into an OpenBrain entry. Return ONLY valid JSON — no markdown, no explanation.
+Format: {"title":"...","content":"...","type":"...","metadata":{},"tags":[]}
+
+TYPE RULES (pick the BEST match — do NOT default to note):
+- person → any individual: name + role/number (e.g. John the plumber, 0821234567)
+- contact → business, supplier, service, company, organisation
+- place → restaurant, shop, location, address, venue
+- document → ID, licence, certificate, policy, serial number, registration, account number
+- reminder → deadline, renewal, expiry, appointment, must do, date-based task
+- idea → concept, plan, proposal, something to try or consider
+- decision → something already decided or chosen
+- color → paint colour, hex code, design colour
+- note → ONLY use this if absolutely none of the above apply
+
+EXTRACTION RULES:
+- Put phone numbers, dates, ID/serial numbers into metadata
+- Infer relevant tags from context
+- Title: concise, max 60 chars
+- Content: clear 1-2 sentence description`,
             messages: [{ role: "user", content: input }]
           })
         });
@@ -483,6 +501,167 @@ function SuggestionsView({ apiKey, sbKey, entries, setEntries }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   CALENDAR VIEW
+   ═══════════════════════════════════════════════════════════════ */
+function CalendarView({ entries }) {
+  const [month, setMonth] = useState(() => new Date());
+  const [selDay, setSelDay] = useState(null);
+
+  const year = month.getFullYear();
+  const mon = month.getMonth();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const dateMap = useMemo(() => {
+    const map = {};
+    const addTo = (key, entry) => { if (!map[key]) map[key] = []; if (!map[key].find(e => e.id === entry.id)) map[key].push(entry); };
+    entries.forEach(e => {
+      [e.metadata?.deadline, e.metadata?.due_date, e.metadata?.valid_to, e.metadata?.valid_from].filter(Boolean).forEach(d => addTo(d.slice(0, 10), e));
+    });
+    return map;
+  }, [entries]);
+
+  const firstDow = new Date(year, mon, 1).getDay();
+  const daysInMonth = new Date(year, mon + 1, 0).getDate();
+  const cells = [...Array(firstDow).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
+  const monthLabel = month.toLocaleDateString("en-ZA", { month: "long", year: "numeric" });
+
+  const dayKey = (d) => `${year}-${String(mon + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  const selKey = selDay ? dayKey(selDay) : null;
+  const selEntries = selKey ? (dateMap[selKey] || []) : [];
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <button onClick={() => setMonth(new Date(year, mon - 1, 1))} style={{ background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 8, color: "#888", padding: "8px 16px", cursor: "pointer", fontSize: 16 }}>←</button>
+        <span style={{ fontSize: 16, fontWeight: 700, color: "#EAEAEA" }}>{monthLabel}</span>
+        <button onClick={() => setMonth(new Date(year, mon + 1, 1))} style={{ background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 8, color: "#888", padding: "8px 16px", cursor: "pointer", fontSize: 16 }}>→</button>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 4 }}>
+        {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d => (
+          <div key={d} style={{ textAlign: "center", fontSize: 9, color: "#555", fontWeight: 700, letterSpacing: 1, padding: "4px 0" }}>{d}</div>
+        ))}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+        {cells.map((day, i) => {
+          if (!day) return <div key={`e${i}`} />;
+          const key = dayKey(day);
+          const dots = dateMap[key] || [];
+          const isToday = key === today;
+          const isSel = day === selDay;
+          return (
+            <div key={key} onClick={() => setSelDay(day === selDay ? null : day)}
+              style={{ aspectRatio: "1/1", borderRadius: 8, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer",
+                background: isSel ? "#4ECDC4" : isToday ? "#4ECDC420" : dots.length ? "#1a1a2e" : "transparent",
+                border: isToday && !isSel ? "1px solid #4ECDC440" : dots.length && !isSel ? "1px solid #2a2a4a" : "1px solid transparent" }}>
+              <span style={{ fontSize: 12, fontWeight: isToday ? 800 : 400, color: isSel ? "#0f0f23" : isToday ? "#4ECDC4" : "#ccc" }}>{day}</span>
+              {dots.length > 0 && !isSel && (
+                <div style={{ display: "flex", gap: 2, marginTop: 2 }}>
+                  {dots.slice(0, 3).map((e, ei) => <div key={ei} style={{ width: 4, height: 4, borderRadius: "50%", background: (TC[e.type] || TC.note).c }} />)}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {selDay && (
+        <div style={{ marginTop: 20 }}>
+          <p style={{ fontSize: 11, color: "#666", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 12 }}>
+            {selEntries.length ? `${selEntries.length} item${selEntries.length > 1 ? "s" : ""} — ${selKey}` : `Nothing on ${selKey}`}
+          </p>
+          {selEntries.map(e => {
+            const cfg = TC[e.type] || TC.note;
+            return (
+              <div key={e.id} style={{ background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 10, padding: "12px 16px", marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontSize: 14 }}>{cfg.i}</span>
+                  <span style={{ fontSize: 11, color: cfg.c, fontWeight: 700, textTransform: "uppercase" }}>{e.type}</span>
+                </div>
+                <p style={{ margin: 0, fontSize: 14, color: "#ddd", fontWeight: 500 }}>{e.title}</p>
+                {e.content && <p style={{ margin: "4px 0 0", fontSize: 12, color: "#999", lineHeight: 1.5 }}>{e.content.slice(0, 120)}</p>}
+              </div>
+            );
+          })}
+          {selEntries.length === 0 && <p style={{ color: "#555", fontSize: 13 }}>No entries with this date in their metadata.</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TODO VIEW
+   ═══════════════════════════════════════════════════════════════ */
+function TodoView() {
+  const [todos, setTodos] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("openbrain_todos") || "[]"); } catch { return []; }
+  });
+  const [input, setInput] = useState("");
+  const [priority, setPriority] = useState("medium");
+
+  const persist = (updated) => { setTodos(updated); try { localStorage.setItem("openbrain_todos", JSON.stringify(updated)); } catch {} };
+  const add = () => { if (!input.trim()) return; persist([{ id: Date.now().toString(), text: input.trim(), done: false, priority, created_at: new Date().toISOString() }, ...todos]); setInput(""); };
+  const toggle = (id) => persist(todos.map(t => t.id === id ? { ...t, done: !t.done } : t));
+  const remove = (id) => persist(todos.filter(t => t.id !== id));
+
+  const w = { high: 3, medium: 2, low: 1 };
+  const pending = todos.filter(t => !t.done).sort((a, b) => (w[b.priority] || 0) - (w[a.priority] || 0));
+  const done = todos.filter(t => t.done);
+
+  return (
+    <div>
+      <div style={{ background: "#A29BFE15", border: "1px solid #A29BFE30", borderRadius: 10, padding: "10px 14px", marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 13 }}>🔌</span>
+        <span style={{ fontSize: 11, color: "#A29BFE", lineHeight: 1.5 }}>Future: auto-populated from POS, Gmail, Calendar &amp; more — see <code style={{ color: "#4ECDC4", fontSize: 10 }}>.planning/roadmap/integrations.md</code></span>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && add()}
+          placeholder="Add a task..." style={{ flex: 1, padding: "12px 16px", background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 10, color: "#ddd", fontSize: 14, outline: "none" }} />
+        <select value={priority} onChange={e => setPriority(e.target.value)}
+          style={{ padding: "0 10px", background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 10, color: PC[priority].c, fontSize: 12, outline: "none", cursor: "pointer" }}>
+          <option value="high">High</option>
+          <option value="medium">Med</option>
+          <option value="low">Low</option>
+        </select>
+        <button onClick={add} style={{ padding: "12px 20px", background: "#4ECDC4", border: "none", borderRadius: 10, color: "#0f0f23", fontWeight: 700, cursor: "pointer", fontSize: 18 }}>+</button>
+      </div>
+
+      {pending.length === 0 && done.length === 0 && (
+        <p style={{ textAlign: "center", color: "#555", marginTop: 40, fontSize: 14 }}>No tasks yet.</p>
+      )}
+
+      {pending.map(t => {
+        const pc = PC[t.priority] || PC.medium;
+        return (
+          <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 10, padding: "12px 16px", marginBottom: 8 }}>
+            <button onClick={() => toggle(t.id)} style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${pc.c}`, background: "transparent", cursor: "pointer", flexShrink: 0 }} />
+            <p style={{ margin: 0, fontSize: 14, color: "#ddd", flex: 1, lineHeight: 1.4 }}>{t.text}</p>
+            <span style={{ fontSize: 9, background: pc.bg, color: pc.c, padding: "2px 8px", borderRadius: 20, fontWeight: 700, flexShrink: 0 }}>{pc.l}</span>
+            <button onClick={() => remove(t.id)} style={{ background: "transparent", border: "none", color: "#444", cursor: "pointer", fontSize: 20, padding: 0, lineHeight: 1, flexShrink: 0 }}>×</button>
+          </div>
+        );
+      })}
+
+      {done.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <p style={{ fontSize: 11, color: "#555", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 12 }}>Done ({done.length})</p>
+          {done.map(t => (
+            <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, border: "1px solid #1a1a2e", borderRadius: 10, padding: "10px 16px", marginBottom: 6, opacity: 0.45 }}>
+              <button onClick={() => toggle(t.id)} style={{ width: 20, height: 20, borderRadius: 6, border: "2px solid #444", background: "#4ECDC4", cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#0f0f23" }}>✓</button>
+              <p style={{ margin: 0, fontSize: 13, color: "#666", textDecoration: "line-through", flex: 1 }}>{t.text}</p>
+              <button onClick={() => remove(t.id)} style={{ background: "transparent", border: "none", color: "#333", cursor: "pointer", fontSize: 20, padding: 0, lineHeight: 1 }}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
    DETAIL MODAL
    ═══════════════════════════════════════════════════════════════ */
 function DetailModal({ entry, onClose, onDelete }) {
@@ -608,6 +787,7 @@ export default function OpenBrain() {
 
   const views = [
     { id: "grid", l: "Grid", ic: "▦" }, { id: "suggest", l: "Fill Brain", ic: "✦" },
+    { id: "calendar", l: "Calendar", ic: "📅" }, { id: "todos", l: "Todos", ic: "✓" },
     { id: "timeline", l: "Timeline", ic: "◔" }, { id: "graph", l: "Graph", ic: "◉" },
     { id: "chat", l: "Ask", ic: "◈" }, { id: "settings", l: "Settings", ic: "⚙" },
   ];
@@ -630,9 +810,9 @@ export default function OpenBrain() {
       <QuickCapture apiKey={apiKey} sbKey={sbKey} entries={entries} setEntries={setEntries} />
 
       {/* Nav tabs */}
-      <div style={{ display: "flex", gap: 0, padding: "0 24px", borderBottom: "1px solid #1a1a2e" }}>
+      <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #1a1a2e", overflowX: "auto", scrollbarWidth: "none" }}>
         {views.map(v => <button key={v.id} onClick={() => setView(v.id)} style={{
-          flex: 1, padding: "10px 0", border: "none", borderBottom: view === v.id ? "2px solid #4ECDC4" : "2px solid transparent",
+          flexShrink: 0, minWidth: 72, padding: "10px 8px", border: "none", borderBottom: view === v.id ? "2px solid #4ECDC4" : "2px solid transparent",
           background: "none", color: view === v.id ? "#4ECDC4" : "#555", fontSize: 10, fontWeight: 600, cursor: "pointer", position: "relative"
         }}>
           {v.ic} {v.l}
@@ -685,6 +865,10 @@ export default function OpenBrain() {
         </>}
 
         {view === "suggest" && <SuggestionsView apiKey={apiKey} sbKey={sbKey} entries={entries} setEntries={setEntries} />}
+
+        {view === "calendar" && <CalendarView entries={entries} />}
+
+        {view === "todos" && <TodoView />}
 
         {view === "timeline" && (() => {
           const sorted = [...filtered].sort((a,b) => new Date(a.created_at)-new Date(b.created_at));
