@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { authFetch } from "./lib/authFetch";
 
 /* ═══════════════════════════════════════════════════════════════
    DATA
@@ -138,6 +139,7 @@ const fmtD = d => new Date(d).toLocaleDateString("en-ZA", { day: "numeric", mont
 
 const SB_URL = "https://wfvoqpdfzkqnenzjxhui.supabase.co";
 const OWNER_ID = "00000000-0000-0000-0000-000000000001";
+const MODEL = import.meta.env.VITE_ANTHROPIC_MODEL ?? "claude-haiku-4-5-20251001";
 
 /* ═══════════════════════════════════════════════════════════════
    QUICK CAPTURE BAR
@@ -156,10 +158,10 @@ function QuickCapture({ apiKey, sbKey, entries, setEntries }) {
 
     try {
       if (apiKey) {
-        const res = await fetch("https://api.anthropic.com/v1/messages", {
+        const res = await authFetch("/api/anthropic", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            model: "claude-haiku-4-5-20251001", max_tokens: 800,
+            model: MODEL, max_tokens: 800,
             system: `You parse raw input into a structured OpenBrain entry. Return ONLY valid JSON, no markdown.\nFormat: {"title":"...","content":"...","type":"note|person|place|idea|contact|document|reminder|color|decision","metadata":{},"tags":[]}\nTypes: person (people), place (locations/restaurants), idea (concepts), contact (services/suppliers), document (official docs), reminder (deadlines), color (paint/design), decision (choices made), note (everything else).\nBe smart: extract phone numbers into metadata, dates into metadata, infer tags from context. Keep title concise, content descriptive.`,
             messages: [{ role: "user", content: input }]
           })
@@ -170,9 +172,9 @@ function QuickCapture({ apiKey, sbKey, entries, setEntries }) {
 
         if (sbKey && parsed.title) {
           setStatus("saving");
-          const rpcRes = await fetch(`${SB_URL}/rest/v1/rpc/capture`, {
+          const rpcRes = await authFetch("/api/capture", {
             method: "POST",
-            headers: { "Content-Type": "application/json", apikey: sbKey, Authorization: `Bearer ${sbKey}` },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               p_title: parsed.title, p_content: parsed.content || input, p_type: parsed.type || "note",
               p_metadata: parsed.metadata || {}, p_tags: parsed.tags || []
@@ -235,7 +237,7 @@ function SettingsView({ apiKey, setApiKey, sbKey, setSbKey }) {
     if (!sbKey) return;
     setTestStatus("testing");
     try {
-      const res = await fetch(`${SB_URL}/rest/v1/entries?select=id&limit=1`, { headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` } });
+      const res = await authFetch("/api/health");
       setTestStatus(res.ok ? "success" : "fail");
     } catch { setTestStatus("fail"); }
     setTimeout(() => setTestStatus(null), 3000);
@@ -245,9 +247,9 @@ function SettingsView({ apiKey, setApiKey, sbKey, setSbKey }) {
     if (!apiKey) return;
     setTestStatus("testing-ai");
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await authFetch("/api/anthropic", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 50, messages: [{ role: "user", content: "Say 'connected' in one word" }] })
+        body: JSON.stringify({ model: MODEL, max_tokens: 50, messages: [{ role: "user", content: "Say 'connected' in one word" }] })
       });
       setTestStatus(res.ok ? "ai-success" : "ai-fail");
     } catch { setTestStatus("ai-fail"); }
@@ -329,10 +331,10 @@ function SuggestionsView({ apiKey, sbKey, entries, setEntries }) {
     // Try to save directly to DB via AI parsing
     if (apiKey && sbKey) {
       try {
-        const res = await fetch("https://api.anthropic.com/v1/messages", {
+        const res = await authFetch("/api/anthropic", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            model: "claude-haiku-4-5-20251001", max_tokens: 800,
+            model: MODEL, max_tokens: 800,
             system: `Parse this Q&A into a structured entry. Return ONLY valid JSON:\n{"title":"...","content":"...","type":"note|person|place|idea|contact|document|reminder|color|decision","metadata":{},"tags":[]}`,
             messages: [{ role: "user", content: `Question: ${current.q}\nAnswer: ${a}` }]
           })
@@ -340,9 +342,9 @@ function SuggestionsView({ apiKey, sbKey, entries, setEntries }) {
         const data = await res.json();
         const parsed = JSON.parse((data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim());
         if (parsed.title) {
-          const rpcRes = await fetch(`${SB_URL}/rest/v1/rpc/capture`, {
+          const rpcRes = await authFetch("/api/capture", {
             method: "POST",
-            headers: { "Content-Type": "application/json", apikey: sbKey, Authorization: `Bearer ${sbKey}` },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ p_title: parsed.title, p_content: parsed.content || a, p_type: parsed.type || "note", p_metadata: parsed.metadata || {}, p_tags: parsed.tags || [] })
           });
           const savedToDB = rpcRes.ok;
@@ -519,8 +521,8 @@ export default function OpenBrain() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [view, setView] = useState("grid");
   const [selected, setSelected] = useState(null);
-  const [apiKey, setApiKey] = useState("");
-  const [sbKey, setSbKey] = useState("");
+  const [apiKey, setApiKey] = useState("configured");
+  const [sbKey, setSbKey] = useState("configured");
   const [chatInput, setChatInput] = useState("");
   const [chatMsgs, setChatMsgs] = useState([{ role: "assistant", content: "Hey Chris. Ask me about your memories — \"What's my ID number?\", \"Who are my suppliers?\", etc." }]);
   const [chatLoading, setChatLoading] = useState(false);
@@ -539,9 +541,9 @@ export default function OpenBrain() {
     if (!chatInput.trim()) return;
     const msg = chatInput.trim(); setChatInput(""); setChatMsgs(p => [...p, { role: "user", content: msg }]); setChatLoading(true);
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await authFetch("/api/anthropic", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 1000, system: `You are OpenBrain, Chris's memory assistant. Be concise.\n\nMEMORIES:\n${JSON.stringify(entries)}\n\nLINKS:\n${JSON.stringify(LINKS)}`, messages: [{ role: "user", content: msg }] })
+        body: JSON.stringify({ model: MODEL, max_tokens: 1000, system: `You are OpenBrain, Chris's memory assistant. Be concise.\n\nMEMORIES:\n${JSON.stringify(entries)}\n\nLINKS:\n${JSON.stringify(LINKS)}`, messages: [{ role: "user", content: msg }] })
       });
       const data = await res.json(); setChatMsgs(p => [...p, { role: "assistant", content: data.content?.map(c => c.text||"").join("") || "Couldn't process." }]);
     } catch { setChatMsgs(p => [...p, { role: "assistant", content: "Connection error. Check your API key in Settings." }]); }
