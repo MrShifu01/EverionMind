@@ -8,9 +8,9 @@ import { SUGGESTIONS } from "./data/suggestions";
    ═══════════════════════════════════════════════════════════════ */
 const INITIAL_ENTRIES = [
   { id: "7afc6042", title: "Renew Driving Licence", content: "Driving licence expires 23 November 2026. Start the DLTC renewal process early due to SA backlog — ideally by July/August 2026.", type: "reminder", metadata: { status: "pending", deadline: "2026-11-23", due_date: "2026-08-01" }, pinned: true, importance: 2, tags: ["reminder", "driving licence", "urgent", "admin"], created_at: "2026-04-02T13:05:41Z" },
-  { id: "b38c3cde", title: "South African Driving Licence", content: "Chris's SA driving licence. Code B, no restrictions. Expires November 2026.", type: "document", metadata: { licence_number: "303400001AHL", licence_code: "B", valid_to: "2026-11-23", valid_from: "2021-11-24", first_issue_date: "2006-07-03" }, pinned: true, importance: 2, tags: ["renewal due", "driving licence", "important documents"], created_at: "2026-04-02T13:05:11Z" },
-  { id: "aa364b85", title: "South African ID Card", content: "RSA National Identity Card. Issued by Department of Home Affairs.", type: "document", metadata: { id_number: "8708115034084", date_of_birth: "1987-08-11", date_of_issue: "2016-03-22", home_affairs_enquiry: "0800 60 11 90" }, pinned: true, importance: 2, tags: ["id", "identity document", "home affairs", "important documents"], created_at: "2026-04-02T13:03:40Z" },
-  { id: "afba29b2", title: "Momentum Health - Medical Aid", content: "Momentum Health, Custom option. Member since September 2016.", type: "contact", metadata: { provider: "Momentum Health", option: "Custom", member_number: "912268348", call_centre: "0860117859", emergency_evacuation: "082911" }, pinned: true, importance: 2, tags: ["medical aid", "health", "insurance", "important numbers"], created_at: "2026-04-02T13:02:11Z" },
+  { id: "b38c3cde", title: "South African Driving Licence", content: "Chris's SA driving licence. Code B, no restrictions. Expires November 2026.", type: "document", metadata: { licence_code: "B", valid_to: "2026-11-23", valid_from: "2021-11-24", first_issue_date: "2006-07-03" }, pinned: true, importance: 2, tags: ["renewal due", "driving licence", "important documents"], created_at: "2026-04-02T13:05:11Z" },
+  { id: "aa364b85", title: "South African ID Card", content: "RSA National Identity Card. Issued by Department of Home Affairs.", type: "document", metadata: { date_of_birth: "1987-08-11", date_of_issue: "2016-03-22", home_affairs_enquiry: "0800 60 11 90" }, pinned: true, importance: 2, tags: ["id", "identity document", "home affairs", "important documents"], created_at: "2026-04-02T13:03:40Z" },
+  { id: "afba29b2", title: "Momentum Health - Medical Aid", content: "Momentum Health, Custom option. Member since September 2016.", type: "contact", metadata: { provider: "Momentum Health", option: "Custom", call_centre: "0860117859", emergency_evacuation: "082911" }, pinned: true, importance: 2, tags: ["medical aid", "health", "insurance", "important numbers"], created_at: "2026-04-02T13:02:11Z" },
   { id: "80453a6d", title: "Smash Burger Bar", content: "Chris's restaurant at Preller Square, Dan Pienaar, Bloemfontein.", type: "place", metadata: { address: "Preller Square, Dan Pienaar, Bloemfontein", business_type: "restaurant", owner: "Chris Stander" }, pinned: true, importance: 2, tags: ["business", "restaurant", "bloemfontein", "smash burger bar"], created_at: "2026-04-02T12:57:00Z" },
   { id: "5988739e", title: "Work Laptop - ASUS Vivobook 15", content: "ASUS Vivobook 15, model X1504V. Manufactured June 2025. 12 months warranty.", type: "document", metadata: { serial_number: "T6N0CV18N814261", model: "X1504V", manufactured: "2025-06", warranty: "12 months" }, pinned: false, importance: 1, tags: ["laptop", "asus", "hardware", "warranty"], created_at: "2026-04-02T13:43:15Z" },
   { id: "5033882a", title: "Woolworths - Buns & Zesty Spice", content: "Woolworths supplies burger buns and Zesty Spice — base for the smash burger spice blend.", type: "contact", metadata: { category: "supplier" }, pinned: false, importance: 1, tags: ["smash burger bar", "supplier", "key ingredient"], created_at: "2026-04-02T13:39:46Z" },
@@ -21,10 +21,10 @@ const INITIAL_ENTRIES = [
   { id: "27e3eca1", title: "Makro - General Supplies", content: "Bulk supplier for Smash Burger Bar.", type: "contact", metadata: { category: "supplier" }, pinned: false, importance: 0, tags: ["smash burger bar", "supplier"], created_at: "2026-04-02T13:39:12Z" },
   { id: "63b24d12", title: "Econofoods - General Supplies", content: "General food supplier based in Bloemfontein.", type: "contact", metadata: { category: "supplier", location: "Bloemfontein" }, pinned: false, importance: 0, tags: ["smash burger bar", "supplier", "bloemfontein"], created_at: "2026-04-02T13:39:05Z" },
   { id: "8e8295d5", title: "Asian Corner - Dan Pienaar", content: "Spicy rice is good — spicy enough and flavourful. Prices reasonable. Food takes very long.", type: "place", metadata: { cuisine: "Asian", recommended_dish: "spicy rice", speed_rating: "slow" }, pinned: false, importance: 0, tags: ["restaurant", "asian food", "bloemfontein"], created_at: "2026-04-02T13:20:10Z" },
-  { id: "72e305b7", title: "Reagan - Electrician", content: "Electrician. Worked on Smash Burger Bar.", type: "person", metadata: { role: "electrician", phone: "0733573667" }, pinned: false, importance: 0, tags: ["contractor", "smash burger bar"], created_at: "2026-04-02T13:16:27Z" },
-  { id: "54db5972", title: "JC Kraal - Builder", content: "Did the building work for Smash Burger Bar.", type: "person", metadata: { role: "builder", phone: "0825117581" }, pinned: false, importance: 0, tags: ["contractor", "smash burger bar"], created_at: "2026-04-02T13:16:22Z" },
-  { id: "c82a2d3c", title: "Ruan - Shopfitter", content: "Did the shopfitting for Smash Burger Bar.", type: "person", metadata: { role: "shopfitter", phone: "0834186071" }, pinned: false, importance: 0, tags: ["contractor", "smash burger bar"], created_at: "2026-04-02T13:16:32Z" },
-  { id: "5664bb8d", title: "Uriah (Uria Foodserve) - Kitchen Equipment", content: "Kitchen equipment for Smash Burger Bar.", type: "person", metadata: { role: "kitchen equipment", phone: "0724042218", company: "Uria Foodserve" }, pinned: false, importance: 0, tags: ["contractor", "smash burger bar"], created_at: "2026-04-02T13:16:37Z" },
+  { id: "72e305b7", title: "Reagan - Electrician", content: "Electrician. Worked on Smash Burger Bar.", type: "person", metadata: { role: "electrician" }, pinned: false, importance: 0, tags: ["contractor", "smash burger bar"], created_at: "2026-04-02T13:16:27Z" },
+  { id: "54db5972", title: "JC Kraal - Builder", content: "Did the building work for Smash Burger Bar.", type: "person", metadata: { role: "builder" }, pinned: false, importance: 0, tags: ["contractor", "smash burger bar"], created_at: "2026-04-02T13:16:22Z" },
+  { id: "c82a2d3c", title: "Ruan - Shopfitter", content: "Did the shopfitting for Smash Burger Bar.", type: "person", metadata: { role: "shopfitter" }, pinned: false, importance: 0, tags: ["contractor", "smash burger bar"], created_at: "2026-04-02T13:16:32Z" },
+  { id: "5664bb8d", title: "Uriah (Uria Foodserve) - Kitchen Equipment", content: "Kitchen equipment for Smash Burger Bar.", type: "person", metadata: { role: "kitchen equipment", company: "Uria Foodserve" }, pinned: false, importance: 0, tags: ["contractor", "smash burger bar"], created_at: "2026-04-02T13:16:37Z" },
   { id: "a723d2a1", title: "Add Single Burgers to Menu", content: "Affordable single burger option. Cost of living pressure squeezing customers.", type: "idea", metadata: { status: "concept" }, pinned: false, importance: 0, tags: ["smash burger bar", "menu", "pricing"], created_at: "2026-04-02T13:10:04Z" },
   { id: "e8b12737", title: "Tuesday Quiz Night", content: "Quiz night on Tuesdays. Drive midweek foot traffic.", type: "idea", metadata: { day: "Tuesday", status: "concept" }, pinned: false, importance: 0, tags: ["smash burger bar", "events"], created_at: "2026-04-02T13:09:56Z" },
   { id: "cfff1d67", title: "Saturday Cocktail Night", content: "Cocktail night on Saturdays. 8 cocktails. Boost weekend spend.", type: "idea", metadata: { day: "Saturday", status: "concept" }, pinned: false, importance: 0, tags: ["smash burger bar", "cocktails", "events"], created_at: "2026-04-02T13:09:49Z" },
@@ -47,8 +47,6 @@ const TC = {
 const PC = { high: { bg: "#FF6B3520", c: "#FF6B35", l: "High" }, medium: { bg: "#FFEAA720", c: "#FFEAA7", l: "Med" }, low: { bg: "#4ECDC420", c: "#4ECDC4", l: "Low" } };
 const fmtD = d => new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" });
 
-const SB_URL = "https://wfvoqpdfzkqnenzjxhui.supabase.co";
-const OWNER_ID = "00000000-0000-0000-0000-000000000001";
 const MODEL = import.meta.env.VITE_ANTHROPIC_MODEL ?? "claude-haiku-4-5-20251001";
 
 /* ═══════════════════════════════════════════════════════════════
@@ -304,7 +302,8 @@ function SuggestionsView({ apiKey, sbKey, entries, setEntries }) {
       .then(r => r.json())
       .then(data => {
         const raw = (data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim();
-        const parsed = JSON.parse(raw);
+        let parsed = {};
+        try { parsed = JSON.parse(raw); } catch {}
         setAiQuestion(parsed.q ? { ...parsed, ai: true } : { q: "What's one important thing you haven't captured yet?", cat: "✨ AI", p: "medium", ai: true });
       })
       .catch(() => setAiQuestion({ q: "What's one important thing you haven't captured yet?", cat: "✨ AI", p: "medium", ai: true }))
@@ -773,7 +772,12 @@ export default function OpenBrain() {
   const [entries, setEntries] = useState(() => {
     try {
       const cached = localStorage.getItem('openbrain_entries');
-      if (cached) return JSON.parse(cached);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.every(e => e && typeof e.id === "string" && typeof e.title === "string")) {
+          return parsed;
+        }
+      }
     } catch {}
     return INITIAL_ENTRIES;
   });
@@ -952,7 +956,12 @@ export default function OpenBrain() {
           setSelected(null);
         }}
         onUpdate={async (id, changes) => {
-          try { await authFetch('/api/update-entry', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, ...changes }) }); } catch {}
+          try {
+            const res = await authFetch('/api/update-entry', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, ...changes }) });
+            const data = await res.json().catch(() => null);
+            if (!res.ok) throw new Error((data?.message || data?.error) ?? `HTTP ${res.status}`);
+            if (Array.isArray(data) && data.length === 0) throw new Error(`No row matched id=${id}`);
+          } catch (e) { alert(`Save failed: ${e.message}`); return; }
           setEntries(prev => prev.map(e => e.id === id ? { ...e, ...changes } : e));
           setSelected(prev => prev?.id === id ? { ...prev, ...changes } : prev);
         }}
