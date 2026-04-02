@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { authFetch } from "./lib/authFetch";
 import { supabase } from "./lib/supabase";
+import { SUGGESTIONS } from "./data/suggestions";
 
 /* ═══════════════════════════════════════════════════════════════
    DATA
@@ -35,98 +36,6 @@ const LINKS = [
   { from: "35af7614", to: "80453a6d", rel: "used at" },{ from: "7afc6042", to: "b38c3cde", rel: "renewal for" },{ from: "cfff1d67", to: "80453a6d", rel: "idea for" },{ from: "e8b12737", to: "80453a6d", rel: "idea for" },{ from: "a723d2a1", to: "80453a6d", rel: "idea for" },{ from: "54db5972", to: "80453a6d", rel: "built" },{ from: "72e305b7", to: "80453a6d", rel: "electrical work" },{ from: "c82a2d3c", to: "80453a6d", rel: "shopfitting" },{ from: "5664bb8d", to: "80453a6d", rel: "kitchen equipment" },{ from: "63b24d12", to: "80453a6d", rel: "supplies" },{ from: "27e3eca1", to: "80453a6d", rel: "supplies" },{ from: "c25b32f7", to: "80453a6d", rel: "supplies" },{ from: "d1c32f5a", to: "80453a6d", rel: "supplies" },{ from: "507dc46f", to: "80453a6d", rel: "supplies" },{ from: "c49dbece", to: "80453a6d", rel: "supplies" },{ from: "5033882a", to: "80453a6d", rel: "supplies" },
 ];
 
-const SUGGESTIONS = [
-  { q: "What days does Bidfoods deliver?", cat: "🍔 Restaurant", p: "high" },
-  { q: "Mince ball price per unit from Ehrlichpark?", cat: "🍔 Restaurant", p: "high" },
-  { q: "Passport number and expiry date?", cat: "📄 Documents", p: "high" },
-  { q: "Car insurance details and policy number?", cat: "📋 Insurance", p: "high" },
-  { q: "Do you have a will? Where is it kept?", cat: "📋 Legal", p: "high" },
-  { q: "Blood type?", cat: "🏥 Health", p: "medium" },
-  { q: "Any allergies — food, medication, environmental?", cat: "🏥 Health", p: "high" },
-  { q: "Who is your GP? Name and number?", cat: "🏥 Health", p: "high" },
-  { q: "Vehicle make, model, year, registration?", cat: "🚗 Vehicle", p: "high" },
-  { q: "Bank details — which bank, branch code, account type?", cat: "💰 Finance", p: "high" },
-  { q: "SARS tax number?", cat: "💰 Finance", p: "high" },
-  { q: "Who is your accountant?", cat: "💰 Finance", p: "high" },
-  { q: "Restaurant trading hours? Different on weekends?", cat: "🍔 Restaurant", p: "high" },
-  { q: "Monthly rent at Preller Square? Due date?", cat: "🍔 Restaurant", p: "high" },
-  { q: "Landlord or property manager contact?", cat: "🍔 Restaurant", p: "high" },
-  { q: "Staff names and roles?", cat: "👥 Staff", p: "high" },
-  { q: "Liquor licence number and renewal date?", cat: "📋 Compliance", p: "high" },
-  { q: "CIPC registration number?", cat: "📋 Compliance", p: "high" },
-  { q: "VAT registration number?", cat: "💰 Finance", p: "high" },
-  { q: "UIF employer reference number?", cat: "📋 Compliance", p: "high" },
-  { q: "Food cost target %? What are you actually hitting?", cat: "📊 Metrics", p: "high" },
-  { q: "Public liability insurance?", cat: "📋 Insurance", p: "high" },
-  { q: "Alarm company and code for the restaurant?", cat: "🔑 Security", p: "high" },
-  { q: "Where are important physical documents stored?", cat: "📄 Documents", p: "high" },
-  { q: "Emergency contacts — who gets called first?", cat: "🚨 Emergency", p: "high" },
-  { q: "Any chronic medication or dosages?", cat: "🏥 Health", p: "high" },
-  { q: "Revenue target for this year?", cat: "🎯 Goals", p: "high" },
-  { q: "Your dental, optometry or gap cover details?", cat: "🏥 Health", p: "medium" },
-  { q: "Saturday Cocktail Night — decided on the 8 cocktails?", cat: "🍔 Restaurant", p: "medium" },
-  { q: "Quiz Night host — any contacts?", cat: "🍔 Restaurant", p: "medium" },
-  { q: "Single burger price point? Target food cost?", cat: "🍔 Restaurant", p: "medium" },
-  { q: "Car mechanic name and number?", cat: "🚗 Vehicle", p: "medium" },
-  { q: "Recurring subscriptions and monthly costs?", cat: "💰 Finance", p: "medium" },
-  { q: "What supplements are you taking?", cat: "🏥 Health", p: "medium" },
-  { q: "Best-selling menu items? Top 3?", cat: "📊 Metrics", p: "medium" },
-  { q: "Average spend per head?", cat: "📊 Metrics", p: "medium" },
-  { q: "Google Business rating and reviews?", cat: "📣 Marketing", p: "medium" },
-  { q: "Social media handles?", cat: "📣 Marketing", p: "medium" },
-  { q: "Pest control — who and how often?", cat: "🍔 Restaurant", p: "medium" },
-  { q: "SAMRO/CAPASSO music licensing?", cat: "📋 Compliance", p: "medium" },
-  { q: "Fire extinguisher last service date?", cat: "📋 Compliance", p: "medium" },
-  { q: "Parents' birthdays?", cat: "👨‍👩‍👧 Family", p: "medium" },
-  { q: "Partner's birthday and anniversary?", cat: "👨‍👩‍👧 Family", p: "medium" },
-  { q: "SmashPOS — current phase?", cat: "💻 Tech", p: "medium" },
-  { q: "GitHub repo URLs?", cat: "💻 Tech", p: "medium" },
-  { q: "Domain names owned or planned?", cat: "💻 Tech", p: "medium" },
-  { q: "Who manages restaurant when you're in JHB?", cat: "🍔 Restaurant", p: "high" },
-  { q: "What POS system are you currently using?", cat: "💻 Tech", p: "medium" },
-  { q: "Laptop purchase receipt stored? Where from?", cat: "💻 Tech", p: "medium" },
-  { q: "Home address in JHB with postal code?", cat: "🏠 Home", p: "medium" },
-  { q: "Lease or own in JHB? Expiry?", cat: "🏠 Home", p: "medium" },
-  { q: "ISP details — speed, cost, account number?", cat: "🏠 Home", p: "low" },
-  { q: "Beer lineup on tap?", cat: "🍔 Restaurant", p: "low" },
-  { q: "Contractors — who would you use again vs avoid?", cat: "👷 Contractors", p: "low" },
-  { q: "Home Wi-Fi password?", cat: "🏠 Home", p: "low" },
-  { q: "Dentist name and last checkup?", cat: "🏥 Health", p: "medium" },
-  { q: "Favourite JHB restaurants?", cat: "🍽️ Food", p: "low" },
-  { q: "Shoe size, clothing sizes?", cat: "🛒 Personal", p: "low" },
-  { q: "Spare key locations — house, car, restaurant?", cat: "🔑 Security", p: "medium" },
-  { q: "Car licence disc renewal date?", cat: "🚗 Vehicle", p: "medium" },
-  { q: "Plumber contact?", cat: "🏠 Home", p: "low" },
-  { q: "Locksmith number?", cat: "🏠 Home", p: "low" },
-  { q: "Nearest hospital to home? And to restaurant?", cat: "🚨 Emergency", p: "medium" },
-  { q: "1-year goal for Smash Burger Bar?", cat: "🎯 Goals", p: "medium" },
-  { q: "5-year vision — franchise? More locations?", cat: "🎯 Goals", p: "medium" },
-  { q: "SmashPOS launch target date?", cat: "🎯 Goals", p: "medium" },
-  { q: "Travel bucket list?", cat: "✈️ Travel", p: "low" },
-  { q: "Books read or want to read?", cat: "📚 Growth", p: "low" },
-  { q: "Podcasts you listen to?", cat: "📚 Growth", p: "low" },
-  { q: "Second location — where would it be?", cat: "🎯 Goals", p: "low" },
-  { q: "What would you do differently building the restaurant?", cat: "💡 Reflection", p: "low" },
-  { q: "Paint colors for your home?", cat: "🏠 Home", p: "low" },
-  { q: "Cleaning supplies — what and where?", cat: "🍔 Restaurant", p: "low" },
-  { q: "Email addresses — personal, business, dev?", cat: "💻 Tech", p: "medium" },
-  { q: "Gym membership? Where and cost?", cat: "🏋️ Fitness", p: "low" },
-  { q: "Regular customers or VIPs to remember?", cat: "👥 Customers", p: "low" },
-  { q: "Social media content — in-house or outsourced?", cat: "📣 Marketing", p: "low" },
-  { q: "Worst-selling menu items to remove?", cat: "🍔 Restaurant", p: "medium" },
-  { q: "Full menu with current prices?", cat: "🍔 Restaurant", p: "high" },
-  { q: "Busiest day and time from POS data?", cat: "📊 Metrics", p: "medium" },
-  { q: "Electricity account number?", cat: "🏠 Home", p: "low" },
-  { q: "Home contents insurance?", cat: "📋 Insurance", p: "medium" },
-  { q: "Business ideas outside restaurants?", cat: "💡 Ideas", p: "low" },
-  { q: "Skills or courses to learn this year?", cat: "🎯 Goals", p: "low" },
-  { q: "Phone model for warranty?", cat: "💻 Tech", p: "low" },
-  { q: "Health & safety COC certificate?", cat: "📋 Compliance", p: "high" },
-].sort((a, b) => {
-  const w = { high: 3, medium: 2, low: 1 };
-  return (w[b.p] || 0) - (w[a.p] || 0) + (Math.random() - 0.5) * 0.5;
-});
-
 /* ═══════════════════════════════════════════════════════════════
    CONFIG
    ═══════════════════════════════════════════════════════════════ */
@@ -149,6 +58,40 @@ function QuickCapture({ apiKey, sbKey, entries, setEntries }) {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState(null);
+  const imgRef = useRef(null);
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setLoading(true);
+    setStatus("thinking");
+    try {
+      const base64 = await new Promise((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = () => res(reader.result.split(",")[1]);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+      });
+      const apiRes = await authFetch("/api/anthropic", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: MODEL, max_tokens: 600,
+          messages: [{ role: "user", content: [
+            { type: "image", source: { type: "base64", media_type: file.type, data: base64 } },
+            { type: "text", text: "Extract all text from this image. Output just the extracted content, clean and readable. If it’s a business card, document, label, or receipt — preserve structure. No commentary." }
+          ]}]
+        })
+      });
+      const data = await apiRes.json();
+      const extracted = data.content?.[0]?.text?.trim() || "";
+      if (extracted) setText(extracted);
+    } catch (err) {
+      console.error(err);
+    }
+    setLoading(false);
+    setStatus(null);
+  };
 
   const capture = async () => {
     if (!text.trim()) return;
@@ -216,9 +159,11 @@ function QuickCapture({ apiKey, sbKey, entries, setEntries }) {
   return (
     <div style={{ padding: "0 24px 16px" }}>
       <div style={{ display: "flex", gap: 8, position: "relative" }}>
+        <input type="file" accept="image/*" ref={imgRef} onChange={handleImageUpload} style={{ display: "none" }} />
         <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && capture()} disabled={loading}
           placeholder={loading ? "Processing..." : "Quick capture — just type anything..."}
           style={{ flex: 1, padding: "12px 16px", background: "#1a1a2e", border: "1px solid #4ECDC440", borderRadius: 12, color: "#ddd", fontSize: 14, outline: "none", fontFamily: "inherit", opacity: loading ? 0.5 : 1 }} />
+        <button onClick={() => imgRef.current?.click()} disabled={loading} title="Upload photo" style={{ padding: "12px 14px", background: "#1a1a2e", border: "1px solid #4ECDC440", borderRadius: 12, color: loading ? "#444" : "#4ECDC4", cursor: loading ? "default" : "pointer", fontSize: 16 }}>📷</button>
         <button onClick={capture} disabled={loading || !text.trim()} style={{ padding: "12px 18px", background: text.trim() && !loading ? "linear-gradient(135deg, #4ECDC4, #45B7D1)" : "#1a1a2e", border: "none", borderRadius: 12, color: text.trim() && !loading ? "#0f0f23" : "#555", fontWeight: 700, cursor: text.trim() && !loading ? "pointer" : "default", fontSize: 16 }}>+</button>
       </div>
       {status && <p style={{ fontSize: 11, color: status.includes("error") ? "#FF6B35" : "#4ECDC4", margin: "6px 0 0 4px", transition: "opacity 0.3s" }}>{statusMsg[status]}</p>}
@@ -306,13 +251,85 @@ function SuggestionsView({ apiKey, sbKey, entries, setEntries }) {
   const [filterCat, setFilterCat] = useState("all");
   const [anim, setAnim] = useState("");
   const [saving, setSaving] = useState(false);
+  const [imgLoading, setImgLoading] = useState(false);
+  const [aiQuestion, setAiQuestion] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const imgRef = useRef(null);
+
+  const position = answered + skipped;
+  const isAiSlot = !!apiKey && position % 5 === 4;
+
+  useEffect(() => {
+    if (!isAiSlot || aiQuestion || aiLoading || !apiKey) return;
+    setAiLoading(true);
+    const ctx = entries.slice(0, 20).map(e => `- ${e.title}: ${(e.content || "").slice(0, 80)}`).join("\n");
+    authFetch("/api/anthropic", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: MODEL, max_tokens: 200,
+        system: `You help someone fill their personal knowledge base called OpenBrain. Based on what they've stored, generate ONE specific question to capture an important missing piece. Return ONLY valid JSON: {"q":"...","cat":"...","p":"high"|"medium"|"low"}`,
+        messages: [{ role: "user", content: `Stored entries:\n${ctx}\n\nGenerate one personalised question about an important gap.` }]
+      })
+    })
+      .then(r => r.json())
+      .then(data => {
+        const raw = (data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim();
+        const parsed = JSON.parse(raw);
+        setAiQuestion(parsed.q ? { ...parsed, ai: true } : { q: "What's one important thing you haven't captured yet?", cat: "✨ AI", p: "medium", ai: true });
+      })
+      .catch(() => setAiQuestion({ q: "What's one important thing you haven't captured yet?", cat: "✨ AI", p: "medium", ai: true }))
+      .finally(() => setAiLoading(false));
+  }, [isAiSlot, aiQuestion, aiLoading, apiKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setImgLoading(true);
+    try {
+      const base64 = await new Promise((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = () => res(reader.result.split(",")[1]);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+      });
+      const apiRes = await authFetch("/api/anthropic", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: MODEL, max_tokens: 600,
+          messages: [{ role: "user", content: [
+            { type: "image", source: { type: "base64", media_type: file.type, data: base64 } },
+            { type: "text", text: "Extract all text from this image relevant to the question. Output just the extracted content, clean and readable. If it’s a document, card, or label — preserve structure. No commentary." }
+          ]}]
+        })
+      });
+      const data = await apiRes.json();
+      const extracted = data.content?.[0]?.text?.trim() || "";
+      if (extracted) setAnswer(extracted);
+    } catch (err) {
+      console.error(err);
+    }
+    setImgLoading(false);
+  };
 
   const cats = useMemo(() => { const c = {}; SUGGESTIONS.forEach(s => { c[s.cat] = (c[s.cat] || 0) + 1; }); return Object.entries(c).sort((a, b) => b[1] - a[1]); }, []);
   const view = useMemo(() => filterCat === "all" ? SUGGESTIONS : SUGGESTIONS.filter(s => s.cat === filterCat), [filterCat]);
-  const current = view[idx % view.length];
   const total = view.length;
+  const current = isAiSlot ? (aiLoading ? null : aiQuestion) : view[idx % total];
 
-  const next = useCallback((dir) => { setAnim(dir); setTimeout(() => { setAnswer(""); setShowInput(false); setAnim(""); setIdx(p => (p + 1) % total); }, 200); }, [total]);
+  const next = useCallback((dir) => {
+    setAnim(dir);
+    setTimeout(() => {
+      setAnswer("");
+      setShowInput(false);
+      setAnim("");
+      if (isAiSlot) {
+        setAiQuestion(null);
+      } else {
+        setIdx(p => (p + 1) % total);
+      }
+    }, 200);
+  }, [isAiSlot, total]);
 
   const handleSave = async () => {
     if (!answer.trim()) return;
@@ -382,30 +399,39 @@ function SuggestionsView({ apiKey, sbKey, entries, setEntries }) {
         {cats.map(([c, n]) => <button key={c} onClick={() => { setFilterCat(c); setIdx(0); }} style={{ flexShrink: 0, padding: "5px 12px", borderRadius: 20, border: "none", fontSize: 10, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", background: filterCat === c ? "#4ECDC4" : "#1a1a2e", color: filterCat === c ? "#0f0f23" : "#777" }}>{c} ({n})</button>)}
       </div>
 
-      {current && <div style={{ background: "linear-gradient(135deg, #1a1a2e, #16162a)", border: "1px solid #2a2a4a", borderRadius: 16, padding: "28px 24px", marginBottom: 16, position: "relative", overflow: "hidden", transform: anim === "skip" ? "translateX(-30px)" : anim === "save" ? "scale(0.95)" : "none", opacity: anim ? 0.4 : 1, transition: "all 0.2s" }}>
+      {isAiSlot && aiLoading && (
+        <div style={{ background: "linear-gradient(135deg, #1a1a2e, #16162a)", border: "1px solid #A29BFE40", borderRadius: 16, padding: "28px 24px", marginBottom: 16, textAlign: "center" }}>
+          <div style={{ fontSize: 22, marginBottom: 8 }}>✨</div>
+          <p style={{ color: "#A29BFE", fontSize: 14, margin: 0 }}>AI is generating a personalised question…</p>
+        </div>
+      )}
+      {current && !aiLoading && <div style={{ background: isAiSlot ? "linear-gradient(135deg, #1a1a2e, #1a1a35)" : "linear-gradient(135deg, #1a1a2e, #16162a)", border: isAiSlot ? "1px solid #A29BFE40" : "1px solid #2a2a4a", borderRadius: 16, padding: "28px 24px", marginBottom: 16, position: "relative", overflow: "hidden", transform: anim === "skip" ? "translateX(-30px)" : anim === "save" ? "scale(0.95)" : "none", opacity: anim ? 0.4 : 1, transition: "all 0.2s" }}>
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${pc.c}, transparent)` }} />
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
           <span style={{ fontSize: 10, background: pc.bg, color: pc.c, padding: "3px 10px", borderRadius: 20, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>{pc.l}</span>
           <span style={{ fontSize: 11, color: "#666" }}>{current.cat}</span>
-          <span style={{ fontSize: 10, color: "#444", marginLeft: "auto" }}>#{(idx % total) + 1}/{total}</span>
+          {isAiSlot && <span style={{ fontSize: 9, background: "#A29BFE20", color: "#A29BFE", padding: "2px 8px", borderRadius: 20, fontWeight: 700 }}>✨ AI</span>}
+          <span style={{ fontSize: 10, color: "#444", marginLeft: "auto" }}>#{idx + 1}/{total}</span>
         </div>
         <p style={{ fontSize: 18, color: "#EAEAEA", lineHeight: 1.6, margin: 0, fontWeight: 500 }}>{current.q}</p>
       </div>}
 
       {!showInput ? (
         <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={() => { setSkipped(s => s + 1); next("skip"); }} style={{ flex: 1, padding: 14, background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 12, color: "#888", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Skip →</button>
-          <button onClick={() => setShowInput(true)} style={{ flex: 2, padding: 14, background: "linear-gradient(135deg, #4ECDC4, #45B7D1)", border: "none", borderRadius: 12, color: "#0f0f23", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Answer this</button>
+          <button onClick={() => { setSkipped(s => s + 1); next("skip"); }} disabled={aiLoading} style={{ flex: 1, padding: 14, background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 12, color: aiLoading ? "#444" : "#888", fontSize: 14, fontWeight: 600, cursor: aiLoading ? "default" : "pointer" }}>Skip →</button>
+          <button onClick={() => setShowInput(true)} disabled={!current || aiLoading} style={{ flex: 2, padding: 14, background: current && !aiLoading ? "linear-gradient(135deg, #4ECDC4, #45B7D1)" : "#1a1a2e", border: "none", borderRadius: 12, color: current && !aiLoading ? "#0f0f23" : "#444", fontSize: 14, fontWeight: 700, cursor: current && !aiLoading ? "pointer" : "default" }}>Answer this</button>
         </div>
       ) : (
         <div>
+          <input type="file" accept="image/*" ref={imgRef} onChange={handleImageUpload} style={{ display: "none" }} />
           <textarea value={answer} onChange={e => setAnswer(e.target.value)} placeholder="Type your answer..." autoFocus
-            style={{ width: "100%", boxSizing: "border-box", minHeight: 100, padding: "14px 16px", background: "#1a1a2e", border: "1px solid #4ECDC440", borderRadius: 12, color: "#ddd", fontSize: 14, lineHeight: 1.6, outline: "none", resize: "vertical", fontFamily: "inherit" }} />
+            style={{ width: "100%", boxSizing: "border-box", minHeight: 100, padding: "14px 16px", background: "#1a1a2e", border: "1px solid #4ECDC440", borderRadius: 12, color: "#ddd", fontSize: 14, lineHeight: 1.6, outline: "none", resize: "vertical", fontFamily: "inherit", opacity: imgLoading ? 0.5 : 1 }} />
           <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
             <button onClick={() => { setShowInput(false); setAnswer(""); }} style={{ flex: 1, padding: 12, background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 10, color: "#888", fontSize: 13, cursor: "pointer" }}>Cancel</button>
             <button onClick={() => { setSkipped(s => s + 1); next("skip"); }} style={{ flex: 1, padding: 12, background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 10, color: "#FF6B35", fontSize: 13, cursor: "pointer" }}>Skip</button>
-            <button onClick={handleSave} disabled={!answer.trim() || saving} style={{ flex: 2, padding: 12, background: answer.trim() ? "linear-gradient(135deg, #4ECDC4, #45B7D1)" : "#1a1a2e", border: "none", borderRadius: 10, color: answer.trim() ? "#0f0f23" : "#444", fontSize: 13, fontWeight: 700, cursor: answer.trim() ? "pointer" : "default" }}>
-              {saving ? "Saving..." : apiKey && sbKey ? "Save to DB" : "Save Answer"}
+            <button onClick={() => imgRef.current?.click()} disabled={imgLoading || saving} title="Upload photo" style={{ padding: 12, background: "#1a1a2e", border: "1px solid #4ECDC440", borderRadius: 10, color: imgLoading ? "#444" : "#4ECDC4", cursor: imgLoading || saving ? "default" : "pointer", fontSize: 14 }}>📷</button>
+            <button onClick={handleSave} disabled={!answer.trim() || saving || imgLoading} style={{ flex: 2, padding: 12, background: answer.trim() && !imgLoading ? "linear-gradient(135deg, #4ECDC4, #45B7D1)" : "#1a1a2e", border: "none", borderRadius: 10, color: answer.trim() && !imgLoading ? "#0f0f23" : "#444", fontSize: 13, fontWeight: 700, cursor: answer.trim() && !imgLoading ? "pointer" : "default" }}>
+              {saving ? "Saving..." : imgLoading ? "Reading photo..." : apiKey && sbKey ? "Save to DB" : "Save Answer"}
             </button>
           </div>
         </div>
@@ -508,6 +534,7 @@ function GraphView({ onSelect }) {
    ═══════════════════════════════════════════════════════════════ */
 export default function OpenBrain() {
   const [entries, setEntries] = useState(INITIAL_ENTRIES);
+  const [entriesLoaded, setEntriesLoaded] = useState(false);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [view, setView] = useState("grid");
@@ -519,6 +546,18 @@ export default function OpenBrain() {
   const [chatLoading, setChatLoading] = useState(false);
   const chatEndRef = useRef(null);
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatMsgs]);
+
+  useEffect(() => {
+    authFetch("/api/entries")
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setEntries(data);
+        }
+        setEntriesLoaded(true);
+      })
+      .catch(() => setEntriesLoaded(true));
+  }, []);
 
   const types = useMemo(() => { const t = {}; entries.forEach(e => { t[e.type] = (t[e.type]||0)+1; }); return t; }, [entries]);
   const filtered = useMemo(() => {
