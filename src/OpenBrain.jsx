@@ -254,21 +254,33 @@ function SuggestionsView({ apiKey, sbKey, entries, setEntries }) {
   const [imgLoading, setImgLoading] = useState(false);
   const [aiQuestion, setAiQuestion] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [answeredQs, setAnsweredQs] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("openbrain_answered_qs") || "[]")); }
+    catch { return new Set(); }
+  });
   const imgRef = useRef(null);
 
   const position = answered + skipped;
-  const isAiSlot = !!apiKey && position % 5 === 4;
+  const cats = useMemo(() => { const c = {}; SUGGESTIONS.forEach(s => { c[s.cat] = (c[s.cat] || 0) + 1; }); return Object.entries(c).sort((a, b) => b[1] - a[1]); }, []);
+  const view = useMemo(() => {
+    const base = filterCat === "all" ? SUGGESTIONS : SUGGESTIONS.filter(s => s.cat === filterCat);
+    return base.filter(s => !answeredQs.has(s.q));
+  }, [filterCat, answeredQs]);
+  const total = view.length;
+  const poolEmpty = total === 0;
+  const isAiSlot = !!apiKey && (poolEmpty || position % 5 === 4);
+  const current = isAiSlot ? (aiLoading ? null : aiQuestion) : view[idx % total];
 
   useEffect(() => {
     if (!isAiSlot || aiQuestion || aiLoading || !apiKey) return;
     setAiLoading(true);
-    const ctx = entries.slice(0, 20).map(e => `- ${e.title}: ${(e.content || "").slice(0, 80)}`).join("\n");
+    const ctx = entries.slice(0, 30).map(e => `- ${e.title}: ${(e.content || "").slice(0, 100)}`).join("\n");
     authFetch("/api/anthropic", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: MODEL, max_tokens: 200,
-        system: `You help someone fill their personal knowledge base called OpenBrain. Based on what they've stored, generate ONE specific question to capture an important missing piece. Return ONLY valid JSON: {"q":"...","cat":"...","p":"high"|"medium"|"low"}`,
-        messages: [{ role: "user", content: `Stored entries:\n${ctx}\n\nGenerate one personalised question about an important gap.` }]
+        system: `You are helping someone build their personal knowledge base called OpenBrain. Your job is to identify important information they should capture but probably haven't yet.\n\nStudy what they have stored, then reason about the GAPS — important facts, records, contacts, plans, or details that a person in their situation almost certainly needs but hasn't captured. Think broadly: personal identity, health, finance, legal, business operations, insurance, contracts, relationships, assets, digital accounts, emergency info, goals, and daily routines.\n\nGenerate ONE specific, actionable question that would capture a high-value missing piece. Make it personal and relevant to their specific situation — not generic.\n\nReturn ONLY valid JSON: {"q":"...","cat":"...","p":"high"|"medium"|"low"}`,
+        messages: [{ role: "user", content: `What they have captured so far:\n${ctx}\n\nWhat important gap should they fill next?` }]
       })
     })
       .then(r => r.json())
@@ -312,11 +324,6 @@ function SuggestionsView({ apiKey, sbKey, entries, setEntries }) {
     setImgLoading(false);
   };
 
-  const cats = useMemo(() => { const c = {}; SUGGESTIONS.forEach(s => { c[s.cat] = (c[s.cat] || 0) + 1; }); return Object.entries(c).sort((a, b) => b[1] - a[1]); }, []);
-  const view = useMemo(() => filterCat === "all" ? SUGGESTIONS : SUGGESTIONS.filter(s => s.cat === filterCat), [filterCat]);
-  const total = view.length;
-  const current = isAiSlot ? (aiLoading ? null : aiQuestion) : view[idx % total];
-
   const next = useCallback((dir) => {
     setAnim(dir);
     setTimeout(() => {
@@ -325,7 +332,7 @@ function SuggestionsView({ apiKey, sbKey, entries, setEntries }) {
       setAnim("");
       if (isAiSlot) {
         setAiQuestion(null);
-      } else {
+      } else if (total > 0) {
         setIdx(p => (p + 1) % total);
       }
     }, 200);
@@ -367,6 +374,16 @@ function SuggestionsView({ apiKey, sbKey, entries, setEntries }) {
       setSaved(prev => [{ q: current.q, a, cat: current.cat, db: false }, ...prev]);
     }
 
+    // Mark static question as permanently answered
+    if (!isAiSlot && current?.q) {
+      setAnsweredQs(prev => {
+        const updated = new Set(prev);
+        updated.add(current.q);
+        try { localStorage.setItem("openbrain_answered_qs", JSON.stringify([...updated])); } catch {}
+        return updated;
+      });
+    }
+
     setSaving(false);
     setAnswered(n => n + 1);
     next("save");
@@ -399,6 +416,11 @@ function SuggestionsView({ apiKey, sbKey, entries, setEntries }) {
         {cats.map(([c, n]) => <button key={c} onClick={() => { setFilterCat(c); setIdx(0); }} style={{ flexShrink: 0, padding: "5px 12px", borderRadius: 20, border: "none", fontSize: 10, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", background: filterCat === c ? "#4ECDC4" : "#1a1a2e", color: filterCat === c ? "#0f0f23" : "#777" }}>{c} ({n})</button>)}
       </div>
 
+      {poolEmpty && (
+        <div style={{ background: "#A29BFE15", border: "1px solid #A29BFE40", borderRadius: 12, padding: "12px 16px", marginBottom: 16, textAlign: "center" }}>
+          <span style={{ fontSize: 11, color: "#A29BFE", fontWeight: 600 }}>✨ All {answeredQs.size} static questions answered — AI is now driving</span>
+        </div>
+      )}
       {isAiSlot && aiLoading && (
         <div style={{ background: "linear-gradient(135deg, #1a1a2e, #16162a)", border: "1px solid #A29BFE40", borderRadius: 16, padding: "28px 24px", marginBottom: 16, textAlign: "center" }}>
           <div style={{ fontSize: 22, marginBottom: 8 }}>✨</div>
@@ -463,8 +485,9 @@ function SuggestionsView({ apiKey, sbKey, entries, setEntries }) {
 /* ═══════════════════════════════════════════════════════════════
    DETAIL MODAL
    ═══════════════════════════════════════════════════════════════ */
-function DetailModal({ entry, onClose }) {
+function DetailModal({ entry, onClose, onDelete }) {
   if (!entry) return null;
+  const [deleting, setDeleting] = useState(false);
   const cfg = TC[entry.type] || TC.note;
   const related = LINKS.filter(l => l.from === entry.id || l.to === entry.id).map(l => ({ ...l, other: INITIAL_ENTRIES.find(e => e.id === (l.from === entry.id ? l.to : l.from)), dir: l.from === entry.id ? "→" : "←" }));
   const skip = new Set(["category", "status"]);
@@ -477,7 +500,10 @@ function DetailModal({ entry, onClose }) {
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><span style={{ fontSize: 24 }}>{cfg.i}</span><span style={{ fontSize: 11, color: cfg.c, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5 }}>{entry.type}</span></div>
             <h2 style={{ margin: 0, fontSize: 22, color: "#EAEAEA", fontWeight: 700 }}>{entry.title}</h2>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#666", fontSize: 24, cursor: "pointer" }}>✕</button>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+            {onDelete && <button onClick={async () => { setDeleting(true); await onDelete(entry.id); }} disabled={deleting} style={{ padding: "6px 14px", background: deleting ? "#1a1a2e" : "#FF6B3520", border: "1px solid #FF6B3540", borderRadius: 8, color: deleting ? "#555" : "#FF6B35", fontSize: 12, fontWeight: 600, cursor: deleting ? "default" : "pointer" }}>{deleting ? "Deleting..." : "Delete"}</button>}
+            <button onClick={onClose} style={{ background: "none", border: "none", color: "#666", fontSize: 24, cursor: "pointer" }}>✕</button>
+          </div>
         </div>
         <div style={{ padding: "20px 28px" }}>
           <p style={{ color: "#bbb", fontSize: 14, lineHeight: 1.7, margin: 0 }}>{entry.content}</p>
@@ -694,7 +720,7 @@ export default function OpenBrain() {
         {view === "settings" && <SettingsView />}
       </div>
 
-      <DetailModal entry={selected} onClose={() => setSelected(null)} />
+      <DetailModal entry={selected} onClose={() => setSelected(null)} onDelete={async (id) => { try { await authFetch("/api/delete-entry", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) }); } catch {} setEntries(prev => prev.filter(e => e.id !== id)); setSelected(null); }} />
     </div>
   );
 }
