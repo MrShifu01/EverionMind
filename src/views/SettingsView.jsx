@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useTheme } from "../ThemeContext";
 import { authFetch } from "../lib/authFetch";
-import { aiFetch, getUserApiKey, getUserModel, setUserApiKey, setUserModel, getUserProvider, setUserProvider, getOpenRouterKey, setOpenRouterKey, getOpenRouterModel, setOpenRouterModel } from "../lib/aiFetch";
+import { aiFetch, getUserApiKey, getUserModel, setUserApiKey, setUserModel, getUserProvider, setUserProvider, getOpenRouterKey, setOpenRouterKey, getOpenRouterModel, setOpenRouterModel, getEmbedProvider, setEmbedProvider, getEmbedOpenAIKey, setEmbedOpenAIKey, getGeminiKey, setGeminiKey } from "../lib/aiFetch";
 import { callAI } from "../lib/ai";
 import { supabase } from "../lib/supabase";
 import NotificationSettings from "../components/NotificationSettings";
@@ -139,6 +139,12 @@ export default function SettingsView() {
   const [byoTestStatus, setByoTestStatus] = useState(null);
   const [pinSet, setPinSet] = useState(() => !!getStoredPinHash());
   const [showPinModal, setShowPinModal] = useState(false);
+  // Embedding provider
+  const [embedProvider, setEmbedProviderState] = useState(() => getEmbedProvider());
+  const [embedOpenAIKey, setEmbedOpenAIKeyState] = useState(() => getEmbedOpenAIKey() || "");
+  const [geminiKey, setGeminiKeyState] = useState(() => getGeminiKey() || "");
+  const [embedStatus, setEmbedStatus] = useState(null); // "running" | "done:N:M" | "error"
+  const [showEmbedKey, setShowEmbedKey] = useState(false);
   // Brain members
   const [members, setMembers] = useState([]);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -188,6 +194,27 @@ export default function SettingsView() {
   const saveByoModel = (m) => { setByoModel(m); setUserModel(m); };
   const saveOrKey = (key) => { setOrKey(key); setOpenRouterKey(key || null); if (key) fetchOrModels(key); };
   const saveOrModel = (m) => { setOrModel(m); setOpenRouterModel(m); };
+
+  const saveEmbedProvider = (p) => { setEmbedProviderState(p); setEmbedProvider(p); };
+  const saveEmbedOpenAIKey = (k) => { setEmbedOpenAIKeyState(k); setEmbedOpenAIKey(k || null); };
+  const saveGeminiKey = (k) => { setGeminiKeyState(k); setGeminiKey(k || null); };
+
+  const handleReembed = async () => {
+    if (!activeBrain?.id) return;
+    const key = embedProvider === "google" ? geminiKey : embedOpenAIKey;
+    if (!key) return;
+    setEmbedStatus("running");
+    try {
+      const res = await authFetch("/api/embed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Embed-Provider": embedProvider, "X-Embed-Key": key },
+        body: JSON.stringify({ brain_id: activeBrain.id, batch: true }),
+      });
+      const data = res.ok ? await res.json() : null;
+      setEmbedStatus(data ? `done:${data.processed}:${data.failed ?? 0}` : "error");
+    } catch { setEmbedStatus("error"); }
+    setTimeout(() => setEmbedStatus(null), 6000);
+  };
 
   const fetchOrModels = async (key) => {
     const cached = sessionStorage.getItem("openbrain_or_models");
@@ -305,6 +332,53 @@ export default function SettingsView() {
             </div>
           </>
         )}
+      </div>
+
+      {/* Embedding Provider */}
+      <div style={{ background: t.surface, borderRadius: 14, padding: "20px 24px", marginBottom: 16, border: `1px solid ${t.border}` }}>
+        <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: t.textSoft }}>Semantic Search & RAG</p>
+        <p style={{ margin: "0 0 14px", fontSize: 11, color: t.textDim }}>Powers semantic search, RAG chat, and smarter connection discovery. Requires a separate embedding API key — does not use your AI generation key.</p>
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          {["openai", "google"].map(p => (
+            <button key={p} onClick={() => saveEmbedProvider(p)} style={{ padding: "6px 16px", borderRadius: 20, border: embedProvider === p ? "1px solid #A29BFE" : `1px solid ${t.border}`, background: embedProvider === p ? "#A29BFE20" : t.bg, color: embedProvider === p ? "#A29BFE" : t.textDim, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+              {p === "openai" ? "OpenAI" : "Google"}
+            </button>
+          ))}
+        </div>
+        {embedProvider === "openai" ? (
+          <div style={{ marginBottom: 12 }}>
+            <p style={{ margin: "0 0 6px", fontSize: 11, color: t.textDim, fontWeight: 600 }}>OpenAI API Key <span style={{ fontWeight: 400, color: t.textFaint }}>(text-embedding-3-small)</span></p>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input type={showEmbedKey ? "text" : "password"} value={embedOpenAIKey} onChange={e => saveEmbedOpenAIKey(e.target.value)} placeholder="sk-..." style={{ flex: 1, padding: "9px 12px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textSoft, fontSize: 13, fontFamily: "monospace", outline: "none" }} />
+              <button onClick={() => setShowEmbedKey(s => !s)} style={{ padding: "9px 12px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textDim, cursor: "pointer", fontSize: 12 }}>{showEmbedKey ? "Hide" : "Show"}</button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ marginBottom: 12 }}>
+            <p style={{ margin: "0 0 6px", fontSize: 11, color: t.textDim, fontWeight: 600 }}>Google Gemini API Key <span style={{ fontWeight: 400, color: t.textFaint }}>(text-embedding-004)</span></p>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input type={showEmbedKey ? "text" : "password"} value={geminiKey} onChange={e => saveGeminiKey(e.target.value)} placeholder="AIza..." style={{ flex: 1, padding: "9px 12px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textSoft, fontSize: 13, fontFamily: "monospace", outline: "none" }} />
+              <button onClick={() => setShowEmbedKey(s => !s)} style={{ padding: "9px 12px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textDim, cursor: "pointer", fontSize: 12 }}>{showEmbedKey ? "Hide" : "Show"}</button>
+            </div>
+          </div>
+        )}
+        {activeBrain && (
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <button
+              onClick={handleReembed}
+              disabled={embedStatus === "running" || !(embedProvider === "google" ? geminiKey : embedOpenAIKey)}
+              style={{ padding: "9px 16px", background: (embedProvider === "google" ? geminiKey : embedOpenAIKey) ? "#A29BFE20" : t.bg, border: `1px solid ${(embedProvider === "google" ? geminiKey : embedOpenAIKey) ? "#A29BFE40" : t.border}`, borderRadius: 8, color: (embedProvider === "google" ? geminiKey : embedOpenAIKey) ? "#A29BFE" : t.textFaint, fontSize: 12, fontWeight: 600, cursor: (embedProvider === "google" ? geminiKey : embedOpenAIKey) ? "pointer" : "default" }}
+            >
+              {embedStatus === "running" ? "Embedding…" : "Embed all entries"}
+            </button>
+            {embedStatus && embedStatus !== "running" && (
+              <span style={{ fontSize: 12, color: embedStatus === "error" ? "#FF6B35" : "#A29BFE" }}>
+                {embedStatus === "error" ? "✗ Failed" : (() => { const [, n, f] = embedStatus.split(":"); return `✓ ${n} embedded${+f > 0 ? `, ${f} failed` : ""}`; })()}
+              </span>
+            )}
+          </div>
+        )}
+        <p style={{ margin: "10px 0 0", fontSize: 10, color: t.textFaint }}>New entries are embedded automatically. Use "Embed all entries" to backfill existing ones or after switching providers.</p>
       </div>
 
       {/* Brain Members */}

@@ -123,6 +123,60 @@ export function loadTaskModels(userId, settingsRow) {
   }
 }
 
+/* ─── Embedding Provider Settings ─── */
+
+export function getEmbedProvider() {
+  const uid = getUserId();
+  if (!uid) return "openai";
+  return localStorage.getItem(`openbrain_${uid}_embed_provider`) || "openai";
+}
+
+export function setEmbedProvider(p) {
+  const uid = getUserId();
+  if (!uid) return;
+  localStorage.setItem(`openbrain_${uid}_embed_provider`, p || "openai");
+}
+
+export function getEmbedOpenAIKey() {
+  const uid = getUserId();
+  if (!uid) return null;
+  return localStorage.getItem(`openbrain_${uid}_embed_openai_key`) || null;
+}
+
+export function setEmbedOpenAIKey(key) {
+  const uid = getUserId();
+  if (!uid) return;
+  if (key) localStorage.setItem(`openbrain_${uid}_embed_openai_key`, key);
+  else localStorage.removeItem(`openbrain_${uid}_embed_openai_key`);
+}
+
+export function getGeminiKey() {
+  const uid = getUserId();
+  if (!uid) return null;
+  return localStorage.getItem(`openbrain_${uid}_gemini_key`) || null;
+}
+
+export function setGeminiKey(key) {
+  const uid = getUserId();
+  if (!uid) return;
+  if (key) localStorage.setItem(`openbrain_${uid}_gemini_key`, key);
+  else localStorage.removeItem(`openbrain_${uid}_gemini_key`);
+}
+
+/** Returns the active embedding key for the currently selected embed provider. */
+export function getEmbedKey() {
+  const provider = getEmbedProvider();
+  return provider === "google" ? getGeminiKey() : getEmbedOpenAIKey();
+}
+
+/** Build the embed headers to attach to /api/embed, /api/search, /api/chat requests. */
+export function getEmbedHeaders() {
+  const provider = getEmbedProvider();
+  const key = getEmbedKey();
+  if (!key) return null;
+  return { "X-Embed-Provider": provider, "X-Embed-Key": key };
+}
+
 /**
  * Drop-in replacement for authFetch that adds X-User-Api-Key header
  * when the user has configured a BYO key.

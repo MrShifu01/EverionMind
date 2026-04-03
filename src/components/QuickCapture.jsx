@@ -6,6 +6,7 @@ import { aiFetch, getUserModel } from "../lib/aiFetch";
 import { authFetch } from "../lib/authFetch";
 import { enqueue } from "../lib/offlineQueue";
 import { findConnections, scoreTitle } from "../lib/connectionFinder";
+import { getEmbedHeaders } from "../lib/aiFetch";
 import { TC } from "../data/constants";
 import { PROMPTS } from "../config/prompts";
 
@@ -166,6 +167,15 @@ export default function QuickCapture({ entries, setEntries, links, addLinks, onC
             setEntries(prev => [newEntry, ...prev]);
             onCreated?.(newEntry);
             setStatus("saved-db");
+            // Fire-and-forget embedding for the new entry (non-blocking)
+            const embedHeaders = getEmbedHeaders();
+            if (embedHeaders && result?.id) {
+              authFetch("/api/embed", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...embedHeaders },
+                body: JSON.stringify({ entry_id: result.id }),
+              }).catch(() => {}); // best-effort, never blocks
+            }
             // PERF-6: debounce findConnections by 5 s; skip during bulk import
             // (heuristic: if entries grew by more than 3 since last run, it's a bulk import)
             const currentLength = entries.length;
@@ -177,7 +187,7 @@ export default function QuickCapture({ entries, setEntries, links, addLinks, onC
               const entriesSnapshot = entries;
               const linksSnapshot = links || [];
               connectionsTimerRef.current = setTimeout(() => {
-                findConnections(entrySnapshot, entriesSnapshot, linksSnapshot).then(newLinks => {
+                findConnections(entrySnapshot, entriesSnapshot, linksSnapshot, primaryBrainId).then(newLinks => {
                   if (newLinks.length === 0) return;
                   addLinks?.(newLinks);
                   authFetch("/api/save-links", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ links: newLinks }) }).catch(err => console.error('[QuickCapture:findConnections] Failed to save links', err));

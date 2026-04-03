@@ -3,6 +3,7 @@ import { useTheme } from "./ThemeContext";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { authFetch } from "./lib/authFetch";
 import { callAI } from "./lib/ai";
+import { getEmbedHeaders, getUserProvider, getUserModel, getUserApiKey, getOpenRouterKey, getOpenRouterModel } from "./lib/aiFetch";
 import { PROMPTS } from "./config/prompts";
 import { TC, fmtD, MODEL, INITIAL_ENTRIES, LINKS } from "./data/constants";
 import { useBrain as useBrainHook } from "./hooks/useBrain";
@@ -372,6 +373,15 @@ export default function OpenBrain() {
       if (!res.ok) throw new Error((data?.message || data?.error) ?? `HTTP ${res.status}`);
       if (Array.isArray(data) && data.length === 0) throw new Error(`No row matched id=${id}`);
     } catch (e) { captureError(e, 'handleUpdate'); showError(`Save failed: ${e.message}`); setSaveError(`Save failed: ${e.message}`); setTimeout(() => setSaveError(null), 5000); return; }
+    // Fire-and-forget re-embedding for the updated entry (non-blocking)
+    const embedHeaders = getEmbedHeaders();
+    if (embedHeaders) {
+      authFetch("/api/embed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...embedHeaders },
+        body: JSON.stringify({ entry_id: id }),
+      }).catch(() => {}); // best-effort, never blocks
+    }
     // ARCH-5: Re-index the updated entry so search stays accurate
     removeFromIndex(id);
     const updated = { ...entries.find(e => e.id === id), ...changes };
@@ -446,10 +456,38 @@ export default function OpenBrain() {
 
   const handleChat = async () => {
     if (!chatInput.trim()) return;
-    const msg = chatInput.trim(); setChatInput(""); setChatMsgs(p => [...p, { role: "user", content: msg }]); setChatLoading(true);
+    const msg = chatInput.trim();
+    setChatInput("");
+    setChatMsgs(p => [...p, { role: "user", content: msg }]);
+    setChatLoading(true);
     try {
-      const res = await callAI({ max_tokens: 1000, system: PROMPTS.CHAT.replace("{{MEMORIES}}", JSON.stringify(chatContext)).replace("{{LINKS}}", JSON.stringify(links)), messages: [{ role: "user", content: msg }] });
-      const data = await res.json();
+      const embedHeaders = getEmbedHeaders();
+      let data;
+      if (embedHeaders && activeBrain?.id) {
+        // RAG path: retrieve relevant entries server-side, send conversation history
+        const provider = getUserProvider();
+        const genKey = provider === "openrouter" ? getOpenRouterKey() : getUserApiKey();
+        const model = provider === "openrouter" ? getOpenRouterModel() : getUserModel();
+        const history = chatMsgs.slice(-10); // last 10 turns
+        const res = await authFetch("/api/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...embedHeaders,
+            ...(genKey ? { "X-User-Api-Key": genKey } : {}),
+          },
+          body: JSON.stringify({ message: msg, brain_id: activeBrain.id, history, provider, model }),
+        });
+        data = await res.json();
+      } else {
+        // Fallback: existing top-100 context, no history
+        const res = await callAI({
+          max_tokens: 1000,
+          system: PROMPTS.CHAT.replace("{{MEMORIES}}", JSON.stringify(chatContext)).replace("{{LINKS}}", JSON.stringify(links)),
+          messages: [{ role: "user", content: msg }],
+        });
+        data = await res.json();
+      }
       const content = data.content?.map(c => c.text || "").join("") || "Couldn't process.";
       if (containsSensitiveContent(content)) {
         const hasPinSet = !!getStoredPinHash();
