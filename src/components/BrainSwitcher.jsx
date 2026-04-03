@@ -55,6 +55,7 @@ export default function BrainSwitcher({ brains, activeBrain, onSwitch, onBrainCr
         <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
           {activeBrain?.name || "Select Brain"}
         </span>
+        {activeBrain?.myRole === "viewer" && <span style={{ fontSize: 9, color: "#888", background: "#88888820", borderRadius: 10, padding: "1px 6px" }}>view</span>}
         <span style={{ fontSize: 10, opacity: 0.6, marginLeft: 2 }}>{open ? "▲" : "▼"}</span>
       </button>
 

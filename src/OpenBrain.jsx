@@ -2,10 +2,11 @@ import { useState, useMemo, useRef, useEffect, useCallback, lazy, Suspense } fro
 import { useTheme } from "./ThemeContext";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { authFetch } from "./lib/authFetch";
-import { aiFetch, getUserId, getUserApiKey, getUserModel, setUserApiKey, setUserModel, getUserProvider, setUserProvider } from "./lib/aiFetch";
+import { aiFetch, getUserId, getUserApiKey, getUserModel, setUserApiKey, setUserModel, getUserProvider, setUserProvider, getOpenRouterKey, setOpenRouterKey, getOpenRouterModel, setOpenRouterModel } from "./lib/aiFetch";
 import { supabase } from "./lib/supabase";
 import { TC, fmtD, MODEL, INITIAL_ENTRIES, LINKS } from "./data/constants";
 import { useBrain } from "./hooks/useBrain";
+import { useRole } from "./hooks/useRole";
 import { useOfflineSync } from "./hooks/useOfflineSync";
 import { enqueue } from "./lib/offlineQueue";
 import BrainSwitcher from "./components/BrainSwitcher";
@@ -277,7 +278,7 @@ const BRAIN_META_QC = {
   business: { emoji: "🏪" },
 };
 
-function QuickCapture({ apiKey, sbKey, entries, setEntries, links, addLinks, onCreated, onUpdate, isOnline = true, refreshCount, brainId, brains = [] }) {
+function QuickCapture({ apiKey, sbKey, entries, setEntries, links, addLinks, onCreated, onUpdate, isOnline = true, refreshCount, brainId, brains = [], canWrite = true }) {
   const { t } = useTheme();
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
@@ -439,6 +440,15 @@ function QuickCapture({ apiKey, sbKey, entries, setEntries, links, addLinks, onC
 
   const statusMsg = { thinking: "🤖 Parsing...", saving: "💾 Saving...", "saved-db": "✅ Saved & synced!", "saved-local": "📡 Saved — will sync when online", "saved-raw": "📝 Saved", error: "⚠️ Sync failed — queued for retry", "offline-image": "📵 Image uploads need a connection", "img-too-large": "⚠️ Photo too large — try a smaller image" };
 
+  if (!canWrite) {
+    return (
+      <div style={{ padding: "12px 16px 12px", margin: "0 12px 12px", background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: 18 }}>🔒</span>
+        <span style={{ fontSize: 13, color: t.textDim }}>You have view-only access to this brain</span>
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: "0 12px 12px" }}>
       {brains.length > 1 ? (
@@ -563,7 +573,7 @@ function PinGate({ onSuccess, onCancel, isSetup = false }) {
 /* ═══════════════════════════════════════════════════════════════
    SETTINGS
    ═══════════════════════════════════════════════════════════════ */
-function SettingsView() {
+function SettingsView({ activeBrain, canInvite, canManageMembers, onRefreshBrains }) {
   const { t } = useTheme();
   const [testStatus, setTestStatus] = useState(null);
   const [email, setEmail] = useState("");
@@ -572,27 +582,88 @@ function SettingsView() {
   const [byoKey, setByoKey] = useState(() => getUserApiKey() || "");
   const [byoProvider, setByoProvider] = useState(() => getUserProvider());
   const [byoModel, setByoModel] = useState(() => getUserModel());
+  const [orKey, setOrKey] = useState(() => getOpenRouterKey() || "");
+  const [orModel, setOrModel] = useState(() => getOpenRouterModel() || "google/gemini-2.0-flash-exp:free");
+  const [orModels, setOrModels] = useState([]);
   const [showKey, setShowKey] = useState(false);
   const [byoTestStatus, setByoTestStatus] = useState(null);
   const [pinSet, setPinSet] = useState(() => !!getStoredPinHash());
   const [showPinModal, setShowPinModal] = useState(false);
+  // Brain members
+  const [members, setMembers] = useState([]);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("member");
+  const [inviteStatus, setInviteStatus] = useState(null);
   useEffect(() => { supabase.auth.getUser().then(({ data: { user } }) => setEmail(user?.email || "")); }, []);
+  useEffect(() => {
+    if (!activeBrain?.id) return;
+    authFetch(`/api/brains?action=members&brain_id=${activeBrain.id}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(setMembers)
+      .catch(() => {});
+  }, [activeBrain?.id]);
+
+  const handleInvite = async () => {
+    if (!inviteEmail.trim()) return;
+    setInviteStatus("sending");
+    try {
+      const res = await authFetch("/api/brains?action=invite", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brain_id: activeBrain.id, email: inviteEmail.trim(), role: inviteRole }) });
+      if (res.ok) { setInviteStatus("sent"); setInviteEmail(""); setTimeout(() => setInviteStatus(null), 3000); }
+      else { setInviteStatus("error"); setTimeout(() => setInviteStatus(null), 3000); }
+    } catch { setInviteStatus("error"); setTimeout(() => setInviteStatus(null), 3000); }
+  };
+
+  const handleRoleChange = async (userId, newRole) => {
+    const res = await authFetch("/api/brains?action=member-role", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brain_id: activeBrain.id, user_id: userId, role: newRole }) });
+    if (res.ok) setMembers(prev => prev.map(m => m.user_id === userId ? { ...m, role: newRole } : m));
+  };
+
+  const handleRemoveMember = async (userId) => {
+    const res = await authFetch("/api/brains?action=member", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brain_id: activeBrain.id, user_id: userId }) });
+    if (res.ok) { setMembers(prev => prev.filter(m => m.user_id !== userId)); if (onRefreshBrains) onRefreshBrains(); }
+  };
 
   const ANTHROPIC_MODELS = ["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-6"];
   const OPENAI_MODELS = ["gpt-4o-mini", "gpt-4o", "gpt-4.1"];
+  const OR_SHORTLIST = ["google/gemini-2.0-flash-exp:free", "anthropic/claude-3.5-haiku", "anthropic/claude-sonnet-4-5", "openai/gpt-4o-mini", "openai/gpt-4o", "meta-llama/llama-3.1-70b-instruct"];
   const modelOptions = byoProvider === "openai" ? OPENAI_MODELS : ANTHROPIC_MODELS;
 
   const saveByoKey = (key) => { setByoKey(key); setUserApiKey(key || null); };
-  const saveByoProvider = (p) => { setByoProvider(p); setUserProvider(p); const models = p === "openai" ? OPENAI_MODELS : ANTHROPIC_MODELS; if (!models.includes(byoModel)) { setByoModel(models[0]); setUserModel(models[0]); } };
+  const saveByoProvider = (p) => {
+    setByoProvider(p); setUserProvider(p);
+    if (p === "openai") { if (!OPENAI_MODELS.includes(byoModel)) { setByoModel(OPENAI_MODELS[0]); setUserModel(OPENAI_MODELS[0]); } }
+    else if (p === "anthropic") { if (!ANTHROPIC_MODELS.includes(byoModel)) { setByoModel(ANTHROPIC_MODELS[0]); setUserModel(ANTHROPIC_MODELS[0]); } }
+    else if (p === "openrouter" && orKey) { fetchOrModels(orKey); }
+  };
   const saveByoModel = (m) => { setByoModel(m); setUserModel(m); };
+  const saveOrKey = (key) => { setOrKey(key); setOpenRouterKey(key || null); if (key) fetchOrModels(key); };
+  const saveOrModel = (m) => { setOrModel(m); setOpenRouterModel(m); };
+
+  const fetchOrModels = async (key) => {
+    const cached = sessionStorage.getItem("openbrain_or_models");
+    if (cached) { try { setOrModels(JSON.parse(cached)); return; } catch {} }
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/models", { headers: { Authorization: `Bearer ${key}` } });
+      if (res.ok) {
+        const data = await res.json();
+        const models = (data.data || []).map(m => ({ id: m.id, name: m.name || m.id, pricing: m.pricing }));
+        setOrModels(models);
+        sessionStorage.setItem("openbrain_or_models", JSON.stringify(models));
+      }
+    } catch {}
+  };
 
   const testByoKey = async () => {
-    if (!byoKey) return;
+    const key = byoProvider === "openrouter" ? orKey : byoKey;
+    if (!key) return;
     setByoTestStatus("testing");
     try {
-      const endpoint = byoProvider === "openai" ? "/api/openai" : "/api/anthropic";
-      const body = { model: byoModel, max_tokens: 10, messages: [{ role: "user", content: "Say ok" }] };
-      const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json", "X-User-Api-Key": byoKey, ...(await (async () => { const { data: { session } } = await supabase.auth.getSession(); return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}; })()) }, body: JSON.stringify(body) });
+      const endpoint = byoProvider === "openai" ? "/api/openai" : byoProvider === "openrouter" ? "/api/openrouter" : "/api/anthropic";
+      const model = byoProvider === "openrouter" ? orModel : byoModel;
+      const body = { model, max_tokens: 10, messages: [{ role: "user", content: "Say ok" }] };
+      const { data: { session } } = await supabase.auth.getSession();
+      const authH = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+      const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json", "X-User-Api-Key": key, ...authH }, body: JSON.stringify(body) });
       setByoTestStatus(res.ok ? "ok" : "fail");
     } catch { setByoTestStatus("fail"); }
     setTimeout(() => setByoTestStatus(null), 3000);
@@ -650,26 +721,93 @@ function SettingsView() {
       <div style={{ background: t.surface, borderRadius: 14, padding: "20px 24px", marginBottom: 16, border: `1px solid ${t.border}` }}>
         <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: t.textSoft }}>AI Provider</p>
         <p style={{ margin: "0 0 14px", fontSize: 11, color: t.textDim }}>Use your own API key — no OpenBrain credits deducted. Leave blank to use the shared key.</p>
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          {["anthropic", "openai"].map(p => (
-            <button key={p} onClick={() => saveByoProvider(p)} style={{ padding: "6px 16px", borderRadius: 20, border: byoProvider === p ? "1px solid #4ECDC4" : `1px solid ${t.border}`, background: byoProvider === p ? "#4ECDC420" : t.bg, color: byoProvider === p ? "#4ECDC4" : t.textDim, fontSize: 12, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>{p}</button>
+        <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+          {["anthropic", "openai", "openrouter"].map(p => (
+            <button key={p} onClick={() => saveByoProvider(p)} style={{ padding: "6px 16px", borderRadius: 20, border: byoProvider === p ? "1px solid #4ECDC4" : `1px solid ${t.border}`, background: byoProvider === p ? "#4ECDC420" : t.bg, color: byoProvider === p ? "#4ECDC4" : t.textDim, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{p === "openrouter" ? "OpenRouter" : p.charAt(0).toUpperCase() + p.slice(1)}</button>
           ))}
         </div>
-        <div style={{ marginBottom: 12 }}>
-          <p style={{ margin: "0 0 6px", fontSize: 11, color: t.textDim, fontWeight: 600 }}>API Key</p>
-          <div style={{ display: "flex", gap: 8 }}>
-            <input type={showKey ? "text" : "password"} value={byoKey} onChange={e => saveByoKey(e.target.value)} placeholder={byoProvider === "openai" ? "sk-..." : "sk-ant-..."} style={{ flex: 1, padding: "9px 12px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textSoft, fontSize: 13, fontFamily: "monospace", outline: "none" }} />
-            <button onClick={() => setShowKey(s => !s)} style={{ padding: "9px 12px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textDim, cursor: "pointer", fontSize: 12 }}>{showKey ? "Hide" : "Show"}</button>
-            <button onClick={testByoKey} disabled={!byoKey} style={{ padding: "9px 14px", background: byoKey ? "#4ECDC420" : t.bg, border: `1px solid ${byoKey ? "#4ECDC440" : t.border}`, borderRadius: 8, color: byoKey ? "#4ECDC4" : t.textFaint, cursor: byoKey ? "pointer" : "default", fontSize: 12, fontWeight: 600 }}>{byoTestStatus === "testing" ? "…" : byoTestStatus === "ok" ? "✓" : byoTestStatus === "fail" ? "✗" : "Test"}</button>
-          </div>
-        </div>
-        <div>
-          <p style={{ margin: "0 0 6px", fontSize: 11, color: t.textDim, fontWeight: 600 }}>Model</p>
-          <select value={byoModel} onChange={e => saveByoModel(e.target.value)} style={{ width: "100%", padding: "9px 12px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textSoft, fontSize: 13, outline: "none" }}>
-            {modelOptions.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
-        </div>
+        {byoProvider === "openrouter" ? (
+          <>
+            <p style={{ margin: "0 0 6px", fontSize: 11, color: t.textDim }}>OpenRouter lets you use hundreds of models — including free ones — with one key. <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" style={{ color: "#4ECDC4" }}>Get a key →</a></p>
+            <div style={{ marginBottom: 12 }}>
+              <p style={{ margin: "0 0 6px", fontSize: 11, color: t.textDim, fontWeight: 600 }}>OpenRouter API Key</p>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input type={showKey ? "text" : "password"} value={orKey} onChange={e => saveOrKey(e.target.value)} placeholder="sk-or-..." style={{ flex: 1, padding: "9px 12px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textSoft, fontSize: 13, fontFamily: "monospace", outline: "none" }} />
+                <button onClick={() => setShowKey(s => !s)} style={{ padding: "9px 12px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textDim, cursor: "pointer", fontSize: 12 }}>{showKey ? "Hide" : "Show"}</button>
+                <button onClick={testByoKey} disabled={!orKey} style={{ padding: "9px 14px", background: orKey ? "#4ECDC420" : t.bg, border: `1px solid ${orKey ? "#4ECDC440" : t.border}`, borderRadius: 8, color: orKey ? "#4ECDC4" : t.textFaint, cursor: orKey ? "pointer" : "default", fontSize: 12, fontWeight: 600 }}>{byoTestStatus === "testing" ? "…" : byoTestStatus === "ok" ? "✓" : byoTestStatus === "fail" ? "✗" : "Test"}</button>
+              </div>
+            </div>
+            <div>
+              <p style={{ margin: "0 0 6px", fontSize: 11, color: t.textDim, fontWeight: 600 }}>Model {orModels.length > 0 && <span style={{ fontWeight: 400, color: t.textFaint }}>({orModels.length} available)</span>}</p>
+              <select value={orModel} onChange={e => saveOrModel(e.target.value)} style={{ width: "100%", padding: "9px 12px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textSoft, fontSize: 13, outline: "none" }}>
+                {(orModels.length > 0 ? orModels.map(m => ({ id: m.id, label: `${m.name}${m.pricing?.prompt ? ` — $${(+m.pricing.prompt * 1e6).toFixed(2)}/1M` : ""}` })) : OR_SHORTLIST.map(id => ({ id, label: id }))).map(m => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+              </select>
+              <p style={{ margin: "6px 0 0", fontSize: 10, color: t.textFaint }}>Tip: choose a model with ZDR (zero data retention) for sensitive entries.</p>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ marginBottom: 12 }}>
+              <p style={{ margin: "0 0 6px", fontSize: 11, color: t.textDim, fontWeight: 600 }}>API Key</p>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input type={showKey ? "text" : "password"} value={byoKey} onChange={e => saveByoKey(e.target.value)} placeholder={byoProvider === "openai" ? "sk-..." : "sk-ant-..."} style={{ flex: 1, padding: "9px 12px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textSoft, fontSize: 13, fontFamily: "monospace", outline: "none" }} />
+                <button onClick={() => setShowKey(s => !s)} style={{ padding: "9px 12px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textDim, cursor: "pointer", fontSize: 12 }}>{showKey ? "Hide" : "Show"}</button>
+                <button onClick={testByoKey} disabled={!byoKey} style={{ padding: "9px 14px", background: byoKey ? "#4ECDC420" : t.bg, border: `1px solid ${byoKey ? "#4ECDC440" : t.border}`, borderRadius: 8, color: byoKey ? "#4ECDC4" : t.textFaint, cursor: byoKey ? "pointer" : "default", fontSize: 12, fontWeight: 600 }}>{byoTestStatus === "testing" ? "…" : byoTestStatus === "ok" ? "✓" : byoTestStatus === "fail" ? "✗" : "Test"}</button>
+              </div>
+            </div>
+            <div>
+              <p style={{ margin: "0 0 6px", fontSize: 11, color: t.textDim, fontWeight: 600 }}>Model</p>
+              <select value={byoModel} onChange={e => saveByoModel(e.target.value)} style={{ width: "100%", padding: "9px 12px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textSoft, fontSize: 13, outline: "none" }}>
+                {modelOptions.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+          </>
+        )}
       </div>
+
+      {/* Brain Members */}
+      {activeBrain && (
+        <div style={{ background: t.surface, borderRadius: 14, padding: "20px 24px", marginBottom: 16, border: `1px solid ${t.border}` }}>
+          <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: t.textSoft }}>🧠 {activeBrain.name} — Members</p>
+          {members.length > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              {members.map(m => (
+                <div key={m.user_id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: `1px solid ${t.border}` }}>
+                  <span style={{ flex: 1, fontSize: 13, color: t.textSoft, fontFamily: "monospace" }}>{m.user_id.slice(0, 8)}…</span>
+                  <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: m.role === "member" ? "#4ECDC420" : "#88888820", color: m.role === "member" ? "#4ECDC4" : "#888", fontWeight: 700, textTransform: "uppercase" }}>{m.role}</span>
+                  {canManageMembers && (
+                    <>
+                      <select value={m.role} onChange={e => handleRoleChange(m.user_id, e.target.value)} style={{ padding: "3px 6px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 6, color: t.textSoft, fontSize: 11, cursor: "pointer" }}>
+                        <option value="member">Member</option>
+                        <option value="viewer">Viewer</option>
+                      </select>
+                      <button onClick={() => handleRemoveMember(m.user_id)} style={{ padding: "3px 8px", background: "#FF6B3515", border: "1px solid #FF6B3530", borderRadius: 6, color: "#FF6B35", fontSize: 11, cursor: "pointer" }}>Remove</button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {canInvite && (
+            <>
+              <p style={{ margin: "0 0 8px", fontSize: 12, color: t.textDim }}>Invite someone to this brain</p>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="their@email.com" type="email" style={{ flex: 2, minWidth: 140, padding: "9px 12px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textSoft, fontSize: 13, outline: "none" }} />
+                <select value={inviteRole} onChange={e => setInviteRole(e.target.value)} style={{ padding: "9px 10px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textSoft, fontSize: 12, cursor: "pointer" }}>
+                  <option value="member">Member (can edit)</option>
+                  <option value="viewer">Viewer (read-only)</option>
+                </select>
+                <button onClick={handleInvite} disabled={!inviteEmail.trim() || inviteStatus === "sending"} style={{ padding: "9px 16px", background: inviteEmail.trim() ? "#4ECDC420" : t.bg, border: `1px solid ${inviteEmail.trim() ? "#4ECDC440" : t.border}`, borderRadius: 8, color: inviteEmail.trim() ? "#4ECDC4" : t.textFaint, fontSize: 12, fontWeight: 600, cursor: inviteEmail.trim() ? "pointer" : "default" }}>
+                  {inviteStatus === "sending" ? "…" : inviteStatus === "sent" ? "✓ Sent" : inviteStatus === "error" ? "✗ Failed" : "Invite"}
+                </button>
+              </div>
+            </>
+          )}
+          {!canInvite && <p style={{ fontSize: 12, color: t.textDim, margin: 0 }}>Only the brain owner can invite members.</p>}
+        </div>
+      )}
 
       <div style={{ background: t.surface, borderRadius: 14, padding: "20px 24px", border: `1px solid ${t.border}` }}>
         <p style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 600, color: t.textSoft }}>Morning Briefing</p>
@@ -792,7 +930,7 @@ export default function OpenBrain() {
   });
   const [entriesLoaded, setEntriesLoaded] = useState(false);
 
-  // ─── Brain context ───
+  // ─── Brain context + role ───
   const { brains, activeBrain, setActiveBrain, createBrain, deleteBrain, refresh } = useBrain(
     useCallback(() => {
       // Reset local state when brain switches
@@ -828,6 +966,7 @@ export default function OpenBrain() {
   const addLinks = (newLinks) => setLinks(prev => [...prev, ...newLinks]);
   const [apiKey] = useState("configured");
   const [sbKey] = useState("configured");
+  const { canWrite, canInvite, canManageMembers, role: myRole } = useRole(activeBrain);
   const { t, isDark, toggleTheme } = useTheme();
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("openbrain_onboarded"));
   // Skip onboarding for existing users on new browsers — if they already have brains, they're not new
@@ -1081,7 +1220,7 @@ export default function OpenBrain() {
         </div>
       </div>
 
-      <QuickCapture apiKey={apiKey} sbKey={sbKey} entries={entries} setEntries={setEntries} links={links} addLinks={addLinks} onCreated={handleCreated} onUpdate={handleUpdate} brainId={activeBrain?.id} isOnline={isOnline} refreshCount={refreshCount} />
+      <QuickCapture apiKey={apiKey} sbKey={sbKey} entries={entries} setEntries={setEntries} links={links} addLinks={addLinks} onCreated={handleCreated} onUpdate={handleUpdate} brainId={activeBrain?.id} brains={brains} isOnline={isOnline} refreshCount={refreshCount} canWrite={canWrite} />
 
       {showBrainTip && (
         <BrainTipCard
@@ -1211,7 +1350,7 @@ export default function OpenBrain() {
           </div>
         )}
 
-        {view === "settings" && <SettingsView />}
+        {view === "settings" && <SettingsView activeBrain={activeBrain} canInvite={canInvite} canManageMembers={canManageMembers} onRefreshBrains={refresh} />}
       </div>
 
       <Suspense fallback={null}>
@@ -1223,6 +1362,7 @@ export default function OpenBrain() {
           onReorder={handleReorder}
           entries={entries}
           links={links}
+          canWrite={canWrite}
         />
       </Suspense>
 

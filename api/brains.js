@@ -184,6 +184,28 @@ export default async function handler(req, res) {
     return res.status(membersRes.status).json(await membersRes.json());
   }
 
+  // ── PATCH /api/brains?action=member-role — change a member's role ──
+  if (method === "PATCH" && action === "member-role") {
+    const { brain_id, user_id: targetUserId, role } = req.body;
+    if (!brain_id || !targetUserId || !role) return res.status(400).json({ error: "brain_id, user_id, and role required" });
+    if (!["member", "viewer"].includes(role)) return res.status(400).json({ error: "Invalid role — must be member or viewer" });
+
+    // Only owner can change roles
+    const ownerRes = await fetch(
+      `${SB_URL}/rest/v1/brains?id=eq.${encodeURIComponent(brain_id)}&owner_id=eq.${encodeURIComponent(user.id)}`,
+      { headers: hdrs() }
+    );
+    const ownerData = await ownerRes.json();
+    if (!ownerData.length) return res.status(403).json({ error: "Not the brain owner" });
+
+    const r = await fetch(
+      `${SB_URL}/rest/v1/brain_members?brain_id=eq.${encodeURIComponent(brain_id)}&user_id=eq.${encodeURIComponent(targetUserId)}`,
+      { method: "PATCH", headers: hdrs(), body: JSON.stringify({ role }) }
+    );
+    console.log(`[audit] ROLE_CHANGE brain=${brain_id} user=${targetUserId} role=${role} by=${user.id}`);
+    return res.status(r.ok ? 200 : 502).json({ ok: r.ok });
+  }
+
   // ── DELETE /api/brains?action=member — remove a member ──
   if (method === "DELETE" && action === "member") {
     const { brain_id, user_id: targetUserId } = req.body;

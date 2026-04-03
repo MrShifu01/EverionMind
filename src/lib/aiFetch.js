@@ -59,6 +59,32 @@ export function setUserProvider(provider) {
   localStorage.setItem(`openbrain_${uid}_provider`, provider || "anthropic");
 }
 
+export function getOpenRouterKey() {
+  const uid = getUserId();
+  if (!uid) return null;
+  return localStorage.getItem(`openbrain_${uid}_openrouter_key`) || null;
+}
+
+export function setOpenRouterKey(key) {
+  const uid = getUserId();
+  if (!uid) return;
+  if (key) localStorage.setItem(`openbrain_${uid}_openrouter_key`, key);
+  else localStorage.removeItem(`openbrain_${uid}_openrouter_key`);
+}
+
+export function getOpenRouterModel() {
+  const uid = getUserId();
+  if (!uid) return null;
+  return localStorage.getItem(`openbrain_${uid}_openrouter_model`) || null;
+}
+
+export function setOpenRouterModel(model) {
+  const uid = getUserId();
+  if (!uid) return;
+  if (model) localStorage.setItem(`openbrain_${uid}_openrouter_model`, model);
+  else localStorage.removeItem(`openbrain_${uid}_openrouter_model`);
+}
+
 /**
  * Drop-in replacement for authFetch that adds X-User-Api-Key header
  * when the user has configured a BYO key.

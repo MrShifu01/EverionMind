@@ -1,3 +1,2 @@
-1. have user memory or soul per user that AI uses as context specidifc to their profile (personal, family, business) as it gets to know the user. can be used with whatever AI model is used and persists of AI model changes
-2. in edit or capture of a new entry, there must be a way to add an enrty or include it in personal, family or business
-3. Be able to ask my opoenbrain from any AI chat, perhaps through OpenRouter as Nate suggests.
+in edit or capture of a new entry, there must be a way to add an enrty or include it in personal, family or business.
+Calendar still not working *see strauss rugby.

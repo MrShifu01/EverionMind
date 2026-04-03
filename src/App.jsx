@@ -3,6 +3,7 @@ import { supabase } from "./lib/supabase"
 import OpenBrain from "./OpenBrain.jsx"
 import LoginScreen from "./LoginScreen.jsx"
 import ErrorBoundary from "./ErrorBoundary.jsx"
+import { MemoryProvider } from "./MemoryContext.jsx"
 
 export default function App() {
   const [session, setSession] = useState(undefined)
@@ -15,5 +16,5 @@ export default function App() {
 
   if (session === undefined) return null
   if (!session) return <LoginScreen />
-  return <ErrorBoundary><OpenBrain /></ErrorBoundary>
+  return <ErrorBoundary><MemoryProvider><OpenBrain /></MemoryProvider></ErrorBoundary>
 }
