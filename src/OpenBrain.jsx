@@ -1392,10 +1392,14 @@ export default function OpenBrain() {
           </div>
         )}
         {view === "grid" && <>
-          {/* Workspace toggle */}
+          {/* Workspace toggle — only show business tab if user has a business brain */}
           <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-            {["all", "business", "personal"].map(ws => (
-              <button key={ws} onClick={() => { setWorkspace(ws); localStorage.setItem("openbrain_workspace", ws); }} style={{ padding: "5px 14px", borderRadius: 20, border: "none", fontSize: 11, fontWeight: 600, cursor: "pointer", background: workspace === ws ? "#A29BFE" : t.surface, color: workspace === ws ? "#0f0f23" : t.textMuted, textTransform: "capitalize" }}>{ws === "all" ? "All" : ws === "business" ? "🏪 Business" : "👤 Personal"}</button>
+            {[
+              { ws: "all", label: "All" },
+              { ws: "personal", label: "👤 Personal" },
+              ...(brains.some(b => b.type === "business") ? [{ ws: "business", label: "🏪 Business" }] : []),
+            ].map(({ ws, label }) => (
+              <button key={ws} onClick={() => { setWorkspace(ws); localStorage.setItem("openbrain_workspace", ws); }} style={{ padding: "5px 14px", borderRadius: 20, border: "none", fontSize: 11, fontWeight: 600, cursor: "pointer", background: workspace === ws ? "#A29BFE" : t.surface, color: workspace === ws ? "#0f0f23" : t.textMuted, textTransform: "capitalize" }}>{label}</button>
             ))}
           </div>
           <div style={{ position: "relative", marginBottom: 16 }}>
@@ -1506,7 +1510,7 @@ export default function OpenBrain() {
             // Mark answered onboarding questions so they don't re-appear in Fill Brain
             if (answeredItems?.length) {
               try {
-                const key = "openbrain_answered_qs_personal";
+                const key = "openbrain_answered_qs";
                 const existing = new Set(JSON.parse(localStorage.getItem(key) || "[]"));
                 answeredItems.forEach(item => existing.add(item.q));
                 localStorage.setItem(key, JSON.stringify([...existing]));

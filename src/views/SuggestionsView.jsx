@@ -1,6 +1,8 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { authFetch } from "../lib/authFetch";
-import { SUGGESTIONS, FAMILY_SUGGESTIONS, BUSINESS_SUGGESTIONS } from "../data/suggestions";
+import { SUGGESTIONS } from "../data/personalSuggestions";
+import { FAMILY_SUGGESTIONS } from "../data/familySuggestions";
+import { BUSINESS_SUGGESTIONS } from "../data/businessSuggestions";
 import { TC, PC, MODEL } from "../data/constants";
 import { useTheme } from "../ThemeContext";
 
@@ -21,17 +23,43 @@ const BRAIN_META = {
 export default function SuggestionsView({ apiKey, sbKey, entries, setEntries, activeBrain, brains }) {
   const { t } = useTheme();
 
-  // Which brain to capture into (default = activeBrain)
-  const [targetBrainId, setTargetBrainId] = useState(activeBrain?.id || null);
+  // Multi-select: which brains to pull questions from (default = [activeBrain])
+  const [selectedBrainIds, setSelectedBrainIds] = useState(() => activeBrain?.id ? [activeBrain.id] : []);
 
-  // Derived target brain object
+  const toggleBrain = (id) => {
+    setSelectedBrainIds(prev => {
+      if (prev.includes(id)) {
+        // Don't allow deselecting the last brain
+        if (prev.length === 1) return prev;
+        return prev.filter(x => x !== id);
+      }
+      return [...prev, id];
+    });
+  };
+
+  // First selected brain = save target
   const targetBrain = useMemo(() => {
     if (!brains?.length) return activeBrain;
-    return brains.find(b => b.id === targetBrainId) || activeBrain;
-  }, [targetBrainId, brains, activeBrain]);
+    return brains.find(b => b.id === selectedBrainIds[0]) || activeBrain;
+  }, [selectedBrainIds, brains, activeBrain]);
 
+  // Merged & deduplicated question set from all selected brain types
+  const questionSet = useMemo(() => {
+    const selectedBrains = brains?.length
+      ? brains.filter(b => selectedBrainIds.includes(b.id))
+      : [activeBrain];
+    const seen = new Set();
+    const merged = [];
+    for (const b of selectedBrains) {
+      for (const s of getSuggestionsForType(b?.type || "personal")) {
+        if (!seen.has(s.q)) { seen.add(s.q); merged.push(s); }
+      }
+    }
+    return merged;
+  }, [selectedBrainIds, brains, activeBrain]);
+
+  // brainType used only for AI context — use first selected brain's type
   const brainType = targetBrain?.type || "personal";
-  const questionSet = useMemo(() => getSuggestionsForType(brainType), [brainType]);
 
   const [idx, setIdx] = useState(0);
   const [answer, setAnswer] = useState("");
@@ -47,23 +75,21 @@ export default function SuggestionsView({ apiKey, sbKey, entries, setEntries, ac
   const [aiQuestion, setAiQuestion] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
 
-  // Per-brain answered tracking
-  const answeredKey = `openbrain_answered_qs_${brainType}`;
+  // Answered tracking — shared key merges all brain types
+  const answeredKey = "openbrain_answered_qs";
   const [answeredQs, setAnsweredQs] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem(answeredKey) || "[]")); }
     catch { return new Set(); }
   });
 
-  // Reset answered state when brain type changes
+  // Reset position when selected brains change
   useEffect(() => {
-    try { setAnsweredQs(new Set(JSON.parse(localStorage.getItem(answeredKey) || "[]"))); }
-    catch { setAnsweredQs(new Set()); }
     setIdx(0);
     setFilterCat("all");
     setAiQuestion(null);
     setAnswered(0);
     setSkipped(0);
-  }, [brainType]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedBrainIds.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const imgRef = useRef(null);
 
@@ -246,21 +272,21 @@ export default function SuggestionsView({ apiKey, sbKey, entries, setEntries, ac
 
   return (
     <div>
-      {/* Brain selector chips */}
+      {/* Brain selector chips — multi-select */}
       {brains?.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <p style={{ fontSize: 10, color: t.textDim, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1.2, margin: "0 0 8px" }}>
-            Fill which brain?
+            Fill which brain{brains.length > 1 ? "s" : ""}?
           </p>
           {brains.length > 1 ? (
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {brains.map(b => {
                 const bmt = BRAIN_META[b.type] || BRAIN_META.personal;
-                const active = b.id === targetBrainId;
+                const active = selectedBrainIds.includes(b.id);
                 return (
                   <button
                     key={b.id}
-                    onClick={() => setTargetBrainId(b.id)}
+                    onClick={() => toggleBrain(b.id)}
                     style={{
                       padding: "6px 14px",
                       borderRadius: 20,
@@ -277,6 +303,9 @@ export default function SuggestionsView({ apiKey, sbKey, entries, setEntries, ac
                   >
                     <span>{bmt.emoji}</span>
                     <span>{b.name}</span>
+                    {active && selectedBrainIds.length > 1 && selectedBrainIds[0] === b.id && (
+                      <span style={{ fontSize: 9, opacity: 0.7 }}>✓ saves here</span>
+                    )}
                   </button>
                 );
               })}
@@ -287,7 +316,10 @@ export default function SuggestionsView({ apiKey, sbKey, entries, setEntries, ac
             </span>
           )}
           <p style={{ fontSize: 10, color: t.textDim, margin: "6px 0 0" }}>
-            Showing questions for <strong style={{ color: t.textMuted }}>{bm.emoji} {targetBrain?.name || bm.label}</strong>
+            {selectedBrainIds.length > 1
+              ? <>Showing merged questions · saves go to <strong style={{ color: t.textMuted }}>{bm.emoji} {targetBrain?.name || bm.label}</strong></>
+              : <>Showing questions for <strong style={{ color: t.textMuted }}>{bm.emoji} {targetBrain?.name || bm.label}</strong></>
+            }
           </p>
         </div>
       )}
