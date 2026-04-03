@@ -128,7 +128,7 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
   quickActions.push(<button key="share" onClick={handleShare} style={abtn('#45B7D1')}>📤 Share</button>);
 
   return (
-    <div role="dialog" aria-labelledby="detail-modal-title" style={{ position: 'fixed', inset: 0, background: '#000000CC', zIndex: 1000 /* z-index scale: PinGate=9999, Onboarding=3000, DetailModal=1000 */, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }} onClick={editing ? undefined : onClose}>
+    <div role="dialog" aria-modal="true" aria-labelledby="detail-modal-title" style={{ position: 'fixed', inset: 0, background: '#000000CC', zIndex: 1000 /* z-index scale: PinGate=9999, Onboarding=3000, DetailModal=1000 */, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }} onClick={editing ? undefined : onClose}>
       <div style={{ background: t.surface2, borderRadius: 16, maxWidth: 600, width: '100%', maxHeight: '90vh', overflow: 'auto', border: `1px solid ${cfg.c}40` }} onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div style={{ padding: '16px 16px', borderBottom: `1px solid ${t.border}`, display: 'flex', justifyContent: 'space-between' }}>

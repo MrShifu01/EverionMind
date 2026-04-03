@@ -33,7 +33,7 @@ export default async function handler(req, res) {
   // POST — upsert prefs (partial update)
   if (req.method === "POST") {
     // Validate daily_time format if provided
-    if (req.body.daily_time !== undefined && !/^\d{2}:\d{2}$/.test(req.body.daily_time)) {
+    if (req.body.daily_time !== undefined && !/^([01]\d|2[0-3]):[0-5]\d$/.test(req.body.daily_time)) {
       return res.status(400).json({ error: "daily_time must be in HH:MM format" });
     }
 
@@ -47,7 +47,7 @@ export default async function handler(req, res) {
     }
 
     // Validate nudge_time format if provided
-    if (req.body.nudge_time !== undefined && !/^\d{2}:\d{2}$/.test(req.body.nudge_time)) {
+    if (req.body.nudge_time !== undefined && !/^([01]\d|2[0-3]):[0-5]\d$/.test(req.body.nudge_time)) {
       return res.status(400).json({ error: "nudge_time must be in HH:MM format" });
     }
 
