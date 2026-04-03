@@ -7,6 +7,7 @@ import { supabase } from "../lib/supabase";
 import NotificationSettings from "../components/NotificationSettings";
 import { PinGate, getStoredPinHash, removePin } from "../lib/pin";
 import { MODELS } from "../config/models";
+import { useBrain } from "../context/BrainContext";
 
 /* ─── Telegram Panel ─── */
 function TelegramPanel({ activeBrain }) {
@@ -123,8 +124,9 @@ function ExportImportPanel({ activeBrain }) {
 /* ═══════════════════════════════════════════════════════════════
    SETTINGS VIEW
    ═══════════════════════════════════════════════════════════════ */
-export default function SettingsView({ activeBrain, canInvite, canManageMembers, onRefreshBrains }) {
+export default function SettingsView() {
   const { t } = useTheme();
+  const { activeBrain, canInvite, canManageMembers, refresh: onRefreshBrains } = useBrain();
   const [testStatus, setTestStatus] = useState(null);
   const [email, setEmail] = useState("");
   const [byoKey, setByoKey] = useState(() => getUserApiKey() || "");

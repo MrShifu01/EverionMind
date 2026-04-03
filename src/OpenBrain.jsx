@@ -5,7 +5,7 @@ import { authFetch } from "./lib/authFetch";
 import { callAI } from "./lib/ai";
 import { PROMPTS } from "./config/prompts";
 import { TC, fmtD, MODEL, INITIAL_ENTRIES, LINKS } from "./data/constants";
-import { useBrain } from "./hooks/useBrain";
+import { useBrain as useBrainHook } from "./hooks/useBrain";
 import { useRole } from "./hooks/useRole";
 import { useOfflineSync } from "./hooks/useOfflineSync";
 import { enqueue } from "./lib/offlineQueue";
@@ -19,6 +19,8 @@ import QuickCapture from "./components/QuickCapture";
 import SupplierPanel from "./components/SupplierPanel";
 import SettingsView from "./views/SettingsView";
 import { inferWorkspace } from "./lib/workspaceInfer";
+import { EntriesContext } from "./context/EntriesContext";
+import { BrainContext } from "./context/BrainContext";
 
 const SuggestionsView = lazy(() => import("./views/SuggestionsView"));
 const CalendarView    = lazy(() => import("./views/CalendarView"));
@@ -194,7 +196,7 @@ export default function OpenBrain() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Brain context + role ───
-  const { brains, activeBrain, setActiveBrain, createBrain, deleteBrain, refresh } = useBrain(
+  const { brains, activeBrain, setActiveBrain, createBrain, deleteBrain, refresh } = useBrainHook(
     useCallback(() => {
       // Reset local state when brain switches
       setEntries([]);
@@ -456,7 +458,27 @@ export default function OpenBrain() {
     { id: "settings", l: "Settings", ic: "⚙" },
   ];
 
+  const entriesValue = useMemo(() => ({
+    entries,
+    setEntries,
+    entriesLoaded,
+    selected,
+    setSelected,
+    handleDelete,
+    handleUpdate,
+  }), [entries, setEntries, entriesLoaded, selected, setSelected, handleDelete, handleUpdate]);
+
+  const brainValue = useMemo(() => ({
+    activeBrain,
+    brains,
+    refresh,
+    canInvite,
+    canManageMembers,
+  }), [activeBrain, brains, refresh, canInvite, canManageMembers]);
+
   return (
+    <EntriesContext.Provider value={entriesValue}>
+    <BrainContext.Provider value={brainValue}>
     <div style={{ minHeight: "100vh", background: t.bg, color: t.text, fontFamily: "'Söhne', system-ui, -apple-system, sans-serif", transition: "background 0.25s, color 0.25s", overflowX: "hidden" }}>
       <div style={{ padding: "16px 12px 0" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "nowrap", overflow: "hidden" }}>
@@ -595,7 +617,7 @@ export default function OpenBrain() {
         {view === "suppliers" && <SupplierPanel entries={entries} onSelect={setSelected} onReorder={handleReorder} />}
         {view === "suggest" && <Suspense fallback={<Loader />}><SuggestionsView entries={entries} setEntries={setEntries} activeBrain={activeBrain} brains={brains} /></Suspense>}
         {view === "refine" && <Suspense fallback={<Loader />}><RefineView entries={entries} setEntries={setEntries} links={links} addLinks={addLinks} activeBrain={activeBrain} brains={brains} onSwitchBrain={setActiveBrain} /></Suspense>}
-        {view === "calendar" && <Suspense fallback={<Loader />}><CalendarView entries={entries} /></Suspense>}
+        {view === "calendar" && <Suspense fallback={<Loader />}><CalendarView /></Suspense>}
         {view === "todos" && <Suspense fallback={<Loader />}><TodoView /></Suspense>}
         {view === "timeline" && <VirtualTimeline sorted={sortedTimeline} setSelected={setSelected} />}
         {view === "graph" && <Suspense fallback={<Loader />}><p style={{ fontSize: 12, color: "#666", marginBottom: 12 }}>Knowledge graph — click nodes to view</p><GraphView onSelect={setSelected} entries={entries} links={links} /></Suspense>}
@@ -630,7 +652,7 @@ export default function OpenBrain() {
           </div>
         )}
 
-        {view === "settings" && <SettingsView activeBrain={activeBrain} canInvite={canInvite} canManageMembers={canManageMembers} onRefreshBrains={refresh} />}
+        {view === "settings" && <SettingsView />}
       </div>
 
       <Suspense fallback={null}>
@@ -743,5 +765,7 @@ export default function OpenBrain() {
         />
       )}
     </div>
+    </BrainContext.Provider>
+    </EntriesContext.Provider>
   );
 }

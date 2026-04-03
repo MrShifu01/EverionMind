@@ -1,8 +1,10 @@
 import { useState, useMemo } from "react";
 import { TC, fmtD } from "../data/constants";
 import { useTheme } from "../ThemeContext";
+import { useEntries } from "../context/EntriesContext";
 
-export default function CalendarView({ entries }) {
+export default function CalendarView() {
+  const { entries } = useEntries();
   const { t } = useTheme();
   const [month, setMonth] = useState(() => new Date());
   const [selDay, setSelDay] = useState(null);

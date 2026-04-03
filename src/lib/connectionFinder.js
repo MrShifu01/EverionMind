@@ -1,5 +1,6 @@
 import { callAI } from "./ai";
 import { PROMPTS } from "../config/prompts";
+export { scoreTitle } from "./duplicateDetection";
 
 /* ─── AI Connection Discovery ─── */
 export async function findConnections(newEntry, existingEntries, existingLinks) {
@@ -28,13 +29,3 @@ export async function findConnections(newEntry, existingEntries, existingLinks) 
   } catch { return []; }
 }
 
-/* ─── Duplicate Score ─── */
-export function scoreTitle(a, b) {
-  a = a.toLowerCase().trim(); b = b.toLowerCase().trim();
-  if (a === b) return 100;
-  if (a.includes(b) || b.includes(a)) return 70;
-  const aSet = new Set(a.split(/\W+/).filter(Boolean));
-  const bArr = b.split(/\W+/).filter(Boolean);
-  const hits = bArr.filter(w => aSet.has(w)).length;
-  return Math.round((hits / Math.max(aSet.size, bArr.length, 1)) * 100);
-}
