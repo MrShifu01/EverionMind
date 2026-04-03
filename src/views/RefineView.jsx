@@ -260,7 +260,7 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
               const active = b.id === activeBrain?.id;
               return (
                 <button key={b.id} onClick={() => onSwitchBrain(b)}
-                  style={{ padding: "5px 12px", borderRadius: 20, border: active ? "1px solid #4ECDC4" : "1px solid #2a2a4a", background: active ? "#4ECDC420" : "#1a1a2e", color: active ? "#4ECDC4" : "#888", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
+                  style={{ padding: "5px 12px", borderRadius: 20, border: active ? "1px solid #4ECDC4" : "1px solid #2a2a4a", background: active ? "#4ECDC420" : "#1a1a2e", color: active ? "#4ECDC4" : "#888", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 5, minHeight: 44, minWidth: 44 }}>
                   <span>{BRAIN_EMOJI[b.type] || "🧠"}</span>
                   <span>{b.name}</span>
                 </button>
@@ -280,7 +280,7 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
         onClick={analyze}
         disabled={loading}
         style={{
-          width: "100%", padding: "14px 20px", marginBottom: 20,
+          width: "100%", padding: "14px 20px", marginBottom: 20, minHeight: 44,
           background: !loading ? "linear-gradient(135deg, #A29BFE, #6C63FF)" : "#1a1a2e",
           border: "none", borderRadius: 14,
           color: !loading ? "#fff" : "#444",
