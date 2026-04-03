@@ -46,10 +46,10 @@ export default function TodoView() {
         const pc = PC[todo.priority] || PC.medium;
         return (
           <div key={todo.id} style={{ display: "flex", alignItems: "center", gap: 12, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, padding: "12px 16px", marginBottom: 8 }}>
-            <button onClick={() => toggle(todo.id)} aria-label="Mark task complete" style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${pc.c}`, background: "transparent", cursor: "pointer", flexShrink: 0 }} />
+            <button onClick={() => toggle(todo.id)} aria-label="Mark task complete" style={{ minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: 6, border: `2px solid ${pc.c}`, background: "transparent", cursor: "pointer", flexShrink: 0 }} />
             <p style={{ margin: 0, fontSize: 14, color: t.textSoft, flex: 1, lineHeight: 1.4 }}>{todo.text}</p>
             <span style={{ fontSize: 9, background: pc.bg, color: pc.c, padding: "2px 8px", borderRadius: 20, fontWeight: 700, flexShrink: 0 }}>{pc.l}</span>
-            <button onClick={() => remove(todo.id)} aria-label="Delete task" style={{ background: "transparent", border: "none", color: t.textDim, cursor: "pointer", fontSize: 20, padding: 0, lineHeight: 1, flexShrink: 0 }}>×</button>
+            <button onClick={() => remove(todo.id)} aria-label="Delete task" style={{ minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", color: t.textDim, cursor: "pointer", fontSize: 20, padding: 0, lineHeight: 1, flexShrink: 0 }}>×</button>
           </div>
         );
       })}
@@ -59,9 +59,9 @@ export default function TodoView() {
           <p style={{ fontSize: 11, color: t.textFaint, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 12 }}>Done ({done.length})</p>
           {done.map(todo => (
             <div key={todo.id} style={{ display: "flex", alignItems: "center", gap: 12, border: `1px solid ${t.border}`, borderRadius: 10, padding: "10px 16px", marginBottom: 6, opacity: 0.45 }}>
-              <button onClick={() => toggle(todo.id)} aria-label="Mark task incomplete" style={{ width: 20, height: 20, borderRadius: 6, border: "2px solid #444", background: "#4ECDC4", cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#0f0f23" }}>✓</button>
+              <button onClick={() => toggle(todo.id)} aria-label="Mark task incomplete" style={{ minHeight: 44, minWidth: 44, width: 20, height: 20, borderRadius: 6, border: "2px solid #444", background: "#4ECDC4", cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#0f0f23" }}>✓</button>
               <p style={{ margin: 0, fontSize: 13, color: t.textDim, textDecoration: "line-through", flex: 1 }}>{todo.text}</p>
-              <button onClick={() => remove(todo.id)} aria-label="Delete task" style={{ background: "transparent", border: "none", color: t.textDim, cursor: "pointer", fontSize: 20, padding: 0, lineHeight: 1 }}>×</button>
+              <button onClick={() => remove(todo.id)} aria-label="Delete task" style={{ minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", color: t.textDim, cursor: "pointer", fontSize: 20, padding: 0, lineHeight: 1 }}>×</button>
             </div>
           ))}
         </div>

@@ -417,14 +417,14 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
                   <div style={{ display: "flex", gap: 8 }}>
                     {isEdit ? (
                       <>
-                        <button onClick={() => setEditingKey(null)} style={{ flex: 1, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#777", fontSize: 12, cursor: "pointer" }}>Cancel</button>
-                        <button onClick={() => editValue.trim() && applyLink(s, editValue.trim())} disabled={!editValue.trim() || busy} style={{ flex: 2, padding: "9px 0", background: editValue.trim() && !busy ? "linear-gradient(135deg, #96CEB4, #4ECDC4)" : "#252540", border: "none", borderRadius: 8, color: editValue.trim() && !busy ? "#0f0f23" : "#444", fontSize: 12, fontWeight: 700, cursor: editValue.trim() && !busy ? "pointer" : "default" }}>Apply</button>
+                        <button onClick={() => setEditingKey(null)} style={{ flex: 1, minHeight: 44, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#777", fontSize: 12, cursor: "pointer" }}>Cancel</button>
+                        <button onClick={() => editValue.trim() && applyLink(s, editValue.trim())} disabled={!editValue.trim() || busy} style={{ flex: 2, minHeight: 44, padding: "9px 0", background: editValue.trim() && !busy ? "linear-gradient(135deg, #96CEB4, #4ECDC4)" : "#252540", border: "none", borderRadius: 8, color: editValue.trim() && !busy ? "#0f0f23" : "#444", fontSize: 12, fontWeight: 700, cursor: editValue.trim() && !busy ? "pointer" : "default" }}>Apply</button>
                       </>
                     ) : (
                       <>
-                        <button onClick={() => reject(key)} disabled={busy} style={{ flex: 1, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FF6B35", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✗ Reject</button>
-                        <button onClick={() => { setEditingKey(key); setEditValue(s.rel); }} disabled={busy} style={{ flex: 1, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FFEAA7", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✎ Edit</button>
-                        <button onClick={() => applyLink(s)} disabled={busy} style={{ flex: 2, padding: "9px 0", background: busy ? "#252540" : "linear-gradient(135deg, #96CEB4, #4ECDC4)", border: "none", borderRadius: 8, color: busy ? "#444" : "#0f0f23", fontSize: 12, fontWeight: 700, cursor: busy ? "default" : "pointer" }}>
+                        <button onClick={() => reject(key)} disabled={busy} style={{ flex: 1, minHeight: 44, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FF6B35", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✗ Reject</button>
+                        <button onClick={() => { setEditingKey(key); setEditValue(s.rel); }} disabled={busy} style={{ flex: 1, minHeight: 44, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FFEAA7", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✎ Edit</button>
+                        <button onClick={() => applyLink(s)} disabled={busy} style={{ flex: 2, minHeight: 44, padding: "9px 0", background: busy ? "#252540" : "linear-gradient(135deg, #96CEB4, #4ECDC4)", border: "none", borderRadius: 8, color: busy ? "#444" : "#0f0f23", fontSize: 12, fontWeight: 700, cursor: busy ? "default" : "pointer" }}>
                           {busy ? "Saving…" : "✓ Accept"}
                         </button>
                       </>
@@ -473,14 +473,14 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
                   <div style={{ display: "flex", gap: 8 }}>
                     {isEdit ? (
                       <>
-                        <button onClick={() => setEditingKey(null)} style={{ flex: 1, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#777", fontSize: 12, cursor: "pointer" }}>Cancel</button>
-                        <button onClick={() => editValue.trim() && applyEntry(s, editValue.trim())} disabled={!editValue.trim() || busy} style={{ flex: 2, padding: "9px 0", background: editValue.trim() && !busy ? "linear-gradient(135deg, #4ECDC4, #45B7D1)" : "#252540", border: "none", borderRadius: 8, color: editValue.trim() && !busy ? "#0f0f23" : "#444", fontSize: 12, fontWeight: 700, cursor: editValue.trim() && !busy ? "pointer" : "default" }}>Apply</button>
+                        <button onClick={() => setEditingKey(null)} style={{ flex: 1, minHeight: 44, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#777", fontSize: 12, cursor: "pointer" }}>Cancel</button>
+                        <button onClick={() => editValue.trim() && applyEntry(s, editValue.trim())} disabled={!editValue.trim() || busy} style={{ flex: 2, minHeight: 44, padding: "9px 0", background: editValue.trim() && !busy ? "linear-gradient(135deg, #4ECDC4, #45B7D1)" : "#252540", border: "none", borderRadius: 8, color: editValue.trim() && !busy ? "#0f0f23" : "#444", fontSize: 12, fontWeight: 700, cursor: editValue.trim() && !busy ? "pointer" : "default" }}>Apply</button>
                       </>
                     ) : (
                       <>
-                        <button onClick={() => reject(key)} disabled={busy} style={{ flex: 1, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FF6B35", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✗ Reject</button>
-                        <button onClick={() => { setEditingKey(key); setEditValue(s.suggestedValue); }} disabled={busy} style={{ flex: 1, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FFEAA7", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✎ Edit</button>
-                        <button onClick={() => applyEntry(s)} disabled={busy} style={{ flex: 2, padding: "9px 0", background: busy ? "#252540" : "linear-gradient(135deg, #4ECDC4, #45B7D1)", border: "none", borderRadius: 8, color: busy ? "#444" : "#0f0f23", fontSize: 12, fontWeight: 700, cursor: busy ? "default" : "pointer" }}>
+                        <button onClick={() => reject(key)} disabled={busy} style={{ flex: 1, minHeight: 44, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FF6B35", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✗ Reject</button>
+                        <button onClick={() => { setEditingKey(key); setEditValue(s.suggestedValue); }} disabled={busy} style={{ flex: 1, minHeight: 44, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FFEAA7", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✎ Edit</button>
+                        <button onClick={() => applyEntry(s)} disabled={busy} style={{ flex: 2, minHeight: 44, padding: "9px 0", background: busy ? "#252540" : "linear-gradient(135deg, #4ECDC4, #45B7D1)", border: "none", borderRadius: 8, color: busy ? "#444" : "#0f0f23", fontSize: 12, fontWeight: 700, cursor: busy ? "default" : "pointer" }}>
                           {busy ? "Saving…" : "✓ Accept"}
                         </button>
                       </>
