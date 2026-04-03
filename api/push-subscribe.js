@@ -19,6 +19,17 @@ export default async function handler(req, res) {
     if (!endpoint || !keys?.p256dh || !keys?.auth) {
       return res.status(400).json({ error: "endpoint, keys.p256dh, and keys.auth required" });
     }
+
+    // Validate endpoint is a valid HTTPS URL
+    let parsedEndpoint;
+    try {
+      parsedEndpoint = new URL(endpoint);
+    } catch {
+      return res.status(400).json({ error: "Invalid push endpoint" });
+    }
+    if (parsedEndpoint.protocol !== 'https:') {
+      return res.status(400).json({ error: "Push endpoint must be HTTPS" });
+    }
     const r = await fetch(`${SB_URL}/rest/v1/push_subscriptions`, {
       method: "POST",
       headers: hdrs({ Prefer: "return=representation,resolution=merge-duplicates" }),
