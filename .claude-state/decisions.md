@@ -51,5 +51,20 @@ Added `tags text[]` to `entries` table alongside the normalised `tags`/`entry_ta
 ## Type field uses datalist not select
 `DetailModal` edit form type input changed from `<select>` to `<input list> + <datalist>`. Allows custom types beyond preset list. API validation relaxed from allowlist to length check. Affects: `src/OpenBrain.jsx` (~line 704), `api/update-entry.js`.
 
+## Sprint 3: exportPhone + toWaUrl exported from OpenBrain.jsx (not a separate util)
+Phone utilities are exported directly from `src/OpenBrain.jsx` and imported by `src/views/DetailModal.jsx`. No separate utils file created — these are tightly coupled to the entry model.
+
+## Sprint 3: Undo uses deferred delete (not immediate API call)
+Delete does not call `api/delete-entry` immediately. Entry is removed from state optimistically; the API call fires after 5s unless Undo is clicked. Implemented via `pendingDeleteRef` + `setTimeout`. See `handleDelete` in `src/OpenBrain.jsx`.
+
+## Sprint 3: Workspace is client-side tag inference only (no DB field)
+Workspace (business/personal/both) is inferred client-side from entry tags via `inferWorkspace()`. If `metadata.workspace` exists (set by AI), it takes priority. No DB schema change needed. See `src/OpenBrain.jsx:inferWorkspace`.
+
+## Sprint 3: AI nudge prompt explicitly guards against company merge suggestions
+Delta Distribution and Delta Gas are confirmed distinct companies. The proactive intelligence system prompt says: "Do NOT suggest merging companies just because they share a word in their name. Each business is distinct." This protects all companies with similar-prefix names.
+
+## Sprint 3: BrainSwitcher merged but not yet wired to UI
+`BrainSwitcher` component and `useBrain` hook are imported and the hook is called in `src/OpenBrain.jsx`, but `<BrainSwitcher>` is not rendered anywhere in JSX. Next step: add it to the header area next to the brain logo/title.
+
 ## onUpdate only mutates state on confirmed server success
 `onUpdate` in `OpenBrain.jsx` checks `res.ok` and empty-array before updating local state. Previous pattern caused phantom saves: optimistic update always ran even when PATCH failed silently. Affects: `src/OpenBrain.jsx` (~line 958).
