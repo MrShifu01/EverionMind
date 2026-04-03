@@ -1,4 +1,5 @@
 import { useState } from "react";
+import PropTypes from "prop-types";
 import { authFetch } from "../lib/authFetch";
 
 /**
@@ -187,6 +188,11 @@ export default function CreateBrainModal({ onClose, onCreate }) {
     </div>
   );
 }
+
+CreateBrainModal.propTypes = {
+  onClose: PropTypes.func.isRequired,
+  onCreate: PropTypes.func.isRequired,
+};
 
 const labelStyle = {
   display: "block",

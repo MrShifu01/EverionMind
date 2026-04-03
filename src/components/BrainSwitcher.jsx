@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import PropTypes from "prop-types";
 import CreateBrainModal from "./CreateBrainModal";
 
 /**
@@ -154,6 +155,15 @@ export default function BrainSwitcher({ brains, activeBrain, onSwitch, onBrainCr
     </div>
   );
 }
+
+BrainSwitcher.propTypes = {
+  brains: PropTypes.array.isRequired,
+  activeBrain: PropTypes.object,
+  onSwitch: PropTypes.func.isRequired,
+  onBrainCreated: PropTypes.func.isRequired,
+  onBrainDeleted: PropTypes.func.isRequired,
+  onBrainTip: PropTypes.func,
+};
 
 function BrainItem({ brain, active, onSelect, emoji, role, canDelete, onDelete }) {
   const [hovered, setHovered] = useState(false);

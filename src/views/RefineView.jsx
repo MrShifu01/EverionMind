@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import PropTypes from "prop-types";
 import { authFetch } from "../lib/authFetch";
 import { callAI } from "../lib/ai";
 import { TC, MODEL } from "../data/constants";
@@ -17,7 +18,7 @@ const LABELS = {
 };
 
 
-export default function RefineView({ entries, setEntries, links, addLinks, activeBrain, brains = [], onSwitchBrain }) {
+export default function RefineView({ entries, setEntries, links, addLinks, activeBrain, brains, onSwitchBrain }) {
   const { t } = useTheme();
   const [loading, setLoading]         = useState(false);
   const [suggestions, setSuggestions] = useState(null); // null = never run
@@ -454,3 +455,17 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
     </div>
   );
 }
+
+RefineView.propTypes = {
+  entries: PropTypes.array.isRequired,
+  setEntries: PropTypes.func.isRequired,
+  links: PropTypes.array,
+  addLinks: PropTypes.func,
+  activeBrain: PropTypes.object,
+  brains: PropTypes.array,
+  onSwitchBrain: PropTypes.func,
+};
+
+RefineView.defaultProps = {
+  brains: [],
+};

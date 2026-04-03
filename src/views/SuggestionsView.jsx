@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import PropTypes from "prop-types";
 import { authFetch } from "../lib/authFetch";
 import { callAI } from "../lib/ai";
 import { SUGGESTIONS } from "../data/personalSuggestions";
@@ -402,3 +403,10 @@ export default function SuggestionsView({ entries, setEntries, activeBrain, brai
     </div>
   );
 }
+
+SuggestionsView.propTypes = {
+  entries: PropTypes.array.isRequired,
+  setEntries: PropTypes.func.isRequired,
+  activeBrain: PropTypes.object,
+  brains: PropTypes.array,
+};

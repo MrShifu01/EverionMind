@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import PropTypes from "prop-types";
 import { useTheme } from "../ThemeContext";
 import { authFetch } from "../lib/authFetch";
 import { MODEL } from "../data/constants";
@@ -433,3 +434,7 @@ export default function OnboardingModal({ onComplete }) {
     </div>
   );
 }
+
+OnboardingModal.propTypes = {
+  onComplete: PropTypes.func.isRequired,
+};

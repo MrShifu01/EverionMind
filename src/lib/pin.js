@@ -17,6 +17,11 @@ async function _legacyVerifyPin(pin, stored) {
   return hash === stored;
 }
 
+/**
+ * Hashes a PIN using PBKDF2-SHA256 with a random salt.
+ * @param {string} pin - The 4-digit PIN to hash.
+ * @returns {Promise<string>} Salted hash in "saltHex:hashHex" format.
+ */
 async function hashPin(pin) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const keyMaterial = await crypto.subtle.importKey(
@@ -30,6 +35,12 @@ async function hashPin(pin) {
   return saltHex + ":" + hashHex;
 }
 
+/**
+ * Verifies a PIN against a stored hash. Returns null if format is old (migration needed).
+ * @param {string} pin - The PIN to verify.
+ * @param {string} [stored] - Stored hash; defaults to value from localStorage.
+ * @returns {Promise<boolean|null>} true if match, false if wrong, null if old format.
+ */
 async function verifyPin(pin, stored) {
   const s = stored !== undefined ? stored : getStoredPinHash();
   if (!s) return false;
@@ -46,6 +57,11 @@ async function verifyPin(pin, stored) {
   return newHash === hashHex;
 }
 
+/**
+ * Hashes the given PIN and persists it to localStorage under the user-scoped key.
+ * @param {string} pin - The 4-digit PIN to store.
+ * @returns {Promise<void>}
+ */
 async function storePin(pin) { localStorage.setItem(_pinKey(), await hashPin(pin)); }
 
 export function PinGate({ onSuccess, onCancel, isSetup = false }) {

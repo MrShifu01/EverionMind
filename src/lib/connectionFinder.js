@@ -3,6 +3,13 @@ import { PROMPTS } from "../config/prompts";
 export { scoreTitle } from "./duplicateDetection";
 
 /* ─── AI Connection Discovery ─── */
+/**
+ * Uses AI to find likely connections between a new entry and existing entries.
+ * @param {object} newEntry - The newly created entry to match against.
+ * @param {Array} existingEntries - All current entries to search for connections.
+ * @param {Array} existingLinks - Already-known links to avoid re-suggesting.
+ * @returns {Promise<Array>} Array of new link objects { from, to, rel }.
+ */
 export async function findConnections(newEntry, existingEntries, existingLinks) {
   const candidates = existingEntries
     .filter(e => e.id !== newEntry.id)

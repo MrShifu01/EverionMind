@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import PropTypes from "prop-types";
 import { useTheme } from "../ThemeContext";
 import { callAI } from "../lib/ai";
 import { aiFetch, getUserModel } from "../lib/aiFetch";
@@ -293,3 +294,17 @@ export default function QuickCapture({ entries, setEntries, links, addLinks, onC
     </div>
   );
 }
+
+QuickCapture.propTypes = {
+  entries: PropTypes.array.isRequired,
+  setEntries: PropTypes.func.isRequired,
+  links: PropTypes.array,
+  addLinks: PropTypes.func,
+  onCreated: PropTypes.func,
+  onUpdate: PropTypes.func,
+  isOnline: PropTypes.bool,
+  refreshCount: PropTypes.func,
+  brainId: PropTypes.string,
+  brains: PropTypes.array,
+  canWrite: PropTypes.bool,
+};

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import PropTypes from "prop-types";
 import { TC } from "../data/constants";
 import { extractPhone, toWaUrl } from "../lib/phone";
 import { useTheme } from "../ThemeContext";
@@ -192,3 +193,14 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
     </div>
   );
 }
+
+DetailModal.propTypes = {
+  entry: PropTypes.object.isRequired,
+  onClose: PropTypes.func.isRequired,
+  onDelete: PropTypes.func,
+  onUpdate: PropTypes.func,
+  onReorder: PropTypes.func,
+  entries: PropTypes.array,
+  links: PropTypes.array,
+  canWrite: PropTypes.bool,
+};

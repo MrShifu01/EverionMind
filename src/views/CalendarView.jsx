@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import PropTypes from "prop-types";
 import { TC, fmtD } from "../data/constants";
 import { useTheme } from "../ThemeContext";
 import { useEntries } from "../context/EntriesContext";

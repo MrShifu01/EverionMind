@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import PropTypes from "prop-types";
 import { useTheme } from "../ThemeContext";
 import { TC } from "../data/constants";
 import { extractPhone, toWaUrl } from "../lib/phone";
@@ -57,3 +58,9 @@ export default function SupplierPanel({ entries, onSelect, onReorder }) {
     </div>
   );
 }
+
+SupplierPanel.propTypes = {
+  entries: PropTypes.array.isRequired,
+  onSelect: PropTypes.func.isRequired,
+  onReorder: PropTypes.func.isRequired,
+};

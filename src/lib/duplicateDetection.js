@@ -1,8 +1,10 @@
 /* ─── Duplicate Detection ─── */
 
 /**
- * Scores the title similarity between two entries (0-100).
- * 100 = identical, 70 = one contains the other, lower = word-overlap ratio.
+ * Scores the title similarity between two strings (0–100).
+ * @param {string} a - First title string.
+ * @param {string} b - Second title string.
+ * @returns {number} Similarity score: 100 = identical, 70 = substring match, lower = word-overlap ratio.
  */
 export function scoreTitle(a, b) {
   a = a.toLowerCase().trim(); b = b.toLowerCase().trim();
