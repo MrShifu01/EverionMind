@@ -63,8 +63,9 @@ export default function BrainSwitcher({ brains, activeBrain, onSwitch, onBrainCr
         <div style={{
           position: "absolute",
           top: "calc(100% + 6px)",
-          left: 0,
-          minWidth: 220,
+          right: 0,
+          minWidth: 200,
+          maxWidth: "calc(100vw - 24px)",
           background: "#1e1e2e",
           border: "1px solid rgba(255,255,255,0.12)",
           borderRadius: 10,

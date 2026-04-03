@@ -9,6 +9,7 @@ import { useBrain } from "./hooks/useBrain";
 import { useOfflineSync } from "./hooks/useOfflineSync";
 import { enqueue } from "./lib/offlineQueue";
 import BrainSwitcher from "./components/BrainSwitcher";
+import CreateBrainModal from "./components/CreateBrainModal";
 import OnboardingModal from "./components/OnboardingModal";
 import BrainTipCard from "./components/BrainTipCard";
 
@@ -105,7 +106,7 @@ function UndoToast({ action, onUndo, onDismiss }) {
   }, []);
   const label = { delete: "Entry deleted", update: "Entry updated", create: "Entry created" }[action.type];
   return (
-    <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: t.surface, border: "1px solid #4ECDC4", borderRadius: 12, padding: "12px 20px", display: "flex", alignItems: "center", gap: 16, zIndex: 2000, boxShadow: "0 4px 20px #0008", minWidth: 280 }}>
+    <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: t.surface, border: "1px solid #4ECDC4", borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, zIndex: 2000, boxShadow: "0 4px 20px #0008", minWidth: 240, maxWidth: "calc(100vw - 32px)", boxSizing: "border-box" }}>
       <span style={{ fontSize: 14, color: t.textMid }}>{label}</span>
       <button onClick={onUndo} style={{ padding: "4px 14px", borderRadius: 8, border: "1px solid #4ECDC4", background: "none", color: "#4ECDC4", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Undo</button>
       <div style={{ position: "absolute", bottom: 0, left: 0, height: 3, background: "#4ECDC4", borderRadius: "0 0 12px 12px", width: `${pct}%`, transition: "width 80ms linear" }} />
@@ -120,7 +121,7 @@ function NudgeBanner({ nudge, onDismiss }) {
   const { t } = useTheme();
   if (!nudge) return null;
   return (
-    <div style={{ margin: "0 24px 12px", padding: "12px 16px", background: t.surface, border: "1px solid #A29BFE40", borderRadius: 12, display: "flex", alignItems: "flex-start", gap: 10 }}>
+    <div style={{ margin: "0 12px 12px", padding: "10px 12px", background: t.surface, border: "1px solid #A29BFE40", borderRadius: 12, display: "flex", alignItems: "flex-start", gap: 10 }}>
       <span style={{ fontSize: 16, flexShrink: 0 }}>💡</span>
       <p style={{ margin: 0, flex: 1, fontSize: 13, color: t.textMid, lineHeight: 1.5 }}>{nudge}</p>
       <button onClick={onDismiss} style={{ background: "none", border: "none", color: t.textFaint, fontSize: 18, cursor: "pointer", lineHeight: 1, flexShrink: 0 }}>✕</button>
@@ -361,10 +362,14 @@ function QuickCapture({ apiKey, sbKey, entries, setEntries, links, addLinks, onC
               authFetch("/api/save-links", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ links: newLinks }) }).catch(() => {});
             });
           } else {
-            const newEntry = { id: Date.now().toString(), ...parsed, pinned: false, importance: 0, tags: parsed.tags || [], created_at: new Date().toISOString() };
+            console.warn("[doSave] API returned non-ok, queuing for retry:", rpcRes.status);
+            const tempId = Date.now().toString();
+            const newEntry = { id: tempId, ...parsed, pinned: false, importance: 0, tags: parsed.tags || [], created_at: new Date().toISOString() };
+            await enqueue({ id: crypto.randomUUID(), url: "/api/capture", method: "POST", body: JSON.stringify({ p_title: parsed.title, p_content: parsed.content || "", p_type: parsed.type || "note", p_metadata: parsed.metadata || {}, p_tags: parsed.tags || [] }), created_at: new Date().toISOString(), tempId });
+            refreshCount?.();
             setEntries(prev => [newEntry, ...prev]);
             onCreated?.(newEntry);
-            setStatus("saved-local");
+            setStatus("error");
           }
         }
       } else {
@@ -411,8 +416,11 @@ function QuickCapture({ apiKey, sbKey, entries, setEntries, links, addLinks, onC
       onCreated?.(newEntry);
       setStatus("saved-raw");
     } catch (e) {
-      console.error(e);
-      const newEntry = { id: Date.now().toString(), title: input.slice(0, 60), content: input, type: "note", metadata: {}, pinned: false, importance: 0, tags: [], created_at: new Date().toISOString() };
+      console.error("[capture] API error, queuing for retry:", e);
+      const tempId = Date.now().toString();
+      const newEntry = { id: tempId, title: input.slice(0, 60), content: input, type: "note", metadata: {}, pinned: false, importance: 0, tags: [], created_at: new Date().toISOString() };
+      await enqueue({ id: crypto.randomUUID(), type: "raw-capture", anthropicRequest: { model: getUserModel(), max_tokens: 800, system: CAPTURE_SYSTEM, messages: [{ role: "user", content: input }] }, tempId, created_at: new Date().toISOString() });
+      refreshCount?.();
       setEntries(prev => [newEntry, ...prev]);
       onCreated?.(newEntry);
       setStatus("error");
@@ -420,10 +428,10 @@ function QuickCapture({ apiKey, sbKey, entries, setEntries, links, addLinks, onC
     setLoading(false); setTimeout(() => setStatus(null), 3000);
   };
 
-  const statusMsg = { thinking: "🤖 Parsing...", saving: "💾 Saving...", "saved-db": "✅ Saved!", "saved-local": "✅ Saved locally", "saved-raw": "📝 Saved", error: "⚠️ Saved locally", "offline-image": "📵 Image uploads need a connection" };
+  const statusMsg = { thinking: "🤖 Parsing...", saving: "💾 Saving...", "saved-db": "✅ Saved & synced!", "saved-local": "📡 Saved — will sync when online", "saved-raw": "📝 Saved", error: "⚠️ Sync failed — queued for retry", "offline-image": "📵 Image uploads need a connection" };
 
   return (
-    <div style={{ padding: "0 24px 16px" }}>
+    <div style={{ padding: "0 12px 12px" }}>
       {brains.length > 1 ? (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
           {brains.map(b => {
@@ -511,7 +519,7 @@ function PinGate({ onSuccess, onCancel, isSetup = false }) {
     <>
       <style>{`@keyframes pinShake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}`}</style>
       <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(4px)" }} onClick={e => { if (e.target === e.currentTarget) onCancel(); }}>
-        <div style={{ background: t.surface, borderRadius: 20, padding: "32px 28px", width: 300, border: `1px solid ${t.border}`, animation: shake ? "pinShake 0.38s ease" : "none" }}>
+        <div style={{ background: t.surface, borderRadius: 20, padding: "24px 20px", width: "100%", maxWidth: 300, border: `1px solid ${t.border}`, animation: shake ? "pinShake 0.38s ease" : "none", boxSizing: "border-box" }}>
           <div style={{ textAlign: "center", marginBottom: 22 }}>
             <div style={{ fontSize: 30, marginBottom: 8 }}>🔒</div>
             <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: t.text }}>{titles[step]}</h3>
@@ -771,7 +779,7 @@ export default function OpenBrain() {
         if (Array.isArray(parsed) && parsed.every(e => e && typeof e.id === "string" && typeof e.title === "string")) return parsed;
       }
     } catch {}
-    return INITIAL_ENTRIES;
+    return [];
   });
   const [entriesLoaded, setEntriesLoaded] = useState(false);
 
@@ -779,17 +787,22 @@ export default function OpenBrain() {
   const { brains, activeBrain, setActiveBrain, createBrain, deleteBrain, refresh } = useBrain(
     useCallback(() => {
       // Reset local state when brain switches
-      setEntries(INITIAL_ENTRIES);
-      setLinks(LINKS);
+      setEntries([]);
+      setLinks([]);
       setEntriesLoaded(false);
     }, [])
   );
 
-  const { isOnline, pendingCount, refreshCount } = useOfflineSync({
+  const { isOnline, pendingCount, sync, refreshCount } = useOfflineSync({
     onEntryIdUpdate: useCallback((tempId, realId) => {
       setEntries(prev => prev.map(e => e.id === tempId ? { ...e, id: realId } : e));
     }, []),
   });
+
+  // Drain offline queue on mount when online
+  useEffect(() => {
+    if (isOnline) sync();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep a ref so timer callbacks can read current isOnline without stale closure
   const isOnlineRef = useRef(isOnline);
@@ -808,9 +821,17 @@ export default function OpenBrain() {
   const [sbKey] = useState("configured");
   const { t, isDark, toggleTheme } = useTheme();
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("openbrain_onboarded"));
+  // Skip onboarding for existing users on new browsers — if they already have brains, they're not new
+  useEffect(() => {
+    if (showOnboarding && brains.length > 0) {
+      localStorage.setItem("openbrain_onboarded", "1");
+      setShowOnboarding(false);
+    }
+  }, [brains, showOnboarding]);
   const [showBrainTip, setShowBrainTip] = useState(null);
+  const [showCreateBrain, setShowCreateBrain] = useState(false);
   const [chatInput, setChatInput] = useState("");
-  const [chatMsgs, setChatMsgs] = useState([{ role: "assistant", content: "Hey Chris. Ask me about your memories — \"What's my ID number?\", \"Who are my suppliers?\", etc." }]);
+  const [chatMsgs, setChatMsgs] = useState([{ role: "assistant", content: "Hey! Ask me about your memories — \"What's my ID number?\", \"Who are my suppliers?\", etc." }]);
   const [chatLoading, setChatLoading] = useState(false);
   const [pendingSecureMsg, setPendingSecureMsg] = useState(null);
   const [showPinGate, setShowPinGate] = useState(false);
@@ -847,7 +868,7 @@ export default function OpenBrain() {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: getUserModel(), max_tokens: 200,
-        system: `You are OpenBrain, a proactive memory assistant for Chris. Given his recent entries, generate 1-2 short, specific, actionable nudges he should know right now. Examples: expiring documents, stale ideas, gaps in his business records, upcoming deadlines. Be concrete — mention entry names. Do NOT suggest merging companies just because they share a word in their name. Return plain text, 1-2 sentences max.`,
+        system: `You are OpenBrain, a proactive memory assistant. Given the user's recent entries, generate 1-2 short, specific, actionable nudges they should know right now. Examples: expiring documents, stale ideas, gaps in their business records, upcoming deadlines. Be concrete — mention entry names. Do NOT suggest merging companies just because they share a word in their name. Return plain text, 1-2 sentences max.`,
         messages: [{ role: "user", content: `My recent memories:\n${JSON.stringify(recent)}\n\nWhat should I know right now?` }]
       })
     })
@@ -984,7 +1005,7 @@ export default function OpenBrain() {
     if (!chatInput.trim()) return;
     const msg = chatInput.trim(); setChatInput(""); setChatMsgs(p => [...p, { role: "user", content: msg }]); setChatLoading(true);
     try {
-      const res = await aiFetch("/api/anthropic", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: getUserModel(), max_tokens: 1000, system: `You are OpenBrain, Chris's memory assistant. Be concise. When you mention a phone number, format it clearly. If the answer contains a phone number, put it on its own line.\n\nMEMORIES:\n${JSON.stringify(entries.slice(0, 100))}\n\nLINKS:\n${JSON.stringify(links)}`, messages: [{ role: "user", content: msg }] }) });
+      const res = await aiFetch("/api/anthropic", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: getUserModel(), max_tokens: 1000, system: `You are OpenBrain, the user's memory assistant. Be concise. When you mention a phone number, format it clearly. If the answer contains a phone number, put it on its own line.\n\nMEMORIES:\n${JSON.stringify(entries.slice(0, 100))}\n\nLINKS:\n${JSON.stringify(links)}`, messages: [{ role: "user", content: msg }] }) });
       const data = await res.json();
       const content = data.content?.map(c => c.text || "").join("") || "Couldn't process.";
       if (containsSensitiveContent(content)) {
@@ -1012,12 +1033,12 @@ export default function OpenBrain() {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: t.bg, color: t.text, fontFamily: "'Söhne', system-ui, -apple-system, sans-serif", transition: "background 0.25s, color 0.25s" }}>
-      <div style={{ padding: "20px 24px 0" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #4ECDC4, #45B7D1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🧠</div>
-          <div><h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, letterSpacing: -0.5 }}>OpenBrain</h1><p style={{ margin: 0, fontSize: 11, color: t.textDim }}>Your eternal memory</p></div>
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+    <div style={{ minHeight: "100vh", background: t.bg, color: t.text, fontFamily: "'Söhne', system-ui, -apple-system, sans-serif", transition: "background 0.25s, color 0.25s", overflowX: "hidden" }}>
+      <div style={{ padding: "16px 12px 0" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "nowrap", overflow: "hidden" }}>
+          <div style={{ width: 32, height: 32, minWidth: 32, borderRadius: 10, background: "linear-gradient(135deg, #4ECDC4, #45B7D1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>🧠</div>
+          <div style={{ minWidth: 0 }}><h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: -0.5, whiteSpace: "nowrap" }}>OpenBrain</h1><p style={{ margin: 0, fontSize: 10, color: t.textDim }}>Your eternal memory</p></div>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
             {brains.length > 0 && (
               <BrainSwitcher
                 brains={brains}
@@ -1066,7 +1087,7 @@ export default function OpenBrain() {
       {/* Slide-in nav panel */}
       {navOpen && (
         <div style={{ position: "fixed", inset: 0, zIndex: 1000 }} onClick={() => setNavOpen(false)}>
-          <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 260, background: isDark ? "#16161e" : "#f8f8ff", borderLeft: `1px solid ${t.border}`, boxShadow: "-8px 0 32px rgba(0,0,0,0.4)", display: "flex", flexDirection: "column", padding: "20px 0" }}
+          <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: "75vw", maxWidth: 260, background: isDark ? "#16161e" : "#f8f8ff", borderLeft: `1px solid ${t.border}`, boxShadow: "-8px 0 32px rgba(0,0,0,0.4)", display: "flex", flexDirection: "column", padding: "20px 0" }}
             onClick={e => e.stopPropagation()}>
             <div style={{ padding: "0 20px 16px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: t.textMid }}>Navigation</span>
@@ -1082,14 +1103,34 @@ export default function OpenBrain() {
                 </button>
               ))}
             </div>
-            <div style={{ padding: "12px 20px", borderTop: `1px solid ${t.border}`, fontSize: 11, color: t.textDim }}>
+            <div style={{ padding: "8px 16px", borderTop: `1px solid ${t.border}` }}>
+              <button
+                onClick={() => { setNavOpen(false); setShowCreateBrain(true); }}
+                style={{ width: "100%", padding: "10px 16px", background: "rgba(124,143,240,0.1)", border: "1px solid rgba(124,143,240,0.3)", borderRadius: 10, color: "#a5b4fc", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, justifyContent: "center" }}
+              >
+                + Add Family or Business Brain
+              </button>
+            </div>
+            <div style={{ padding: "8px 20px", borderTop: `1px solid ${t.border}`, fontSize: 11, color: t.textDim }}>
               {entries.length} memories · {pendingCount > 0 ? `${pendingCount} pending sync` : "synced"}
             </div>
           </div>
         </div>
       )}
 
-      <div style={{ padding: 20 }}>
+      {showCreateBrain && (
+        <CreateBrainModal
+          onClose={() => setShowCreateBrain(false)}
+          onCreate={async (brain) => {
+            await refresh();
+            setActiveBrain(brain);
+            setShowBrainTip(brain);
+            setShowCreateBrain(false);
+          }}
+        />
+      )}
+
+      <div style={{ padding: "12px 12px" }}>
         {view === "capture" && (
           <div style={{ textAlign: "center", paddingTop: 40, color: t.textDim }}>
             <p style={{ fontSize: 13, marginBottom: 20 }}>Tap ☰ to navigate — or just start capturing above.</p>
@@ -1115,9 +1156,9 @@ export default function OpenBrain() {
             <button onClick={() => setTypeFilter("all")} style={{ flexShrink: 0, padding: "6px 14px", borderRadius: 20, border: "none", fontSize: 11, fontWeight: 600, cursor: "pointer", background: typeFilter === "all" ? "#4ECDC4" : t.surface, color: typeFilter === "all" ? "#0f0f23" : t.textMuted }}>All ({entries.length})</button>
             {Object.entries(types).map(([typ, n]) => { const c = TC[typ] || TC.note; return <button key={typ} onClick={() => setTypeFilter(typ)} style={{ flexShrink: 0, padding: "6px 14px", borderRadius: 20, border: "none", fontSize: 11, fontWeight: 600, cursor: "pointer", background: typeFilter === typ ? c.c : t.surface, color: typeFilter === typ ? "#0f0f23" : t.textMuted }}>{c.i} {typ} ({n})</button>; })}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(70px, 1fr))", gap: 8, marginBottom: 16 }}>
             {[{ l: "Memories", v: entries.length, c: "#4ECDC4" }, { l: "Pinned", v: entries.filter(e => e.pinned).length, c: "#FFD700" }, { l: "Types", v: Object.keys(types).length, c: "#A29BFE" }, { l: "Links", v: links.length, c: "#FF6B35" }].map(s =>
-              <div key={s.l} style={{ background: t.surface, borderRadius: 12, padding: "14px 12px", textAlign: "center", border: `1px solid ${t.border}` }}><div style={{ fontSize: 26, fontWeight: 800, color: s.c }}>{s.v}</div><div style={{ fontSize: 9, color: t.textDim, textTransform: "uppercase", letterSpacing: 1, marginTop: 2 }}>{s.l}</div></div>
+              <div key={s.l} style={{ background: t.surface, borderRadius: 10, padding: "10px 8px", textAlign: "center", border: `1px solid ${t.border}` }}><div style={{ fontSize: 22, fontWeight: 800, color: s.c }}>{s.v}</div><div style={{ fontSize: 8, color: t.textDim, textTransform: "uppercase", letterSpacing: 1, marginTop: 2 }}>{s.l}</div></div>
             )}
           </div>
           {filtered.length > 0 ? <VirtualGrid filtered={filtered} setSelected={setSelected} /> : <p style={{ textAlign: "center", color: "#555", marginTop: 40 }}>No memories match.</p>}
@@ -1129,14 +1170,14 @@ export default function OpenBrain() {
         {view === "calendar" && <Suspense fallback={<Loader />}><CalendarView entries={entries} /></Suspense>}
         {view === "todos" && <Suspense fallback={<Loader />}><TodoView /></Suspense>}
         {view === "timeline" && <VirtualTimeline sorted={sortedTimeline} setSelected={setSelected} />}
-        {view === "graph" && <Suspense fallback={<Loader />}><p style={{ fontSize: 12, color: "#666", marginBottom: 12 }}>Knowledge graph — click nodes to view</p><GraphView onSelect={setSelected} /></Suspense>}
+        {view === "graph" && <Suspense fallback={<Loader />}><p style={{ fontSize: 12, color: "#666", marginBottom: 12 }}>Knowledge graph — click nodes to view</p><GraphView onSelect={setSelected} entries={entries} links={links} /></Suspense>}
 
         {view === "chat" && (
-          <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 260px)" }}>
+          <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 220px)", maxHeight: "calc(100dvh - 220px)" }}>
             <div style={{ flex: 1, overflow: "auto", marginBottom: 12 }}>
               {chatMsgs.map((m, i) => (
                 <div key={i} style={{ marginBottom: 12, display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
-                  <div style={{ maxWidth: "85%", padding: "12px 16px", borderRadius: m.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px", background: m.role === "user" ? "#4ECDC4" : t.surface, color: m.role === "user" ? "#0f0f23" : t.textMid, fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                  <div style={{ maxWidth: "85%", padding: "10px 14px", borderRadius: m.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px", background: m.role === "user" ? "#4ECDC4" : t.surface, color: m.role === "user" ? "#0f0f23" : t.textMid, fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "break-word" }}>
                     {m.role === "assistant" ? m.content.split(/(\+27[0-9]{9}|0[6-8][0-9]{8})/).map((part, pi) =>
                       /(\+27[0-9]{9}|0[6-8][0-9]{8})/.test(part)
                         ? <a key={pi} href={`tel:${part}`} style={{ color: "#4ECDC4", fontWeight: 700, textDecoration: "none" }}>{part}</a>
@@ -1171,6 +1212,8 @@ export default function OpenBrain() {
           onDelete={handleDelete}
           onUpdate={handleUpdate}
           onReorder={handleReorder}
+          entries={entries}
+          links={links}
         />
       </Suspense>
 

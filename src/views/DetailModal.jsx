@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { TC, LINKS, INITIAL_ENTRIES } from "../data/constants";
+import { TC } from "../data/constants";
 import { extractPhone, toWaUrl } from "../OpenBrain";
 import { useTheme } from "../ThemeContext";
 
-export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReorder }) {
+export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReorder, entries = [], links = [] }) {
   const { t } = useTheme();
   if (!entry) return null;
   const [deleting, setDeleting] = useState(false);
@@ -15,9 +15,9 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
   const [editTags, setEditTags] = useState((entry.tags || []).join(', '));
   const [shareMsg, setShareMsg] = useState(null);
   const cfg = TC[editType] || TC.note;
-  const related = LINKS.filter(l => l.from === entry.id || l.to === entry.id).map(l => ({
+  const related = links.filter(l => l.from === entry.id || l.to === entry.id).map(l => ({
     ...l,
-    other: INITIAL_ENTRIES.find(e => e.id === (l.from === entry.id ? l.to : l.from)),
+    other: entries.find(e => e.id === (l.from === entry.id ? l.to : l.from)),
     dir: l.from === entry.id ? '→' : '←',
   }));
   const skip = new Set(['category', 'status']);
@@ -113,10 +113,10 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
   quickActions.push(<button key="share" onClick={handleShare} style={abtn('#45B7D1')}>📤 Share</button>);
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: '#000000CC', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={editing ? undefined : onClose}>
-      <div style={{ background: t.surface2, borderRadius: 16, maxWidth: 600, width: '100%', maxHeight: '85vh', overflow: 'auto', border: `1px solid ${cfg.c}40` }} onClick={e => e.stopPropagation()}>
+    <div style={{ position: 'fixed', inset: 0, background: '#000000CC', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }} onClick={editing ? undefined : onClose}>
+      <div style={{ background: t.surface2, borderRadius: 16, maxWidth: 600, width: '100%', maxHeight: '90vh', overflow: 'auto', border: `1px solid ${cfg.c}40` }} onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div style={{ padding: '24px 28px', borderBottom: `1px solid ${t.border}`, display: 'flex', justifyContent: 'space-between' }}>
+        <div style={{ padding: '16px 16px', borderBottom: `1px solid ${t.border}`, display: 'flex', justifyContent: 'space-between' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <span style={{ fontSize: 24 }}>{cfg.i}</span>
@@ -133,7 +133,7 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
 
         {/* Edit form */}
         {editing ? (
-          <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ padding: '16px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div><label style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Title</label><input value={editTitle} onChange={e => setEditTitle(e.target.value)} style={inp} /></div>
             <div><label style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Type</label>
               <select value={editType} onChange={e => setEditType(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
@@ -148,7 +148,7 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
             </div>
           </div>
         ) : (
-          <div style={{ padding: '20px 28px' }}>
+          <div style={{ padding: '16px 16px' }}>
             <p style={{ color: t.textMid, fontSize: 14, lineHeight: 1.7, margin: 0 }}>{editContent}</p>
             {meta.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px', marginTop: 12 }}>
               {meta.map(([k, v]) => <div key={k} style={{ fontSize: 12 }}><span style={{ color: t.textMuted, textTransform: 'capitalize' }}>{k.replace(/_/g, ' ')}: </span><span style={{ color: t.textMid }}>{Array.isArray(v) ? v.join(', ') : String(v)}</span></div>)}
@@ -165,7 +165,7 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
 
         {/* Quick Actions */}
         {!editing && quickActions.length > 0 && (
-          <div style={{ padding: '0 28px 24px', borderTop: `1px solid ${t.border}40` }}>
+          <div style={{ padding: '0 16px 16px', borderTop: `1px solid ${t.border}40` }}>
             <div style={{ paddingTop: 16, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {quickActions}
             </div>

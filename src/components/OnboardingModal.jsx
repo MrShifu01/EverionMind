@@ -157,9 +157,10 @@ export default function OnboardingModal({ onComplete, apiKey }) {
     background: t.surface2 || "#1a1a2e",
     border: `1px solid ${t.border}`,
     borderRadius: 18,
-    padding: 32,
+    padding: "24px 16px",
     maxWidth: 440,
     width: "100%",
+    boxSizing: "border-box",
     boxShadow: "0 24px 64px rgba(0,0,0,0.7)",
     margin: "auto",
   };

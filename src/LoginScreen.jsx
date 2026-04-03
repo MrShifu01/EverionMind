@@ -130,7 +130,7 @@ export default function LoginScreen() {
 
       {/* Feature grid */}
       <div style={{ maxWidth: 540, margin: "48px auto 0", padding: "0 24px 60px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: window.innerWidth < 400 ? "1fr" : "1fr 1fr", gap: 12 }}>
           {FEATURES.map(f => (
             <div key={f.label} style={{
               background: t.surface,
