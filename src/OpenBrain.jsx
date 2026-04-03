@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useCallback, lazy, Suspense } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback, lazy, Suspense, memo } from "react";
 import { useTheme } from "./ThemeContext";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { authFetch } from "./lib/authFetch";
@@ -630,7 +630,7 @@ function SettingsView({ activeBrain, canInvite, canManageMembers, onRefreshBrain
 /* ═══════════════════════════════════════════════════════════════
    ENTRY CARD
    ═══════════════════════════════════════════════════════════════ */
-function EntryCard({ entry: e, onSelect }) {
+const EntryCard = memo(function EntryCard({ entry: e, onSelect }) {
   const { t, isDark } = useTheme();
   const cfg = TC[e.type] || TC.note;
   const imp = { 1: "Important", 2: "Critical" }[e.importance];
@@ -653,7 +653,7 @@ function EntryCard({ entry: e, onSelect }) {
       </div>}
     </div>
   );
-}
+});
 
 /* ═══════════════════════════════════════════════════════════════
    VIRTUALISED GRID

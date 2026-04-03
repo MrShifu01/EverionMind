@@ -8,10 +8,16 @@ export function useOfflineSync({ onEntryIdUpdate } = {}) {
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
   const drainingRef = useRef(false);
+  // PERF-7: debounce refreshCount so rapid successive calls (e.g. bulk enqueue)
+  // only trigger one IndexedDB read instead of one per call.
+  const refreshTimerRef = useRef(null);
 
-  const refreshCount = useCallback(async () => {
-    const ops = await getAll();
-    setPendingCount(ops.length);
+  const refreshCount = useCallback(() => {
+    clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(async () => {
+      const ops = await getAll();
+      setPendingCount(ops.length);
+    }, 300);
   }, []);
 
   const drain = useCallback(async () => {
@@ -59,6 +65,8 @@ export function useOfflineSync({ onEntryIdUpdate } = {}) {
       }
     } finally {
       drainingRef.current = false;
+      // Re-sync count from actual queue state after drain completes (bypass debounce)
+      getAll().then(remaining => setPendingCount(remaining.length));
     }
   }, [onEntryIdUpdate]);
 

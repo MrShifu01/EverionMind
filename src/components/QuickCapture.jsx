@@ -101,6 +101,8 @@ export default function QuickCapture({ entries, setEntries, links, addLinks, onC
   const [selectedBrainIds, setSelectedBrainIds] = useState(() => brainId ? [brainId] : []);
   const imgRef = useRef(null);
   const recognitionRef = useRef(null);
+  const connectionsTimerRef = useRef(null);
+  const lastConnectionsLengthRef = useRef(entries ? entries.length : 0);
 
   // Keep selection in sync when active brain changes
   useEffect(() => {
@@ -178,11 +180,24 @@ export default function QuickCapture({ entries, setEntries, links, addLinks, onC
             setEntries(prev => [newEntry, ...prev]);
             onCreated?.(newEntry);
             setStatus("saved-db");
-            findConnections(newEntry, entries, links || []).then(newLinks => {
-              if (newLinks.length === 0) return;
-              addLinks?.(newLinks);
-              authFetch("/api/save-links", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ links: newLinks }) }).catch(err => console.error('[QuickCapture:findConnections] Failed to save links', err));
-            });
+            // PERF-6: debounce findConnections by 5 s; skip during bulk import
+            // (heuristic: if entries grew by more than 3 since last run, it's a bulk import)
+            const currentLength = entries.length;
+            const delta = currentLength - lastConnectionsLengthRef.current;
+            lastConnectionsLengthRef.current = currentLength + 1; // +1 for the entry being saved
+            if (delta <= 3) {
+              clearTimeout(connectionsTimerRef.current);
+              const entrySnapshot = newEntry;
+              const entriesSnapshot = entries;
+              const linksSnapshot = links || [];
+              connectionsTimerRef.current = setTimeout(() => {
+                findConnections(entrySnapshot, entriesSnapshot, linksSnapshot).then(newLinks => {
+                  if (newLinks.length === 0) return;
+                  addLinks?.(newLinks);
+                  authFetch("/api/save-links", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ links: newLinks }) }).catch(err => console.error('[QuickCapture:findConnections] Failed to save links', err));
+                });
+              }, 5000);
+            }
           } else {
             console.warn("[doSave] API returned non-ok, queuing for retry:", rpcRes.status);
             const tempId = Date.now().toString();
