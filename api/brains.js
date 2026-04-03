@@ -118,7 +118,7 @@ export default async function handler(req, res) {
 
     if (!inviteRes.ok) {
       const err = await inviteRes.text();
-      return res.status(502).json({ error: "Failed to create invite", detail: err });
+      return res.status(502).json({ error: "Failed to create invite" });
     }
 
     const [invite] = await inviteRes.json();

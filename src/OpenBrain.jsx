@@ -1066,8 +1066,8 @@ export default function OpenBrain() {
   const [selected, setSelected] = useState(null);
   const [links, setLinks] = useState(LINKS);
   const addLinks = (newLinks) => setLinks(prev => [...prev, ...newLinks]);
-  const [apiKey] = useState("configured");
-  const [sbKey] = useState("configured");
+  const apiKey = "configured";
+  const sbKey = "configured";
   const { canWrite, canInvite, canManageMembers, role: myRole } = useRole(activeBrain);
   const { t, isDark, toggleTheme } = useTheme();
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("openbrain_onboarded"));
@@ -1091,6 +1091,11 @@ export default function OpenBrain() {
   const pendingDeleteRef = useRef(null);
   const chatEndRef = useRef(null);
   const searchDebounceRef = useRef(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput), 200);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatMsgs]);
 
@@ -1129,10 +1134,12 @@ export default function OpenBrain() {
         else sessionStorage.setItem("openbrain_nudge", "");
       })
       .catch(() => sessionStorage.setItem("openbrain_nudge", ""));
-  }, [entriesLoaded, entries]); // entries in deps so nudge sees freshly loaded data, not stale snapshot
+  }, [entriesLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (entriesLoaded) { try { localStorage.setItem("openbrain_entries", JSON.stringify(entries)); } catch {} }
+    if (!entriesLoaded) return;
+    const t = setTimeout(() => { try { localStorage.setItem("openbrain_entries", JSON.stringify(entries)); } catch {} }, 3000);
+    return () => clearTimeout(t);
   }, [entries, entriesLoaded]);
 
   const types = useMemo(() => { const t = {}; entries.forEach(e => { t[e.type] = (t[e.type] || 0) + 1; }); return t; }, [entries]);
@@ -1404,7 +1411,7 @@ export default function OpenBrain() {
           </div>
           <div style={{ position: "relative", marginBottom: 16 }}>
             <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: t.textFaint }}>⌕</span>
-            <input value={searchInput} onChange={e => { setSearchInput(e.target.value); clearTimeout(searchDebounceRef.current); searchDebounceRef.current = setTimeout(() => setSearch(e.target.value), 200); }} placeholder="Search..." style={{ width: "100%", boxSizing: "border-box", padding: "12px 16px 12px 38px", background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, color: t.textSoft, fontSize: 14, outline: "none" }} />
+            <input value={searchInput} onChange={e => setSearchInput(e.target.value)} placeholder="Search..." style={{ width: "100%", boxSizing: "border-box", padding: "12px 16px 12px 38px", background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, color: t.textSoft, fontSize: 14, outline: "none" }} />
           </div>
           <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 16, scrollbarWidth: "none" }}>
             <button onClick={() => setTypeFilter("all")} style={{ flexShrink: 0, padding: "6px 14px", borderRadius: 20, border: "none", fontSize: 11, fontWeight: 600, cursor: "pointer", background: typeFilter === "all" ? "#4ECDC4" : t.surface, color: typeFilter === "all" ? "#0f0f23" : t.textMuted }}>All ({entries.length})</button>

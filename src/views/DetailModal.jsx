@@ -7,6 +7,7 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
   const { t } = useTheme();
   if (!entry) return null;
   const [deleting, setDeleting] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editTitle, setEditTitle] = useState(entry.title);
@@ -125,7 +126,7 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
             {!editing && <h2 style={{ margin: 0, fontSize: 22, color: t.text, fontWeight: 700 }}>{editTitle}</h2>}
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-            {!editing && canWrite && onDelete && <button onClick={async () => { setDeleting(true); await onDelete(entry.id); setDeleting(false); }} disabled={deleting} style={{ padding: '6px 14px', background: deleting ? t.surface : '#FF6B3520', border: '1px solid #FF6B3540', borderRadius: 8, color: deleting ? t.textFaint : '#FF6B35', fontSize: 12, fontWeight: 600, cursor: deleting ? 'default' : 'pointer' }}>{deleting ? 'Deleting...' : 'Delete'}</button>}
+            {!editing && canWrite && onDelete && <button onClick={async () => { if (!confirmingDelete) { setConfirmingDelete(true); setTimeout(() => setConfirmingDelete(false), 3000); } else { setDeleting(true); await onDelete(entry.id); setDeleting(false); } }} disabled={deleting} style={{ padding: '6px 14px', background: deleting ? t.surface : confirmingDelete ? '#FF6B3540' : '#FF6B3520', border: '1px solid #FF6B3540', borderRadius: 8, color: deleting ? t.textFaint : '#FF6B35', fontSize: 12, fontWeight: 600, cursor: deleting ? 'default' : 'pointer' }}>{deleting ? 'Deleting...' : confirmingDelete ? 'Confirm delete?' : 'Delete'}</button>}
             {!editing && canWrite && onUpdate && <button onClick={() => setEditing(true)} style={{ padding: '6px 14px', background: '#4ECDC420', border: '1px solid #4ECDC440', borderRadius: 8, color: '#4ECDC4', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Edit</button>}
             {!canWrite && <span style={{ fontSize: 11, color: '#888', padding: '6px 8px' }}>🔒 View only</span>}
             <button onClick={editing ? () => setEditing(false) : onClose} style={{ background: 'none', border: 'none', color: t.textDim, fontSize: 24, cursor: 'pointer' }}>✕</button>

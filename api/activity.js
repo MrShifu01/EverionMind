@@ -31,7 +31,7 @@ export default async function handler(req, res) {
     if (!ownerData.length) return res.status(403).json({ error: "Only the brain owner can view activity" });
 
     const r = await fetch(
-      `${SB_URL}/rest/v1/brain_activity?brain_id=eq.${encodeURIComponent(brain_id)}&order=created_at.desc&limit=${parseInt(limit, 10) || 50}`,
+      `${SB_URL}/rest/v1/brain_activity?brain_id=eq.${encodeURIComponent(brain_id)}&order=created_at.desc&limit=${Math.min(parseInt(limit) || 50, 500)}`,
       { headers: hdrs() }
     );
     return res.status(r.status).json(await r.json());

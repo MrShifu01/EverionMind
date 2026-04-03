@@ -13,6 +13,18 @@ export default async function handler(req, res) {
 
   const { model, messages, max_tokens, system } = req.body;
 
+  const ALLOWED_MODELS = [
+    "google/gemini-2.0-flash-exp:free",
+    "anthropic/claude-3.5-haiku",
+    "anthropic/claude-sonnet-4-5",
+    "openai/gpt-4o-mini",
+    "openai/gpt-4o",
+    "meta-llama/llama-3.1-70b-instruct",
+  ];
+  if (model && !ALLOWED_MODELS.includes(model)) {
+    return res.status(400).json({ error: "Model not allowed" });
+  }
+
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: "messages must be a non-empty array" });
   }
