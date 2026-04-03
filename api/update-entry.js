@@ -10,7 +10,7 @@ export default async function handler(req, res) {
   const user = await verifyAuth(req);
   if (!user) return res.status(401).json({ error: "Unauthorized" });
 
-  const { id, title, content, type, tags, metadata } = req.body;
+  const { id, title, content, type, tags, metadata, brain_id } = req.body;
   if (!id || typeof id !== "string" || id.length > 100) {
     return res.status(400).json({ error: "Missing or invalid id" });
   }
@@ -27,6 +27,7 @@ export default async function handler(req, res) {
   if (type !== undefined) patch.type = type;
   if (Array.isArray(tags)) patch.tags = tags.filter(t => typeof t === "string").slice(0, 50);
   if (metadata !== undefined && typeof metadata === "object" && !Array.isArray(metadata)) patch.metadata = metadata;
+  if (brain_id !== undefined && typeof brain_id === "string" && brain_id.length <= 100) patch.brain_id = brain_id;
 
   // Filter by id; RLS (brain membership) enforces access control
   const response = await fetch(

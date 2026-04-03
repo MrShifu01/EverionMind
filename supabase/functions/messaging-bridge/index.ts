@@ -5,7 +5,7 @@ const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SB_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const TELEGRAM_BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
 const TELEGRAM_SECRET = Deno.env.get("TELEGRAM_SECRET_TOKEN") || "";
-const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
+const OPENROUTER_KEY = Deno.env.get("OPENROUTER_API_KEY")!;
 
 const supabase = createClient(SB_URL, SB_SERVICE_KEY);
 
@@ -21,13 +21,13 @@ async function classifyMessage(text: string, memoryGuide: string): Promise<Recor
   const system = memoryGuide
     ? `[Classification Guide]\n${memoryGuide}\n\n[Task]\nClassify and structure this into an OpenBrain entry. Return ONLY valid JSON: {title,content,type,tags,metadata,importance}`
     : `Classify and structure this into an OpenBrain entry. Return ONLY valid JSON: {title,content,type,tags,metadata,importance}`;
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_KEY, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 400, system, messages: [{ role: "user", content: text }] }),
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${OPENROUTER_KEY}` },
+    body: JSON.stringify({ model: "anthropic/claude-haiku-4-5", max_tokens: 400, messages: [{ role: "system", content: system }, { role: "user", content: text }] }),
   });
   const data = await res.json();
-  const raw = (data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim();
+  const raw = (data.choices?.[0]?.message?.content || "{}").replace(/```json|```/g, "").trim();
   try { return JSON.parse(raw); } catch { return { title: text.slice(0, 80), content: text, type: "note", tags: ["telegram"], metadata: {}, importance: 0 }; }
 }
 

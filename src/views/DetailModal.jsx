@@ -3,7 +3,7 @@ import { TC } from "../data/constants";
 import { extractPhone, toWaUrl } from "../OpenBrain";
 import { useTheme } from "../ThemeContext";
 
-export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReorder, entries = [], links = [], canWrite = true }) {
+export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReorder, entries = [], links = [], canWrite = true, brains = [] }) {
   const { t } = useTheme();
   if (!entry) return null;
   const [deleting, setDeleting] = useState(false);
@@ -13,6 +13,7 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
   const [editContent, setEditContent] = useState(entry.content);
   const [editType, setEditType] = useState(entry.type);
   const [editTags, setEditTags] = useState((entry.tags || []).join(', '));
+  const [editBrainId, setEditBrainId] = useState(entry.brain_id || '');
   const [shareMsg, setShareMsg] = useState(null);
   const cfg = TC[editType] || TC.note;
   const related = links.filter(l => l.from === entry.id || l.to === entry.id).map(l => ({
@@ -27,7 +28,9 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
   const handleSave = async () => {
     setSaving(true);
     const tags = editTags.split(',').map(t => t.trim()).filter(Boolean);
-    await onUpdate(entry.id, { title: editTitle, content: editContent, type: editType, tags });
+    const changes = { title: editTitle, content: editContent, type: editType, tags };
+    if (editBrainId && editBrainId !== entry.brain_id) changes.brain_id = editBrainId;
+    await onUpdate(entry.id, changes);
     setSaving(false);
     setEditing(false);
   };
@@ -143,6 +146,22 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
             </div>
             <div><label style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Content</label><textarea value={editContent} onChange={e => setEditContent(e.target.value)} rows={4} style={{ ...inp, resize: 'vertical', lineHeight: 1.6 }} /></div>
             <div><label style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Tags <span style={{ color: t.textFaint, fontWeight: 400, textTransform: 'none' }}>(comma separated)</span></label><input value={editTags} onChange={e => setEditTags(e.target.value)} style={inp} placeholder="tag1, tag2, tag3" /></div>
+            {brains.length > 1 && (
+              <div>
+                <label style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Brain</label>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {brains.map(b => {
+                    const emoji = b.type === 'family' ? '🏠' : b.type === 'business' ? '🏪' : '🧠';
+                    const active = editBrainId === b.id;
+                    return (
+                      <button key={b.id} onClick={() => setEditBrainId(b.id)} style={{ padding: '6px 14px', borderRadius: 20, border: active ? '1px solid #4ECDC4' : `1px solid ${t.border}`, background: active ? '#4ECDC420' : t.surface, color: active ? '#4ECDC4' : t.textDim, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                        {emoji} {b.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
               <button onClick={() => setEditing(false)} style={{ flex: 1, padding: 12, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, color: t.textMuted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
               <button onClick={handleSave} disabled={saving || !editTitle.trim()} style={{ flex: 2, padding: 12, background: editTitle.trim() ? 'linear-gradient(135deg, #4ECDC4, #45B7D1)' : t.surface, border: 'none', borderRadius: 10, color: editTitle.trim() ? '#0f0f23' : t.textDim, fontSize: 13, fontWeight: 700, cursor: editTitle.trim() ? 'pointer' : 'default' }}>{saving ? 'Saving...' : 'Save changes'}</button>

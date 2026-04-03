@@ -18,10 +18,17 @@ export default function CalendarView({ entries }) {
     const map = {};
     const addTo = (key, entry) => { if (!map[key]) map[key] = []; if (!map[key].find(e => e.id === entry.id)) map[key].push(entry); };
 
+    const DATE_KEYS = ["deadline","due_date","valid_to","valid_from","date","event_date","start_date","end_date","match_date","game_date","scheduled_date","appointment_date","event_start","expiry_date","expiry","renewal_date"];
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}/;
+
     // Explicit date fields — skip completed reminders
     entries.forEach(e => {
       if (e.type === "reminder" && e.metadata?.status === "done") return;
-      [e.metadata?.deadline, e.metadata?.due_date, e.metadata?.valid_to, e.metadata?.valid_from, e.metadata?.date, e.metadata?.event_date].filter(Boolean).forEach(d => addTo(d.slice(0, 10), e));
+      const m = e.metadata || {};
+      // Check all known date keys
+      DATE_KEYS.forEach(k => { if (m[k]) addTo(String(m[k]).slice(0, 10), e); });
+      // Fallback: scan all metadata values for any YYYY-MM-DD shaped string
+      Object.values(m).forEach(v => { if (typeof v === "string" && DATE_RE.test(v)) addTo(v.slice(0, 10), e); });
     });
 
     // Recurring day-of-week entries — show on every matching weekday in displayed month
