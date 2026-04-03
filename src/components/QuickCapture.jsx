@@ -3,8 +3,7 @@ import { useTheme } from "../ThemeContext";
 import { aiFetch, getUserModel } from "../lib/aiFetch";
 import { authFetch } from "../lib/authFetch";
 import { enqueue } from "../lib/offlineQueue";
-import { findConnections } from "../lib/connectionFinder";
-import { scoreTitle } from "../lib/connectionFinder";
+import { findConnections, scoreTitle } from "../lib/connectionFinder";
 import { TC } from "../data/constants";
 
 const CAPTURE_SYSTEM = `You classify and structure a raw text capture into an OpenBrain entry. Return ONLY valid JSON.

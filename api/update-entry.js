@@ -35,6 +35,7 @@ export default async function handler(req, res) {
       "Authorization": `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
     },
   });
+  if (!entryRes.ok) return res.status(502).json({ error: "Database error" });
   const [entry] = await entryRes.json();
   if (!entry) return res.status(404).json({ error: "Not found" });
 
@@ -47,6 +48,7 @@ export default async function handler(req, res) {
       },
     }
   );
+  if (!memberRes.ok) return res.status(502).json({ error: "Database error" });
   const [member] = await memberRes.json();
   if (!member) return res.status(403).json({ error: "Forbidden" });
 

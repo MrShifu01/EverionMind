@@ -31,18 +31,6 @@ export default async function handler(req, res) {
     ...(p_brain_id && typeof p_brain_id === "string" ? { p_brain_id } : {}),
   };
 
-  const response = await fetch(`${SB_URL}/rest/v1/rpc/capture`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "apikey": process.env.SUPABASE_SERVICE_ROLE_KEY,
-      "Authorization": `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-    },
-    body: JSON.stringify(safeBody),
-  });
-
-  const data = await response.json();
-
   // Verify user is a member/owner of each extra brain before inserting
   if (Array.isArray(p_extra_brain_ids) && p_extra_brain_ids.length > 0) {
     const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -63,6 +51,18 @@ export default async function handler(req, res) {
       }
     }
   }
+
+  const response = await fetch(`${SB_URL}/rest/v1/rpc/capture`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "apikey": process.env.SUPABASE_SERVICE_ROLE_KEY,
+      "Authorization": `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+    body: JSON.stringify(safeBody),
+  });
+
+  const data = await response.json();
 
   // If extra brain IDs provided, share the entry into those brains via entry_brains
   if (response.ok && data?.id && Array.isArray(p_extra_brain_ids) && p_extra_brain_ids.length > 0) {

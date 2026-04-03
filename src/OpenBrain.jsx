@@ -955,6 +955,7 @@ export default function OpenBrain() {
       title: e.title,
       type: e.type,
       tags: e.tags,
+      content: e.content ? e.content.slice(0, 200) : undefined,
     }));
   }, [entries]);
 
