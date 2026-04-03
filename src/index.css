@@ -6,9 +6,14 @@
   padding: 0;
 }
 
+/* Prevent theme flash on load */
+html[data-theme="light"] { background: #f0f0f8; }
+html[data-theme="dark"]  { background: #0f0f23; }
+
 body {
   background: #0f0f23;
   color: #eaeaea;
   font-family: 'Söhne', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
+  transition: background 0.25s, color 0.25s;
 }

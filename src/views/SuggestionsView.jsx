@@ -2,8 +2,10 @@ import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { authFetch } from "../lib/authFetch";
 import { SUGGESTIONS } from "../data/suggestions";
 import { TC, PC, MODEL } from "../data/constants";
+import { useTheme } from "../ThemeContext";
 
 export default function SuggestionsView({ apiKey, sbKey, entries, setEntries }) {
+  const { t } = useTheme();
   const [idx, setIdx] = useState(0);
   const [answer, setAnswer] = useState("");
   const [answered, setAnswered] = useState(0);
@@ -161,20 +163,20 @@ export default function SuggestionsView({ apiKey, sbKey, entries, setEntries }) 
     <div>
       <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
         {[{ l: "Answered", v: answered, c: "#4ECDC4" }, { l: "Skipped", v: skipped, c: "#FF6B35" }, { l: "Remaining", v: Math.max(0, total - (idx % total)), c: "#A29BFE" }].map(s =>
-          <div key={s.l} style={{ flex: 1, background: "#1a1a2e", borderRadius: 10, padding: 12, textAlign: "center", border: "1px solid #2a2a4a" }}>
+          <div key={s.l} style={{ flex: 1, background: t.surface, borderRadius: 10, padding: 12, textAlign: "center", border: `1px solid ${t.border}` }}>
             <div style={{ fontSize: 22, fontWeight: 800, color: s.c }}>{s.v}</div>
-            <div style={{ fontSize: 9, color: "#666", textTransform: "uppercase", letterSpacing: 1.2, marginTop: 2 }}>{s.l}</div>
+            <div style={{ fontSize: 9, color: t.textDim, textTransform: "uppercase", letterSpacing: 1.2, marginTop: 2 }}>{s.l}</div>
           </div>
         )}
       </div>
 
-      <div style={{ height: 3, background: "#1a1a2e", borderRadius: 4, marginBottom: 20, overflow: "hidden" }}>
+      <div style={{ height: 3, background: t.surface, borderRadius: 4, marginBottom: 20, overflow: "hidden" }}>
         <div style={{ height: "100%", width: `${Math.min(((answered + skipped) / total) * 100, 100)}%`, background: "linear-gradient(90deg, #4ECDC4, #45B7D1)", transition: "width 0.4s", borderRadius: 4 }} />
       </div>
 
       <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 20, paddingBottom: 4, scrollbarWidth: "none" }}>
-        <button onClick={() => { setFilterCat("all"); setIdx(0); }} style={{ flexShrink: 0, padding: "5px 12px", borderRadius: 20, border: "none", fontSize: 10, fontWeight: 600, cursor: "pointer", background: filterCat === "all" ? "#4ECDC4" : "#1a1a2e", color: filterCat === "all" ? "#0f0f23" : "#777" }}>All</button>
-        {cats.map(([c, n]) => <button key={c} onClick={() => { setFilterCat(c); setIdx(0); }} style={{ flexShrink: 0, padding: "5px 12px", borderRadius: 20, border: "none", fontSize: 10, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", background: filterCat === c ? "#4ECDC4" : "#1a1a2e", color: filterCat === c ? "#0f0f23" : "#777" }}>{c} ({n})</button>)}
+        <button onClick={() => { setFilterCat("all"); setIdx(0); }} style={{ flexShrink: 0, padding: "5px 12px", borderRadius: 20, border: "none", fontSize: 10, fontWeight: 600, cursor: "pointer", background: filterCat === "all" ? "#4ECDC4" : t.surface, color: filterCat === "all" ? "#0f0f23" : t.textDim }}>All</button>
+        {cats.map(([c, n]) => <button key={c} onClick={() => { setFilterCat(c); setIdx(0); }} style={{ flexShrink: 0, padding: "5px 12px", borderRadius: 20, border: "none", fontSize: 10, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", background: filterCat === c ? "#4ECDC4" : t.surface, color: filterCat === c ? "#0f0f23" : t.textDim }}>{c} ({n})</button>)}
       </div>
 
       {poolEmpty && (
@@ -183,37 +185,37 @@ export default function SuggestionsView({ apiKey, sbKey, entries, setEntries }) 
         </div>
       )}
       {isAiSlot && aiLoading && (
-        <div style={{ background: "linear-gradient(135deg, #1a1a2e, #16162a)", border: "1px solid #A29BFE40", borderRadius: 16, padding: "28px 24px", marginBottom: 16, textAlign: "center" }}>
+        <div style={{ background: `linear-gradient(135deg, ${t.surface}, ${t.surface2})`, border: "1px solid #A29BFE40", borderRadius: 16, padding: "28px 24px", marginBottom: 16, textAlign: "center" }}>
           <div style={{ fontSize: 22, marginBottom: 8 }}>✨</div>
           <p style={{ color: "#A29BFE", fontSize: 14, margin: 0 }}>AI is generating a personalised question…</p>
         </div>
       )}
-      {current && !aiLoading && <div style={{ background: isAiSlot ? "linear-gradient(135deg, #1a1a2e, #1a1a35)" : "linear-gradient(135deg, #1a1a2e, #16162a)", border: isAiSlot ? "1px solid #A29BFE40" : "1px solid #2a2a4a", borderRadius: 16, padding: "28px 24px", marginBottom: 16, position: "relative", overflow: "hidden", transform: anim === "skip" ? "translateX(-30px)" : anim === "save" ? "scale(0.95)" : "none", opacity: anim ? 0.4 : 1, transition: "all 0.2s" }}>
+      {current && !aiLoading && <div style={{ background: isAiSlot ? `linear-gradient(135deg, ${t.surface}, ${t.surface2})` : `linear-gradient(135deg, ${t.surface}, ${t.surface2})`, border: isAiSlot ? "1px solid #A29BFE40" : `1px solid ${t.border}`, borderRadius: 16, padding: "28px 24px", marginBottom: 16, position: "relative", overflow: "hidden", transform: anim === "skip" ? "translateX(-30px)" : anim === "save" ? "scale(0.95)" : "none", opacity: anim ? 0.4 : 1, transition: "all 0.2s" }}>
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${pc.c}, transparent)` }} />
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
           <span style={{ fontSize: 10, background: pc.bg, color: pc.c, padding: "3px 10px", borderRadius: 20, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>{pc.l}</span>
-          <span style={{ fontSize: 11, color: "#666" }}>{current.cat}</span>
+          <span style={{ fontSize: 11, color: t.textDim }}>{current.cat}</span>
           {isAiSlot && <span style={{ fontSize: 9, background: "#A29BFE20", color: "#A29BFE", padding: "2px 8px", borderRadius: 20, fontWeight: 700 }}>✨ AI</span>}
-          <span style={{ fontSize: 10, color: "#444", marginLeft: "auto" }}>#{idx + 1}/{total}</span>
+          <span style={{ fontSize: 10, color: t.textDim, marginLeft: "auto" }}>#{idx + 1}/{total}</span>
         </div>
-        <p style={{ fontSize: 18, color: "#EAEAEA", lineHeight: 1.6, margin: 0, fontWeight: 500 }}>{current.q}</p>
+        <p style={{ fontSize: 18, color: t.text, lineHeight: 1.6, margin: 0, fontWeight: 500 }}>{current.q}</p>
       </div>}
 
       {!showInput ? (
         <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={() => { setSkipped(s => s + 1); next("skip"); }} disabled={aiLoading} style={{ flex: 1, padding: 14, background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 12, color: aiLoading ? "#444" : "#888", fontSize: 14, fontWeight: 600, cursor: aiLoading ? "default" : "pointer" }}>Skip →</button>
-          <button onClick={() => setShowInput(true)} disabled={!current || aiLoading} style={{ flex: 2, padding: 14, background: current && !aiLoading ? "linear-gradient(135deg, #4ECDC4, #45B7D1)" : "#1a1a2e", border: "none", borderRadius: 12, color: current && !aiLoading ? "#0f0f23" : "#444", fontSize: 14, fontWeight: 700, cursor: current && !aiLoading ? "pointer" : "default" }}>Answer this</button>
+          <button onClick={() => { setSkipped(s => s + 1); next("skip"); }} disabled={aiLoading} style={{ flex: 1, padding: 14, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, color: aiLoading ? t.textDim : t.textMuted, fontSize: 14, fontWeight: 600, cursor: aiLoading ? "default" : "pointer" }}>Skip →</button>
+          <button onClick={() => setShowInput(true)} disabled={!current || aiLoading} style={{ flex: 2, padding: 14, background: current && !aiLoading ? "linear-gradient(135deg, #4ECDC4, #45B7D1)" : t.surface, border: "none", borderRadius: 12, color: current && !aiLoading ? "#0f0f23" : t.textDim, fontSize: 14, fontWeight: 700, cursor: current && !aiLoading ? "pointer" : "default" }}>Answer this</button>
         </div>
       ) : (
         <div>
           <input type="file" accept="image/*" ref={imgRef} onChange={handleImageUpload} style={{ display: "none" }} />
           <textarea value={answer} onChange={e => setAnswer(e.target.value)} placeholder="Type your answer..." autoFocus
-            style={{ width: "100%", boxSizing: "border-box", minHeight: 100, padding: "14px 16px", background: "#1a1a2e", border: "1px solid #4ECDC440", borderRadius: 12, color: "#ddd", fontSize: 14, lineHeight: 1.6, outline: "none", resize: "vertical", fontFamily: "inherit", opacity: imgLoading ? 0.5 : 1 }} />
+            style={{ width: "100%", boxSizing: "border-box", minHeight: 100, padding: "14px 16px", background: t.surface, border: "1px solid #4ECDC440", borderRadius: 12, color: t.textSoft, fontSize: 14, lineHeight: 1.6, outline: "none", resize: "vertical", fontFamily: "inherit", opacity: imgLoading ? 0.5 : 1 }} />
           <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-            <button onClick={() => { setShowInput(false); setAnswer(""); }} style={{ flex: 1, padding: 12, background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 10, color: "#888", fontSize: 13, cursor: "pointer" }}>Cancel</button>
-            <button onClick={() => { setSkipped(s => s + 1); next("skip"); }} style={{ flex: 1, padding: 12, background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 10, color: "#FF6B35", fontSize: 13, cursor: "pointer" }}>Skip</button>
-            <button onClick={() => imgRef.current?.click()} disabled={imgLoading || saving} title="Upload photo" style={{ padding: 12, background: "#1a1a2e", border: "1px solid #4ECDC440", borderRadius: 10, color: imgLoading ? "#444" : "#4ECDC4", cursor: imgLoading || saving ? "default" : "pointer", fontSize: 14 }}>📷</button>
-            <button onClick={handleSave} disabled={!answer.trim() || saving || imgLoading} style={{ flex: 2, padding: 12, background: answer.trim() && !imgLoading ? "linear-gradient(135deg, #4ECDC4, #45B7D1)" : "#1a1a2e", border: "none", borderRadius: 10, color: answer.trim() && !imgLoading ? "#0f0f23" : "#444", fontSize: 13, fontWeight: 700, cursor: answer.trim() && !imgLoading ? "pointer" : "default" }}>
+            <button onClick={() => { setShowInput(false); setAnswer(""); }} style={{ flex: 1, padding: 12, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, color: t.textMuted, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+            <button onClick={() => { setSkipped(s => s + 1); next("skip"); }} style={{ flex: 1, padding: 12, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, color: "#FF6B35", fontSize: 13, cursor: "pointer" }}>Skip</button>
+            <button onClick={() => imgRef.current?.click()} disabled={imgLoading || saving} title="Upload photo" style={{ padding: 12, background: t.surface, border: "1px solid #4ECDC440", borderRadius: 10, color: imgLoading ? t.textDim : "#4ECDC4", cursor: imgLoading || saving ? "default" : "pointer", fontSize: 14 }}>📷</button>
+            <button onClick={handleSave} disabled={!answer.trim() || saving || imgLoading} style={{ flex: 2, padding: 12, background: answer.trim() && !imgLoading ? "linear-gradient(135deg, #4ECDC4, #45B7D1)" : t.surface, border: "none", borderRadius: 10, color: answer.trim() && !imgLoading ? "#0f0f23" : t.textDim, fontSize: 13, fontWeight: 700, cursor: answer.trim() && !imgLoading ? "pointer" : "default" }}>
               {saving ? "Saving..." : imgLoading ? "Reading photo..." : apiKey && sbKey ? "Save to DB" : "Save Answer"}
             </button>
           </div>
@@ -223,16 +225,16 @@ export default function SuggestionsView({ apiKey, sbKey, entries, setEntries }) 
       {saved.length > 0 && (
         <div style={{ marginTop: 28 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-            <p style={{ fontSize: 11, color: "#666", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1.2, margin: 0 }}>This session ({saved.length})</p>
+            <p style={{ fontSize: 11, color: t.textDim, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1.2, margin: 0 }}>This session ({saved.length})</p>
             <button onClick={copyAll} style={{ padding: "6px 14px", background: "#4ECDC420", border: "none", borderRadius: 20, color: "#4ECDC4", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>📋 Copy All for Claude</button>
           </div>
           {saved.map((s, i) => (
-            <div key={i} style={{ background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 10, padding: "12px 16px", marginBottom: 8 }}>
+            <div key={i} style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, padding: "12px 16px", marginBottom: 8 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <span style={{ fontSize: 11, color: "#666" }}>{s.cat}</span>
+                <span style={{ fontSize: 11, color: t.textDim }}>{s.cat}</span>
                 {s.db && <span style={{ fontSize: 9, background: "#4ECDC420", color: "#4ECDC4", padding: "2px 8px", borderRadius: 20, fontWeight: 600 }}>Saved to DB</span>}
               </div>
-              <p style={{ margin: 0, fontSize: 13, color: "#aaa" }}>{s.a.slice(0, 120)}{s.a.length > 120 ? "…" : ""}</p>
+              <p style={{ margin: 0, fontSize: 13, color: t.textMid }}>{s.a.slice(0, 120)}{s.a.length > 120 ? "…" : ""}</p>
             </div>
           ))}
         </div>

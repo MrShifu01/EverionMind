@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { PC } from "../data/constants";
+import { useTheme } from "../ThemeContext";
 
 export default function TodoView() {
+  const { t } = useTheme();
   const [todos, setTodos] = useState(() => {
     try { return JSON.parse(localStorage.getItem("openbrain_todos") || "[]"); } catch { return []; }
   });
@@ -10,12 +12,12 @@ export default function TodoView() {
 
   const persist = (updated) => { setTodos(updated); try { localStorage.setItem("openbrain_todos", JSON.stringify(updated)); } catch {} };
   const add = () => { if (!input.trim()) return; persist([{ id: Date.now().toString(), text: input.trim(), done: false, priority, created_at: new Date().toISOString() }, ...todos]); setInput(""); };
-  const toggle = (id) => persist(todos.map(t => t.id === id ? { ...t, done: !t.done } : t));
-  const remove = (id) => persist(todos.filter(t => t.id !== id));
+  const toggle = (id) => persist(todos.map(todo => todo.id === id ? { ...todo, done: !todo.done } : todo));
+  const remove = (id) => persist(todos.filter(todo => todo.id !== id));
 
   const w = { high: 3, medium: 2, low: 1 };
-  const pending = todos.filter(t => !t.done).sort((a, b) => (w[b.priority] || 0) - (w[a.priority] || 0));
-  const done = todos.filter(t => t.done);
+  const pending = todos.filter(todo => !todo.done).sort((a, b) => (w[b.priority] || 0) - (w[a.priority] || 0));
+  const done = todos.filter(todo => todo.done);
 
   return (
     <div>
@@ -26,9 +28,9 @@ export default function TodoView() {
 
       <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
         <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && add()}
-          placeholder="Add a task..." style={{ flex: 1, padding: "12px 16px", background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 10, color: "#ddd", fontSize: 14, outline: "none" }} />
+          placeholder="Add a task..." style={{ flex: 1, padding: "12px 16px", background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, color: t.textSoft, fontSize: 14, outline: "none" }} />
         <select value={priority} onChange={e => setPriority(e.target.value)}
-          style={{ padding: "0 10px", background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 10, color: PC[priority].c, fontSize: 12, outline: "none", cursor: "pointer" }}>
+          style={{ padding: "0 10px", background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, color: PC[priority].c, fontSize: 12, outline: "none", cursor: "pointer" }}>
           <option value="high">High</option>
           <option value="medium">Med</option>
           <option value="low">Low</option>
@@ -37,29 +39,29 @@ export default function TodoView() {
       </div>
 
       {pending.length === 0 && done.length === 0 && (
-        <p style={{ textAlign: "center", color: "#555", marginTop: 40, fontSize: 14 }}>No tasks yet.</p>
+        <p style={{ textAlign: "center", color: t.textFaint, marginTop: 40, fontSize: 14 }}>No tasks yet.</p>
       )}
 
-      {pending.map(t => {
-        const pc = PC[t.priority] || PC.medium;
+      {pending.map(todo => {
+        const pc = PC[todo.priority] || PC.medium;
         return (
-          <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 10, padding: "12px 16px", marginBottom: 8 }}>
-            <button onClick={() => toggle(t.id)} style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${pc.c}`, background: "transparent", cursor: "pointer", flexShrink: 0 }} />
-            <p style={{ margin: 0, fontSize: 14, color: "#ddd", flex: 1, lineHeight: 1.4 }}>{t.text}</p>
+          <div key={todo.id} style={{ display: "flex", alignItems: "center", gap: 12, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, padding: "12px 16px", marginBottom: 8 }}>
+            <button onClick={() => toggle(todo.id)} style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${pc.c}`, background: "transparent", cursor: "pointer", flexShrink: 0 }} />
+            <p style={{ margin: 0, fontSize: 14, color: t.textSoft, flex: 1, lineHeight: 1.4 }}>{todo.text}</p>
             <span style={{ fontSize: 9, background: pc.bg, color: pc.c, padding: "2px 8px", borderRadius: 20, fontWeight: 700, flexShrink: 0 }}>{pc.l}</span>
-            <button onClick={() => remove(t.id)} style={{ background: "transparent", border: "none", color: "#444", cursor: "pointer", fontSize: 20, padding: 0, lineHeight: 1, flexShrink: 0 }}>×</button>
+            <button onClick={() => remove(todo.id)} style={{ background: "transparent", border: "none", color: t.textDim, cursor: "pointer", fontSize: 20, padding: 0, lineHeight: 1, flexShrink: 0 }}>×</button>
           </div>
         );
       })}
 
       {done.length > 0 && (
         <div style={{ marginTop: 24 }}>
-          <p style={{ fontSize: 11, color: "#555", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 12 }}>Done ({done.length})</p>
-          {done.map(t => (
-            <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, border: "1px solid #1a1a2e", borderRadius: 10, padding: "10px 16px", marginBottom: 6, opacity: 0.45 }}>
-              <button onClick={() => toggle(t.id)} style={{ width: 20, height: 20, borderRadius: 6, border: "2px solid #444", background: "#4ECDC4", cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#0f0f23" }}>✓</button>
-              <p style={{ margin: 0, fontSize: 13, color: "#666", textDecoration: "line-through", flex: 1 }}>{t.text}</p>
-              <button onClick={() => remove(t.id)} style={{ background: "transparent", border: "none", color: "#333", cursor: "pointer", fontSize: 20, padding: 0, lineHeight: 1 }}>×</button>
+          <p style={{ fontSize: 11, color: t.textFaint, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 12 }}>Done ({done.length})</p>
+          {done.map(todo => (
+            <div key={todo.id} style={{ display: "flex", alignItems: "center", gap: 12, border: `1px solid ${t.border}`, borderRadius: 10, padding: "10px 16px", marginBottom: 6, opacity: 0.45 }}>
+              <button onClick={() => toggle(todo.id)} style={{ width: 20, height: 20, borderRadius: 6, border: "2px solid #444", background: "#4ECDC4", cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#0f0f23" }}>✓</button>
+              <p style={{ margin: 0, fontSize: 13, color: t.textDim, textDecoration: "line-through", flex: 1 }}>{todo.text}</p>
+              <button onClick={() => remove(todo.id)} style={{ background: "transparent", border: "none", color: t.textDim, cursor: "pointer", fontSize: 20, padding: 0, lineHeight: 1 }}>×</button>
             </div>
           ))}
         </div>

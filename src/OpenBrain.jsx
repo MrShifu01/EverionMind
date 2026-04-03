@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback, lazy, Suspense } from "react";
+import { useTheme } from "./ThemeContext";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { authFetch } from "./lib/authFetch";
 import { supabase } from "./lib/supabase";
@@ -11,8 +12,12 @@ const CalendarView    = lazy(() => import("./views/CalendarView"));
 const TodoView        = lazy(() => import("./views/TodoView"));
 const GraphView       = lazy(() => import("./views/GraphView"));
 const DetailModal     = lazy(() => import("./views/DetailModal"));
+const RefineView      = lazy(() => import("./views/RefineView"));
 
-const Loader = () => <div style={{ padding: 40, textAlign: "center", color: "#555", fontSize: 13 }}>Loading…</div>;
+function Loader() {
+  const { t } = useTheme();
+  return <div style={{ padding: 40, textAlign: "center", color: t.textFaint, fontSize: 13 }}>Loading…</div>;
+}
 
 /* ─── AI Connection Discovery ─── */
 async function findConnections(newEntry, existingEntries, existingLinks) {
@@ -81,6 +86,7 @@ function inferWorkspace(entry) {
    UNDO TOAST
    ═══════════════════════════════════════════════════════════════ */
 function UndoToast({ action, onUndo, onDismiss }) {
+  const { t } = useTheme();
   const duration = action.type === "create" ? 3000 : 5000;
   const [pct, setPct] = useState(100);
   useEffect(() => {
@@ -94,8 +100,8 @@ function UndoToast({ action, onUndo, onDismiss }) {
   }, []);
   const label = { delete: "Entry deleted", update: "Entry updated", create: "Entry created" }[action.type];
   return (
-    <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "#1a1a2e", border: "1px solid #4ECDC4", borderRadius: 12, padding: "12px 20px", display: "flex", alignItems: "center", gap: 16, zIndex: 2000, boxShadow: "0 4px 20px #0008", minWidth: 280 }}>
-      <span style={{ fontSize: 14, color: "#ccc" }}>{label}</span>
+    <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: t.surface, border: "1px solid #4ECDC4", borderRadius: 12, padding: "12px 20px", display: "flex", alignItems: "center", gap: 16, zIndex: 2000, boxShadow: "0 4px 20px #0008", minWidth: 280 }}>
+      <span style={{ fontSize: 14, color: t.textMid }}>{label}</span>
       <button onClick={onUndo} style={{ padding: "4px 14px", borderRadius: 8, border: "1px solid #4ECDC4", background: "none", color: "#4ECDC4", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Undo</button>
       <div style={{ position: "absolute", bottom: 0, left: 0, height: 3, background: "#4ECDC4", borderRadius: "0 0 12px 12px", width: `${pct}%`, transition: "width 80ms linear" }} />
     </div>
@@ -106,12 +112,13 @@ function UndoToast({ action, onUndo, onDismiss }) {
    NUDGE BANNER
    ═══════════════════════════════════════════════════════════════ */
 function NudgeBanner({ nudge, onDismiss }) {
+  const { t } = useTheme();
   if (!nudge) return null;
   return (
-    <div style={{ margin: "0 24px 12px", padding: "12px 16px", background: "#1a1a2e", border: "1px solid #A29BFE40", borderRadius: 12, display: "flex", alignItems: "flex-start", gap: 10 }}>
+    <div style={{ margin: "0 24px 12px", padding: "12px 16px", background: t.surface, border: "1px solid #A29BFE40", borderRadius: 12, display: "flex", alignItems: "flex-start", gap: 10 }}>
       <span style={{ fontSize: 16, flexShrink: 0 }}>💡</span>
-      <p style={{ margin: 0, flex: 1, fontSize: 13, color: "#bbb", lineHeight: 1.5 }}>{nudge}</p>
-      <button onClick={onDismiss} style={{ background: "none", border: "none", color: "#555", fontSize: 18, cursor: "pointer", lineHeight: 1, flexShrink: 0 }}>✕</button>
+      <p style={{ margin: 0, flex: 1, fontSize: 13, color: t.textMid, lineHeight: 1.5 }}>{nudge}</p>
+      <button onClick={onDismiss} style={{ background: "none", border: "none", color: t.textFaint, fontSize: 18, cursor: "pointer", lineHeight: 1, flexShrink: 0 }}>✕</button>
     </div>
   );
 }
@@ -120,19 +127,20 @@ function NudgeBanner({ nudge, onDismiss }) {
    PRE-SAVE PREVIEW MODAL
    ═══════════════════════════════════════════════════════════════ */
 function PreviewModal({ preview, entries, onSave, onCancel }) {
+  const { t } = useTheme();
   const [title, setTitle] = useState(preview.title || "");
   const [type, setType] = useState(preview.type || "note");
   const [tags, setTags] = useState((preview.tags || []).join(", "));
-  const inp = { padding: "8px 12px", background: "#0f0f23", border: "1px solid #4ECDC440", borderRadius: 8, color: "#ddd", fontSize: 13, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" };
+  const inp = { padding: "8px 12px", background: t.bg, border: "1px solid #4ECDC440", borderRadius: 8, color: t.textSoft, fontSize: 13, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" };
   const dupes = useMemo(() => {
     if (!title.trim()) return [];
     return entries.filter(e => scoreTitle(title, e.title) > 50).slice(0, 3);
   }, [title, entries]);
   return (
     <div style={{ position: "fixed", inset: 0, background: "#000000CC", zIndex: 900, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onCancel}>
-      <div style={{ background: "#16162a", borderRadius: "20px 20px 0 0", maxWidth: 600, width: "100%", padding: "24px 24px 36px", border: "1px solid #4ECDC440" }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: t.surface2, borderRadius: "20px 20px 0 0", maxWidth: 600, width: "100%", padding: "24px 24px 36px", border: "1px solid #4ECDC440" }} onClick={e => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: "#ddd" }}>Preview before saving</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: t.textSoft }}>Preview before saving</span>
           <button onClick={onCancel} style={{ background: "none", border: "none", color: "#666", fontSize: 20, cursor: "pointer" }}>✕</button>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -158,11 +166,11 @@ function PreviewModal({ preview, entries, onSave, onCancel }) {
           </div>
         )}
         <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-          <button onClick={onCancel} style={{ flex: 1, padding: 12, background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 10, color: "#888", fontSize: 13, cursor: "pointer" }}>Cancel</button>
+          <button onClick={onCancel} style={{ flex: 1, padding: 12, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, color: t.textMuted, fontSize: 13, cursor: "pointer" }}>Cancel</button>
           <button
-            onClick={() => onSave({ ...preview, title: title.trim(), type, tags: tags.split(",").map(t => t.trim()).filter(Boolean) })}
+            onClick={() => onSave({ ...preview, title: title.trim(), type, tags: tags.split(",").map(tag => tag.trim()).filter(Boolean) })}
             disabled={!title.trim()}
-            style={{ flex: 2, padding: 12, background: title.trim() ? "linear-gradient(135deg, #4ECDC4, #45B7D1)" : "#1a1a2e", border: "none", borderRadius: 10, color: title.trim() ? "#0f0f23" : "#444", fontSize: 13, fontWeight: 700, cursor: title.trim() ? "pointer" : "default" }}
+            style={{ flex: 2, padding: 12, background: title.trim() ? "linear-gradient(135deg, #4ECDC4, #45B7D1)" : t.surface, border: "none", borderRadius: 10, color: title.trim() ? "#0f0f23" : t.textDim, fontSize: 13, fontWeight: 700, cursor: title.trim() ? "pointer" : "default" }}
           >Save to OpenBrain</button>
         </div>
       </div>
@@ -174,6 +182,7 @@ function PreviewModal({ preview, entries, onSave, onCancel }) {
    SUPPLIER PANEL
    ═══════════════════════════════════════════════════════════════ */
 function SupplierPanel({ entries, onSelect, onReorder }) {
+  const { t } = useTheme();
   const suppliers = useMemo(() =>
     entries.filter(e => e.tags?.includes("supplier") || e.metadata?.category === "supplier"),
     [entries]
@@ -194,11 +203,11 @@ function SupplierPanel({ entries, onSelect, onReorder }) {
           const cfg = TC[s.type] || TC.note;
           const price = s.metadata?.price ? `${s.metadata.price}${s.metadata.unit ? " " + s.metadata.unit : ""}` : null;
           return (
-            <div key={s.id} style={{ background: "#1a1a2e", borderRadius: 12, padding: "16px 20px", border: "1px solid #2a2a4a" }}>
+            <div key={s.id} style={{ background: t.surface, borderRadius: 12, padding: "16px 20px", border: `1px solid ${t.border}` }}>
               <div onClick={() => onSelect(s)} style={{ cursor: "pointer", marginBottom: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                   <span style={{ fontSize: 18 }}>{cfg.i}</span>
-                  <span style={{ fontSize: 15, fontWeight: 600, color: "#EAEAEA" }}>{s.title}</span>
+                  <span style={{ fontSize: 15, fontWeight: 600, color: t.text }}>{s.title}</span>
                   {price && <span style={{ fontSize: 11, color: "#4ECDC4", background: "#4ECDC415", padding: "2px 8px", borderRadius: 20 }}>{price}</span>}
                 </div>
                 <p style={{ margin: 0, fontSize: 12, color: "#999", lineHeight: 1.4 }}>{s.content}</p>
@@ -213,8 +222,8 @@ function SupplierPanel({ entries, onSelect, onReorder }) {
         })}
       </div>
       {withPrice.length > 0 && (
-        <div style={{ marginTop: 28, padding: "16px 20px", background: "#1a1a2e", borderRadius: 12, border: "1px solid #2a2a4a" }}>
-          <p style={{ margin: "0 0 12px", fontSize: 12, color: "#888", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Cost Summary</p>
+        <div style={{ marginTop: 28, padding: "16px 20px", background: t.surface, borderRadius: 12, border: `1px solid ${t.border}` }}>
+          <p style={{ margin: "0 0 12px", fontSize: 12, color: t.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Cost Summary</p>
           {withPrice.map(s => (
             <div key={s.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "6px 0", borderBottom: "1px solid #2a2a4a20" }}>
               <span style={{ color: "#ccc" }}>{s.title}</span>
@@ -249,6 +258,7 @@ WORKSPACE RULES:
 IMPORTANT: Do NOT suggest merging companies just because they have similar name prefixes. Each business is distinct.`;
 
 function QuickCapture({ apiKey, sbKey, entries, setEntries, links, addLinks, onCreated }) {
+  const { t } = useTheme();
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState(null);
@@ -370,11 +380,11 @@ function QuickCapture({ apiKey, sbKey, entries, setEntries, links, addLinks, onC
           onKeyDown={e => e.key === "Enter" && !e.shiftKey && capture()}
           disabled={loading}
           placeholder={listening ? "🎤 Listening..." : loading ? "Processing..." : "Quick capture — just type anything..."}
-          style={{ flex: 1, padding: "12px 16px", background: listening ? "#1a2e1a" : "#1a1a2e", border: `1px solid ${listening ? "#25D36640" : "#4ECDC440"}`, borderRadius: 12, color: "#ddd", fontSize: 14, outline: "none", fontFamily: "inherit", opacity: loading ? 0.5 : 1 }}
+          style={{ flex: 1, padding: "12px 16px", background: listening ? "#1a2e1a" : t.surface, border: `1px solid ${listening ? "#25D36640" : "#4ECDC440"}`, borderRadius: 12, color: t.textSoft, fontSize: 14, outline: "none", fontFamily: "inherit", opacity: loading ? 0.5 : 1 }}
         />
-        <button onClick={startVoice} disabled={loading} title="Voice capture" style={{ padding: "12px 14px", background: listening ? "#25D36620" : "#1a1a2e", border: `1px solid ${listening ? "#25D36640" : "#4ECDC440"}`, borderRadius: 12, color: listening ? "#25D366" : "#4ECDC4", cursor: loading ? "default" : "pointer", fontSize: 16 }}>🎤</button>
-        <button onClick={() => imgRef.current?.click()} disabled={loading} style={{ padding: "12px 14px", background: "#1a1a2e", border: "1px solid #4ECDC440", borderRadius: 12, color: loading ? "#444" : "#4ECDC4", cursor: loading ? "default" : "pointer", fontSize: 16 }}>📷</button>
-        <button onClick={capture} disabled={loading || !text.trim()} style={{ padding: "12px 18px", background: text.trim() && !loading ? "linear-gradient(135deg, #4ECDC4, #45B7D1)" : "#1a1a2e", border: "none", borderRadius: 12, color: text.trim() && !loading ? "#0f0f23" : "#555", fontWeight: 700, cursor: text.trim() && !loading ? "pointer" : "default", fontSize: 16 }}>+</button>
+        <button onClick={startVoice} disabled={loading} title="Voice capture" style={{ padding: "12px 14px", background: listening ? "#25D36620" : t.surface, border: `1px solid ${listening ? "#25D36640" : "#4ECDC440"}`, borderRadius: 12, color: listening ? "#25D366" : "#4ECDC4", cursor: loading ? "default" : "pointer", fontSize: 16 }}>🎤</button>
+        <button onClick={() => imgRef.current?.click()} disabled={loading} style={{ padding: "12px 14px", background: t.surface, border: "1px solid #4ECDC440", borderRadius: 12, color: loading ? t.textDim : "#4ECDC4", cursor: loading ? "default" : "pointer", fontSize: 16 }}>📷</button>
+        <button onClick={capture} disabled={loading || !text.trim()} style={{ padding: "12px 18px", background: text.trim() && !loading ? "linear-gradient(135deg, #4ECDC4, #45B7D1)" : t.surface, border: "none", borderRadius: 12, color: text.trim() && !loading ? "#0f0f23" : t.textFaint, fontWeight: 700, cursor: text.trim() && !loading ? "pointer" : "default", fontSize: 16 }}>+</button>
       </div>
       {status && <p style={{ fontSize: 11, color: status.includes("error") ? "#FF6B35" : "#4ECDC4", margin: "6px 0 0 4px" }}>{statusMsg[status]}</p>}
       {preview && <PreviewModal preview={preview} entries={entries} onSave={doSave} onCancel={() => setPreview(null)} />}
@@ -386,6 +396,7 @@ function QuickCapture({ apiKey, sbKey, entries, setEntries, links, addLinks, onC
    SETTINGS
    ═══════════════════════════════════════════════════════════════ */
 function SettingsView() {
+  const { t } = useTheme();
   const [testStatus, setTestStatus] = useState(null);
   const [email, setEmail] = useState("");
   const [notifEnabled, setNotifEnabled] = useState(() => localStorage.getItem("openbrain_notif") === "true");
@@ -420,31 +431,31 @@ function SettingsView() {
   const btn = { padding: "10px 20px", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer" };
   return (
     <div>
-      <h2 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 4px", color: "#EAEAEA" }}>Settings</h2>
-      <p style={{ fontSize: 12, color: "#666", margin: "0 0 24px" }}>All API keys are managed server-side.</p>
-      <div style={{ background: "#1a1a2e", borderRadius: 14, padding: "20px 24px", marginBottom: 16, border: "1px solid #2a2a4a" }}>
+      <h2 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 4px", color: t.text }}>Settings</h2>
+      <p style={{ fontSize: 12, color: t.textDim, margin: "0 0 24px" }}>All API keys are managed server-side.</p>
+      <div style={{ background: t.surface, borderRadius: 14, padding: "20px 24px", marginBottom: 16, border: `1px solid ${t.border}` }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div><p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "#ddd" }}>Signed in as</p><p style={{ margin: "4px 0 0", fontSize: 12, color: "#888" }}>{email}</p></div>
+          <div><p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: t.textSoft }}>Signed in as</p><p style={{ margin: "4px 0 0", fontSize: 12, color: t.textMuted }}>{email}</p></div>
           <button onClick={() => supabase.auth.signOut()} style={{ ...btn, background: "#FF6B3520", color: "#FF6B35" }}>Sign out</button>
         </div>
       </div>
-      <div style={{ background: "#1a1a2e", borderRadius: 14, padding: "20px 24px", marginBottom: 16, border: "1px solid #2a2a4a" }}>
+      <div style={{ background: t.surface, borderRadius: 14, padding: "20px 24px", marginBottom: 16, border: `1px solid ${t.border}` }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div><p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "#ddd" }}>Claude AI (Haiku)</p><p style={{ margin: "4px 0 0", fontSize: 11, color: "#666" }}>AI parsing and chat</p></div>
+          <div><p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: t.textSoft }}>Claude AI (Haiku)</p><p style={{ margin: "4px 0 0", fontSize: 11, color: t.textDim }}>AI parsing and chat</p></div>
           <button onClick={testAI} style={{ ...btn, background: "#4ECDC420", color: "#4ECDC4" }}>{testStatus === "testing-ai" ? "Testing…" : testStatus === "ai-success" ? "✓ Connected" : testStatus === "ai-fail" ? "✗ Failed" : "Test"}</button>
         </div>
       </div>
-      <div style={{ background: "#1a1a2e", borderRadius: 14, padding: "20px 24px", marginBottom: 16, border: "1px solid #2a2a4a" }}>
+      <div style={{ background: t.surface, borderRadius: 14, padding: "20px 24px", marginBottom: 16, border: `1px solid ${t.border}` }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div><p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "#ddd" }}>Supabase Database</p><p style={{ margin: "4px 0 0", fontSize: 11, color: "#666" }}>Memory storage</p></div>
+          <div><p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: t.textSoft }}>Supabase Database</p><p style={{ margin: "4px 0 0", fontSize: 11, color: t.textDim }}>Memory storage</p></div>
           <button onClick={testDB} style={{ ...btn, background: "#4ECDC420", color: "#4ECDC4" }}>{testStatus === "testing" ? "Testing…" : testStatus === "success" ? "✓ Connected" : testStatus === "fail" ? "✗ Failed" : "Test"}</button>
         </div>
       </div>
-      <div style={{ background: "#1a1a2e", borderRadius: 14, padding: "20px 24px", border: "1px solid #2a2a4a" }}>
-        <p style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 600, color: "#ddd" }}>Morning Briefing</p>
-        <p style={{ margin: "0 0 14px", fontSize: 12, color: "#666" }}>Get a daily nudge with your reminders and key info.</p>
+      <div style={{ background: t.surface, borderRadius: 14, padding: "20px 24px", border: `1px solid ${t.border}` }}>
+        <p style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 600, color: t.textSoft }}>Morning Briefing</p>
+        <p style={{ margin: "0 0 14px", fontSize: 12, color: t.textDim }}>Get a daily nudge with your reminders and key info.</p>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <input type="time" value={notifTime} onChange={e => { setNotifTime(e.target.value); localStorage.setItem("openbrain_notif_time", e.target.value); }} style={{ padding: "8px 12px", background: "#0f0f23", border: "1px solid #2a2a4a", borderRadius: 8, color: "#ddd", fontSize: 13, outline: "none" }} />
+          <input type="time" value={notifTime} onChange={e => { setNotifTime(e.target.value); localStorage.setItem("openbrain_notif_time", e.target.value); }} style={{ padding: "8px 12px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textSoft, fontSize: 13, outline: "none" }} />
           <button onClick={requestNotification} style={{ ...btn, background: notifEnabled ? "#FF6B3520" : "#4ECDC420", color: notifEnabled ? "#FF6B35" : "#4ECDC4" }}>{notifEnabled ? "Disable" : "Enable"}</button>
         </div>
       </div>
@@ -456,12 +467,13 @@ function SettingsView() {
    ENTRY CARD
    ═══════════════════════════════════════════════════════════════ */
 function EntryCard({ entry: e, onSelect }) {
+  const { t, isDark } = useTheme();
   const cfg = TC[e.type] || TC.note;
   const imp = { 1: "Important", 2: "Critical" }[e.importance];
   return (
-    <div onClick={() => onSelect(e)} style={{ background: "#1a1a2e", border: `1px solid ${e.pinned ? cfg.c + "80" : "#2a2a4a"}`, borderRadius: 12, padding: "16px 20px", cursor: "pointer", position: "relative", overflow: "hidden" }}
+    <div onClick={() => onSelect(e)} style={{ background: t.surface, border: `1px solid ${e.pinned ? cfg.c + "80" : t.border}`, borderRadius: 12, padding: "16px 20px", cursor: "pointer", position: "relative", overflow: "hidden" }}
       onMouseEnter={ev => { ev.currentTarget.style.borderColor = cfg.c; ev.currentTarget.style.transform = "translateY(-2px)"; }}
-      onMouseLeave={ev => { ev.currentTarget.style.borderColor = e.pinned ? cfg.c + "80" : "#2a2a4a"; ev.currentTarget.style.transform = "none"; }}>
+      onMouseLeave={ev => { ev.currentTarget.style.borderColor = e.pinned ? cfg.c + "80" : t.border; ev.currentTarget.style.transform = "none"; }}>
       {e.pinned && <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg,${cfg.c},transparent)` }} />}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
         <span style={{ fontSize: 20 }}>{cfg.i}</span>
@@ -469,11 +481,11 @@ function EntryCard({ entry: e, onSelect }) {
         {e.pinned && <span style={{ fontSize: 10 }}>📌</span>}
         {imp && <span style={{ fontSize: 9, background: e.importance === 2 ? "#FF6B3530" : "#FFEAA720", color: e.importance === 2 ? "#FF6B35" : "#FFEAA7", padding: "2px 8px", borderRadius: 20, fontWeight: 600 }}>{imp}</span>}
       </div>
-      <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "#EAEAEA", lineHeight: 1.3 }}>{e.title}</h3>
-      <p style={{ margin: "8px 0 0", fontSize: 13, color: "#999", lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{e.content}</p>
+      <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: t.text, lineHeight: 1.3 }}>{e.title}</h3>
+      <p style={{ margin: "8px 0 0", fontSize: 13, color: t.textMuted, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{e.content}</p>
       {e.tags?.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 10 }}>
-        {e.tags.slice(0, 4).map(t => <span key={t} style={{ fontSize: 10, color: "#777", background: "#ffffff08", padding: "2px 8px", borderRadius: 20 }}>{t}</span>)}
-        {e.tags.length > 4 && <span style={{ fontSize: 10, color: "#555" }}>+{e.tags.length - 4}</span>}
+        {e.tags.slice(0, 4).map(tag => <span key={tag} style={{ fontSize: 10, color: t.textDim, background: isDark ? "#ffffff08" : "#00000008", padding: "2px 8px", borderRadius: 20 }}>{tag}</span>)}
+        {e.tags.length > 4 && <span style={{ fontSize: 10, color: t.textFaint }}>+{e.tags.length - 4}</span>}
       </div>}
     </div>
   );
@@ -504,6 +516,7 @@ function VirtualGrid({ filtered, setSelected }) {
    VIRTUALISED TIMELINE
    ═══════════════════════════════════════════════════════════════ */
 function VirtualTimeline({ sorted, setSelected }) {
+  const { t } = useTheme();
   const listRef = useRef(null);
   const virtualizer = useWindowVirtualizer({ count: sorted.length, estimateSize: () => 64, overscan: 5, scrollMargin: listRef.current?.offsetTop ?? 0 });
   return (
@@ -514,9 +527,9 @@ function VirtualTimeline({ sorted, setSelected }) {
           const e = sorted[vItem.index]; const cfg = TC[e.type] || TC.note;
           return (
             <div key={e.id} style={{ position: "absolute", top: vItem.start - virtualizer.options.scrollMargin, left: 0, right: 0, paddingLeft: 20, paddingBottom: 16, cursor: "pointer" }} onClick={() => setSelected(e)}>
-              <div style={{ position: "absolute", left: -3, top: 6, width: 12, height: 12, borderRadius: "50%", background: cfg.c, border: "2px solid #0f0f23" }} />
-              <p style={{ fontSize: 10, color: "#666", margin: "0 0 2px" }}>{fmtD(e.created_at)}</p>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 14 }}>{cfg.i}</span><span style={{ fontSize: 14, color: "#ddd", fontWeight: 500 }}>{e.title}</span></div>
+              <div style={{ position: "absolute", left: -3, top: 6, width: 12, height: 12, borderRadius: "50%", background: cfg.c, border: `2px solid ${t.bg}` }} />
+              <p style={{ fontSize: 10, color: t.textDim, margin: "0 0 2px" }}>{fmtD(e.created_at)}</p>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 14 }}>{cfg.i}</span><span style={{ fontSize: 14, color: t.textSoft, fontWeight: 500 }}>{e.title}</span></div>
             </div>
           );
         })}
@@ -567,6 +580,7 @@ export default function OpenBrain() {
   const addLinks = (newLinks) => setLinks(prev => [...prev, ...newLinks]);
   const [apiKey] = useState("configured");
   const [sbKey] = useState("configured");
+  const { t, isDark, toggleTheme } = useTheme();
   const [chatInput, setChatInput] = useState("");
   const [chatMsgs, setChatMsgs] = useState([{ role: "assistant", content: "Hey Chris. Ask me about your memories — \"What's my ID number?\", \"Who are my suppliers?\", etc." }]);
   const [chatLoading, setChatLoading] = useState(false);
@@ -732,8 +746,8 @@ export default function OpenBrain() {
 
   const navViews = [
     { id: "grid", l: "Grid", ic: "▦" },
-    { id: "suppliers", l: "Suppliers", ic: "🏪" },
     { id: "suggest", l: "Fill Brain", ic: "✦" },
+    { id: "refine", l: "Refine", ic: "◇" },
     { id: "calendar", l: "Calendar", ic: "📅" },
     { id: "todos", l: "Todos", ic: "✓" },
     { id: "timeline", l: "Timeline", ic: "◔" },
@@ -743,11 +757,11 @@ export default function OpenBrain() {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0f0f23", color: "#EAEAEA", fontFamily: "'Söhne', system-ui, -apple-system, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: t.bg, color: t.text, fontFamily: "'Söhne', system-ui, -apple-system, sans-serif", transition: "background 0.25s, color 0.25s" }}>
       <div style={{ padding: "20px 24px 0" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
           <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #4ECDC4, #45B7D1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🧠</div>
-          <div><h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, letterSpacing: -0.5 }}>OpenBrain</h1><p style={{ margin: 0, fontSize: 11, color: "#666" }}>Your eternal memory</p></div>
+          <div><h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, letterSpacing: -0.5 }}>OpenBrain</h1><p style={{ margin: 0, fontSize: 11, color: t.textDim }}>Your eternal memory</p></div>
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
             {brains.length > 0 && (
               <BrainSwitcher
@@ -758,8 +772,18 @@ export default function OpenBrain() {
                 onBrainDeleted={deleteBrain}
               />
             )}
+            {/* Theme toggle */}
+            <button
+              onClick={toggleTheme}
+              title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+              style={{ width: 46, height: 26, borderRadius: 13, border: `1px solid ${t.border}`, background: isDark ? "#2a2a4a" : "#e8e8f8", cursor: "pointer", position: "relative", padding: 0, flexShrink: 0, transition: "background 0.25s" }}
+            >
+              <div style={{ position: "absolute", top: 3, left: isDark ? 23 : 3, width: 18, height: 18, borderRadius: "50%", background: isDark ? "#A29BFE" : "#FFD700", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, transition: "left 0.25s, background 0.25s" }}>
+                {isDark ? "🌙" : "☀️"}
+              </div>
+            </button>
             <div style={{ textAlign: "right" }}>
-              <span style={{ fontSize: 11, color: "#555" }}>{entries.length} memories</span>
+              <span style={{ fontSize: 11, color: t.textFaint }}>{entries.length} memories</span>
               {apiKey && <span style={{ display: "block", fontSize: 9, color: "#4ECDC4" }}>AI active</span>}
             </div>
           </div>
@@ -770,9 +794,9 @@ export default function OpenBrain() {
 
       {view === "grid" && nudge && <NudgeBanner nudge={nudge} onDismiss={() => { setNudge(null); sessionStorage.removeItem("openbrain_nudge"); }} />}
 
-      <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #1a1a2e", overflowX: "auto", scrollbarWidth: "none" }}>
+      <div style={{ display: "flex", gap: 0, borderBottom: `1px solid ${t.border}`, overflowX: "auto", scrollbarWidth: "none" }}>
         {navViews.map(v => (
-          <button key={v.id} onClick={() => setView(v.id)} style={{ flexShrink: 0, minWidth: 72, padding: "10px 8px", border: "none", borderBottom: view === v.id ? "2px solid #4ECDC4" : "2px solid transparent", background: "none", color: view === v.id ? "#4ECDC4" : "#555", fontSize: 10, fontWeight: 600, cursor: "pointer", position: "relative" }}>
+          <button key={v.id} onClick={() => setView(v.id)} style={{ flexShrink: 0, minWidth: 72, padding: "10px 8px", border: "none", borderBottom: view === v.id ? "2px solid #4ECDC4" : "2px solid transparent", background: "none", color: view === v.id ? "#4ECDC4" : t.textFaint, fontSize: 10, fontWeight: 600, cursor: "pointer", position: "relative" }}>
             {v.ic} {v.l}
             {v.id === "suggest" && <span style={{ position: "absolute", top: 2, right: "calc(50% - 24px)", width: 5, height: 5, borderRadius: "50%", background: "#FF6B35" }} />}
           </button>
@@ -784,20 +808,20 @@ export default function OpenBrain() {
           {/* Workspace toggle */}
           <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
             {["all", "business", "personal"].map(ws => (
-              <button key={ws} onClick={() => { setWorkspace(ws); localStorage.setItem("openbrain_workspace", ws); }} style={{ padding: "5px 14px", borderRadius: 20, border: "none", fontSize: 11, fontWeight: 600, cursor: "pointer", background: workspace === ws ? "#A29BFE" : "#1a1a2e", color: workspace === ws ? "#0f0f23" : "#888", textTransform: "capitalize" }}>{ws === "all" ? "All" : ws === "business" ? "🏪 Business" : "👤 Personal"}</button>
+              <button key={ws} onClick={() => { setWorkspace(ws); localStorage.setItem("openbrain_workspace", ws); }} style={{ padding: "5px 14px", borderRadius: 20, border: "none", fontSize: 11, fontWeight: 600, cursor: "pointer", background: workspace === ws ? "#A29BFE" : t.surface, color: workspace === ws ? "#0f0f23" : t.textMuted, textTransform: "capitalize" }}>{ws === "all" ? "All" : ws === "business" ? "🏪 Business" : "👤 Personal"}</button>
             ))}
           </div>
           <div style={{ position: "relative", marginBottom: 16 }}>
-            <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#555" }}>⌕</span>
-            <input value={searchInput} onChange={e => { setSearchInput(e.target.value); clearTimeout(searchDebounceRef.current); searchDebounceRef.current = setTimeout(() => setSearch(e.target.value), 200); }} placeholder="Search..." style={{ width: "100%", boxSizing: "border-box", padding: "12px 16px 12px 38px", background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 10, color: "#ddd", fontSize: 14, outline: "none" }} />
+            <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: t.textFaint }}>⌕</span>
+            <input value={searchInput} onChange={e => { setSearchInput(e.target.value); clearTimeout(searchDebounceRef.current); searchDebounceRef.current = setTimeout(() => setSearch(e.target.value), 200); }} placeholder="Search..." style={{ width: "100%", boxSizing: "border-box", padding: "12px 16px 12px 38px", background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, color: t.textSoft, fontSize: 14, outline: "none" }} />
           </div>
           <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 16, scrollbarWidth: "none" }}>
-            <button onClick={() => setTypeFilter("all")} style={{ flexShrink: 0, padding: "6px 14px", borderRadius: 20, border: "none", fontSize: 11, fontWeight: 600, cursor: "pointer", background: typeFilter === "all" ? "#4ECDC4" : "#1a1a2e", color: typeFilter === "all" ? "#0f0f23" : "#888" }}>All ({entries.length})</button>
-            {Object.entries(types).map(([t, n]) => { const c = TC[t] || TC.note; return <button key={t} onClick={() => setTypeFilter(t)} style={{ flexShrink: 0, padding: "6px 14px", borderRadius: 20, border: "none", fontSize: 11, fontWeight: 600, cursor: "pointer", background: typeFilter === t ? c.c : "#1a1a2e", color: typeFilter === t ? "#0f0f23" : "#888" }}>{c.i} {t} ({n})</button>; })}
+            <button onClick={() => setTypeFilter("all")} style={{ flexShrink: 0, padding: "6px 14px", borderRadius: 20, border: "none", fontSize: 11, fontWeight: 600, cursor: "pointer", background: typeFilter === "all" ? "#4ECDC4" : t.surface, color: typeFilter === "all" ? "#0f0f23" : t.textMuted }}>All ({entries.length})</button>
+            {Object.entries(types).map(([typ, n]) => { const c = TC[typ] || TC.note; return <button key={typ} onClick={() => setTypeFilter(typ)} style={{ flexShrink: 0, padding: "6px 14px", borderRadius: 20, border: "none", fontSize: 11, fontWeight: 600, cursor: "pointer", background: typeFilter === typ ? c.c : t.surface, color: typeFilter === typ ? "#0f0f23" : t.textMuted }}>{c.i} {typ} ({n})</button>; })}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
             {[{ l: "Memories", v: entries.length, c: "#4ECDC4" }, { l: "Pinned", v: entries.filter(e => e.pinned).length, c: "#FFD700" }, { l: "Types", v: Object.keys(types).length, c: "#A29BFE" }, { l: "Links", v: links.length, c: "#FF6B35" }].map(s =>
-              <div key={s.l} style={{ background: "#1a1a2e", borderRadius: 12, padding: "14px 12px", textAlign: "center", border: "1px solid #2a2a4a" }}><div style={{ fontSize: 26, fontWeight: 800, color: s.c }}>{s.v}</div><div style={{ fontSize: 9, color: "#666", textTransform: "uppercase", letterSpacing: 1, marginTop: 2 }}>{s.l}</div></div>
+              <div key={s.l} style={{ background: t.surface, borderRadius: 12, padding: "14px 12px", textAlign: "center", border: `1px solid ${t.border}` }}><div style={{ fontSize: 26, fontWeight: 800, color: s.c }}>{s.v}</div><div style={{ fontSize: 9, color: t.textDim, textTransform: "uppercase", letterSpacing: 1, marginTop: 2 }}>{s.l}</div></div>
             )}
           </div>
           {filtered.length > 0 ? <VirtualGrid filtered={filtered} setSelected={setSelected} /> : <p style={{ textAlign: "center", color: "#555", marginTop: 40 }}>No memories match.</p>}
@@ -805,6 +829,7 @@ export default function OpenBrain() {
 
         {view === "suppliers" && <SupplierPanel entries={entries} onSelect={setSelected} onReorder={handleReorder} />}
         {view === "suggest" && <Suspense fallback={<Loader />}><SuggestionsView apiKey={apiKey} sbKey={sbKey} entries={entries} setEntries={setEntries} /></Suspense>}
+        {view === "refine" && <Suspense fallback={<Loader />}><RefineView apiKey={apiKey} entries={entries} setEntries={setEntries} links={links} addLinks={addLinks} /></Suspense>}
         {view === "calendar" && <Suspense fallback={<Loader />}><CalendarView entries={entries} /></Suspense>}
         {view === "todos" && <Suspense fallback={<Loader />}><TodoView /></Suspense>}
         {view === "timeline" && <VirtualTimeline sorted={sortedTimeline} setSelected={setSelected} />}
@@ -815,7 +840,7 @@ export default function OpenBrain() {
             <div style={{ flex: 1, overflow: "auto", marginBottom: 12 }}>
               {chatMsgs.map((m, i) => (
                 <div key={i} style={{ marginBottom: 12, display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
-                  <div style={{ maxWidth: "85%", padding: "12px 16px", borderRadius: m.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px", background: m.role === "user" ? "#4ECDC4" : "#1a1a2e", color: m.role === "user" ? "#0f0f23" : "#ccc", fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                  <div style={{ maxWidth: "85%", padding: "12px 16px", borderRadius: m.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px", background: m.role === "user" ? "#4ECDC4" : t.surface, color: m.role === "user" ? "#0f0f23" : t.textMid, fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
                     {m.role === "assistant" ? m.content.split(/(\+27[0-9]{9}|0[6-8][0-9]{8})/).map((part, pi) =>
                       /(\+27[0-9]{9}|0[6-8][0-9]{8})/.test(part)
                         ? <a key={pi} href={`tel:${part}`} style={{ color: "#4ECDC4", fontWeight: 700, textDecoration: "none" }}>{part}</a>
@@ -824,18 +849,18 @@ export default function OpenBrain() {
                   </div>
                 </div>
               ))}
-              {chatLoading && <div style={{ display: "flex" }}><div style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", background: "#1a1a2e", color: "#666" }}>Thinking...</div></div>}
+              {chatLoading && <div style={{ display: "flex" }}><div style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", background: t.surface, color: t.textDim }}>Thinking...</div></div>}
               <div ref={chatEndRef} />
             </div>
             {/* Quick-ask chips */}
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
               {CHAT_CHIPS.map(chip => (
-                <button key={chip.label} onClick={() => setChatInput(chip.text)} style={{ padding: "5px 12px", borderRadius: 20, border: "1px solid #2a2a4a", background: "#1a1a2e", color: "#888", fontSize: 11, cursor: "pointer" }}>{chip.label}</button>
+                <button key={chip.label} onClick={() => setChatInput(chip.text)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${t.border}`, background: t.surface, color: t.textMuted, fontSize: 11, cursor: "pointer" }}>{chip.label}</button>
               ))}
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === "Enter" && handleChat()} placeholder="Ask about your memories..." style={{ flex: 1, padding: "12px 16px", background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 12, color: "#ddd", fontSize: 14, outline: "none" }} />
-              <button onClick={handleChat} disabled={chatLoading || !apiKey} style={{ padding: "12px 20px", background: apiKey ? "#4ECDC4" : "#1a1a2e", border: "none", borderRadius: 12, color: apiKey ? "#0f0f23" : "#555", fontWeight: 700, cursor: apiKey ? "pointer" : "default", opacity: chatLoading ? 0.5 : 1 }}>→</button>
+              <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === "Enter" && handleChat()} placeholder="Ask about your memories..." style={{ flex: 1, padding: "12px 16px", background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, color: t.textSoft, fontSize: 14, outline: "none" }} />
+              <button onClick={handleChat} disabled={chatLoading || !apiKey} style={{ padding: "12px 20px", background: apiKey ? "#4ECDC4" : t.surface, border: "none", borderRadius: 12, color: apiKey ? "#0f0f23" : t.textFaint, fontWeight: 700, cursor: apiKey ? "pointer" : "default", opacity: chatLoading ? 0.5 : 1 }}>→</button>
             </div>
           </div>
         )}
