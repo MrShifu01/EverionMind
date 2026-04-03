@@ -37,12 +37,18 @@ export const ONBOARDING_QUESTIONS = [
   { q: "List your active subscriptions and monthly costs: streaming, gym, cloud storage, insurance premiums, software.", cat: "💰 Finance", p: "low" },
 ];
 
-const STEPS = [
+const ALL_STEPS = [
   { id: "purpose", title: "What will you use OpenBrain for?", subtitle: "We'll set up the right brain for you." },
   { id: "setup",   title: "Here's what we've set up",         subtitle: "Your brain is ready. You can add more later." },
   { id: "starter", title: "30 things to capture on day one",  subtitle: "The details you'll desperately need someday." },
+  { id: "ios",     title: "Get notified on iPhone",           subtitle: "One quick step before notifications work." },
   { id: "start",   title: "You're ready to go",               subtitle: "Start by answering a few questions or capturing your first memory." },
 ];
+
+function needsIOSStep() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream &&
+    (!("Notification" in window) || !window.navigator.standalone);
+}
 
 const USE_CASES = [
   { id: "personal", emoji: "🧠", label: "Personal",  desc: "Identity, health, finances, contacts, documents" },
@@ -54,6 +60,10 @@ export default function OnboardingModal({ onComplete, apiKey }) {
   const { t } = useTheme();
   const [step, setStep] = useState(0);
   const [selected, setSelected] = useState(["personal"]);
+
+  const STEPS = ALL_STEPS.filter(s => s.id !== "ios" || needsIOSStep());
+  const START_STEP = STEPS.length - 1;
+  const IOS_STEP   = STEPS.findIndex(s => s.id === "ios");
 
   // Starter questions state
   const [qIdx, setQIdx] = useState(0);
@@ -128,14 +138,14 @@ export default function OnboardingModal({ onComplete, apiKey }) {
   function handleSkipAll() {
     const remaining = ONBOARDING_QUESTIONS.slice(qIdx);
     setSkippedQs(prev => [...prev, ...remaining]);
-    setStep(3); // jump to ready
+    setStep(START_STEP); // jump to ready
     resetQInput();
   }
 
   function advanceQ() {
     resetQInput();
     if (qIdx + 1 >= totalQs) {
-      setStep(3); // all done → ready
+      setStep(START_STEP); // all done → ready
     } else {
       setQIdx(n => n + 1);
     }
@@ -350,8 +360,27 @@ export default function OnboardingModal({ onComplete, apiKey }) {
           </div>
         )}
 
-        {/* Step 3 — Ready */}
-        {step === 3 && (
+        {/* iOS Home Screen step — only shown on iOS when not in standalone */}
+        {IOS_STEP !== -1 && step === IOS_STEP && (
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ padding: "16px 18px", background: t.surface, border: `1px solid ${t.border}`, borderRadius: 14, marginBottom: 16 }}>
+              <ol style={{ margin: 0, padding: "0 0 0 18px", fontSize: 13, color: t.textMuted, lineHeight: 2.2 }}>
+                <li>Tap the <strong style={{ color: t.text }}>Share button</strong> <span style={{ color: "#4ECDC4" }}>□↑</span> in Safari</li>
+                <li>Tap <strong style={{ color: t.text }}>"Add to Home Screen"</strong></li>
+                <li>Open OpenBrain from your Home Screen</li>
+                <li>Come back to <strong style={{ color: t.text }}>Settings → Notifications</strong> to enable</li>
+              </ol>
+            </div>
+            <div style={{ padding: "10px 14px", background: "#4ECDC408", border: "1px solid #4ECDC420", borderRadius: 10 }}>
+              <p style={{ margin: 0, fontSize: 11, color: t.textDim }}>
+                iOS requires apps to be on the Home Screen before allowing push notifications.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Start step — Ready */}
+        {step === START_STEP && (
           <div style={{ marginBottom: 24 }}>
             {(answeredItems.length > 0 || skippedQs.length > 0) && (
               <div style={{ padding: "12px 16px", background: "#4ECDC415", border: "1px solid #4ECDC430", borderRadius: 10, marginBottom: 16 }}>
@@ -391,7 +420,10 @@ export default function OnboardingModal({ onComplete, apiKey }) {
           {step === 1 && (
             <button onClick={() => setStep(2)} style={btn(true)}>Answer starter questions →</button>
           )}
-          {step === 3 && (
+          {IOS_STEP !== -1 && step === IOS_STEP && (
+            <button onClick={() => setStep(START_STEP)} style={btn(true)}>Got it →</button>
+          )}
+          {step === START_STEP && (
             <button onClick={handleComplete} style={btn(true)}>Start capturing →</button>
           )}
         </div>

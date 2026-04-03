@@ -13,6 +13,7 @@ import BrainSwitcher from "./components/BrainSwitcher";
 import CreateBrainModal from "./components/CreateBrainModal";
 import OnboardingModal from "./components/OnboardingModal";
 import BrainTipCard from "./components/BrainTipCard";
+import NotificationSettings from "./components/NotificationSettings";
 
 const SuggestionsView = lazy(() => import("./views/SuggestionsView"));
 const CalendarView    = lazy(() => import("./views/CalendarView"));
@@ -689,8 +690,6 @@ function SettingsView({ activeBrain, canInvite, canManageMembers, onRefreshBrain
   const { t } = useTheme();
   const [testStatus, setTestStatus] = useState(null);
   const [email, setEmail] = useState("");
-  const [notifEnabled, setNotifEnabled] = useState(() => localStorage.getItem("openbrain_notif") === "true");
-  const [notifTime, setNotifTime] = useState(() => localStorage.getItem("openbrain_notif_time") || "07:00");
   const [byoKey, setByoKey] = useState(() => getUserApiKey() || "");
   const [byoProvider, setByoProvider] = useState(() => getUserProvider());
   const [byoModel, setByoModel] = useState(() => getUserModel());
@@ -779,19 +778,6 @@ function SettingsView({ activeBrain, canInvite, canManageMembers, onRefreshBrain
       setByoTestStatus(res.ok ? "ok" : "fail");
     } catch { setByoTestStatus("fail"); }
     setTimeout(() => setByoTestStatus(null), 3000);
-  };
-
-  const requestNotification = async () => {
-    if (!("Notification" in window)) { alert("Notifications not supported in this browser."); return; }
-    const perm = await Notification.requestPermission();
-    if (perm === "granted") {
-      const enabled = !notifEnabled;
-      setNotifEnabled(enabled);
-      localStorage.setItem("openbrain_notif", String(enabled));
-      if (enabled) new Notification("OpenBrain Morning Briefing", { body: "You'll get a daily nudge at " + notifTime, icon: "/favicon.svg" });
-    } else {
-      alert("Notification permission denied. Enable in browser settings.");
-    }
   };
 
   const testAI = async () => {
@@ -922,12 +908,7 @@ function SettingsView({ activeBrain, canInvite, canManageMembers, onRefreshBrain
       )}
 
       <div style={{ background: t.surface, borderRadius: 14, padding: "20px 24px", border: `1px solid ${t.border}` }}>
-        <p style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 600, color: t.textSoft }}>Morning Briefing</p>
-        <p style={{ margin: "0 0 14px", fontSize: 12, color: t.textDim }}>Get a daily nudge with your reminders and key info.</p>
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <input type="time" value={notifTime} onChange={e => { setNotifTime(e.target.value); localStorage.setItem("openbrain_notif_time", e.target.value); }} style={{ padding: "8px 12px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textSoft, fontSize: 13, outline: "none" }} />
-          <button onClick={requestNotification} style={{ ...btn, background: notifEnabled ? "#FF6B3520" : "#4ECDC420", color: notifEnabled ? "#FF6B35" : "#4ECDC4" }}>{notifEnabled ? "Disable" : "Enable"}</button>
-        </div>
+        <NotificationSettings />
       </div>
       {/* Telegram */}
       {activeBrain && <TelegramPanel activeBrain={activeBrain} />}
@@ -1484,6 +1465,7 @@ export default function OpenBrain() {
           entries={entries}
           links={links}
           canWrite={canWrite}
+          brains={brains}
         />
       </Suspense>
 
