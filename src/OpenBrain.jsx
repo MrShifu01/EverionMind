@@ -9,6 +9,7 @@ import { useOfflineSync } from "./hooks/useOfflineSync";
 import { enqueue } from "./lib/offlineQueue";
 import BrainSwitcher from "./components/BrainSwitcher";
 import OnboardingModal from "./components/OnboardingModal";
+import BrainTipCard from "./components/BrainTipCard";
 
 const SuggestionsView = lazy(() => import("./views/SuggestionsView"));
 const CalendarView    = lazy(() => import("./views/CalendarView"));
@@ -624,7 +625,7 @@ export default function OpenBrain() {
   const [entriesLoaded, setEntriesLoaded] = useState(false);
 
   // ─── Brain context ───
-  const { brains, activeBrain, setActiveBrain, createBrain, deleteBrain } = useBrain(
+  const { brains, activeBrain, setActiveBrain, createBrain, deleteBrain, refresh } = useBrain(
     useCallback(() => {
       // Reset local state when brain switches
       setEntries(INITIAL_ENTRIES);
@@ -655,6 +656,7 @@ export default function OpenBrain() {
   const [sbKey] = useState("configured");
   const { t, isDark, toggleTheme } = useTheme();
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("openbrain_onboarded"));
+  const [showBrainTip, setShowBrainTip] = useState(null);
   const [chatInput, setChatInput] = useState("");
   const [chatMsgs, setChatMsgs] = useState([{ role: "assistant", content: "Hey Chris. Ask me about your memories — \"What's my ID number?\", \"Who are my suppliers?\", etc." }]);
   const [chatLoading, setChatLoading] = useState(false);
@@ -858,8 +860,12 @@ export default function OpenBrain() {
                 brains={brains}
                 activeBrain={activeBrain}
                 onSwitch={setActiveBrain}
-                onBrainCreated={createBrain}
+                onBrainCreated={async (brain) => {
+                  await refresh();
+                  setActiveBrain(brain);
+                }}
                 onBrainDeleted={deleteBrain}
+                onBrainTip={(brain) => setShowBrainTip(brain)}
               />
             )}
             {/* Theme toggle */}
@@ -886,6 +892,14 @@ export default function OpenBrain() {
       </div>
 
       <QuickCapture apiKey={apiKey} sbKey={sbKey} entries={entries} setEntries={setEntries} links={links} addLinks={addLinks} onCreated={handleCreated} brainId={activeBrain?.id} isOnline={isOnline} refreshCount={refreshCount} />
+
+      {showBrainTip && (
+        <BrainTipCard
+          brain={showBrainTip}
+          onDismiss={() => setShowBrainTip(null)}
+          onFill={() => { setShowBrainTip(null); setView("suggest"); }}
+        />
+      )}
 
       {view === "grid" && nudge && <NudgeBanner nudge={nudge} onDismiss={() => { setNudge(null); sessionStorage.removeItem("openbrain_nudge"); }} />}
 
@@ -986,9 +1000,62 @@ export default function OpenBrain() {
 
       {showOnboarding && (
         <OnboardingModal
-          onComplete={(selected) => {
+          apiKey={apiKey}
+          onComplete={(selected, answeredItems, skippedQs) => {
+            // Mark answered onboarding questions so they don't re-appear in Fill Brain
+            if (answeredItems?.length) {
+              try {
+                const key = "openbrain_answered_qs_personal";
+                const existing = new Set(JSON.parse(localStorage.getItem(key) || "[]"));
+                answeredItems.forEach(item => existing.add(item.q));
+                localStorage.setItem(key, JSON.stringify([...existing]));
+              } catch {}
+
+              // Batch-save answered items to the brain via Quick Capture API
+              answeredItems.forEach(item => {
+                authFetch("/api/anthropic", {
+                  method: "POST", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    model: "claude-haiku-4-5-20251001", max_tokens: 800,
+                    system: `Parse this Q&A into a structured entry. Return ONLY valid JSON:\n{"title":"...","content":"...","type":"note|person|place|idea|contact|document|reminder|color|decision","metadata":{},"tags":[]}`,
+                    messages: [{ role: "user", content: `Question: ${item.q}\nAnswer: ${item.a}` }]
+                  })
+                })
+                  .then(r => r.json())
+                  .then(data => {
+                    let parsed = {};
+                    try { parsed = JSON.parse((data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim()); } catch {}
+                    if (parsed.title && activeBrain?.id) {
+                      authFetch("/api/capture", {
+                        method: "POST", headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          p_title: parsed.title,
+                          p_content: parsed.content || item.a,
+                          p_type: parsed.type || "note",
+                          p_metadata: parsed.metadata || {},
+                          p_tags: parsed.tags || [],
+                          p_brain_id: activeBrain.id,
+                        })
+                      }).catch(() => {});
+                    }
+                  })
+                  .catch(() => {});
+              });
+            }
+
+            // Store skipped onboarding questions — Fill Brain will surface them
+            if (skippedQs?.length) {
+              try {
+                const existing = JSON.parse(localStorage.getItem("openbrain_onboarding_skipped") || "[]");
+                const merged = [...existing];
+                skippedQs.forEach(q => {
+                  if (!merged.find(e => e.q === q.q)) merged.push(q);
+                });
+                localStorage.setItem("openbrain_onboarding_skipped", JSON.stringify(merged));
+              } catch {}
+            }
+
             setShowOnboarding(false);
-            // Auto-switch to Fill Brain tab after onboarding
             setView("suggest");
           }}
         />

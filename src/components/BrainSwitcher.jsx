@@ -5,7 +5,7 @@ import CreateBrainModal from "./CreateBrainModal";
  * BrainSwitcher — header dropdown to switch between brains,
  * create a new shared brain, or manage the current one.
  */
-export default function BrainSwitcher({ brains, activeBrain, onSwitch, onBrainCreated, onBrainDeleted }) {
+export default function BrainSwitcher({ brains, activeBrain, onSwitch, onBrainCreated, onBrainDeleted, onBrainTip }) {
   const [open, setOpen] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const ref = useRef(null);
@@ -134,8 +134,9 @@ export default function BrainSwitcher({ brains, activeBrain, onSwitch, onBrainCr
       {showCreate && (
         <CreateBrainModal
           onClose={() => setShowCreate(false)}
-          onCreate={async (name) => {
-            await onBrainCreated(name);
+          onCreate={async (brain, brainType) => {
+            await onBrainCreated(brain);
+            onBrainTip?.(brain);
             setShowCreate(false);
           }}
         />

@@ -70,7 +70,7 @@ export default async function handler(req, res) {
     if (!name || typeof name !== "string" || name.trim().length === 0) {
       return res.status(400).json({ error: "Brain name is required" });
     }
-    const validTypes = ["family", "business"];
+    const validTypes = ["personal", "family", "business"];
     const brainType = validTypes.includes(type) ? type : "family";
 
     const r = await fetch(`${SB_URL}/rest/v1/brains`, {
