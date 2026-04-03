@@ -12,6 +12,14 @@ const DAYS = ["sunday","monday","tuesday","wednesday","thursday","friday","satur
 
 // Runs hourly — sends Fill Brain nudge to users whose local day+hour matches their configured schedule
 export default async function handler(req, res) {
+  // In production, only allow requests from Vercel cron runner
+  if (process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production') {
+    const isVercelCron = req.headers['x-vercel-cron'] === '1';
+    if (!isVercelCron) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+  }
+
   if (req.headers["authorization"] !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: "Unauthorized" });
   }

@@ -43,6 +43,27 @@ export default async function handler(req, res) {
 
   const data = await response.json();
 
+  // Verify user is a member/owner of each extra brain before inserting
+  if (Array.isArray(p_extra_brain_ids) && p_extra_brain_ids.length > 0) {
+    const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const sbHdrs = {
+      "Content-Type": "application/json",
+      "apikey": sbKey,
+      "Authorization": `Bearer ${sbKey}`,
+    };
+    for (const brainId of p_extra_brain_ids) {
+      if (typeof brainId !== "string") continue;
+      const memberRes = await fetch(
+        `${SB_URL}/rest/v1/brain_members?brain_id=eq.${encodeURIComponent(brainId)}&user_id=eq.${encodeURIComponent(user.id)}&select=role`,
+        { headers: sbHdrs }
+      );
+      const members = memberRes.ok ? await memberRes.json() : [];
+      if (!members.length) {
+        return res.status(403).json({ error: `Not a member of brain ${brainId}` });
+      }
+    }
+  }
+
   // If extra brain IDs provided, share the entry into those brains via entry_brains
   if (response.ok && data?.id && Array.isArray(p_extra_brain_ids) && p_extra_brain_ids.length > 0) {
     const extraIds = p_extra_brain_ids.filter(id => typeof id === "string" && id !== p_brain_id);
