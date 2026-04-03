@@ -1,5 +1,14 @@
 # OpenBrain — Decisions Log
 
+## Per-task AI model selection: OpenRouter-only, task param in callAI()
+Task-specific models stored in `user_ai_settings` (5 nullable columns) and localStorage keyed `openbrain_{uid}_task_{task}`. `callAI()` resolves task model first when provider=openrouter, falls back to global. Affects `src/lib/aiFetch.js`, `src/lib/ai.js`, `supabase/migrations/007_task_models.sql`.
+
+## Pricing tier labels replace raw $/1M in model dropdowns
+OpenRouter dropdowns show Free/Cheap/Normal/Expensive instead of `$X.XX/1M`. Thresholds: 0=Free, <$1/1M=Cheap, <$10/1M=Normal, ≥$10/1M=Expensive. `priceTier()` helper in `src/OpenBrain.jsx` (to be added).
+
+## Vision task dropdown filtered by architecture.modality from OpenRouter API
+`fetchOrModels` stores `modality: m.architecture?.modality`. Vision picker shows only `modality.includes("image")` models. No manual allowlist. Falls back to `OR_VISION_SHORTLIST` if models not fetched yet.
+
 ## Offline sync: IndexedDB queue + window.online drain (not Background Sync API)
 Chose IndexedDB + `window.online` event over Workbox Background Sync because Background Sync API is unsupported on iOS Safari. Affects `src/lib/offlineQueue.js` and `src/hooks/useOfflineSync.js`.
 

@@ -1,35 +1,88 @@
 # Next Steps — 2026-04-03
 
-## Immediate (do first)
-1. **Resolve merge conflicts** — three files have git conflict markers and will not build:
-   - `src/OpenBrain.jsx` — check if `src/config/prompts.js` exists; if yes, use `PROMPTS.*` constants and remove inline system strings; if not, keep inline strings and drop the `PROMPTS` import
-   - `src/views/RefineView.jsx` — same: choose between `PROMPTS.ENTRY_AUDIT` / `PROMPTS.LINK_DISCOVERY` or inline `ENTRY_SYSTEM` / `LINK_SYSTEM`
-   - `src/views/SuggestionsView.jsx` — choose between `PROMPTS.FILL_BRAIN` / `PROMPTS.QA_PARSE` or inline system strings
-   - In all three files, the stashed changes also add `task: "questions"` / `task: "vision"` / `task: "capture"` / `task: "refine"` params to `callAI()` — keep those regardless of which branch wins
-2. **Run migration 006** — Apply `supabase/migrations/006_user_ai_settings.sql` in the Supabase SQL editor (project `wfvoqpdfzkqnenzjxhui`). Creates `user_ai_settings` table.
-3. **Add OPENROUTER_API_KEY secret** — Supabase dashboard → Project Settings → Edge Functions → Secrets → add `OPENROUTER_API_KEY` (the shared fallback key for users without their own)
-4. **Deploy edge function** — `supabase functions deploy telegram-webhook`
+## Immediate (do first) — Complete AI-models.md Phase 2 + 3
 
-## Soon (this milestone)
-- **Implement AI-models.md Phase 1** — `supabase/migrations/007_task_models.sql` (add per-task model columns), `getModelForTask()` / `setModelForTask()` helpers in `src/lib/aiFetch.js`, `loadTaskModels()` on app startup
-- **Implement AI-models.md Phase 2** — add `task` param to all `callAI()` call sites in `src/OpenBrain.jsx` (capture, chat, links, nudge) and update Telegram edge function to read `model_chat`
-- **Implement AI-models.md Phase 3** — per-task model pickers in settings UI (collapsible, OpenRouter-only)
-- **Apply migrations 001–005** — if not already applied; 001 must precede 002
-- **Fix QuickCapture offline path** — `src/OpenBrain.jsx` QuickCapture offline branch missing `p_brain_id` in `enqueue()` body
-- **Delete SupplierPanel dead code** — `src/OpenBrain.jsx` still has SupplierPanel component + `{view === "suppliers" && ...}` render with no nav tab
+### Phase 2: Add task: params to all callAI() sites
+
+**OpenBrain.jsx** — grep for `callAI({` and add task param:
+- `findConnections` function (near top, link discovery) → `task: "refine"`
+- Nudge useEffect (~line 287) → `task: "chat"`
+- `handleChat` (~line 451) → `task: "chat"`
+- Onboarding batch parse (~line 740) → `task: "capture"`
+- Also check QuickCapture callAI if present → `task: "capture"`
+
+**SuggestionsView.jsx** — 3 changes:
+1. ~line 168: image upload is `authFetch("/api/anthropic", {...})` → replace with `callAI({ messages: [{role:"user", content:[{type:"image",...},{type:"text",...}]}], max_tokens: 600, task: "vision" })`
+2. FILL_BRAIN callAI() → add `task: "questions"`
+3. QA_PARSE callAI() → add `task: "capture"`
+
+**RefineView.jsx** — 2 changes:
+1. ENTRY_AUDIT callAI() → add `task: "refine"`
+2. LINK_DISCOVERY callAI() → add `task: "refine"`
+
+### Phase 3: Settings UI in OpenBrain.jsx SettingsView
+
+Add before `function SettingsView`:
+```js
+function priceTier(pricing) {
+  if (pricing?.prompt === undefined || pricing?.prompt === null) return null;
+  const p = parseFloat(pricing.prompt);
+  if (isNaN(p)) return null;
+  if (p === 0)       return { label: "Free",      color: "#22c55e" };
+  if (p < 0.000001) return { label: "Cheap",     color: "#4ECDC4" };
+  if (p < 0.000010) return { label: "Normal",    color: "#888" };
+  return              { label: "Expensive",  color: "#FF6B35" };
+}
+const TASK_DEFINITIONS = [
+  { key: "capture",   label: "Entry capture",       desc: "Parsing text into structured entries",    visionOnly: false },
+  { key: "questions", label: "Fill Brain questions", desc: "Generating personalised questions",       visionOnly: false },
+  { key: "vision",    label: "Image reading",        desc: "Extracting text from photos",            visionOnly: true  },
+  { key: "refine",    label: "Refine collection",    desc: "Auditing entries + discovering links",   visionOnly: false },
+  { key: "chat",      label: "Brain chat",           desc: "Answering questions from memory",        visionOnly: false },
+];
+const OR_VISION_SHORTLIST = ["openai/gpt-4o","openai/gpt-4o-mini","google/gemini-2.0-flash-exp:free","anthropic/claude-3.5-haiku","anthropic/claude-sonnet-4-5"];
+```
+
+Inside SettingsView, add state:
+```js
+const [taskModels, setTaskModels] = useState(() => { const uid = getUserId(); if (!uid) return {}; return Object.fromEntries(TASK_DEFINITIONS.map(t => [t.key, localStorage.getItem(`openbrain_${uid}_task_${t.key}`) || ""])); });
+const [taskSectionOpen, setTaskSectionOpen] = useState(false);
+```
+
+Add useEffect (after members useEffect):
+```js
+useEffect(() => {
+  const uid = getUserId();
+  if (!uid) return;
+  supabase.from("user_ai_settings").select("model_capture,model_questions,model_vision,model_refine,model_chat").eq("user_id", uid).single()
+    .then(({ data }) => { if (!data) return; loadTaskModels(uid, data); setTaskModels(Object.fromEntries(TASK_DEFINITIONS.map(t => [t.key, localStorage.getItem(`openbrain_${uid}_task_${t.key}`) || ""]))); });
+}, []);
+```
+
+Add handler after `saveOrModel`:
+```js
+const saveTaskModel = (task, model) => { setModelForTask(task, model || null); setTaskModels(prev => ({ ...prev, [task]: model })); };
+```
+
+Update `fetchOrModels` model mapping — add `modality: m.architecture?.modality ?? "text->text"` to each model object.
+
+Update global OR model picker option labels to use `priceTier()` instead of raw $/1M.
+
+Add per-task section after the global model picker, inside the OpenRouter branch of the AI Provider card.
+
+Import `setModelForTask`, `loadTaskModels` in OpenBrain.jsx aiFetch import line (already imports `getModelForTask` — add the other two).
+
+## Soon
+- Fix QuickCapture offline path — missing `p_brain_id` in `enqueue()` body in `src/OpenBrain.jsx`
+- Delete SupplierPanel dead code from `src/OpenBrain.jsx`
+- Apply migration 006 if not yet applied (check Supabase dashboard first)
 
 ## Deferred
-- AI-models.md Phase 4 (Voice/Whisper) — separate transcription API, new `/api/transcribe` route, needs OpenAI key, separate from OpenRouter
-- Metadata editing in DetailModal (`metadata.due_date`, `metadata.day_of_week`) — `src/views/DetailModal.jsx`
-- Wire GraphView + CalendarView to live entries — both still use `INITIAL_ENTRIES` static data
-- TodoView DB sync — currently localStorage-only (`src/views/TodoView.jsx`)
-- Activity log UI — `api/activity.js` exists, no frontend
-- Invite-accept frontend flow (URL token handling)
-- Replace in-memory rate limiter with Upstash Redis — `api/_lib/rateLimit.js`
+- AI-models.md Phase 4 (Voice/Whisper) — separate transcription API, needs design
+- Wire GraphView + CalendarView to live entries (currently use INITIAL_ENTRIES)
+- TodoView DB sync (currently localStorage-only)
 
 ## Warnings
-- ⚠️ **Build is broken** — merge conflicts in 3 files must be resolved before anything works
-- ⚠️ `src/config/prompts.js` — upstream branch references this file (`import { PROMPTS } from "../config/prompts"`). Check if it exists before resolving conflicts. If missing, the inline system strings in the stashed version are the correct source of truth.
-- ⚠️ Migration 001 must be applied BEFORE 002 — 002 references tables from 001
-- ⚠️ Migration 003 personal brain trigger — confirm it is applied in Supabase, not just in the repo
-- ⚠️ `user_ai_settings` only stores `openrouter_key` and `openrouter_model` right now (migration 006). Per-task columns (`model_capture`, `model_questions` etc.) are in migration 007 but that migration is untracked and Phase 1 helpers are not written yet.
+- ⚠️ SuggestionsView.jsx image upload is hardcoded `authFetch("/api/anthropic")` — this is the most important fix; it bypasses the entire model routing system
+- ⚠️ After adding task: params, verify OpenBrain.jsx still imports `setModelForTask` and `loadTaskModels` from `./lib/aiFetch` (add to import line 5 if missing)
+- ⚠️ `src/config/prompts.js` EXISTS — use `PROMPTS.*` constants when adding task params, do not revert to inline strings
