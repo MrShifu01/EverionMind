@@ -1,90 +1,59 @@
 # Next Steps — 2026-04-03
 
-## Immediate (do first) — Complete AI-models.md Phase 2 + 3
+## Immediate (do first) — Apply Migration 008
 
-### Phase 2: Add task: params to all callAI() sites
+Migration `supabase/migrations/008_pgvector.sql` is committed but NOT applied to Supabase yet.
+
+Apply it:
+```
+SUPABASE_DB_PASSWORD="..." npx supabase db push --linked
+```
+Or paste the migration SQL directly in the Supabase dashboard SQL editor.
+
+After applying, verify:
+- `SELECT * FROM pg_extension WHERE extname = 'vector';` — should return a row
+- `SELECT column_name FROM information_schema.columns WHERE table_name='entries' AND column_name='embedding';` — should return 'embedding'
+- `SELECT routine_name FROM information_schema.routines WHERE routine_name='match_entries';` — should return row
+
+Then go to Settings → Semantic Search & RAG, add an OpenAI or Gemini key, and click "Embed all entries".
+
+## Soon
+
+### Complete AI-models.md Phase 2 + 3 (from prior session)
+
+**Phase 2: Add task: params to all callAI() sites**
 
 **OpenBrain.jsx** — grep for `callAI({` and add task param:
-- `findConnections` function (near top, link discovery) → `task: "refine"`
-- Nudge useEffect (~line 287) → `task: "chat"`
-- `handleChat` (~line 451) → `task: "chat"`
-- Onboarding batch parse (~line 740) → `task: "capture"`
-- Also check QuickCapture callAI if present → `task: "capture"`
+- Nudge useEffect → `task: "chat"`
+- Onboarding batch parse → `task: "capture"`
+- QuickCapture callAI → `task: "capture"`
 
-**SuggestionsView.jsx** — 3 changes:
-1. ~line 168: image upload is `authFetch("/api/anthropic", {...})` → replace with `callAI({ messages: [{role:"user", content:[{type:"image",...},{type:"text",...}]}], max_tokens: 600, task: "vision" })`
+**SuggestionsView.jsx**:
+1. ~line 168: image upload `authFetch("/api/anthropic")` → replace with `callAI({ messages: [...], max_tokens: 600, task: "vision" })`
 2. FILL_BRAIN callAI() → add `task: "questions"`
 3. QA_PARSE callAI() → add `task: "capture"`
 
-**RefineView.jsx** — 2 changes:
+**RefineView.jsx**:
 1. ENTRY_AUDIT callAI() → add `task: "refine"`
 2. LINK_DISCOVERY callAI() → add `task: "refine"`
 
-### Phase 3: Settings UI in OpenBrain.jsx SettingsView
+**Phase 3:** Settings UI per-task model selection (see prior next-steps.md for full code snippet)
 
-Add before `function SettingsView`:
-```js
-function priceTier(pricing) {
-  if (pricing?.prompt === undefined || pricing?.prompt === null) return null;
-  const p = parseFloat(pricing.prompt);
-  if (isNaN(p)) return null;
-  if (p === 0)       return { label: "Free",      color: "#22c55e" };
-  if (p < 0.000001) return { label: "Cheap",     color: "#4ECDC4" };
-  if (p < 0.000010) return { label: "Normal",    color: "#888" };
-  return              { label: "Expensive",  color: "#FF6B35" };
-}
-const TASK_DEFINITIONS = [
-  { key: "capture",   label: "Entry capture",       desc: "Parsing text into structured entries",    visionOnly: false },
-  { key: "questions", label: "Fill Brain questions", desc: "Generating personalised questions",       visionOnly: false },
-  { key: "vision",    label: "Image reading",        desc: "Extracting text from photos",            visionOnly: true  },
-  { key: "refine",    label: "Refine collection",    desc: "Auditing entries + discovering links",   visionOnly: false },
-  { key: "chat",      label: "Brain chat",           desc: "Answering questions from memory",        visionOnly: false },
-];
-const OR_VISION_SHORTLIST = ["openai/gpt-4o","openai/gpt-4o-mini","google/gemini-2.0-flash-exp:free","anthropic/claude-3.5-haiku","anthropic/claude-sonnet-4-5"];
-```
-
-Inside SettingsView, add state:
-```js
-const [taskModels, setTaskModels] = useState(() => { const uid = getUserId(); if (!uid) return {}; return Object.fromEntries(TASK_DEFINITIONS.map(t => [t.key, localStorage.getItem(`openbrain_${uid}_task_${t.key}`) || ""])); });
-const [taskSectionOpen, setTaskSectionOpen] = useState(false);
-```
-
-Add useEffect (after members useEffect):
-```js
-useEffect(() => {
-  const uid = getUserId();
-  if (!uid) return;
-  supabase.from("user_ai_settings").select("model_capture,model_questions,model_vision,model_refine,model_chat").eq("user_id", uid).single()
-    .then(({ data }) => { if (!data) return; loadTaskModels(uid, data); setTaskModels(Object.fromEntries(TASK_DEFINITIONS.map(t => [t.key, localStorage.getItem(`openbrain_${uid}_task_${t.key}`) || ""]))); });
-}, []);
-```
-
-Add handler after `saveOrModel`:
-```js
-const saveTaskModel = (task, model) => { setModelForTask(task, model || null); setTaskModels(prev => ({ ...prev, [task]: model })); };
-```
-
-Update `fetchOrModels` model mapping — add `modality: m.architecture?.modality ?? "text->text"` to each model object.
-Update global OR model picker option labels to use `priceTier()` instead of raw $/1M.
-Add per-task section after the global model picker, inside the OpenRouter branch of the AI Provider card.
-Import `setModelForTask`, `loadTaskModels` in OpenBrain.jsx aiFetch import line.
-
-## Soon
-- Complete RAG implementation: `api/embed.js`, `api/search.js`, `api/_lib/generateEmbedding.js`, `supabase/migrations/008_pgvector.sql` — confirm and commit
-- Fix QuickCapture offline path — missing `p_brain_id` in `enqueue()` body in `src/OpenBrain.jsx`
-- Delete SupplierPanel dead code from `src/OpenBrain.jsx`
-- Apply migration 006 if not yet applied (check Supabase dashboard first)
+### Clean up
 - Review/delete `supabase/functions/test-secret.ts` — untracked, unknown purpose
+- Delete SupplierPanel dead code from `src/OpenBrain.jsx` (component still imported but tab removed)
+- Fix QuickCapture offline path — missing `p_brain_id` in `enqueue()` body in `src/OpenBrain.jsx`
 
 ## Deferred
 - AI-models.md Phase 4 (Voice/Whisper) — separate transcription API, needs design
 - Wire GraphView + CalendarView to live entries (currently use INITIAL_ENTRIES)
 - TodoView DB sync (currently localStorage-only)
-- E2EE implementation — documented in GAPS.md Part 1 as Phase 1–3 roadmap
+- E2EE implementation — documented in GAPS.md
 - Distributed rate limiting (Upstash Redis) — documented in GAPS.md as critical security gap
+- Cross-brain semantic search (match_entries currently scoped to `brain_id` only, not entry_brains junction)
 
 ## Warnings
-- ⚠️ SuggestionsView.jsx image upload is hardcoded `authFetch("/api/anthropic")` — bypasses entire model routing system
-- ⚠️ After adding task: params, verify OpenBrain.jsx still imports `setModelForTask` and `loadTaskModels` from `./lib/aiFetch`
-- ⚠️ `src/config/prompts.js` EXISTS — use `PROMPTS.*` constants when adding task params, do not revert to inline strings
-- ⚠️ In-memory rate limiter is still live — serverless instances each have separate counters, easy to bypass with distributed requests
+- ⚠️ Migration 008 NOT applied yet — `match_entries()` function doesn't exist until it's applied. `/api/search` and `/api/chat` will return 502 until then.
+- ⚠️ SuggestionsView.jsx image upload is still hardcoded `authFetch("/api/anthropic")` — bypasses model routing
+- ⚠️ In-memory rate limiter still live — serverless instances each have separate counters
+- ⚠️ `src/config/prompts.js` EXISTS — use `PROMPTS.*` constants, do not revert to inline strings

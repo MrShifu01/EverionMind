@@ -1,5 +1,14 @@
 # OpenBrain — Decisions Log
 
+## RAG embed key is client-side only — fire-and-forget from client, not server
+Embedding API key lives in localStorage; server has no access. Fire-and-forget embed calls happen from QuickCapture.jsx (after capture) and OpenBrain.jsx handleUpdate (after update), not from capture.js/update-entry.js. Affects `src/components/QuickCapture.jsx`, `src/OpenBrain.jsx`, `api/embed.js`.
+
+## Embedding key stored separately from generation API key
+Users may want OpenAI for embeddings but Anthropic for generation. `openbrain_${uid}_embed_openai_key` and `openbrain_${uid}_gemini_key` are distinct from `openbrain_${uid}_api_key`. `getEmbedHeaders()` in `src/lib/aiFetch.js` returns embed headers for any request needing them.
+
+## api/chat.js inlines LLM routing — does not call other Vercel functions
+Vercel serverless functions shouldn't call each other via HTTP internally. `api/chat.js` replicates the Anthropic/OpenAI/OpenRouter routing logic directly. Shared embedding logic is in `api/_lib/generateEmbedding.js`.
+
 ## GAPS.md is a live document — update when specs are approved
 Created `GAPS.md` as a strategic gaps analysis. When a spec is approved and implementation begins, the corresponding gap must be removed from GAPS.md in the same session to keep it accurate.
 
