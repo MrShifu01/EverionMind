@@ -1,14 +1,14 @@
-import { verifyAuth } from "./_lib/verifyAuth.js";
 import { rateLimit } from "./_lib/rateLimit.js";
+import { withAuth } from "./_lib/withAuth.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 
-export default async function handler(req, res) {
+export default withAuth(async function handler(req, res) {
   if (req.method !== "DELETE") return res.status(405).json({ error: "Method not allowed" });
   if (!rateLimit(req, 30)) return res.status(429).json({ error: "Too many requests" });
 
-  const user = await verifyAuth(req);
-  if (!user) return res.status(401).json({ error: "Unauthorized" });
+  // req.user is set by withAuth middleware
+  const user = { id: req.user };
 
   const { id } = req.body;
   if (!id || typeof id !== "string" || id.length > 100) {
@@ -70,4 +70,4 @@ export default async function handler(req, res) {
   }).catch(() => {}); // best-effort, never blocks
 
   res.status(response.ok ? 200 : 502).json({ ok: response.ok });
-}
+});

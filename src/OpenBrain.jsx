@@ -9,6 +9,7 @@ import { useBrain as useBrainHook } from "./hooks/useBrain";
 import { useRole } from "./hooks/useRole";
 import { useOfflineSync } from "./hooks/useOfflineSync";
 import { enqueue } from "./lib/offlineQueue";
+import { showError } from "./lib/notifications";
 import { readEntriesCache, writeEntriesCache } from "./lib/entriesCache";
 import { PinGate, getStoredPinHash } from "./lib/pin";
 import BrainSwitcher from "./components/BrainSwitcher";
@@ -358,7 +359,7 @@ export default function OpenBrain() {
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error((data?.message || data?.error) ?? `HTTP ${res.status}`);
       if (Array.isArray(data) && data.length === 0) throw new Error(`No row matched id=${id}`);
-    } catch (e) { setSaveError(`Save failed: ${e.message}`); setTimeout(() => setSaveError(null), 5000); return; }
+    } catch (e) { showError(`Save failed: ${e.message}`); setSaveError(`Save failed: ${e.message}`); setTimeout(() => setSaveError(null), 5000); return; }
     setEntries(prev => prev.map(e => e.id === id ? { ...e, ...changes } : e));
     setSelected(prev => prev?.id === id ? { ...prev, ...changes } : prev);
     if (previous) setLastAction({ type: "update", id, previous: { title: previous.title, content: previous.content, type: previous.type, tags: previous.tags, metadata: previous.metadata } });
@@ -681,8 +682,8 @@ export default function OpenBrain() {
       )}
 
       {saveError && (
-        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: t.surface, border: "1px solid #FF6B35", borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, zIndex: 2000, boxShadow: "0 4px 20px #0008", minWidth: 240, maxWidth: "calc(100vw - 32px)", boxSizing: "border-box" }}>
-          <span style={{ fontSize: 14, color: "#FF6B35" }}>⚠ {saveError}</span>
+        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: t.surface, border: `1px solid ${t.error}`, borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, zIndex: 2000, boxShadow: "0 4px 20px #0008", minWidth: 240, maxWidth: "calc(100vw - 32px)", boxSizing: "border-box" }}>
+          <span style={{ fontSize: 14, color: t.error }}>⚠ {saveError}</span>
           <button onClick={() => setSaveError(null)} style={{ marginLeft: "auto", background: "none", border: "none", color: "#666", fontSize: 18, cursor: "pointer", lineHeight: 1 }}>✕</button>
         </div>
       )}

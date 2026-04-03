@@ -25,7 +25,7 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
   }));
   const skip = new Set(['category', 'status']);
   const meta = Object.entries(entry.metadata || {}).filter(([k]) => !skip.has(k));
-  const inp = { padding: '10px 14px', background: t.bg, border: '1px solid #4ECDC440', borderRadius: 10, color: t.textSoft, fontSize: 14, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' };
+  const inp = { padding: '10px 14px', background: t.bg, border: `1px solid ${t.accentBorder}`, borderRadius: 10, color: t.textSoft, fontSize: 14, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' };
 
   useEffect(() => {
     return () => {
@@ -76,7 +76,7 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
 
   if (isSupplier || entry.type === 'contact' || entry.type === 'person') {
     if (phone) {
-      quickActions.push(<a key="call" href={`tel:${phone}`} style={abtn('#4ECDC4')}>📞 Call</a>);
+      quickActions.push(<a key="call" href={`tel:${phone}`} style={abtn(t.accent)}>📞 Call</a>);
       quickActions.push(<a key="wa" href={toWaUrl(phone)} target="_blank" rel="noreferrer" style={abtn('#25D366')}>💬 WhatsApp</a>);
     }
     if (isSupplier && onReorder) {
@@ -87,7 +87,7 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
   if (entry.type === 'reminder') {
     if (entry.metadata?.status !== 'done') {
       quickActions.push(
-        <button key="done" onClick={() => onUpdate(entry.id, { metadata: { ...entry.metadata, status: 'done' }, importance: 0 })} style={abtn('#4ECDC4')}>✅ Mark Done</button>
+        <button key="done" onClick={() => onUpdate(entry.id, { metadata: { ...entry.metadata, status: 'done' }, importance: 0 })} style={abtn(t.accent)}>✅ Mark Done</button>
       );
     }
     quickActions.push(
@@ -142,7 +142,7 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
             {!editing && canWrite && onDelete && <button onClick={async () => { if (!confirmingDelete) { setConfirmingDelete(true); confirmTimerRef.current = setTimeout(() => setConfirmingDelete(false), 3000); } else { setDeleting(true); await onDelete(entry.id); setDeleting(false); } }} disabled={deleting} style={{ padding: '6px 14px', background: deleting ? t.surface : confirmingDelete ? '#FF6B3540' : '#FF6B3520', border: '1px solid #FF6B3540', borderRadius: 8, color: deleting ? t.textFaint : '#FF6B35', fontSize: 12, fontWeight: 600, cursor: deleting ? 'default' : 'pointer' }}>{deleting ? 'Deleting...' : confirmingDelete ? 'Confirm delete?' : 'Delete'}</button>}
-            {!editing && canWrite && onUpdate && <button onClick={() => setEditing(true)} style={{ padding: '6px 14px', background: '#4ECDC420', border: '1px solid #4ECDC440', borderRadius: 8, color: '#4ECDC4', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Edit</button>}
+            {!editing && canWrite && onUpdate && <button onClick={() => setEditing(true)} style={{ padding: '6px 14px', background: t.accentLight, border: `1px solid ${t.accentBorder}`, borderRadius: 8, color: t.accent, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Edit</button>}
             {!canWrite && <span style={{ fontSize: 11, color: '#888', padding: '6px 8px' }}>🔒 View only</span>}
             <button onClick={editing ? () => setEditing(false) : onClose} style={{ background: 'none', border: 'none', color: t.textDim, fontSize: 24, cursor: 'pointer' }}>✕</button>
           </div>
@@ -161,7 +161,7 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
             <div><label style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Tags <span style={{ color: t.textFaint, fontWeight: 400, textTransform: 'none' }}>(comma separated)</span></label><input value={editTags} onChange={e => setEditTags(e.target.value)} style={inp} placeholder="tag1, tag2, tag3" /></div>
             <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
               <button onClick={() => setEditing(false)} style={{ flex: 1, padding: 12, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, color: t.textMuted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={handleSave} disabled={saving || !editTitle.trim()} style={{ flex: 2, padding: 12, background: editTitle.trim() ? 'linear-gradient(135deg, #4ECDC4, #45B7D1)' : t.surface, border: 'none', borderRadius: 10, color: editTitle.trim() ? '#0f0f23' : t.textDim, fontSize: 13, fontWeight: 700, cursor: editTitle.trim() ? 'pointer' : 'default' }}>{saving ? 'Saving...' : 'Save changes'}</button>
+              <button onClick={handleSave} disabled={saving || !editTitle.trim()} style={{ flex: 2, padding: 12, background: editTitle.trim() ? `linear-gradient(135deg, ${t.accent}, #45B7D1)` : t.surface, border: 'none', borderRadius: 10, color: editTitle.trim() ? '#0f0f23' : t.textDim, fontSize: 13, fontWeight: 700, cursor: editTitle.trim() ? 'pointer' : 'default' }}>{saving ? 'Saving...' : 'Save changes'}</button>
             </div>
           </div>
         ) : (
@@ -186,7 +186,7 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
             <div style={{ paddingTop: 16, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {quickActions}
             </div>
-            {shareMsg && <p style={{ margin: '8px 0 0', fontSize: 11, color: '#4ECDC4' }}>{shareMsg}</p>}
+            {shareMsg && <p style={{ margin: '8px 0 0', fontSize: 11, color: t.accent }}>{shareMsg}</p>}
           </div>
         )}
       </div>
