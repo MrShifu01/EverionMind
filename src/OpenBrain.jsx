@@ -570,6 +570,38 @@ function PinGate({ onSuccess, onCancel, isSetup = false }) {
   );
 }
 
+/* ─── Telegram Panel ─── */
+function TelegramPanel({ activeBrain }) {
+  const { t } = useTheme();
+  const [code, setCode] = useState(null);
+  const [generating, setGenerating] = useState(false);
+
+  const generateCode = async () => {
+    setGenerating(true);
+    try {
+      const res = await authFetch("/api/brains?action=telegram-code", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brain_id: activeBrain.id }) });
+      if (res.ok) { const d = await res.json(); setCode(d.code); }
+    } catch {}
+    setGenerating(false);
+  };
+
+  return (
+    <div style={{ background: t.surface, borderRadius: 14, padding: "20px 24px", marginTop: 16, border: `1px solid ${t.border}` }}>
+      <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: t.textSoft }}>💬 Telegram</p>
+      <p style={{ margin: "0 0 12px", fontSize: 11, color: t.textDim }}>Connect Telegram to save entries by sending messages to the bot.</p>
+      {code ? (
+        <div style={{ background: t.bg, borderRadius: 10, padding: "12px 16px" }}>
+          <p style={{ margin: "0 0 6px", fontSize: 12, color: t.textMuted }}>Send this code to <strong>@OpenBrainBot</strong> on Telegram:</p>
+          <p style={{ margin: 0, fontSize: 22, fontWeight: 700, fontFamily: "monospace", color: "#4ECDC4", letterSpacing: 4 }}>{code}</p>
+          <p style={{ margin: "6px 0 0", fontSize: 11, color: t.textFaint }}>Expires in 10 minutes</p>
+        </div>
+      ) : (
+        <button onClick={generateCode} disabled={generating} style={{ padding: "9px 16px", background: "#4ECDC420", border: "1px solid #4ECDC440", borderRadius: 8, color: "#4ECDC4", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{generating ? "Generating…" : "Connect Telegram"}</button>
+      )}
+    </div>
+  );
+}
+
 /* ─── Memory Editor ─── */
 function MemoryEditor() {
   const { t } = useTheme();
@@ -897,6 +929,9 @@ function SettingsView({ activeBrain, canInvite, canManageMembers, onRefreshBrain
           <button onClick={requestNotification} style={{ ...btn, background: notifEnabled ? "#FF6B3520" : "#4ECDC420", color: notifEnabled ? "#FF6B35" : "#4ECDC4" }}>{notifEnabled ? "Disable" : "Enable"}</button>
         </div>
       </div>
+      {/* Telegram */}
+      {activeBrain && <TelegramPanel activeBrain={activeBrain} />}
+
       {/* AI Memory Guide */}
       <MemoryEditor activeBrain={activeBrain} />
 

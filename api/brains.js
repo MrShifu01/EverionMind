@@ -249,5 +249,19 @@ export default async function handler(req, res) {
     return res.status(r.ok ? 200 : 502).json({ ok: r.ok });
   }
 
+  // ── POST /api/brains?action=telegram-code — generate one-time link code ──
+  if (method === "POST" && action === "telegram-code") {
+    const { brain_id } = req.body;
+    if (!brain_id) return res.status(400).json({ error: "brain_id required" });
+    const ownerRes = await fetch(`${SB_URL}/rest/v1/brains?id=eq.${encodeURIComponent(brain_id)}&owner_id=eq.${encodeURIComponent(user.id)}`, { headers: hdrs() });
+    if (!(await ownerRes.json()).length) return res.status(403).json({ error: "Not the brain owner" });
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    const code = Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const r = await fetch(`${SB_URL}/rest/v1/messaging_pending_links`, { method: "POST", headers: hdrs({ "Prefer": "return=minimal" }), body: JSON.stringify({ user_id: user.id, brain_id, platform: "telegram", code, expires_at: expiresAt }) });
+    if (!r.ok) return res.status(502).json({ error: "Failed to create link code" });
+    return res.status(200).json({ code });
+  }
+
   return res.status(405).json({ error: "Method not allowed" });
 }
