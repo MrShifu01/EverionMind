@@ -32,6 +32,13 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
     };
   }, []);
 
+  // UX-5: Escape key closes modal
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') { if (editing) setEditing(false); else onClose(); } };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [editing, onClose]);
+
   const handleSave = async () => {
     setSaving(true);
     const tags = editTags.split(',').map(t => t.trim()).filter(Boolean);
@@ -121,7 +128,7 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
   quickActions.push(<button key="share" onClick={handleShare} style={abtn('#45B7D1')}>📤 Share</button>);
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: '#000000CC', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }} onClick={editing ? undefined : onClose}>
+    <div role="dialog" aria-labelledby="detail-modal-title" style={{ position: 'fixed', inset: 0, background: '#000000CC', zIndex: 1000 /* z-index scale: PinGate=9999, Onboarding=3000, DetailModal=1000 */, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }} onClick={editing ? undefined : onClose}>
       <div style={{ background: t.surface2, borderRadius: 16, maxWidth: 600, width: '100%', maxHeight: '90vh', overflow: 'auto', border: `1px solid ${cfg.c}40` }} onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div style={{ padding: '16px 16px', borderBottom: `1px solid ${t.border}`, display: 'flex', justifyContent: 'space-between' }}>
@@ -130,7 +137,7 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
               <span style={{ fontSize: 24 }}>{cfg.i}</span>
               <span style={{ fontSize: 11, color: cfg.c, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5 }}>{editType}</span>
             </div>
-            {!editing && <h2 style={{ margin: 0, fontSize: 22, color: t.text, fontWeight: 700 }}>{editTitle}</h2>}
+            {!editing && <h2 id="detail-modal-title" style={{ margin: 0, fontSize: 22, color: t.text, fontWeight: 700 }}>{editTitle}</h2>}
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
             {!editing && canWrite && onDelete && <button onClick={async () => { if (!confirmingDelete) { setConfirmingDelete(true); confirmTimerRef.current = setTimeout(() => setConfirmingDelete(false), 3000); } else { setDeleting(true); await onDelete(entry.id); setDeleting(false); } }} disabled={deleting} style={{ padding: '6px 14px', background: deleting ? t.surface : confirmingDelete ? '#FF6B3540' : '#FF6B3520', border: '1px solid #FF6B3540', borderRadius: 8, color: deleting ? t.textFaint : '#FF6B35', fontSize: 12, fontWeight: 600, cursor: deleting ? 'default' : 'pointer' }}>{deleting ? 'Deleting...' : confirmingDelete ? 'Confirm delete?' : 'Delete'}</button>}
@@ -143,7 +150,7 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
         {/* Edit form */}
         {editing ? (
           <div style={{ padding: '16px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div><label style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Title</label><input value={editTitle} onChange={e => setEditTitle(e.target.value)} style={inp} /></div>
+            <div><label style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Title</label><input autoFocus value={editTitle} onChange={e => setEditTitle(e.target.value)} style={inp} /></div>
             <div><label style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Type</label>
               <select value={editType} onChange={e => setEditType(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
                 {['note','person','place','idea','contact','document','reminder','color','decision'].map(typ => <option key={typ} value={typ}>{typ}</option>)}

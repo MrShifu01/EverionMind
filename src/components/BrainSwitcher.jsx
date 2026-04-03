@@ -19,6 +19,14 @@ export default function BrainSwitcher({ brains, activeBrain, onSwitch, onBrainCr
     return () => document.removeEventListener("mousedown", handle);
   }, []);
 
+  // UX-4: Close dropdown on Escape key
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [open]);
+
   const personalBrains = brains.filter(b => b.type === "personal");
   const sharedBrains = brains.filter(b => b.type !== "personal");
 

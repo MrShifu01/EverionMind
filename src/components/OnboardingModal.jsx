@@ -161,7 +161,7 @@ export default function OnboardingModal({ onComplete }) {
     position: "fixed", inset: 0,
     background: "rgba(0,0,0,0.85)",
     display: "flex", alignItems: "center", justifyContent: "center",
-    zIndex: 3000, padding: 20,
+    zIndex: 3000 /* z-index scale: PinGate=9999, Onboarding=3000, DetailModal=1000 */, padding: 20,
     overflowY: "auto",
   };
 
