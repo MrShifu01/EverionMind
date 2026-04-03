@@ -1081,7 +1081,6 @@ export default function OpenBrain() {
   const [lastAction, setLastAction] = useState(null);
   const pendingDeleteRef = useRef(null);
   const chatEndRef = useRef(null);
-  const searchDebounceRef = useRef(null);
 
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput), 200);
