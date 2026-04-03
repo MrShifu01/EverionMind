@@ -2,6 +2,36 @@
 
 ---
 
+## [FEATURE] Sprint 3 — Daily-Use Features — 2026-04-03
+
+**Tags**: FEATURE, SPRINT3, UX
+
+### Implemented (11 features)
+- Pre-save preview modal with fuzzy duplicate detection (scoreTitle > 50)
+- Supplier quick-access panel (🏪 tab) with Call / WhatsApp / Reorder / Cost Summary
+- Proactive intelligence engine: Haiku nudge on load, sessionStorage cached, dismissable banner
+- Quick actions in DetailModal: type-aware (supplier/person/reminder/idea/document)
+- Undo system: optimistic delete (5s deferred commit), update + create undo, progress toast
+- "Who do I call?" quick-ask chips in chat view (4 chips)
+- Business / Personal workspace toggle — inferWorkspace() from tags, localStorage persisted
+- Voice capture: Web Speech API, en-ZA, 2s silence auto-submit, green mic indicator
+- Shareable entries: Web Share API (mobile) / clipboard fallback (desktop)
+- Cost/price tracking: AI prompt extracts price+unit into metadata, shown on supplier cards
+- Morning briefing: Notification API permission + time picker in Settings
+
+### Key decisions
+- Delta Distribution and Delta Gas are distinct companies — AI prompt explicitly guards against merging
+- Phone extraction regex: `/(\+27|0)[6-8][0-9]{8}/` (SA mobile range)
+- WhatsApp URL: strip leading 0, prepend 27 for SA numbers
+- Workspace inference is client-side tag-matching only (no DB schema change)
+- Renewal reminder creates 1-month-forward due_date; reorder creates 7-day-forward
+
+### Remaining known limitations
+- DetailModal connections still read from static INITIAL_ENTRIES (pre-existing)
+- Morning briefing scheduled push requires service worker + push subscription endpoint (future)
+
+---
+
 ## [SECURITY] Security Audit — 2026-04-02 (re-run)
 
 **Tags**: SECURITY, AUDIT
