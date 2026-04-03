@@ -188,6 +188,7 @@ function BrainItem({ brain, active, onSelect, emoji, role, canDelete, onDelete }
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
           title="Delete brain"
+          aria-label="Delete brain"
           style={{
             background: "none", border: "none", color: "#f87171",
             cursor: "pointer", fontSize: 13, padding: "0 2px", lineHeight: 1,

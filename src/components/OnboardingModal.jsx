@@ -196,9 +196,9 @@ export default function OnboardingModal({ onComplete }) {
     <div style={overlay}>
       <div style={card}>
         {/* Progress dots */}
-        <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 28 }}>
+        <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 28 }} role="tablist" aria-label="Onboarding progress">
           {STEPS.map((_, i) => (
-            <div key={i} style={{ width: i === step ? 20 : 8, height: 8, borderRadius: 4, background: i === step ? "#4ECDC4" : i < step ? "#4ECDC480" : t.surface, transition: "all 0.3s" }} />
+            <div key={i} aria-label={`Step ${i + 1} of ${STEPS.length}`} role="tab" aria-selected={i === step} style={{ width: i === step ? 20 : 8, height: 8, borderRadius: 4, background: i === step ? "#4ECDC4" : i < step ? "#4ECDC480" : t.surface, transition: "all 0.3s" }} />
           ))}
         </div>
 
@@ -219,6 +219,8 @@ export default function OnboardingModal({ onComplete }) {
                 <button
                   key={uc.id}
                   onClick={() => toggleUseCase(uc.id)}
+                  role="checkbox"
+                  aria-checked={active}
                   style={{
                     display: "flex", alignItems: "center", gap: 14,
                     padding: "14px 16px",

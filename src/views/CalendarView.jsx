@@ -50,9 +50,9 @@ export default function CalendarView({ entries }) {
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <button onClick={() => setMonth(new Date(year, mon - 1, 1))} style={{ minHeight: 44, minWidth: 44, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textMuted, padding: "8px 16px", cursor: "pointer", fontSize: 16 }}>←</button>
+        <button onClick={() => setMonth(new Date(year, mon - 1, 1))} aria-label="Previous month" style={{ minHeight: 44, minWidth: 44, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textMuted, padding: "8px 16px", cursor: "pointer", fontSize: 16 }}>←</button>
         <span style={{ fontSize: 16, fontWeight: 700, color: t.text }}>{monthLabel}</span>
-        <button onClick={() => setMonth(new Date(year, mon + 1, 1))} style={{ minHeight: 44, minWidth: 44, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textMuted, padding: "8px 16px", cursor: "pointer", fontSize: 16 }}>→</button>
+        <button onClick={() => setMonth(new Date(year, mon + 1, 1))} aria-label="Next month" style={{ minHeight: 44, minWidth: 44, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textMuted, padding: "8px 16px", cursor: "pointer", fontSize: 16 }}>→</button>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 4 }}>

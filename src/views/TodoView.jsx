@@ -9,8 +9,17 @@ export default function TodoView() {
   });
   const [input, setInput] = useState("");
   const [priority, setPriority] = useState("medium");
+  const [storageError, setStorageError] = useState(null);
 
-  const persist = (updated) => { setTodos(updated); try { localStorage.setItem("openbrain_todos", JSON.stringify(updated)); } catch {} };
+  const persist = (updated) => {
+    setTodos(updated);
+    try {
+      localStorage.setItem("openbrain_todos", JSON.stringify(updated));
+    } catch (err) {
+      setStorageError("Could not save tasks — storage may be full or blocked.");
+      setTimeout(() => setStorageError(null), 5000);
+    }
+  };
   const add = () => { if (!input.trim()) return; persist([{ id: Date.now().toString(), text: input.trim(), done: false, priority, created_at: new Date().toISOString() }, ...todos]); setInput(""); };
   const toggle = (id) => persist(todos.map(todo => todo.id === id ? { ...todo, done: !todo.done } : todo));
   const remove = (id) => persist(todos.filter(todo => todo.id !== id));
@@ -25,6 +34,12 @@ export default function TodoView() {
         <span style={{ fontSize: 13 }}>🔌</span>
         <span style={{ fontSize: 11, color: "#A29BFE", lineHeight: 1.5 }}>Future: auto-populated from POS, Gmail, Calendar &amp; more — see <code style={{ color: "#4ECDC4", fontSize: 10 }}>.planning/roadmap/integrations.md</code></span>
       </div>
+
+      {storageError && (
+        <div role="alert" style={{ background: "#FF6B3515", border: "1px solid #FF6B3540", borderRadius: 8, padding: "10px 14px", marginBottom: 12, fontSize: 12, color: "#FF6B35" }}>
+          ⚠ {storageError}
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
         <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && add()}

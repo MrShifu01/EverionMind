@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { authFetch } from "../lib/authFetch";
 import { TC, MODEL } from "../data/constants";
+import { useTheme } from "../ThemeContext";
 
 /* ─── Suggestion type metadata ─── */
 const LABELS = {
@@ -52,6 +53,7 @@ Schema: [{"fromId":"...","fromTitle":"...","toId":"...","toTitle":"...","rel":"v
 If no valuable relationships are found, return: []`;
 
 export default function RefineView({ entries, setEntries, links, addLinks, activeBrain, brains = [], onSwitchBrain }) {
+  const { t } = useTheme();
   const [loading, setLoading]         = useState(false);
   const [suggestions, setSuggestions] = useState(null); // null = never run
   const [dismissed, setDismissed]     = useState(new Set());
@@ -260,7 +262,7 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
               const active = b.id === activeBrain?.id;
               return (
                 <button key={b.id} onClick={() => onSwitchBrain(b)}
-                  style={{ padding: "5px 12px", borderRadius: 20, border: active ? "1px solid #4ECDC4" : "1px solid #2a2a4a", background: active ? "#4ECDC420" : "#1a1a2e", color: active ? "#4ECDC4" : "#888", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 5, minHeight: 44, minWidth: 44 }}>
+                  style={{ padding: "5px 12px", borderRadius: 20, border: active ? `1px solid ${t.accent}` : "1px solid #2a2a4a", background: active ? `${t.accent}20` : "#1a1a2e", color: active ? t.accent : "#888", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 5, minHeight: 44, minWidth: 44 }}>
                   <span>{BRAIN_EMOJI[b.type] || "🧠"}</span>
                   <span>{b.name}</span>
                 </button>
@@ -307,7 +309,7 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
         <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
           {[
             { l: "Entries",      v: entries.length,                              c: "#A29BFE" },
-            { l: "Fixes",        v: visible.filter(s => s.type !== "LINK_SUGGESTED").length + dismissed.size - linkCount, c: "#4ECDC4" },
+            { l: "Fixes",        v: visible.filter(s => s.type !== "LINK_SUGGESTED").length + dismissed.size - linkCount, c: t.accent },
             { l: "Links",        v: linkCount,                                   c: "#96CEB4" },
             { l: "Remaining",    v: visible.length,                              c: "#FF6B35" },
           ].map(s => (
@@ -323,7 +325,7 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
       {noneFound && !loading && (
         <div style={{ textAlign: "center", padding: "40px 20px", background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 14 }}>
           <div style={{ fontSize: 26, marginBottom: 10 }}>✓</div>
-          <p style={{ color: "#4ECDC4", fontSize: 15, fontWeight: 700, margin: 0 }}>Everything looks clean</p>
+          <p style={{ color: t.accent, fontSize: 15, fontWeight: 700, margin: 0 }}>Everything looks clean</p>
           <p style={{ color: "#555", fontSize: 12, margin: "6px 0 0" }}>No high-confidence improvements or missing links found</p>
         </div>
       )}
@@ -332,7 +334,7 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
       {allDone && !loading && (
         <div style={{ textAlign: "center", padding: "40px 20px", background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 14 }}>
           <div style={{ fontSize: 26, marginBottom: 10 }}>✦</div>
-          <p style={{ color: "#4ECDC4", fontSize: 15, fontWeight: 700, margin: 0 }}>All suggestions resolved</p>
+          <p style={{ color: t.accent, fontSize: 15, fontWeight: 700, margin: 0 }}>All suggestions resolved</p>
           <p style={{ color: "#555", fontSize: 12, margin: "6px 0 0" }}>Re-analyze to check again</p>
         </div>
       )}
@@ -394,6 +396,7 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
                           onChange={e => setEditValue(e.target.value)}
                           onKeyDown={e => { if (e.key === "Enter" && editValue.trim()) applyLink(s, editValue.trim()); if (e.key === "Escape") setEditingKey(null); }}
                           placeholder="relationship…"
+                          maxLength={50}
                           style={{ width: 90, padding: "5px 8px", background: "#0f0f23", border: `1px solid ${meta.color}50`, borderRadius: 6, color: "#ddd", fontSize: 11, outline: "none", fontFamily: "inherit", textAlign: "center" }}
                         />
                       ) : (
@@ -418,13 +421,13 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
                     {isEdit ? (
                       <>
                         <button onClick={() => setEditingKey(null)} style={{ flex: 1, minHeight: 44, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#777", fontSize: 12, cursor: "pointer" }}>Cancel</button>
-                        <button onClick={() => editValue.trim() && applyLink(s, editValue.trim())} disabled={!editValue.trim() || busy} style={{ flex: 2, minHeight: 44, padding: "9px 0", background: editValue.trim() && !busy ? "linear-gradient(135deg, #96CEB4, #4ECDC4)" : "#252540", border: "none", borderRadius: 8, color: editValue.trim() && !busy ? "#0f0f23" : "#444", fontSize: 12, fontWeight: 700, cursor: editValue.trim() && !busy ? "pointer" : "default" }}>Apply</button>
+                        <button onClick={() => editValue.trim() && applyLink(s, editValue.trim())} disabled={!editValue.trim() || busy} style={{ flex: 2, minHeight: 44, padding: "9px 0", background: editValue.trim() && !busy ? `linear-gradient(135deg, #96CEB4, ${t.accent})` : "#252540", border: "none", borderRadius: 8, color: editValue.trim() && !busy ? "#0f0f23" : "#444", fontSize: 12, fontWeight: 700, cursor: editValue.trim() && !busy ? "pointer" : "default" }}>Apply</button>
                       </>
                     ) : (
                       <>
                         <button onClick={() => reject(key)} disabled={busy} style={{ flex: 1, minHeight: 44, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FF6B35", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✗ Reject</button>
                         <button onClick={() => { setEditingKey(key); setEditValue(s.rel); }} disabled={busy} style={{ flex: 1, minHeight: 44, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FFEAA7", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✎ Edit</button>
-                        <button onClick={() => applyLink(s)} disabled={busy} style={{ flex: 2, minHeight: 44, padding: "9px 0", background: busy ? "#252540" : "linear-gradient(135deg, #96CEB4, #4ECDC4)", border: "none", borderRadius: 8, color: busy ? "#444" : "#0f0f23", fontSize: 12, fontWeight: 700, cursor: busy ? "default" : "pointer" }}>
+                        <button onClick={() => applyLink(s)} disabled={busy} style={{ flex: 2, minHeight: 44, padding: "9px 0", background: busy ? "#252540" : `linear-gradient(135deg, #96CEB4, ${t.accent})`, border: "none", borderRadius: 8, color: busy ? "#444" : "#0f0f23", fontSize: 12, fontWeight: 700, cursor: busy ? "default" : "pointer" }}>
                           {busy ? "Saving…" : "✓ Accept"}
                         </button>
                       </>
@@ -452,8 +455,8 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
                       </div>
                     </div>
                     <span style={{ color: "#444", fontSize: 14, alignSelf: "center", flexShrink: 0 }}>→</span>
-                    <div style={{ flex: 1, background: "#4ECDC410", border: "1px solid #4ECDC425", borderRadius: 8, padding: "8px 12px" }}>
-                      <div style={{ fontSize: 9, color: "#4ECDC4", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>Suggested</div>
+                    <div style={{ flex: 1, background: t.accentLight, border: `1px solid ${t.accentBorder}`, borderRadius: 8, padding: "8px 12px" }}>
+                      <div style={{ fontSize: 9, color: t.accent, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>Suggested</div>
                       <div style={{ fontSize: 12, color: "#ddd", wordBreak: "break-all", lineHeight: 1.4 }}>{s.suggestedValue}</div>
                     </div>
                   </div>
@@ -466,6 +469,7 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
                       value={editValue}
                       onChange={e => setEditValue(e.target.value)}
                       onKeyDown={e => { if (e.key === "Enter" && editValue.trim()) applyEntry(s, editValue.trim()); if (e.key === "Escape") setEditingKey(null); }}
+                      maxLength={50}
                       style={{ width: "100%", boxSizing: "border-box", padding: "10px 14px", marginBottom: 10, background: "#0f0f23", border: `1px solid ${meta.color}50`, borderRadius: 8, color: "#ddd", fontSize: 13, outline: "none", fontFamily: "inherit" }}
                     />
                   )}
@@ -474,13 +478,13 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
                     {isEdit ? (
                       <>
                         <button onClick={() => setEditingKey(null)} style={{ flex: 1, minHeight: 44, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#777", fontSize: 12, cursor: "pointer" }}>Cancel</button>
-                        <button onClick={() => editValue.trim() && applyEntry(s, editValue.trim())} disabled={!editValue.trim() || busy} style={{ flex: 2, minHeight: 44, padding: "9px 0", background: editValue.trim() && !busy ? "linear-gradient(135deg, #4ECDC4, #45B7D1)" : "#252540", border: "none", borderRadius: 8, color: editValue.trim() && !busy ? "#0f0f23" : "#444", fontSize: 12, fontWeight: 700, cursor: editValue.trim() && !busy ? "pointer" : "default" }}>Apply</button>
+                        <button onClick={() => editValue.trim() && applyEntry(s, editValue.trim())} disabled={!editValue.trim() || busy} style={{ flex: 2, minHeight: 44, padding: "9px 0", background: editValue.trim() && !busy ? `linear-gradient(135deg, ${t.accent}, #45B7D1)` : "#252540", border: "none", borderRadius: 8, color: editValue.trim() && !busy ? "#0f0f23" : "#444", fontSize: 12, fontWeight: 700, cursor: editValue.trim() && !busy ? "pointer" : "default" }}>Apply</button>
                       </>
                     ) : (
                       <>
                         <button onClick={() => reject(key)} disabled={busy} style={{ flex: 1, minHeight: 44, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FF6B35", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✗ Reject</button>
                         <button onClick={() => { setEditingKey(key); setEditValue(s.suggestedValue); }} disabled={busy} style={{ flex: 1, minHeight: 44, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FFEAA7", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✎ Edit</button>
-                        <button onClick={() => applyEntry(s)} disabled={busy} style={{ flex: 2, minHeight: 44, padding: "9px 0", background: busy ? "#252540" : "linear-gradient(135deg, #4ECDC4, #45B7D1)", border: "none", borderRadius: 8, color: busy ? "#444" : "#0f0f23", fontSize: 12, fontWeight: 700, cursor: busy ? "default" : "pointer" }}>
+                        <button onClick={() => applyEntry(s)} disabled={busy} style={{ flex: 2, minHeight: 44, padding: "9px 0", background: busy ? "#252540" : `linear-gradient(135deg, ${t.accent}, #45B7D1)`, border: "none", borderRadius: 8, color: busy ? "#444" : "#0f0f23", fontSize: 12, fontWeight: 700, cursor: busy ? "default" : "pointer" }}>
                           {busy ? "Saving…" : "✓ Accept"}
                         </button>
                       </>
