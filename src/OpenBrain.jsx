@@ -1,8 +1,10 @@
-import { useState, useMemo, useRef, useEffect, lazy, Suspense } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback, lazy, Suspense } from "react";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { authFetch } from "./lib/authFetch";
 import { supabase } from "./lib/supabase";
-import { TC, PC, fmtD, MODEL, INITIAL_ENTRIES, LINKS } from "./data/constants";
+import { TC, fmtD, MODEL, INITIAL_ENTRIES, LINKS } from "./data/constants";
+import { useBrain } from "./hooks/useBrain";
+import BrainSwitcher from "./components/BrainSwitcher";
 
 const SuggestionsView = lazy(() => import("./views/SuggestionsView"));
 const CalendarView    = lazy(() => import("./views/CalendarView"));
@@ -42,14 +44,218 @@ async function findConnections(newEntry, existingEntries, existingLinks) {
   } catch { return []; }
 }
 
+/* ─── Phone Utilities ─── */
+export function extractPhone(entry) {
+  const s = JSON.stringify(entry.metadata || {}) + " " + (entry.content || "");
+  const m = s.match(/(\+27|0)[6-8][0-9]{8}/);
+  return m ? m[0] : null;
+}
+export function toWaUrl(phone) {
+  const d = phone.replace(/\D/g, "");
+  return `https://wa.me/${d.startsWith("0") ? "27" + d.slice(1) : d}`;
+}
+
+/* ─── Duplicate Score ─── */
+function scoreTitle(a, b) {
+  a = a.toLowerCase().trim(); b = b.toLowerCase().trim();
+  if (a === b) return 100;
+  if (a.includes(b) || b.includes(a)) return 70;
+  const aSet = new Set(a.split(/\W+/).filter(Boolean));
+  const bArr = b.split(/\W+/).filter(Boolean);
+  const hits = bArr.filter(w => aSet.has(w)).length;
+  return Math.round((hits / Math.max(aSet.size, bArr.length, 1)) * 100);
+}
+
+/* ─── Workspace Inference ─── */
+function inferWorkspace(entry) {
+  if (entry.metadata?.workspace) return entry.metadata.workspace;
+  const tags = (entry.tags || []).map(t => t.toLowerCase());
+  const bizKeywords = ["smash burger bar", "supplier", "contractor", "business", "restaurant", "bidfoods", "makro", "econofoods"];
+  if (bizKeywords.some(k => tags.some(t => t.includes(k)))) return "business";
+  const personalKeywords = ["id", "identity", "medical aid", "health", "insurance", "driving licence", "home affairs", "family", "personal", "passport", "medical"];
+  if (personalKeywords.some(k => tags.some(t => t.includes(k)))) return "personal";
+  return "both";
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   UNDO TOAST
+   ═══════════════════════════════════════════════════════════════ */
+function UndoToast({ action, onUndo, onDismiss }) {
+  const duration = action.type === "create" ? 3000 : 5000;
+  const [pct, setPct] = useState(100);
+  useEffect(() => {
+    const start = Date.now();
+    const tick = setInterval(() => {
+      const p = Math.max(0, 100 - ((Date.now() - start) / duration) * 100);
+      setPct(p);
+      if (p <= 0) { clearInterval(tick); onDismiss(); }
+    }, 80);
+    return () => clearInterval(tick);
+  }, []);
+  const label = { delete: "Entry deleted", update: "Entry updated", create: "Entry created" }[action.type];
+  return (
+    <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "#1a1a2e", border: "1px solid #4ECDC4", borderRadius: 12, padding: "12px 20px", display: "flex", alignItems: "center", gap: 16, zIndex: 2000, boxShadow: "0 4px 20px #0008", minWidth: 280 }}>
+      <span style={{ fontSize: 14, color: "#ccc" }}>{label}</span>
+      <button onClick={onUndo} style={{ padding: "4px 14px", borderRadius: 8, border: "1px solid #4ECDC4", background: "none", color: "#4ECDC4", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Undo</button>
+      <div style={{ position: "absolute", bottom: 0, left: 0, height: 3, background: "#4ECDC4", borderRadius: "0 0 12px 12px", width: `${pct}%`, transition: "width 80ms linear" }} />
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   NUDGE BANNER
+   ═══════════════════════════════════════════════════════════════ */
+function NudgeBanner({ nudge, onDismiss }) {
+  if (!nudge) return null;
+  return (
+    <div style={{ margin: "0 24px 12px", padding: "12px 16px", background: "#1a1a2e", border: "1px solid #A29BFE40", borderRadius: 12, display: "flex", alignItems: "flex-start", gap: 10 }}>
+      <span style={{ fontSize: 16, flexShrink: 0 }}>💡</span>
+      <p style={{ margin: 0, flex: 1, fontSize: 13, color: "#bbb", lineHeight: 1.5 }}>{nudge}</p>
+      <button onClick={onDismiss} style={{ background: "none", border: "none", color: "#555", fontSize: 18, cursor: "pointer", lineHeight: 1, flexShrink: 0 }}>✕</button>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PRE-SAVE PREVIEW MODAL
+   ═══════════════════════════════════════════════════════════════ */
+function PreviewModal({ preview, entries, onSave, onCancel }) {
+  const [title, setTitle] = useState(preview.title || "");
+  const [type, setType] = useState(preview.type || "note");
+  const [tags, setTags] = useState((preview.tags || []).join(", "));
+  const inp = { padding: "8px 12px", background: "#0f0f23", border: "1px solid #4ECDC440", borderRadius: 8, color: "#ddd", fontSize: 13, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" };
+  const dupes = useMemo(() => {
+    if (!title.trim()) return [];
+    return entries.filter(e => scoreTitle(title, e.title) > 50).slice(0, 3);
+  }, [title, entries]);
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "#000000CC", zIndex: 900, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onCancel}>
+      <div style={{ background: "#16162a", borderRadius: "20px 20px 0 0", maxWidth: 600, width: "100%", padding: "24px 24px 36px", border: "1px solid #4ECDC440" }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "#ddd" }}>Preview before saving</span>
+          <button onClick={onCancel} style={{ background: "none", border: "none", color: "#666", fontSize: 20, cursor: "pointer" }}>✕</button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <label style={{ fontSize: 10, color: "#888", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 4 }}>Title</label>
+            <input value={title} onChange={e => setTitle(e.target.value)} style={inp} />
+          </div>
+          <div>
+            <label style={{ fontSize: 10, color: "#888", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 4 }}>Type</label>
+            <select value={type} onChange={e => setType(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
+              {Object.keys(TC).map(t => <option key={t} value={t}>{TC[t].i} {t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 10, color: "#888", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 4 }}>Tags <span style={{ color: "#555", fontWeight: 400, textTransform: "none" }}>(comma separated)</span></label>
+            <input value={tags} onChange={e => setTags(e.target.value)} style={inp} placeholder="tag1, tag2" />
+          </div>
+        </div>
+        {dupes.length > 0 && (
+          <div style={{ marginTop: 14, padding: "10px 14px", background: "#FFEAA710", border: "1px solid #FFEAA730", borderRadius: 10 }}>
+            <p style={{ margin: "0 0 6px", fontSize: 11, color: "#FFEAA7", fontWeight: 700 }}>⚠ Similar entries found</p>
+            {dupes.map(d => <div key={d.id} style={{ fontSize: 12, color: "#bbb", marginBottom: 2 }}>• {d.title}</div>)}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+          <button onClick={onCancel} style={{ flex: 1, padding: 12, background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 10, color: "#888", fontSize: 13, cursor: "pointer" }}>Cancel</button>
+          <button
+            onClick={() => onSave({ ...preview, title: title.trim(), type, tags: tags.split(",").map(t => t.trim()).filter(Boolean) })}
+            disabled={!title.trim()}
+            style={{ flex: 2, padding: 12, background: title.trim() ? "linear-gradient(135deg, #4ECDC4, #45B7D1)" : "#1a1a2e", border: "none", borderRadius: 10, color: title.trim() ? "#0f0f23" : "#444", fontSize: 13, fontWeight: 700, cursor: title.trim() ? "pointer" : "default" }}
+          >Save to OpenBrain</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SUPPLIER PANEL
+   ═══════════════════════════════════════════════════════════════ */
+function SupplierPanel({ entries, onSelect, onReorder }) {
+  const suppliers = useMemo(() =>
+    entries.filter(e => e.tags?.includes("supplier") || e.metadata?.category === "supplier"),
+    [entries]
+  );
+  const withPrice = suppliers.filter(s => s.metadata?.price);
+  const abtn = (color) => ({ padding: "5px 12px", borderRadius: 20, border: `1px solid ${color}40`, background: `${color}15`, color, fontSize: 11, fontWeight: 600, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 });
+
+  if (suppliers.length === 0) return (
+    <p style={{ textAlign: "center", color: "#555", marginTop: 40, fontSize: 14 }}>No suppliers yet — add entries tagged "supplier".</p>
+  );
+
+  return (
+    <div>
+      <p style={{ margin: "0 0 16px", fontSize: 12, color: "#666" }}>{suppliers.length} supplier{suppliers.length !== 1 ? "s" : ""}</p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {suppliers.map(s => {
+          const phone = extractPhone(s);
+          const cfg = TC[s.type] || TC.note;
+          const price = s.metadata?.price ? `${s.metadata.price}${s.metadata.unit ? " " + s.metadata.unit : ""}` : null;
+          return (
+            <div key={s.id} style={{ background: "#1a1a2e", borderRadius: 12, padding: "16px 20px", border: "1px solid #2a2a4a" }}>
+              <div onClick={() => onSelect(s)} style={{ cursor: "pointer", marginBottom: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontSize: 18 }}>{cfg.i}</span>
+                  <span style={{ fontSize: 15, fontWeight: 600, color: "#EAEAEA" }}>{s.title}</span>
+                  {price && <span style={{ fontSize: 11, color: "#4ECDC4", background: "#4ECDC415", padding: "2px 8px", borderRadius: 20 }}>{price}</span>}
+                </div>
+                <p style={{ margin: 0, fontSize: 12, color: "#999", lineHeight: 1.4 }}>{s.content}</p>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {phone && <a href={`tel:${phone}`} style={abtn("#4ECDC4")}>📞 Call</a>}
+                {phone && <a href={toWaUrl(phone)} target="_blank" rel="noreferrer" style={abtn("#25D366")}>💬 WhatsApp</a>}
+                <button onClick={() => onReorder(s)} style={abtn("#FF6B35")}>🔁 Reorder</button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {withPrice.length > 0 && (
+        <div style={{ marginTop: 28, padding: "16px 20px", background: "#1a1a2e", borderRadius: 12, border: "1px solid #2a2a4a" }}>
+          <p style={{ margin: "0 0 12px", fontSize: 12, color: "#888", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Cost Summary</p>
+          {withPrice.map(s => (
+            <div key={s.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "6px 0", borderBottom: "1px solid #2a2a4a20" }}>
+              <span style={{ color: "#ccc" }}>{s.title}</span>
+              <span style={{ color: "#4ECDC4", fontWeight: 600 }}>{s.metadata.price}{s.metadata.unit ? " " + s.metadata.unit : ""}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════
    QUICK CAPTURE BAR
    ═══════════════════════════════════════════════════════════════ */
-function QuickCapture({ apiKey, sbKey, entries, setEntries, links, addLinks }) {
+const CAPTURE_SYSTEM = `You classify and structure a raw text capture into an OpenBrain entry. Return ONLY valid JSON.
+Format: {"title":"...","content":"...","type":"...","metadata":{},"tags":[],"workspace":"business"|"personal"|"both"}
+
+TYPE RULES (pick the BEST match): person, contact, place, document, reminder, idea, decision, color, note
+
+EXTRACTION RULES:
+- Put phone numbers, dates, IDs into metadata
+- If price/cost mentioned (e.g. "R85/kg", "R120 per case"), extract: metadata.price and metadata.unit
+- Title: max 60 chars
+- Content: 1-2 sentence description
+
+WORKSPACE RULES:
+- business: related to a business, restaurant, supplier, contractor
+- personal: identity documents, health, medical, family, personal contacts
+- both: general reminders, ideas
+
+IMPORTANT: Do NOT suggest merging companies just because they have similar name prefixes. Each business is distinct.`;
+
+function QuickCapture({ apiKey, sbKey, entries, setEntries, links, addLinks, onCreated }) {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [listening, setListening] = useState(false);
   const imgRef = useRef(null);
+  const recognitionRef = useRef(null);
 
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0]; if (!file) return;
@@ -64,60 +270,114 @@ function QuickCapture({ apiKey, sbKey, entries, setEntries, links, addLinks }) {
     setLoading(false); setStatus(null);
   };
 
+  const startVoice = useCallback(() => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { setText(t => t + " [Voice not supported in this browser]"); return; }
+    if (listening) { recognitionRef.current?.stop(); return; }
+    const recognition = new SR();
+    recognition.lang = "en-ZA";
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    recognitionRef.current = recognition;
+    let silenceTimer = null;
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results).map(r => r[0].transcript).join("");
+      setText(transcript);
+      clearTimeout(silenceTimer);
+      if (event.results[event.results.length - 1].isFinal) {
+        silenceTimer = setTimeout(() => recognition.stop(), 2000);
+      }
+    };
+    recognition.onend = () => { setListening(false); recognitionRef.current = null; };
+    recognition.onerror = () => { setListening(false); recognitionRef.current = null; };
+    recognition.start();
+    setListening(true);
+  }, [listening]);
+
+  const doSave = useCallback(async (parsed) => {
+    setPreview(null);
+    setLoading(true); setStatus("saving");
+    try {
+      if (sbKey && parsed.title) {
+        const rpcRes = await authFetch("/api/capture", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ p_title: parsed.title, p_content: parsed.content || "", p_type: parsed.type || "note", p_metadata: parsed.metadata || {}, p_tags: parsed.tags || [] }) });
+        if (rpcRes.ok) {
+          const result = await rpcRes.json();
+          const newEntry = { id: result?.id || Date.now().toString(), title: parsed.title, content: parsed.content || "", type: parsed.type || "note", metadata: parsed.metadata || {}, pinned: false, importance: 0, tags: parsed.tags || [], created_at: new Date().toISOString() };
+          setEntries(prev => [newEntry, ...prev]);
+          onCreated?.(newEntry);
+          setStatus("saved-db");
+          findConnections(newEntry, entries, links || []).then(newLinks => {
+            if (newLinks.length === 0) return;
+            addLinks?.(newLinks);
+            authFetch("/api/save-links", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ links: newLinks }) }).catch(() => {});
+          });
+        } else {
+          const newEntry = { id: Date.now().toString(), ...parsed, pinned: false, importance: 0, tags: parsed.tags || [], created_at: new Date().toISOString() };
+          setEntries(prev => [newEntry, ...prev]);
+          onCreated?.(newEntry);
+          setStatus("saved-local");
+        }
+      } else {
+        const newEntry = { id: Date.now().toString(), ...parsed, pinned: false, importance: 0, tags: parsed.tags || [], created_at: new Date().toISOString() };
+        setEntries(prev => [newEntry, ...prev]);
+        onCreated?.(newEntry);
+        setStatus("saved-local");
+      }
+    } catch (e) {
+      console.error(e);
+      setStatus("error");
+    }
+    setLoading(false); setTimeout(() => setStatus(null), 3000);
+  }, [sbKey, entries, links, addLinks, onCreated, setEntries]);
+
   const capture = async () => {
     if (!text.trim()) return;
     const input = text.trim(); setText(""); setLoading(true); setStatus("thinking");
     try {
       if (apiKey) {
-        const res = await authFetch("/api/anthropic", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: MODEL, max_tokens: 800, system: "You classify and structure a raw text capture into an OpenBrain entry. Return ONLY valid JSON.\nFormat: {\"title\":\"...\",\"content\":\"...\",\"type\":\"...\",\"metadata\":{},\"tags\":[]}\n\nTYPE RULES (pick the BEST match):\n- person, contact, place, document, reminder, idea, decision, color, note\n\nEXTRACTION RULES:\n- Put phone numbers, dates, IDs into metadata\n- Title: max 60 chars\n- Content: 1-2 sentence description", messages: [{ role: "user", content: input }] }) });
+        const res = await authFetch("/api/anthropic", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: MODEL, max_tokens: 800, system: CAPTURE_SYSTEM, messages: [{ role: "user", content: input }] }) });
         const data = await res.json();
         let parsed = {};
         try { parsed = JSON.parse((data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim()); } catch {}
-        if (sbKey && parsed.title) {
-          setStatus("saving");
-          const rpcRes = await authFetch("/api/capture", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ p_title: parsed.title, p_content: parsed.content || input, p_type: parsed.type || "note", p_metadata: parsed.metadata || {}, p_tags: parsed.tags || [] }) });
-          if (rpcRes.ok) {
-            const result = await rpcRes.json();
-            const newEntry = { id: result?.id || Date.now().toString(), title: parsed.title, content: parsed.content || input, type: parsed.type || "note", metadata: parsed.metadata || {}, pinned: false, importance: 0, tags: parsed.tags || [], created_at: new Date().toISOString() };
-            setEntries(prev => [newEntry, ...prev]);
-            setStatus("saved-db");
-            // Discover + save connections in the background
-            findConnections(newEntry, entries, links || []).then(newLinks => {
-              if (newLinks.length === 0) return;
-              addLinks?.(newLinks);
-              authFetch("/api/save-links", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ links: newLinks }) }).catch(() => {});
-            });
-          } else {
-            setEntries(prev => [{ id: Date.now().toString(), ...parsed, pinned: false, importance: 0, tags: parsed.tags || [], created_at: new Date().toISOString() }, ...prev]);
-            setStatus("saved-local");
-          }
-        } else {
-          setEntries(prev => [{ id: Date.now().toString(), ...parsed, pinned: false, importance: 0, tags: parsed.tags || [], created_at: new Date().toISOString() }, ...prev]);
-          setStatus("saved-local");
+        if (parsed.title) {
+          setLoading(false); setStatus(null);
+          setPreview({ ...parsed, _raw: input });
+          return;
         }
-      } else {
-        setEntries(prev => [{ id: Date.now().toString(), title: input.slice(0, 60), content: input, type: "note", metadata: {}, pinned: false, importance: 0, tags: [], created_at: new Date().toISOString() }, ...prev]);
-        setStatus("saved-raw");
       }
+      const newEntry = { id: Date.now().toString(), title: input.slice(0, 60), content: input, type: "note", metadata: {}, pinned: false, importance: 0, tags: [], created_at: new Date().toISOString() };
+      setEntries(prev => [newEntry, ...prev]);
+      onCreated?.(newEntry);
+      setStatus("saved-raw");
     } catch (e) {
       console.error(e);
-      setEntries(prev => [{ id: Date.now().toString(), title: input.slice(0, 60), content: input, type: "note", metadata: {}, pinned: false, importance: 0, tags: [], created_at: new Date().toISOString() }, ...prev]);
+      const newEntry = { id: Date.now().toString(), title: input.slice(0, 60), content: input, type: "note", metadata: {}, pinned: false, importance: 0, tags: [], created_at: new Date().toISOString() };
+      setEntries(prev => [newEntry, ...prev]);
+      onCreated?.(newEntry);
       setStatus("error");
     }
     setLoading(false); setTimeout(() => setStatus(null), 3000);
   };
 
-  const statusMsg = { thinking: "🤖 Parsing...", saving: "💾 Saving to DB...", "saved-db": "✅ Saved to OpenBrain!", "saved-local": "✅ Saved locally", "saved-raw": "📝 Saved (no AI)", error: "⚠️ Saved locally (DB error)" };
+  const statusMsg = { thinking: "🤖 Parsing...", saving: "💾 Saving...", "saved-db": "✅ Saved!", "saved-local": "✅ Saved locally", "saved-raw": "📝 Saved", error: "⚠️ Saved locally" };
 
   return (
     <div style={{ padding: "0 24px 16px" }}>
       <div style={{ display: "flex", gap: 8 }}>
         <input type="file" accept="image/*" ref={imgRef} onChange={handleImageUpload} style={{ display: "none" }} />
-        <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && capture()} disabled={loading} placeholder={loading ? "Processing..." : "Quick capture — just type anything..."} style={{ flex: 1, padding: "12px 16px", background: "#1a1a2e", border: "1px solid #4ECDC440", borderRadius: 12, color: "#ddd", fontSize: 14, outline: "none", fontFamily: "inherit", opacity: loading ? 0.5 : 1 }} />
+        <input
+          value={text} onChange={e => setText(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && !e.shiftKey && capture()}
+          disabled={loading}
+          placeholder={listening ? "🎤 Listening..." : loading ? "Processing..." : "Quick capture — just type anything..."}
+          style={{ flex: 1, padding: "12px 16px", background: listening ? "#1a2e1a" : "#1a1a2e", border: `1px solid ${listening ? "#25D36640" : "#4ECDC440"}`, borderRadius: 12, color: "#ddd", fontSize: 14, outline: "none", fontFamily: "inherit", opacity: loading ? 0.5 : 1 }}
+        />
+        <button onClick={startVoice} disabled={loading} title="Voice capture" style={{ padding: "12px 14px", background: listening ? "#25D36620" : "#1a1a2e", border: `1px solid ${listening ? "#25D36640" : "#4ECDC440"}`, borderRadius: 12, color: listening ? "#25D366" : "#4ECDC4", cursor: loading ? "default" : "pointer", fontSize: 16 }}>🎤</button>
         <button onClick={() => imgRef.current?.click()} disabled={loading} style={{ padding: "12px 14px", background: "#1a1a2e", border: "1px solid #4ECDC440", borderRadius: 12, color: loading ? "#444" : "#4ECDC4", cursor: loading ? "default" : "pointer", fontSize: 16 }}>📷</button>
         <button onClick={capture} disabled={loading || !text.trim()} style={{ padding: "12px 18px", background: text.trim() && !loading ? "linear-gradient(135deg, #4ECDC4, #45B7D1)" : "#1a1a2e", border: "none", borderRadius: 12, color: text.trim() && !loading ? "#0f0f23" : "#555", fontWeight: 700, cursor: text.trim() && !loading ? "pointer" : "default", fontSize: 16 }}>+</button>
       </div>
       {status && <p style={{ fontSize: 11, color: status.includes("error") ? "#FF6B35" : "#4ECDC4", margin: "6px 0 0 4px" }}>{statusMsg[status]}</p>}
+      {preview && <PreviewModal preview={preview} entries={entries} onSave={doSave} onCancel={() => setPreview(null)} />}
     </div>
   );
 }
@@ -128,7 +388,23 @@ function QuickCapture({ apiKey, sbKey, entries, setEntries, links, addLinks }) {
 function SettingsView() {
   const [testStatus, setTestStatus] = useState(null);
   const [email, setEmail] = useState("");
+  const [notifEnabled, setNotifEnabled] = useState(() => localStorage.getItem("openbrain_notif") === "true");
+  const [notifTime, setNotifTime] = useState(() => localStorage.getItem("openbrain_notif_time") || "07:00");
   useEffect(() => { supabase.auth.getUser().then(({ data: { user } }) => setEmail(user?.email || "")); }, []);
+
+  const requestNotification = async () => {
+    if (!("Notification" in window)) { alert("Notifications not supported in this browser."); return; }
+    const perm = await Notification.requestPermission();
+    if (perm === "granted") {
+      const enabled = !notifEnabled;
+      setNotifEnabled(enabled);
+      localStorage.setItem("openbrain_notif", String(enabled));
+      if (enabled) new Notification("OpenBrain Morning Briefing", { body: "You'll get a daily nudge at " + notifTime, icon: "/favicon.svg" });
+    } else {
+      alert("Notification permission denied. Enable in browser settings.");
+    }
+  };
+
   const testAI = async () => {
     setTestStatus("testing-ai");
     try { const res = await authFetch("/api/anthropic", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: MODEL, max_tokens: 10, messages: [{ role: "user", content: "Say ok" }] }) }); setTestStatus(res.ok ? "ai-success" : "ai-fail"); }
@@ -158,10 +434,18 @@ function SettingsView() {
           <button onClick={testAI} style={{ ...btn, background: "#4ECDC420", color: "#4ECDC4" }}>{testStatus === "testing-ai" ? "Testing…" : testStatus === "ai-success" ? "✓ Connected" : testStatus === "ai-fail" ? "✗ Failed" : "Test"}</button>
         </div>
       </div>
-      <div style={{ background: "#1a1a2e", borderRadius: 14, padding: "20px 24px", border: "1px solid #2a2a4a" }}>
+      <div style={{ background: "#1a1a2e", borderRadius: 14, padding: "20px 24px", marginBottom: 16, border: "1px solid #2a2a4a" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div><p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "#ddd" }}>Supabase Database</p><p style={{ margin: "4px 0 0", fontSize: 11, color: "#666" }}>Memory storage</p></div>
           <button onClick={testDB} style={{ ...btn, background: "#4ECDC420", color: "#4ECDC4" }}>{testStatus === "testing" ? "Testing…" : testStatus === "success" ? "✓ Connected" : testStatus === "fail" ? "✗ Failed" : "Test"}</button>
+        </div>
+      </div>
+      <div style={{ background: "#1a1a2e", borderRadius: 14, padding: "20px 24px", border: "1px solid #2a2a4a" }}>
+        <p style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 600, color: "#ddd" }}>Morning Briefing</p>
+        <p style={{ margin: "0 0 14px", fontSize: 12, color: "#666" }}>Get a daily nudge with your reminders and key info.</p>
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <input type="time" value={notifTime} onChange={e => { setNotifTime(e.target.value); localStorage.setItem("openbrain_notif_time", e.target.value); }} style={{ padding: "8px 12px", background: "#0f0f23", border: "1px solid #2a2a4a", borderRadius: 8, color: "#ddd", fontSize: 13, outline: "none" }} />
+          <button onClick={requestNotification} style={{ ...btn, background: notifEnabled ? "#FF6B3520" : "#4ECDC420", color: notifEnabled ? "#FF6B35" : "#4ECDC4" }}>{notifEnabled ? "Disable" : "Enable"}</button>
         </div>
       </div>
     </div>
@@ -244,6 +528,13 @@ function VirtualTimeline({ sorted, setSelected }) {
 /* ═══════════════════════════════════════════════════════════════
    MAIN APP
    ═══════════════════════════════════════════════════════════════ */
+const CHAT_CHIPS = [
+  { label: "Who supplies...", text: "Who supplies " },
+  { label: "Who do I call for...", text: "Who do I call for " },
+  { label: "When does... expire?", text: "When does " },
+  { label: "What's the number for...", text: "What's the number for " },
+];
+
 export default function OpenBrain() {
   const [entries, setEntries] = useState(() => {
     try {
@@ -256,9 +547,20 @@ export default function OpenBrain() {
     return INITIAL_ENTRIES;
   });
   const [entriesLoaded, setEntriesLoaded] = useState(false);
+
+  // ─── Brain context ───
+  const { brains, activeBrain, setActiveBrain, createBrain, deleteBrain } = useBrain(
+    useCallback(() => {
+      // Reset local state when brain switches
+      setEntries(INITIAL_ENTRIES);
+      setLinks(LINKS);
+      setEntriesLoaded(false);
+    }, [])
+  );
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [workspace, setWorkspace] = useState(() => localStorage.getItem("openbrain_workspace") || "all");
   const [view, setView] = useState("grid");
   const [selected, setSelected] = useState(null);
   const [links, setLinks] = useState(LINKS);
@@ -268,13 +570,19 @@ export default function OpenBrain() {
   const [chatInput, setChatInput] = useState("");
   const [chatMsgs, setChatMsgs] = useState([{ role: "assistant", content: "Hey Chris. Ask me about your memories — \"What's my ID number?\", \"Who are my suppliers?\", etc." }]);
   const [chatLoading, setChatLoading] = useState(false);
+  const [nudge, setNudge] = useState(() => sessionStorage.getItem("openbrain_nudge") || null);
+  const [lastAction, setLastAction] = useState(null);
+  const pendingDeleteRef = useRef(null);
   const chatEndRef = useRef(null);
   const searchDebounceRef = useRef(null);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatMsgs]);
 
   useEffect(() => {
-    authFetch("/api/entries")
+    if (!activeBrain?.id) return;
+    setEntriesLoaded(false);
+    const url = `/api/entries?brain_id=${encodeURIComponent(activeBrain.id)}`;
+    authFetch(url)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (Array.isArray(data) && data.length > 0) {
@@ -284,26 +592,138 @@ export default function OpenBrain() {
         setEntriesLoaded(true);
       })
       .catch(() => setEntriesLoaded(true));
-  }, []);
+  }, [activeBrain?.id]);
+
+  // Proactive intelligence nudge — runs once per session after entries load
+  useEffect(() => {
+    if (!entriesLoaded || !apiKey || sessionStorage.getItem("openbrain_nudge") !== null) return;
+    const recent = entries.slice(0, 30).map(e => ({ id: e.id, title: e.title, type: e.type, tags: e.tags, metadata: e.metadata, created_at: e.created_at }));
+    authFetch("/api/anthropic", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: MODEL, max_tokens: 200,
+        system: `You are OpenBrain, a proactive memory assistant for Chris. Given his recent entries, generate 1-2 short, specific, actionable nudges he should know right now. Examples: expiring documents, stale ideas, gaps in his business records, upcoming deadlines. Be concrete — mention entry names. Do NOT suggest merging companies just because they share a word in their name. Return plain text, 1-2 sentences max.`,
+        messages: [{ role: "user", content: `My recent memories:\n${JSON.stringify(recent)}\n\nWhat should I know right now?` }]
+      })
+    })
+      .then(r => r.json())
+      .then(data => {
+        const text = data.content?.[0]?.text?.trim();
+        if (text) { setNudge(text); sessionStorage.setItem("openbrain_nudge", text); }
+        else sessionStorage.setItem("openbrain_nudge", "");
+      })
+      .catch(() => sessionStorage.setItem("openbrain_nudge", ""));
+  }, [entriesLoaded]);
 
   useEffect(() => {
     if (entriesLoaded) { try { localStorage.setItem("openbrain_entries", JSON.stringify(entries)); } catch {} }
   }, [entries, entriesLoaded]);
 
   const types = useMemo(() => { const t = {}; entries.forEach(e => { t[e.type] = (t[e.type] || 0) + 1; }); return t; }, [entries]);
+
   const filtered = useMemo(() => {
     let r = entries;
+    if (workspace !== "all") r = r.filter(e => { const ws = inferWorkspace(e); return ws === workspace || ws === "both"; });
     if (typeFilter !== "all") r = r.filter(e => e.type === typeFilter);
     if (search) { const q = search.toLowerCase(); r = r.filter(e => e.title.toLowerCase().includes(q) || (e.content || "").toLowerCase().includes(q) || e.tags?.some(t => t.includes(q)) || JSON.stringify(e.metadata).toLowerCase().includes(q)); }
     return r;
-  }, [search, typeFilter, entries]);
+  }, [search, typeFilter, workspace, entries]);
+
   const sortedTimeline = useMemo(() => [...filtered].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)), [filtered]);
+
+  // ─── Undo system ───
+  const commitPendingDelete = useCallback(() => {
+    if (!pendingDeleteRef.current) return;
+    const { id } = pendingDeleteRef.current;
+    authFetch("/api/delete-entry", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) }).catch(() => {});
+    pendingDeleteRef.current = null;
+  }, []);
+
+  const handleDelete = useCallback((id) => {
+    const entry = entries.find(e => e.id === id);
+    if (!entry) return;
+    commitPendingDelete();
+    setEntries(prev => prev.filter(e => e.id !== id));
+    setSelected(null);
+    const timer = setTimeout(() => {
+      authFetch("/api/delete-entry", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) }).catch(() => {});
+      pendingDeleteRef.current = null;
+      setLastAction(null);
+    }, 5000);
+    pendingDeleteRef.current = { id, entry, timer };
+    setLastAction({ type: "delete", entry });
+  }, [entries, commitPendingDelete]);
+
+  const handleUpdate = useCallback(async (id, changes) => {
+    const previous = entries.find(e => e.id === id);
+    try {
+      const res = await authFetch("/api/update-entry", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...changes }) });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error((data?.message || data?.error) ?? `HTTP ${res.status}`);
+      if (Array.isArray(data) && data.length === 0) throw new Error(`No row matched id=${id}`);
+    } catch (e) { alert(`Save failed: ${e.message}`); return; }
+    setEntries(prev => prev.map(e => e.id === id ? { ...e, ...changes } : e));
+    setSelected(prev => prev?.id === id ? { ...prev, ...changes } : prev);
+    if (previous) setLastAction({ type: "update", id, previous: { title: previous.title, content: previous.content, type: previous.type, tags: previous.tags, metadata: previous.metadata } });
+  }, [entries]);
+
+  const handleUndo = useCallback(() => {
+    if (!lastAction) return;
+    if (lastAction.type === "delete" && pendingDeleteRef.current) {
+      clearTimeout(pendingDeleteRef.current.timer);
+      setEntries(prev => [pendingDeleteRef.current.entry, ...prev]);
+      pendingDeleteRef.current = null;
+    }
+    if (lastAction.type === "update") {
+      const { id, previous } = lastAction;
+      authFetch("/api/update-entry", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...previous }) }).catch(() => {});
+      setEntries(prev => prev.map(e => e.id === id ? { ...e, ...previous } : e));
+      setSelected(prev => prev?.id === id ? { ...prev, ...previous } : prev);
+    }
+    if (lastAction.type === "create") {
+      const { id } = lastAction;
+      authFetch("/api/delete-entry", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) }).catch(() => {});
+      setEntries(prev => prev.filter(e => e.id !== id));
+    }
+    setLastAction(null);
+  }, [lastAction]);
+
+  const handleCreated = useCallback((newEntry) => {
+    setLastAction({ type: "create", id: newEntry.id });
+  }, []);
+
+  // ─── Reorder / Renewal Reminder ───
+  const handleReorder = useCallback(async (supplier) => {
+    const due = new Date();
+    const isRenewal = supplier._renewalMode;
+    if (isRenewal) due.setMonth(due.getMonth() + 1); else due.setDate(due.getDate() + 7);
+    const parsed = isRenewal ? {
+      title: `Renew ${supplier.title}`,
+      content: `Set a renewal reminder for ${supplier.title}.`,
+      type: "reminder",
+      metadata: { status: "pending", due_date: due.toISOString().split("T")[0] },
+      tags: ["renewal", "admin"]
+    } : {
+      title: `Reorder from ${supplier.title.split(" - ")[0]}`,
+      content: `Remember to place a reorder with ${supplier.title}.`,
+      type: "reminder",
+      metadata: { status: "pending", due_date: due.toISOString().split("T")[0] },
+      tags: ["reorder", "smash burger bar"]
+    };
+    try {
+      const res = await authFetch("/api/capture", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ p_title: parsed.title, p_content: parsed.content, p_type: parsed.type, p_metadata: parsed.metadata, p_tags: parsed.tags }) });
+      const result = res.ok ? await res.json() : null;
+      const newEntry = { id: result?.id || Date.now().toString(), ...parsed, pinned: false, importance: 1, created_at: new Date().toISOString() };
+      setEntries(prev => [newEntry, ...prev]);
+      setLastAction({ type: "create", id: newEntry.id });
+    } catch { /* silently fail */ }
+  }, []);
 
   const handleChat = async () => {
     if (!chatInput.trim()) return;
     const msg = chatInput.trim(); setChatInput(""); setChatMsgs(p => [...p, { role: "user", content: msg }]); setChatLoading(true);
     try {
-      const res = await authFetch("/api/anthropic", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: MODEL, max_tokens: 1000, system: `You are OpenBrain, Chris's memory assistant. Be concise.\n\nMEMORIES:\n${JSON.stringify(entries.slice(0, 100))}\n\nLINKS:\n${JSON.stringify(links)}`, messages: [{ role: "user", content: msg }] }) });
+      const res = await authFetch("/api/anthropic", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: MODEL, max_tokens: 1000, system: `You are OpenBrain, Chris's memory assistant. Be concise. When you mention a phone number, format it clearly. If the answer contains a phone number, put it on its own line.\n\nMEMORIES:\n${JSON.stringify(entries.slice(0, 100))}\n\nLINKS:\n${JSON.stringify(links)}`, messages: [{ role: "user", content: msg }] }) });
       const data = await res.json();
       setChatMsgs(p => [...p, { role: "assistant", content: data.content?.map(c => c.text || "").join("") || "Couldn't process." }]);
     } catch { setChatMsgs(p => [...p, { role: "assistant", content: "Connection error." }]); }
@@ -311,10 +731,15 @@ export default function OpenBrain() {
   };
 
   const navViews = [
-    { id: "grid", l: "Grid", ic: "▦" }, { id: "suggest", l: "Fill Brain", ic: "✦" },
-    { id: "calendar", l: "Calendar", ic: "📅" }, { id: "todos", l: "Todos", ic: "✓" },
-    { id: "timeline", l: "Timeline", ic: "◔" }, { id: "graph", l: "Graph", ic: "◉" },
-    { id: "chat", l: "Ask", ic: "◈" }, { id: "settings", l: "Settings", ic: "⚙" },
+    { id: "grid", l: "Grid", ic: "▦" },
+    { id: "suppliers", l: "Suppliers", ic: "🏪" },
+    { id: "suggest", l: "Fill Brain", ic: "✦" },
+    { id: "calendar", l: "Calendar", ic: "📅" },
+    { id: "todos", l: "Todos", ic: "✓" },
+    { id: "timeline", l: "Timeline", ic: "◔" },
+    { id: "graph", l: "Graph", ic: "◉" },
+    { id: "chat", l: "Ask", ic: "◈" },
+    { id: "settings", l: "Settings", ic: "⚙" },
   ];
 
   return (
@@ -323,14 +748,27 @@ export default function OpenBrain() {
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
           <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #4ECDC4, #45B7D1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🧠</div>
           <div><h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, letterSpacing: -0.5 }}>OpenBrain</h1><p style={{ margin: 0, fontSize: 11, color: "#666" }}>Your eternal memory</p></div>
-          <div style={{ marginLeft: "auto", textAlign: "right" }}>
-            <span style={{ fontSize: 11, color: "#555" }}>{entries.length} memories</span>
-            {apiKey && <span style={{ display: "block", fontSize: 9, color: "#4ECDC4" }}>AI active</span>}
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+            {brains.length > 0 && (
+              <BrainSwitcher
+                brains={brains}
+                activeBrain={activeBrain}
+                onSwitch={setActiveBrain}
+                onBrainCreated={createBrain}
+                onBrainDeleted={deleteBrain}
+              />
+            )}
+            <div style={{ textAlign: "right" }}>
+              <span style={{ fontSize: 11, color: "#555" }}>{entries.length} memories</span>
+              {apiKey && <span style={{ display: "block", fontSize: 9, color: "#4ECDC4" }}>AI active</span>}
+            </div>
           </div>
         </div>
       </div>
 
-      <QuickCapture apiKey={apiKey} sbKey={sbKey} entries={entries} setEntries={setEntries} links={links} addLinks={addLinks} />
+      <QuickCapture apiKey={apiKey} sbKey={sbKey} entries={entries} setEntries={setEntries} links={links} addLinks={addLinks} onCreated={handleCreated} brainId={activeBrain?.id} />
+
+      {view === "grid" && nudge && <NudgeBanner nudge={nudge} onDismiss={() => { setNudge(null); sessionStorage.removeItem("openbrain_nudge"); }} />}
 
       <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #1a1a2e", overflowX: "auto", scrollbarWidth: "none" }}>
         {navViews.map(v => (
@@ -343,6 +781,12 @@ export default function OpenBrain() {
 
       <div style={{ padding: 20 }}>
         {view === "grid" && <>
+          {/* Workspace toggle */}
+          <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+            {["all", "business", "personal"].map(ws => (
+              <button key={ws} onClick={() => { setWorkspace(ws); localStorage.setItem("openbrain_workspace", ws); }} style={{ padding: "5px 14px", borderRadius: 20, border: "none", fontSize: 11, fontWeight: 600, cursor: "pointer", background: workspace === ws ? "#A29BFE" : "#1a1a2e", color: workspace === ws ? "#0f0f23" : "#888", textTransform: "capitalize" }}>{ws === "all" ? "All" : ws === "business" ? "🏪 Business" : "👤 Personal"}</button>
+            ))}
+          </div>
           <div style={{ position: "relative", marginBottom: 16 }}>
             <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#555" }}>⌕</span>
             <input value={searchInput} onChange={e => { setSearchInput(e.target.value); clearTimeout(searchDebounceRef.current); searchDebounceRef.current = setTimeout(() => setSearch(e.target.value), 200); }} placeholder="Search..." style={{ width: "100%", boxSizing: "border-box", padding: "12px 16px 12px 38px", background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 10, color: "#ddd", fontSize: 14, outline: "none" }} />
@@ -359,6 +803,7 @@ export default function OpenBrain() {
           {filtered.length > 0 ? <VirtualGrid filtered={filtered} setSelected={setSelected} /> : <p style={{ textAlign: "center", color: "#555", marginTop: 40 }}>No memories match.</p>}
         </>}
 
+        {view === "suppliers" && <SupplierPanel entries={entries} onSelect={setSelected} onReorder={handleReorder} />}
         {view === "suggest" && <Suspense fallback={<Loader />}><SuggestionsView apiKey={apiKey} sbKey={sbKey} entries={entries} setEntries={setEntries} /></Suspense>}
         {view === "calendar" && <Suspense fallback={<Loader />}><CalendarView entries={entries} /></Suspense>}
         {view === "todos" && <Suspense fallback={<Loader />}><TodoView /></Suspense>}
@@ -366,15 +811,27 @@ export default function OpenBrain() {
         {view === "graph" && <Suspense fallback={<Loader />}><p style={{ fontSize: 12, color: "#666", marginBottom: 12 }}>Knowledge graph — click nodes to view</p><GraphView onSelect={setSelected} /></Suspense>}
 
         {view === "chat" && (
-          <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 240px)" }}>
+          <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 260px)" }}>
             <div style={{ flex: 1, overflow: "auto", marginBottom: 12 }}>
               {chatMsgs.map((m, i) => (
                 <div key={i} style={{ marginBottom: 12, display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
-                  <div style={{ maxWidth: "85%", padding: "12px 16px", borderRadius: m.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px", background: m.role === "user" ? "#4ECDC4" : "#1a1a2e", color: m.role === "user" ? "#0f0f23" : "#ccc", fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{m.content}</div>
+                  <div style={{ maxWidth: "85%", padding: "12px 16px", borderRadius: m.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px", background: m.role === "user" ? "#4ECDC4" : "#1a1a2e", color: m.role === "user" ? "#0f0f23" : "#ccc", fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                    {m.role === "assistant" ? m.content.split(/(\+27[0-9]{9}|0[6-8][0-9]{8})/).map((part, pi) =>
+                      /(\+27[0-9]{9}|0[6-8][0-9]{8})/.test(part)
+                        ? <a key={pi} href={`tel:${part}`} style={{ color: "#4ECDC4", fontWeight: 700, textDecoration: "none" }}>{part}</a>
+                        : part
+                    ) : m.content}
+                  </div>
                 </div>
               ))}
               {chatLoading && <div style={{ display: "flex" }}><div style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", background: "#1a1a2e", color: "#666" }}>Thinking...</div></div>}
               <div ref={chatEndRef} />
+            </div>
+            {/* Quick-ask chips */}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+              {CHAT_CHIPS.map(chip => (
+                <button key={chip.label} onClick={() => setChatInput(chip.text)} style={{ padding: "5px 12px", borderRadius: 20, border: "1px solid #2a2a4a", background: "#1a1a2e", color: "#888", fontSize: 11, cursor: "pointer" }}>{chip.label}</button>
+              ))}
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === "Enter" && handleChat()} placeholder="Ask about your memories..." style={{ flex: 1, padding: "12px 16px", background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 12, color: "#ddd", fontSize: 14, outline: "none" }} />
@@ -387,24 +844,25 @@ export default function OpenBrain() {
       </div>
 
       <Suspense fallback={null}>
-        <DetailModal entry={selected} onClose={() => setSelected(null)}
-          onDelete={async (id) => {
-            try { await authFetch("/api/delete-entry", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) }); } catch {}
-            setEntries(prev => prev.filter(e => e.id !== id));
-            setSelected(null);
-          }}
-          onUpdate={async (id, changes) => {
-            try {
-              const res = await authFetch("/api/update-entry", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...changes }) });
-              const data = await res.json().catch(() => null);
-              if (!res.ok) throw new Error((data?.message || data?.error) ?? `HTTP ${res.status}`);
-              if (Array.isArray(data) && data.length === 0) throw new Error(`No row matched id=${id}`);
-            } catch (e) { alert(`Save failed: ${e.message}`); return; }
-            setEntries(prev => prev.map(e => e.id === id ? { ...e, ...changes } : e));
-            setSelected(prev => prev?.id === id ? { ...prev, ...changes } : prev);
-          }}
+        <DetailModal
+          entry={selected}
+          onClose={() => setSelected(null)}
+          onDelete={handleDelete}
+          onUpdate={handleUpdate}
+          onReorder={handleReorder}
         />
       </Suspense>
+
+      {lastAction && (
+        <UndoToast
+          action={lastAction}
+          onUndo={handleUndo}
+          onDismiss={() => {
+            if (lastAction.type === "delete") commitPendingDelete();
+            setLastAction(null);
+          }}
+        />
+      )}
     </div>
   );
 }

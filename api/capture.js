@@ -12,7 +12,7 @@ export default async function handler(req, res) {
   const user = await verifyAuth(req);
   if (!user) return res.status(401).json({ error: "Unauthorized" });
 
-  const { p_title, p_content, p_type, p_metadata, p_tags } = req.body;
+  const { p_title, p_content, p_type, p_metadata, p_tags, p_brain_id } = req.body;
 
   if (!p_title || typeof p_title !== "string" || p_title.trim().length === 0) {
     return res.status(400).json({ error: "Missing or invalid title" });
@@ -28,6 +28,7 @@ export default async function handler(req, res) {
     p_metadata: p_metadata && typeof p_metadata === "object" && !Array.isArray(p_metadata) ? p_metadata : {},
     p_tags: Array.isArray(p_tags) ? p_tags.filter(t => typeof t === "string").slice(0, 50) : [],
     p_user_id: user.id,
+    ...(p_brain_id && typeof p_brain_id === "string" ? { p_brain_id } : {}),
   };
 
   const response = await fetch(`${SB_URL}/rest/v1/rpc/capture`, {

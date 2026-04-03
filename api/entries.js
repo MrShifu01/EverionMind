@@ -10,15 +10,21 @@ export default async function handler(req, res) {
   const user = await verifyAuth(req);
   if (!user) return res.status(401).json({ error: "Unauthorized" });
 
-  const response = await fetch(
-    `${SB_URL}/rest/v1/entries?select=*&user_id=eq.${encodeURIComponent(user.id)}&order=created_at.desc&limit=500`,
-    {
-      headers: {
-        "apikey": process.env.SUPABASE_SERVICE_ROLE_KEY,
-        "Authorization": `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-      },
-    }
-  );
+  const brain_id = req.query.brain_id;
+  let url = `${SB_URL}/rest/v1/entries?select=*&order=created_at.desc&limit=500`;
+  if (brain_id) {
+    url += `&brain_id=eq.${encodeURIComponent(brain_id)}`;
+  } else {
+    // Fallback: user's own entries (pre-migration compatibility)
+    url += `&user_id=eq.${encodeURIComponent(user.id)}`;
+  }
+
+  const response = await fetch(url, {
+    headers: {
+      "apikey": process.env.SUPABASE_SERVICE_ROLE_KEY,
+      "Authorization": `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+  });
 
   const data = await response.json();
   res.status(response.status).json(data);

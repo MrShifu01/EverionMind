@@ -27,9 +27,9 @@ export default async function handler(req, res) {
   if (type !== undefined) patch.type = type;
   if (Array.isArray(tags)) patch.tags = tags.filter(t => typeof t === "string").slice(0, 50);
 
-  // Filter by both id AND user_id — prevents updating another user's entry
+  // Filter by id; RLS (brain membership) enforces access control
   const response = await fetch(
-    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(user.id)}`,
+    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`,
     {
       method: "PATCH",
       headers: {

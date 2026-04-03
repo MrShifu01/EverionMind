@@ -15,9 +15,9 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Missing or invalid id" });
   }
 
-  // Filter by both id AND user_id — prevents deleting another user's entry
+  // Filter by id; RLS (brain membership) enforces access control
   const response = await fetch(
-    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(user.id)}`,
+    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`,
     {
       method: "DELETE",
       headers: {
