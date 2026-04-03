@@ -1,4 +1,5 @@
 import { useRef, useEffect } from "react";
+import PropTypes from "prop-types";
 import { TC } from "../data/constants";
 
 export default function GraphView({ onSelect, entries = [], links = [] }) {
@@ -27,5 +28,11 @@ export default function GraphView({ onSelect, entries = [], links = [] }) {
     };
     sim(); return () => cancelAnimationFrame(frameRef.current);
   }, []);
-  return <canvas ref={ref} onClick={e=>{const r=ref.current.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;const n=nodesRef.current.find(n=>Math.hypot(n.x-x,n.y-y)<20);if(n)onSelect(entries.find(en=>en.id===n.id));}} style={{width:"100%",height:400,borderRadius:12,background:"#0d0d1a",cursor:"pointer"}} />;
+  return <canvas ref={ref} aria-label="Knowledge graph visualization" onClick={e=>{const r=ref.current.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;const n=nodesRef.current.find(n=>Math.hypot(n.x-x,n.y-y)<20);if(n)onSelect(entries.find(en=>en.id===n.id));}} style={{width:"100%",height:400,borderRadius:12,background:"#0d0d1a",cursor:"pointer"}} />;
 }
+
+GraphView.propTypes = {
+  onSelect: PropTypes.func.isRequired,
+  entries: PropTypes.array,
+  links: PropTypes.array,
+};

@@ -1,8 +1,11 @@
 import { useState, useMemo } from "react";
+import PropTypes from "prop-types";
 import { TC, fmtD } from "../data/constants";
 import { useTheme } from "../ThemeContext";
+import { useEntries } from "../context/EntriesContext";
 
-export default function CalendarView({ entries }) {
+export default function CalendarView() {
+  const { entries } = useEntries();
   const { t } = useTheme();
   const [month, setMonth] = useState(() => new Date());
   const [selDay, setSelDay] = useState(null);
@@ -57,9 +60,9 @@ export default function CalendarView({ entries }) {
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <button onClick={() => setMonth(new Date(year, mon - 1, 1))} style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textMuted, padding: "8px 16px", cursor: "pointer", fontSize: 16 }}>←</button>
+        <button onClick={() => setMonth(new Date(year, mon - 1, 1))} aria-label="Previous month" style={{ minHeight: 44, minWidth: 44, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textMuted, padding: "8px 16px", cursor: "pointer", fontSize: 16 }}>←</button>
         <span style={{ fontSize: 16, fontWeight: 700, color: t.text }}>{monthLabel}</span>
-        <button onClick={() => setMonth(new Date(year, mon + 1, 1))} style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textMuted, padding: "8px 16px", cursor: "pointer", fontSize: 16 }}>→</button>
+        <button onClick={() => setMonth(new Date(year, mon + 1, 1))} aria-label="Next month" style={{ minHeight: 44, minWidth: 44, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textMuted, padding: "8px 16px", cursor: "pointer", fontSize: 16 }}>→</button>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 4 }}>
@@ -77,7 +80,7 @@ export default function CalendarView({ entries }) {
           const isSel = day === selDay;
           return (
             <div key={key} onClick={() => setSelDay(day === selDay ? null : day)}
-              style={{ aspectRatio: "1/1", borderRadius: 8, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer",
+              style={{ minHeight: 44, aspectRatio: "1/1", borderRadius: 8, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer",
                 background: isSel ? "#4ECDC4" : isToday ? "#4ECDC420" : dots.length ? t.surface : "transparent",
                 border: isToday && !isSel ? "1px solid #4ECDC440" : dots.length && !isSel ? `1px solid ${t.border}` : "1px solid transparent" }}>
               <span style={{ fontSize: 12, fontWeight: isToday ? 800 : 400, color: isSel ? "#0f0f23" : isToday ? "#4ECDC4" : t.textMid }}>{day}</span>

@@ -1,12 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import PropTypes from "prop-types";
 import { TC } from "../data/constants";
-import { extractPhone, toWaUrl } from "../OpenBrain";
+import { extractPhone, toWaUrl } from "../lib/phone";
 import { useTheme } from "../ThemeContext";
 
 export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReorder, entries = [], links = [], canWrite = true, brains = [] }) {
   const { t } = useTheme();
   if (!entry) return null;
+  const confirmTimerRef = useRef(null);
   const [deleting, setDeleting] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editTitle, setEditTitle] = useState(entry.title);
@@ -23,7 +26,20 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
   }));
   const skip = new Set(['category', 'status']);
   const meta = Object.entries(entry.metadata || {}).filter(([k]) => !skip.has(k));
-  const inp = { padding: '10px 14px', background: t.bg, border: '1px solid #4ECDC440', borderRadius: 10, color: t.textSoft, fontSize: 14, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' };
+  const inp = { padding: '10px 14px', background: t.bg, border: `1px solid ${t.accentBorder}`, borderRadius: 10, color: t.textSoft, fontSize: 14, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' };
+
+  useEffect(() => {
+    return () => {
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+    };
+  }, []);
+
+  // UX-5: Escape key closes modal
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') { if (editing) setEditing(false); else onClose(); } };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [editing, onClose]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -63,7 +79,7 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
 
   if (isSupplier || entry.type === 'contact' || entry.type === 'person') {
     if (phone) {
-      quickActions.push(<a key="call" href={`tel:${phone}`} style={abtn('#4ECDC4')}>📞 Call</a>);
+      quickActions.push(<a key="call" href={`tel:${phone}`} style={abtn(t.accent)}>📞 Call</a>);
       quickActions.push(<a key="wa" href={toWaUrl(phone)} target="_blank" rel="noreferrer" style={abtn('#25D366')}>💬 WhatsApp</a>);
     }
     if (isSupplier && onReorder) {
@@ -74,7 +90,7 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
   if (entry.type === 'reminder') {
     if (entry.metadata?.status !== 'done') {
       quickActions.push(
-        <button key="done" onClick={() => onUpdate(entry.id, { metadata: { ...entry.metadata, status: 'done' }, importance: 0 })} style={abtn('#4ECDC4')}>✅ Mark Done</button>
+        <button key="done" onClick={() => onUpdate(entry.id, { metadata: { ...entry.metadata, status: 'done' }, importance: 0 })} style={abtn(t.accent)}>✅ Mark Done</button>
       );
     }
     quickActions.push(
@@ -116,7 +132,7 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
   quickActions.push(<button key="share" onClick={handleShare} style={abtn('#45B7D1')}>📤 Share</button>);
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: '#000000CC', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }} onClick={editing ? undefined : onClose}>
+    <div role="dialog" aria-modal="true" aria-labelledby="detail-modal-title" style={{ position: 'fixed', inset: 0, background: '#000000CC', zIndex: 1000 /* z-index scale: PinGate=9999, Onboarding=3000, DetailModal=1000 */, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }} onClick={editing ? undefined : onClose}>
       <div style={{ background: t.surface2, borderRadius: 16, maxWidth: 600, width: '100%', maxHeight: '90vh', overflow: 'auto', border: `1px solid ${cfg.c}40` }} onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div style={{ padding: '16px 16px', borderBottom: `1px solid ${t.border}`, display: 'flex', justifyContent: 'space-between' }}>
@@ -125,11 +141,11 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
               <span style={{ fontSize: 24 }}>{cfg.i}</span>
               <span style={{ fontSize: 11, color: cfg.c, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5 }}>{editType}</span>
             </div>
-            {!editing && <h2 style={{ margin: 0, fontSize: 22, color: t.text, fontWeight: 700 }}>{editTitle}</h2>}
+            {!editing && <h2 id="detail-modal-title" style={{ margin: 0, fontSize: 22, color: t.text, fontWeight: 700 }}>{editTitle}</h2>}
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-            {!editing && canWrite && onDelete && <button onClick={async () => { setDeleting(true); await onDelete(entry.id); setDeleting(false); }} disabled={deleting} style={{ padding: '6px 14px', background: deleting ? t.surface : '#FF6B3520', border: '1px solid #FF6B3540', borderRadius: 8, color: deleting ? t.textFaint : '#FF6B35', fontSize: 12, fontWeight: 600, cursor: deleting ? 'default' : 'pointer' }}>{deleting ? 'Deleting...' : 'Delete'}</button>}
-            {!editing && canWrite && onUpdate && <button onClick={() => setEditing(true)} style={{ padding: '6px 14px', background: '#4ECDC420', border: '1px solid #4ECDC440', borderRadius: 8, color: '#4ECDC4', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Edit</button>}
+            {!editing && canWrite && onDelete && <button onClick={async () => { if (!confirmingDelete) { setConfirmingDelete(true); confirmTimerRef.current = setTimeout(() => setConfirmingDelete(false), 3000); } else { setDeleting(true); await onDelete(entry.id); setDeleting(false); } }} disabled={deleting} style={{ padding: '6px 14px', background: deleting ? t.surface : confirmingDelete ? '#FF6B3540' : '#FF6B3520', border: '1px solid #FF6B3540', borderRadius: 8, color: deleting ? t.textFaint : '#FF6B35', fontSize: 12, fontWeight: 600, cursor: deleting ? 'default' : 'pointer' }}>{deleting ? 'Deleting...' : confirmingDelete ? 'Confirm delete?' : 'Delete'}</button>}
+            {!editing && canWrite && onUpdate && <button onClick={() => setEditing(true)} style={{ padding: '6px 14px', background: t.accentLight, border: `1px solid ${t.accentBorder}`, borderRadius: 8, color: t.accent, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Edit</button>}
             {!canWrite && <span style={{ fontSize: 11, color: '#888', padding: '6px 8px' }}>🔒 View only</span>}
             <button onClick={editing ? () => setEditing(false) : onClose} style={{ background: 'none', border: 'none', color: t.textDim, fontSize: 24, cursor: 'pointer' }}>✕</button>
           </div>
@@ -138,7 +154,7 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
         {/* Edit form */}
         {editing ? (
           <div style={{ padding: '16px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div><label style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Title</label><input value={editTitle} onChange={e => setEditTitle(e.target.value)} style={inp} /></div>
+            <div><label style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Title</label><input autoFocus value={editTitle} onChange={e => setEditTitle(e.target.value)} style={inp} /></div>
             <div><label style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Type</label>
               <select value={editType} onChange={e => setEditType(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
                 {['note','person','place','idea','contact','document','reminder','color','decision'].map(typ => <option key={typ} value={typ}>{typ}</option>)}
@@ -164,7 +180,7 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
             )}
             <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
               <button onClick={() => setEditing(false)} style={{ flex: 1, padding: 12, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, color: t.textMuted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={handleSave} disabled={saving || !editTitle.trim()} style={{ flex: 2, padding: 12, background: editTitle.trim() ? 'linear-gradient(135deg, #4ECDC4, #45B7D1)' : t.surface, border: 'none', borderRadius: 10, color: editTitle.trim() ? '#0f0f23' : t.textDim, fontSize: 13, fontWeight: 700, cursor: editTitle.trim() ? 'pointer' : 'default' }}>{saving ? 'Saving...' : 'Save changes'}</button>
+              <button onClick={handleSave} disabled={saving || !editTitle.trim()} style={{ flex: 2, padding: 12, background: editTitle.trim() ? `linear-gradient(135deg, ${t.accent}, #45B7D1)` : t.surface, border: 'none', borderRadius: 10, color: editTitle.trim() ? '#0f0f23' : t.textDim, fontSize: 13, fontWeight: 700, cursor: editTitle.trim() ? 'pointer' : 'default' }}>{saving ? 'Saving...' : 'Save changes'}</button>
             </div>
           </div>
         ) : (
@@ -189,10 +205,21 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
             <div style={{ paddingTop: 16, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {quickActions}
             </div>
-            {shareMsg && <p style={{ margin: '8px 0 0', fontSize: 11, color: '#4ECDC4' }}>{shareMsg}</p>}
+            {shareMsg && <p style={{ margin: '8px 0 0', fontSize: 11, color: t.accent }}>{shareMsg}</p>}
           </div>
         )}
       </div>
     </div>
   );
 }
+
+DetailModal.propTypes = {
+  entry: PropTypes.object.isRequired,
+  onClose: PropTypes.func.isRequired,
+  onDelete: PropTypes.func,
+  onUpdate: PropTypes.func,
+  onReorder: PropTypes.func,
+  entries: PropTypes.array,
+  links: PropTypes.array,
+  canWrite: PropTypes.bool,
+};

@@ -40,7 +40,7 @@ export async function sendToUser(userId, payload) {
         await fetch(
           `${SB_URL}/rest/v1/push_subscriptions?id=eq.${encodeURIComponent(sub.id)}`,
           { method: "DELETE", headers: hdrs() }
-        ).catch(() => {});
+        ).catch(err => console.error('[sendPush:cleanup410] Failed to delete expired subscription', err));
       }
     }
   }

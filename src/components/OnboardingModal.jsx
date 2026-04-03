@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import PropTypes from "prop-types";
 import { useTheme } from "../ThemeContext";
 import { authFetch } from "../lib/authFetch";
 import { MODEL } from "../data/constants";
@@ -56,7 +57,7 @@ const USE_CASES = [
   { id: "business", emoji: "🏪", label: "Business",  desc: "Staff, suppliers, SOPs, licences, costs" },
 ];
 
-export default function OnboardingModal({ onComplete, apiKey }) {
+export default function OnboardingModal({ onComplete }) {
   const { t } = useTheme();
   const [step, setStep] = useState(0);
   const [selected, setSelected] = useState(["personal"]);
@@ -161,7 +162,7 @@ export default function OnboardingModal({ onComplete, apiKey }) {
     position: "fixed", inset: 0,
     background: "rgba(0,0,0,0.85)",
     display: "flex", alignItems: "center", justifyContent: "center",
-    zIndex: 3000, padding: 20,
+    zIndex: 3000 /* z-index scale: PinGate=9999, Onboarding=3000, DetailModal=1000 */, padding: 20,
     overflowY: "auto",
   };
 
@@ -196,9 +197,9 @@ export default function OnboardingModal({ onComplete, apiKey }) {
     <div style={overlay}>
       <div style={card}>
         {/* Progress dots */}
-        <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 28 }}>
+        <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 28 }} role="tablist" aria-label="Onboarding progress">
           {STEPS.map((_, i) => (
-            <div key={i} style={{ width: i === step ? 20 : 8, height: 8, borderRadius: 4, background: i === step ? "#4ECDC4" : i < step ? "#4ECDC480" : t.surface, transition: "all 0.3s" }} />
+            <div key={i} aria-label={`Step ${i + 1} of ${STEPS.length}`} role="tab" aria-selected={i === step} style={{ width: i === step ? 20 : 8, height: 8, borderRadius: 4, background: i === step ? "#4ECDC4" : i < step ? "#4ECDC480" : t.surface, transition: "all 0.3s" }} />
           ))}
         </div>
 
@@ -219,6 +220,8 @@ export default function OnboardingModal({ onComplete, apiKey }) {
                 <button
                   key={uc.id}
                   onClick={() => toggleUseCase(uc.id)}
+                  role="checkbox"
+                  aria-checked={active}
                   style={{
                     display: "flex", alignItems: "center", gap: 14,
                     padding: "14px 16px",
@@ -431,3 +434,7 @@ export default function OnboardingModal({ onComplete, apiKey }) {
     </div>
   );
 }
+
+OnboardingModal.propTypes = {
+  onComplete: PropTypes.func.isRequired,
+};

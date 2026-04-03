@@ -118,7 +118,7 @@ export default async function handler(req, res) {
 
     if (!inviteRes.ok) {
       const err = await inviteRes.text();
-      return res.status(502).json({ error: "Failed to create invite", detail: err });
+      return res.status(502).json({ error: "Failed to create invite" });
     }
 
     const [invite] = await inviteRes.json();
@@ -130,6 +130,11 @@ export default async function handler(req, res) {
   if (method === "POST" && action === "accept") {
     const { token } = req.body;
     if (!token) return res.status(400).json({ error: "token required" });
+
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRe.test(token)) {
+      return res.status(400).json({ error: "Invalid invite token" });
+    }
 
     // Look up the invite
     const invRes = await fetch(

@@ -1,6 +1,10 @@
 import { useState, useCallback } from "react";
+import PropTypes from "prop-types";
 import { authFetch } from "../lib/authFetch";
+import { callAI } from "../lib/ai";
 import { TC, MODEL } from "../data/constants";
+import { useTheme } from "../ThemeContext";
+import { PROMPTS } from "../config/prompts";
 
 /* ─── Suggestion type metadata ─── */
 const LABELS = {
@@ -13,45 +17,9 @@ const LABELS = {
   LINK_SUGGESTED: { label: "Relationship",    icon: "⟷",  color: "#96CEB4" },
 };
 
-/* ─── System prompts ─── */
-const ENTRY_SYSTEM = `You are a ruthlessly skeptical data quality auditor reviewing a personal knowledge base. Your bar is very high — only flag what is obviously, undeniably wrong. If there is any ambiguity, skip it.
 
-Only identify these specific issues (nothing else):
-1. TYPE_MISMATCH — Entry is clearly the wrong type. Example: a named person saved as "note" should be "person"; a physical location saved as "note" should be "place"; a hard deadline saved as "note" should be "reminder". Skip if debatable.
-2. PHONE_FOUND — A phone number clearly appears in content/title but metadata.phone is missing or empty. Only flag if the number is complete and unambiguous.
-3. EMAIL_FOUND — An email address clearly appears in content/title but metadata.email is missing or empty.
-4. URL_FOUND — A full URL (https://...) clearly appears in content but metadata.url is missing.
-5. DATE_FOUND — A specific future deadline or due date is explicitly mentioned in content and not already in metadata.due_date. Only for actual deadlines, not historical dates.
-6. TITLE_POOR — Title is so vague it could describe anything (e.g. "Note", "Info", "Misc"). Very high bar — only if the title is genuinely useless.
-
-Hard rules:
-- Only suggest if confidence > 90%
-- Max 2 suggestions per entry
-- Skip entries that look complete and well-structured
-- For TYPE_MISMATCH: suggestedValue must be one of: note, reminder, document, contact, person, place, idea, color, decision
-- For DATE_FOUND: suggestedValue must be ISO date string YYYY-MM-DD
-- Return ONLY a valid JSON array, no markdown, no explanation
-
-Schema: [{"entryId":"...","entryTitle":"...","type":"TYPE_MISMATCH|PHONE_FOUND|EMAIL_FOUND|URL_FOUND|DATE_FOUND|TITLE_POOR","field":"type|metadata.phone|metadata.email|metadata.url|metadata.due_date|title","currentValue":"...","suggestedValue":"...","reason":"max 90 chars"}]
-
-If nothing is wrong, return: []`;
-
-const LINK_SYSTEM = `You are building a knowledge graph for a personal/business brain. Your job is to find non-obvious, high-value relationships between entries that are not yet linked.
-
-Rules:
-- Only suggest a relationship if it is clearly meaningful and actionable (e.g. "this person works at this company", "this supplier provides this ingredient", "this idea is for this place")
-- Do NOT suggest relationships that are trivially obvious from shared tags alone
-- Do NOT suggest relationships that already exist in the provided existing links list
-- Relationship label (rel) should be a short verb phrase: "works at", "supplies", "built", "owns", "relates to", "deadline for", etc.
-- Maximum 8 link suggestions total
-- Only suggest if confidence > 85%
-- Return ONLY a valid JSON array, no markdown, no explanation
-
-Schema: [{"fromId":"...","fromTitle":"...","toId":"...","toTitle":"...","rel":"verb phrase","reason":"max 90 chars"}]
-
-If no valuable relationships are found, return: []`;
-
-export default function RefineView({ apiKey, entries, setEntries, links, addLinks, activeBrain, brains = [], onSwitchBrain }) {
+export default function RefineView({ entries, setEntries, links, addLinks, activeBrain, brains, onSwitchBrain }) {
+  const { t } = useTheme();
   const [loading, setLoading]         = useState(false);
   const [suggestions, setSuggestions] = useState(null); // null = never run
   const [dismissed, setDismissed]     = useState(new Set());
@@ -61,7 +29,7 @@ export default function RefineView({ apiKey, entries, setEntries, links, addLink
 
   /* ── Analyze: entry quality + link discovery in parallel ── */
   const analyze = useCallback(async () => {
-    if (!apiKey || loading) return;
+    if (loading) return;
     setLoading(true);
     setSuggestions(null);
     setDismissed(new Set());
@@ -85,15 +53,10 @@ export default function RefineView({ apiKey, entries, setEntries, links, addLink
         tags:     e.tags || [],
       }));
       try {
-        const res  = await authFetch("/api/anthropic", {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({
-            model:      MODEL,
-            max_tokens: 1500,
-            system:     ENTRY_SYSTEM,
-            messages:   [{ role: "user", content: `Review these ${slim.length} entries:\n\n${JSON.stringify(slim)}` }],
-          }),
+        const res  = await callAI({
+          max_tokens: 1500,
+          system:     PROMPTS.ENTRY_AUDIT,
+          messages:   [{ role: "user", content: `Review these ${slim.length} entries:\n\n${JSON.stringify(slim)}` }],
         });
         const data = await res.json();
         const raw  = (data.content?.[0]?.text || "[]").replace(/```json|```/g, "").trim();
@@ -109,18 +72,13 @@ export default function RefineView({ apiKey, entries, setEntries, links, addLink
         content: (e.content || "").slice(0, 200),
         tags: (e.tags || []).slice(0, 6),
       }));
-      const res  = await authFetch("/api/anthropic", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({
-          model:      MODEL,
-          max_tokens: 1200,
-          system:     LINK_SYSTEM,
-          messages:   [{
-            role:    "user",
-            content: `Entries:\n${JSON.stringify(slim)}\n\nExisting links (do NOT re-suggest these):\n${JSON.stringify([...existingLinkKeys])}`,
-          }],
-        }),
+      const res  = await callAI({
+        max_tokens: 1200,
+        system:     PROMPTS.LINK_DISCOVERY,
+        messages:   [{
+          role:    "user",
+          content: `Entries:\n${JSON.stringify(slim)}\n\nExisting links (do NOT re-suggest these):\n${JSON.stringify([...existingLinkKeys])}`,
+        }],
       });
       const data = await res.json();
       const raw  = (data.content?.[0]?.text || "[]").replace(/```json|```/g, "").trim();
@@ -139,7 +97,7 @@ export default function RefineView({ apiKey, entries, setEntries, links, addLink
 
     setSuggestions([...entrySuggestions, ...linkSuggestions]);
     setLoading(false);
-  }, [apiKey, loading, entries, links]);
+  }, [loading, entries, links]);
 
   /* ── Accept an entry-quality suggestion ── */
   const applyEntry = useCallback(async (s, override) => {
@@ -260,7 +218,7 @@ export default function RefineView({ apiKey, entries, setEntries, links, addLink
               const active = b.id === activeBrain?.id;
               return (
                 <button key={b.id} onClick={() => onSwitchBrain(b)}
-                  style={{ padding: "5px 12px", borderRadius: 20, border: active ? "1px solid #4ECDC4" : "1px solid #2a2a4a", background: active ? "#4ECDC420" : "#1a1a2e", color: active ? "#4ECDC4" : "#888", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
+                  style={{ padding: "5px 12px", borderRadius: 20, border: active ? `1px solid ${t.accent}` : "1px solid #2a2a4a", background: active ? `${t.accent}20` : "#1a1a2e", color: active ? t.accent : "#888", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 5, minHeight: 44, minWidth: 44 }}>
                   <span>{BRAIN_EMOJI[b.type] || "🧠"}</span>
                   <span>{b.name}</span>
                 </button>
@@ -278,14 +236,14 @@ export default function RefineView({ apiKey, entries, setEntries, links, addLink
       {/* Analyze button */}
       <button
         onClick={analyze}
-        disabled={!apiKey || loading}
+        disabled={loading}
         style={{
-          width: "100%", padding: "14px 20px", marginBottom: 20,
-          background: apiKey && !loading ? "linear-gradient(135deg, #A29BFE, #6C63FF)" : "#1a1a2e",
+          width: "100%", padding: "14px 20px", marginBottom: 20, minHeight: 44,
+          background: !loading ? "linear-gradient(135deg, #A29BFE, #6C63FF)" : "#1a1a2e",
           border: "none", borderRadius: 14,
-          color: apiKey && !loading ? "#fff" : "#444",
+          color: !loading ? "#fff" : "#444",
           fontSize: 14, fontWeight: 700,
-          cursor: apiKey && !loading ? "pointer" : "default",
+          cursor: !loading ? "pointer" : "default",
         }}
       >
         {loading ? "Analyzing…" : suggestions === null ? "✦ Analyze my brain" : "✦ Re-analyze"}
@@ -307,7 +265,7 @@ export default function RefineView({ apiKey, entries, setEntries, links, addLink
         <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
           {[
             { l: "Entries",      v: entries.length,                              c: "#A29BFE" },
-            { l: "Fixes",        v: visible.filter(s => s.type !== "LINK_SUGGESTED").length + dismissed.size - linkCount, c: "#4ECDC4" },
+            { l: "Fixes",        v: visible.filter(s => s.type !== "LINK_SUGGESTED").length + dismissed.size - linkCount, c: t.accent },
             { l: "Links",        v: linkCount,                                   c: "#96CEB4" },
             { l: "Remaining",    v: visible.length,                              c: "#FF6B35" },
           ].map(s => (
@@ -323,7 +281,7 @@ export default function RefineView({ apiKey, entries, setEntries, links, addLink
       {noneFound && !loading && (
         <div style={{ textAlign: "center", padding: "40px 20px", background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 14 }}>
           <div style={{ fontSize: 26, marginBottom: 10 }}>✓</div>
-          <p style={{ color: "#4ECDC4", fontSize: 15, fontWeight: 700, margin: 0 }}>Everything looks clean</p>
+          <p style={{ color: t.accent, fontSize: 15, fontWeight: 700, margin: 0 }}>Everything looks clean</p>
           <p style={{ color: "#555", fontSize: 12, margin: "6px 0 0" }}>No high-confidence improvements or missing links found</p>
         </div>
       )}
@@ -332,7 +290,7 @@ export default function RefineView({ apiKey, entries, setEntries, links, addLink
       {allDone && !loading && (
         <div style={{ textAlign: "center", padding: "40px 20px", background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 14 }}>
           <div style={{ fontSize: 26, marginBottom: 10 }}>✦</div>
-          <p style={{ color: "#4ECDC4", fontSize: 15, fontWeight: 700, margin: 0 }}>All suggestions resolved</p>
+          <p style={{ color: t.accent, fontSize: 15, fontWeight: 700, margin: 0 }}>All suggestions resolved</p>
           <p style={{ color: "#555", fontSize: 12, margin: "6px 0 0" }}>Re-analyze to check again</p>
         </div>
       )}
@@ -394,6 +352,7 @@ export default function RefineView({ apiKey, entries, setEntries, links, addLink
                           onChange={e => setEditValue(e.target.value)}
                           onKeyDown={e => { if (e.key === "Enter" && editValue.trim()) applyLink(s, editValue.trim()); if (e.key === "Escape") setEditingKey(null); }}
                           placeholder="relationship…"
+                          maxLength={50}
                           style={{ width: 90, padding: "5px 8px", background: "#0f0f23", border: `1px solid ${meta.color}50`, borderRadius: 6, color: "#ddd", fontSize: 11, outline: "none", fontFamily: "inherit", textAlign: "center" }}
                         />
                       ) : (
@@ -417,14 +376,14 @@ export default function RefineView({ apiKey, entries, setEntries, links, addLink
                   <div style={{ display: "flex", gap: 8 }}>
                     {isEdit ? (
                       <>
-                        <button onClick={() => setEditingKey(null)} style={{ flex: 1, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#777", fontSize: 12, cursor: "pointer" }}>Cancel</button>
-                        <button onClick={() => editValue.trim() && applyLink(s, editValue.trim())} disabled={!editValue.trim() || busy} style={{ flex: 2, padding: "9px 0", background: editValue.trim() && !busy ? "linear-gradient(135deg, #96CEB4, #4ECDC4)" : "#252540", border: "none", borderRadius: 8, color: editValue.trim() && !busy ? "#0f0f23" : "#444", fontSize: 12, fontWeight: 700, cursor: editValue.trim() && !busy ? "pointer" : "default" }}>Apply</button>
+                        <button onClick={() => setEditingKey(null)} style={{ flex: 1, minHeight: 44, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#777", fontSize: 12, cursor: "pointer" }}>Cancel</button>
+                        <button onClick={() => editValue.trim() && applyLink(s, editValue.trim())} disabled={!editValue.trim() || busy} style={{ flex: 2, minHeight: 44, padding: "9px 0", background: editValue.trim() && !busy ? `linear-gradient(135deg, #96CEB4, ${t.accent})` : "#252540", border: "none", borderRadius: 8, color: editValue.trim() && !busy ? "#0f0f23" : "#444", fontSize: 12, fontWeight: 700, cursor: editValue.trim() && !busy ? "pointer" : "default" }}>Apply</button>
                       </>
                     ) : (
                       <>
-                        <button onClick={() => reject(key)} disabled={busy} style={{ flex: 1, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FF6B35", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✗ Reject</button>
-                        <button onClick={() => { setEditingKey(key); setEditValue(s.rel); }} disabled={busy} style={{ flex: 1, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FFEAA7", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✎ Edit</button>
-                        <button onClick={() => applyLink(s)} disabled={busy} style={{ flex: 2, padding: "9px 0", background: busy ? "#252540" : "linear-gradient(135deg, #96CEB4, #4ECDC4)", border: "none", borderRadius: 8, color: busy ? "#444" : "#0f0f23", fontSize: 12, fontWeight: 700, cursor: busy ? "default" : "pointer" }}>
+                        <button onClick={() => reject(key)} disabled={busy} style={{ flex: 1, minHeight: 44, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FF6B35", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✗ Reject</button>
+                        <button onClick={() => { setEditingKey(key); setEditValue(s.rel); }} disabled={busy} style={{ flex: 1, minHeight: 44, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FFEAA7", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✎ Edit</button>
+                        <button onClick={() => applyLink(s)} disabled={busy} style={{ flex: 2, minHeight: 44, padding: "9px 0", background: busy ? "#252540" : `linear-gradient(135deg, #96CEB4, ${t.accent})`, border: "none", borderRadius: 8, color: busy ? "#444" : "#0f0f23", fontSize: 12, fontWeight: 700, cursor: busy ? "default" : "pointer" }}>
                           {busy ? "Saving…" : "✓ Accept"}
                         </button>
                       </>
@@ -452,8 +411,8 @@ export default function RefineView({ apiKey, entries, setEntries, links, addLink
                       </div>
                     </div>
                     <span style={{ color: "#444", fontSize: 14, alignSelf: "center", flexShrink: 0 }}>→</span>
-                    <div style={{ flex: 1, background: "#4ECDC410", border: "1px solid #4ECDC425", borderRadius: 8, padding: "8px 12px" }}>
-                      <div style={{ fontSize: 9, color: "#4ECDC4", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>Suggested</div>
+                    <div style={{ flex: 1, background: t.accentLight, border: `1px solid ${t.accentBorder}`, borderRadius: 8, padding: "8px 12px" }}>
+                      <div style={{ fontSize: 9, color: t.accent, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>Suggested</div>
                       <div style={{ fontSize: 12, color: "#ddd", wordBreak: "break-all", lineHeight: 1.4 }}>{s.suggestedValue}</div>
                     </div>
                   </div>
@@ -466,6 +425,7 @@ export default function RefineView({ apiKey, entries, setEntries, links, addLink
                       value={editValue}
                       onChange={e => setEditValue(e.target.value)}
                       onKeyDown={e => { if (e.key === "Enter" && editValue.trim()) applyEntry(s, editValue.trim()); if (e.key === "Escape") setEditingKey(null); }}
+                      maxLength={50}
                       style={{ width: "100%", boxSizing: "border-box", padding: "10px 14px", marginBottom: 10, background: "#0f0f23", border: `1px solid ${meta.color}50`, borderRadius: 8, color: "#ddd", fontSize: 13, outline: "none", fontFamily: "inherit" }}
                     />
                   )}
@@ -473,14 +433,14 @@ export default function RefineView({ apiKey, entries, setEntries, links, addLink
                   <div style={{ display: "flex", gap: 8 }}>
                     {isEdit ? (
                       <>
-                        <button onClick={() => setEditingKey(null)} style={{ flex: 1, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#777", fontSize: 12, cursor: "pointer" }}>Cancel</button>
-                        <button onClick={() => editValue.trim() && applyEntry(s, editValue.trim())} disabled={!editValue.trim() || busy} style={{ flex: 2, padding: "9px 0", background: editValue.trim() && !busy ? "linear-gradient(135deg, #4ECDC4, #45B7D1)" : "#252540", border: "none", borderRadius: 8, color: editValue.trim() && !busy ? "#0f0f23" : "#444", fontSize: 12, fontWeight: 700, cursor: editValue.trim() && !busy ? "pointer" : "default" }}>Apply</button>
+                        <button onClick={() => setEditingKey(null)} style={{ flex: 1, minHeight: 44, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#777", fontSize: 12, cursor: "pointer" }}>Cancel</button>
+                        <button onClick={() => editValue.trim() && applyEntry(s, editValue.trim())} disabled={!editValue.trim() || busy} style={{ flex: 2, minHeight: 44, padding: "9px 0", background: editValue.trim() && !busy ? `linear-gradient(135deg, ${t.accent}, #45B7D1)` : "#252540", border: "none", borderRadius: 8, color: editValue.trim() && !busy ? "#0f0f23" : "#444", fontSize: 12, fontWeight: 700, cursor: editValue.trim() && !busy ? "pointer" : "default" }}>Apply</button>
                       </>
                     ) : (
                       <>
-                        <button onClick={() => reject(key)} disabled={busy} style={{ flex: 1, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FF6B35", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✗ Reject</button>
-                        <button onClick={() => { setEditingKey(key); setEditValue(s.suggestedValue); }} disabled={busy} style={{ flex: 1, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FFEAA7", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✎ Edit</button>
-                        <button onClick={() => applyEntry(s)} disabled={busy} style={{ flex: 2, padding: "9px 0", background: busy ? "#252540" : "linear-gradient(135deg, #4ECDC4, #45B7D1)", border: "none", borderRadius: 8, color: busy ? "#444" : "#0f0f23", fontSize: 12, fontWeight: 700, cursor: busy ? "default" : "pointer" }}>
+                        <button onClick={() => reject(key)} disabled={busy} style={{ flex: 1, minHeight: 44, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FF6B35", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✗ Reject</button>
+                        <button onClick={() => { setEditingKey(key); setEditValue(s.suggestedValue); }} disabled={busy} style={{ flex: 1, minHeight: 44, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FFEAA7", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✎ Edit</button>
+                        <button onClick={() => applyEntry(s)} disabled={busy} style={{ flex: 2, minHeight: 44, padding: "9px 0", background: busy ? "#252540" : `linear-gradient(135deg, ${t.accent}, #45B7D1)`, border: "none", borderRadius: 8, color: busy ? "#444" : "#0f0f23", fontSize: 12, fontWeight: 700, cursor: busy ? "default" : "pointer" }}>
                           {busy ? "Saving…" : "✓ Accept"}
                         </button>
                       </>
@@ -495,3 +455,17 @@ export default function RefineView({ apiKey, entries, setEntries, links, addLink
     </div>
   );
 }
+
+RefineView.propTypes = {
+  entries: PropTypes.array.isRequired,
+  setEntries: PropTypes.func.isRequired,
+  links: PropTypes.array,
+  addLinks: PropTypes.func,
+  activeBrain: PropTypes.object,
+  brains: PropTypes.array,
+  onSwitchBrain: PropTypes.func,
+};
+
+RefineView.defaultProps = {
+  brains: [],
+};

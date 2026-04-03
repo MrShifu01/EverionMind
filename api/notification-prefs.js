@@ -32,6 +32,34 @@ export default async function handler(req, res) {
 
   // POST — upsert prefs (partial update)
   if (req.method === "POST") {
+    // Validate daily_time format if provided
+    if (req.body.daily_time !== undefined && !/^([01]\d|2[0-3]):[0-5]\d$/.test(req.body.daily_time)) {
+      return res.status(400).json({ error: "daily_time must be in HH:MM format" });
+    }
+
+    // Validate daily_timezone is a valid Intl timezone if provided
+    if (req.body.daily_timezone !== undefined) {
+      try {
+        Intl.DateTimeFormat(undefined, { timeZone: req.body.daily_timezone });
+      } catch {
+        return res.status(400).json({ error: "Invalid timezone" });
+      }
+    }
+
+    // Validate nudge_time format if provided
+    if (req.body.nudge_time !== undefined && !/^([01]\d|2[0-3]):[0-5]\d$/.test(req.body.nudge_time)) {
+      return res.status(400).json({ error: "nudge_time must be in HH:MM format" });
+    }
+
+    // Validate nudge_timezone is a valid Intl timezone if provided
+    if (req.body.nudge_timezone !== undefined) {
+      try {
+        Intl.DateTimeFormat(undefined, { timeZone: req.body.nudge_timezone });
+      } catch {
+        return res.status(400).json({ error: "Invalid timezone" });
+      }
+    }
+
     const updates = { user_id: user.id, updated_at: new Date().toISOString() };
     for (const k of ALLOWED_FIELDS) {
       if (k in req.body) updates[k] = req.body[k];

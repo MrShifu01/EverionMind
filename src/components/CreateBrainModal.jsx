@@ -1,4 +1,5 @@
 import { useState } from "react";
+import PropTypes from "prop-types";
 import { authFetch } from "../lib/authFetch";
 
 /**
@@ -49,7 +50,7 @@ export default function CreateBrainModal({ onClose, onCreate }) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ brain_id: brain.id, email: invite.email, role: invite.role }),
-        }).catch(() => {}); // Non-fatal
+        }).catch(err => console.error('[CreateBrainModal:invite] Failed to send invite', err)); // Non-fatal
       }
 
       await onCreate(brain, brainType);
@@ -187,6 +188,11 @@ export default function CreateBrainModal({ onClose, onCreate }) {
     </div>
   );
 }
+
+CreateBrainModal.propTypes = {
+  onClose: PropTypes.func.isRequired,
+  onCreate: PropTypes.func.isRequired,
+};
 
 const labelStyle = {
   display: "block",

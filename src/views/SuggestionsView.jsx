@@ -1,10 +1,13 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import PropTypes from "prop-types";
 import { authFetch } from "../lib/authFetch";
+import { callAI } from "../lib/ai";
 import { SUGGESTIONS } from "../data/personalSuggestions";
 import { FAMILY_SUGGESTIONS } from "../data/familySuggestions";
 import { BUSINESS_SUGGESTIONS } from "../data/businessSuggestions";
 import { TC, PC, MODEL } from "../data/constants";
 import { useTheme } from "../ThemeContext";
+import { PROMPTS } from "../config/prompts";
 
 /* ─── Brain-type → question set ─── */
 function getSuggestionsForType(type) {
@@ -20,7 +23,7 @@ const BRAIN_META = {
   business: { emoji: "🏪", label: "Business" },
 };
 
-export default function SuggestionsView({ apiKey, sbKey, entries, setEntries, activeBrain, brains }) {
+export default function SuggestionsView({ entries, setEntries, activeBrain, brains }) {
   const { t } = useTheme();
 
   // Multi-select: which brains to pull questions from (default = [activeBrain])
@@ -123,11 +126,11 @@ export default function SuggestionsView({ apiKey, sbKey, entries, setEntries, ac
 
   const total = view.length;
   const poolEmpty = total === 0;
-  const isAiSlot = !!apiKey && (poolEmpty || position % 5 === 4);
+  const isAiSlot = poolEmpty || position % 5 === 4;
   const current = isAiSlot ? (aiLoading ? null : aiQuestion) : view[idx % total];
 
   useEffect(() => {
-    if (!isAiSlot || aiQuestion || aiLoading || !apiKey) return;
+    if (!isAiSlot || aiQuestion || aiLoading) return;
     setAiLoading(true);
     const ctx = entries.slice(0, 30).map(e => `- ${e.title}: ${(e.content || "").slice(0, 100)}`).join("\n");
     const brainContext = brainType === "family"
@@ -135,13 +138,10 @@ export default function SuggestionsView({ apiKey, sbKey, entries, setEntries, ac
       : brainType === "business"
       ? "business knowledge base (suppliers, staff, SOPs, costs, licences, equipment)"
       : "personal knowledge base";
-    authFetch("/api/anthropic", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: MODEL, max_tokens: 200,
-        system: `You are helping someone build their ${brainContext} called OpenBrain. Identify important information they should capture but haven't yet. Study the gaps — important facts, records, contacts, plans that are missing. Generate ONE specific, actionable question relevant to this brain type. Return ONLY valid JSON: {"q":"...","cat":"...","p":"high"|"medium"|"low"}`,
-        messages: [{ role: "user", content: `What they have captured so far:\n${ctx}\n\nWhat important gap should they fill next?` }]
-      })
+    callAI({
+      max_tokens: 200,
+      system: PROMPTS.FILL_BRAIN.replace("{{BRAIN_CONTEXT}}", brainContext),
+      messages: [{ role: "user", content: `What they have captured so far:\n${ctx}\n\nWhat important gap should they fill next?` }]
     })
       .then(r => r.json())
       .then(data => {
@@ -152,7 +152,7 @@ export default function SuggestionsView({ apiKey, sbKey, entries, setEntries, ac
       })
       .catch(() => setAiQuestion({ q: "What's one important thing you haven't captured yet?", cat: "✨ AI", p: "medium", ai: true }))
       .finally(() => setAiLoading(false));
-  }, [isAiSlot, aiQuestion, aiLoading, apiKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isAiSlot, aiQuestion, aiLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -204,41 +204,34 @@ export default function SuggestionsView({ apiKey, sbKey, entries, setEntries, ac
     if (!answer.trim()) return;
     const a = answer.trim();
     setSaving(true);
-    if (apiKey && sbKey) {
-      try {
-        const res = await authFetch("/api/anthropic", {
-          method: "POST", headers: { "Content-Type": "application/json" },
+    try {
+      const res = await callAI({
+        max_tokens: 800,
+        system: PROMPTS.QA_PARSE,
+        messages: [{ role: "user", content: `Question: ${current.q}\nAnswer: ${a}` }]
+      });
+      const data = await res.json();
+      let parsed = {};
+      try { parsed = JSON.parse((data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim()); } catch {}
+      if (parsed.title) {
+        const rpcRes = await authFetch("/api/capture", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            model: MODEL, max_tokens: 800,
-            system: `Parse this Q&A into a structured entry. Return ONLY valid JSON:\n{"title":"...","content":"...","type":"note|person|place|idea|contact|document|reminder|color|decision","metadata":{},"tags":[]}`,
-            messages: [{ role: "user", content: `Question: ${current.q}\nAnswer: ${a}` }]
+            p_title: parsed.title,
+            p_content: parsed.content || a,
+            p_type: parsed.type || "note",
+            p_metadata: parsed.metadata || {},
+            p_tags: parsed.tags || [],
+            p_brain_id: targetBrain?.id,
           })
         });
-        const data = await res.json();
-        let parsed = {};
-        try { parsed = JSON.parse((data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim()); } catch {}
-        if (parsed.title) {
-          const rpcRes = await authFetch("/api/capture", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              p_title: parsed.title,
-              p_content: parsed.content || a,
-              p_type: parsed.type || "note",
-              p_metadata: parsed.metadata || {},
-              p_tags: parsed.tags || [],
-              p_brain_id: targetBrain?.id,
-            })
-          });
-          const savedToDB = rpcRes.ok;
-          const newEntry = { id: Date.now().toString(), ...parsed, pinned: false, importance: 0, tags: parsed.tags || [], created_at: new Date().toISOString() };
-          setEntries(prev => [newEntry, ...prev]);
-          setSaved(prev => [{ q: current.q, a, cat: current.cat, db: savedToDB, brain: targetBrain }, ...prev]);
-        }
-      } catch {
-        setSaved(prev => [{ q: current.q, a, cat: current.cat, db: false, brain: targetBrain }, ...prev]);
+        const savedToDB = rpcRes.ok;
+        const newEntry = { id: Date.now().toString(), ...parsed, pinned: false, importance: 0, tags: parsed.tags || [], created_at: new Date().toISOString() };
+        setEntries(prev => [newEntry, ...prev]);
+        setSaved(prev => [{ q: current.q, a, cat: current.cat, db: savedToDB, brain: targetBrain }, ...prev]);
       }
-    } else {
+    } catch {
       setSaved(prev => [{ q: current.q, a, cat: current.cat, db: false, brain: targetBrain }, ...prev]);
     }
 
@@ -264,7 +257,7 @@ export default function SuggestionsView({ apiKey, sbKey, entries, setEntries, ac
 
   const copyAll = () => {
     const text = saved.map(s => `**${s.cat}**\nQ: ${s.q}\nA: ${s.a}`).join("\n\n---\n\n");
-    navigator.clipboard.writeText(text).catch(() => {});
+    navigator.clipboard.writeText(text).catch(err => console.error('[SuggestionsView:copyAll] Failed to copy text', err));
   };
 
   const pc = current ? PC[current.p] : PC.medium;
@@ -383,7 +376,7 @@ export default function SuggestionsView({ apiKey, sbKey, entries, setEntries, ac
             <button onClick={() => { setSkipped(s => s + 1); next("skip"); }} style={{ flex: 1, padding: 12, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, color: "#FF6B35", fontSize: 13, cursor: "pointer" }}>Skip</button>
             <button onClick={() => imgRef.current?.click()} disabled={imgLoading || saving} title="Upload photo" style={{ padding: 12, background: t.surface, border: "1px solid #4ECDC440", borderRadius: 10, color: imgLoading ? t.textDim : "#4ECDC4", cursor: imgLoading || saving ? "default" : "pointer", fontSize: 14 }}>📷</button>
             <button onClick={handleSave} disabled={!answer.trim() || saving || imgLoading} style={{ flex: 2, padding: 12, background: answer.trim() && !imgLoading ? "linear-gradient(135deg, #4ECDC4, #45B7D1)" : t.surface, border: "none", borderRadius: 10, color: answer.trim() && !imgLoading ? "#0f0f23" : t.textDim, fontSize: 13, fontWeight: 700, cursor: answer.trim() && !imgLoading ? "pointer" : "default" }}>
-              {saving ? "Saving..." : imgLoading ? "Reading photo..." : apiKey && sbKey ? `Save to ${bm.emoji} ${targetBrain?.name || bm.label}` : "Save Answer"}
+              {saving ? "Saving..." : imgLoading ? "Reading photo..." : `Save to ${bm.emoji} ${targetBrain?.name || bm.label}`}
             </button>
           </div>
         </div>
@@ -410,3 +403,10 @@ export default function SuggestionsView({ apiKey, sbKey, entries, setEntries, ac
     </div>
   );
 }
+
+SuggestionsView.propTypes = {
+  entries: PropTypes.array.isRequired,
+  setEntries: PropTypes.func.isRequired,
+  activeBrain: PropTypes.object,
+  brains: PropTypes.array,
+};

@@ -21,6 +21,19 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Invalid type" });
   }
 
+  if (p_extra_brain_ids !== undefined && p_extra_brain_ids !== null) {
+    if (!Array.isArray(p_extra_brain_ids)) {
+      return res.status(400).json({ error: "p_extra_brain_ids must be an array" });
+    }
+    if (p_extra_brain_ids.length > 5) {
+      return res.status(400).json({ error: "p_extra_brain_ids max 5 items" });
+    }
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!p_extra_brain_ids.every(id => typeof id === 'string' && uuidRe.test(id))) {
+      return res.status(400).json({ error: "p_extra_brain_ids must contain valid UUIDs" });
+    }
+  }
+
   const safeBody = {
     p_title: p_title.trim().slice(0, 500),
     p_content: p_content ? String(p_content).slice(0, 10000) : "",
@@ -30,6 +43,27 @@ export default async function handler(req, res) {
     p_user_id: user.id,
     ...(p_brain_id && typeof p_brain_id === "string" ? { p_brain_id } : {}),
   };
+
+  // Verify user is a member/owner of each extra brain before inserting
+  if (Array.isArray(p_extra_brain_ids) && p_extra_brain_ids.length > 0) {
+    const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const sbHdrs = {
+      "Content-Type": "application/json",
+      "apikey": sbKey,
+      "Authorization": `Bearer ${sbKey}`,
+    };
+    for (const brainId of p_extra_brain_ids) {
+      if (typeof brainId !== "string") continue;
+      const memberRes = await fetch(
+        `${SB_URL}/rest/v1/brain_members?brain_id=eq.${encodeURIComponent(brainId)}&user_id=eq.${encodeURIComponent(user.id)}&select=role`,
+        { headers: sbHdrs }
+      );
+      const members = memberRes.ok ? await memberRes.json() : [];
+      if (!members.length) {
+        return res.status(403).json({ error: `Not a member of brain ${brainId}` });
+      }
+    }
+  }
 
   const response = await fetch(`${SB_URL}/rest/v1/rpc/capture`, {
     method: "POST",
@@ -42,6 +76,25 @@ export default async function handler(req, res) {
   });
 
   const data = await response.json();
+
+  // SEC-14: Fire-and-forget audit log write to Supabase
+  if (response.ok && data?.id) {
+    fetch(`${SB_URL}/rest/v1/audit_log`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': process.env.SUPABASE_SERVICE_ROLE_KEY,
+        'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({
+        user_id: user.id,
+        action: 'entry_capture',
+        resource_id: data.id,
+        timestamp: new Date().toISOString(),
+      }),
+    }).catch(() => {}); // best-effort, never blocks
+  }
 
   // If extra brain IDs provided, share the entry into those brains via entry_brains
   if (response.ok && data?.id && Array.isArray(p_extra_brain_ids) && p_extra_brain_ids.length > 0) {
@@ -57,7 +110,7 @@ export default async function handler(req, res) {
           "Prefer": "resolution=ignore-duplicates",
         },
         body: JSON.stringify(rows),
-      }).catch(() => {}); // Non-fatal — fire and forget
+      }).catch(err => console.error('[capture:entry_brains] Failed to share entry to extra brains', err)); // Non-fatal — fire and forget
     }
   }
 

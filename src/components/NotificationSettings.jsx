@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import PropTypes from "prop-types";
 import { useTheme } from "../ThemeContext";
 import { authFetch } from "../lib/authFetch";
 
@@ -54,7 +55,7 @@ export default function NotificationSettings() {
       navigator.serviceWorker.ready
         .then(reg => reg.pushManager.getSubscription())
         .then(sub => setSubscription(sub))
-        .catch(() => {});
+        .catch(err => console.error('[NotificationSettings] Failed to get push subscription', err));
     }
   }, []);
 
@@ -199,11 +200,11 @@ export default function NotificationSettings() {
               </p>
             </div>
             {subscription ? (
-              <button onClick={handleDisable} style={{ ...toggle(false), color: "#FF6B35", outline: "1px solid #FF6B3540" }}>
+              <button onClick={handleDisable} aria-pressed={true} style={{ ...toggle(false), color: "#FF6B35", outline: "1px solid #FF6B3540" }}>
                 Disable
               </button>
             ) : (
-              <button onClick={handleEnable} style={toggle(true)}>
+              <button onClick={handleEnable} aria-pressed={false} style={toggle(true)}>
                 Enable
               </button>
             )}
@@ -221,7 +222,7 @@ export default function NotificationSettings() {
                 <p style={label}>Daily Capture Prompt</p>
                 <p style={{ ...sub, margin: 0 }}>A nightly nudge to capture what's worth remembering.</p>
               </div>
-              <button onClick={() => savePref({ daily_enabled: !prefs.daily_enabled })} style={toggle(prefs.daily_enabled)}>
+              <button onClick={() => savePref({ daily_enabled: !prefs.daily_enabled })} aria-pressed={prefs.daily_enabled} style={toggle(prefs.daily_enabled)}>
                 {prefs.daily_enabled ? "On" : "Off"}
               </button>
             </div>
@@ -252,7 +253,7 @@ export default function NotificationSettings() {
                 <p style={label}>Fill Brain Nudge</p>
                 <p style={{ ...sub, margin: 0 }}>Weekly reminder to answer questions in Fill Brain.</p>
               </div>
-              <button onClick={() => savePref({ nudge_enabled: !prefs.nudge_enabled })} style={toggle(prefs.nudge_enabled)}>
+              <button onClick={() => savePref({ nudge_enabled: !prefs.nudge_enabled })} aria-pressed={prefs.nudge_enabled} style={toggle(prefs.nudge_enabled)}>
                 {prefs.nudge_enabled ? "On" : "Off"}
               </button>
             </div>
@@ -289,7 +290,7 @@ export default function NotificationSettings() {
                 <p style={label}>Expiry Reminders</p>
                 <p style={{ ...sub, margin: 0 }}>Alerts before passport, licence, insurance expire.</p>
               </div>
-              <button onClick={() => savePref({ expiry_enabled: !prefs.expiry_enabled })} style={toggle(prefs.expiry_enabled)}>
+              <button onClick={() => savePref({ expiry_enabled: !prefs.expiry_enabled })} aria-pressed={prefs.expiry_enabled} style={toggle(prefs.expiry_enabled)}>
                 {prefs.expiry_enabled ? "On" : "Off"}
               </button>
             </div>
@@ -303,6 +304,7 @@ export default function NotificationSettings() {
                       <button
                         key={day}
                         onClick={() => toggleLeadDay(day)}
+                        aria-pressed={active}
                         style={{
                           padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 700,
                           cursor: "pointer", border: "none",

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import PropTypes from "prop-types";
 import CreateBrainModal from "./CreateBrainModal";
 
 /**
@@ -18,6 +19,14 @@ export default function BrainSwitcher({ brains, activeBrain, onSwitch, onBrainCr
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, []);
+
+  // UX-4: Close dropdown on Escape key
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [open]);
 
   const personalBrains = brains.filter(b => b.type === "personal");
   const sharedBrains = brains.filter(b => b.type !== "personal");
@@ -147,6 +156,15 @@ export default function BrainSwitcher({ brains, activeBrain, onSwitch, onBrainCr
   );
 }
 
+BrainSwitcher.propTypes = {
+  brains: PropTypes.array.isRequired,
+  activeBrain: PropTypes.object,
+  onSwitch: PropTypes.func.isRequired,
+  onBrainCreated: PropTypes.func.isRequired,
+  onBrainDeleted: PropTypes.func.isRequired,
+  onBrainTip: PropTypes.func,
+};
+
 function BrainItem({ brain, active, onSelect, emoji, role, canDelete, onDelete }) {
   const [hovered, setHovered] = useState(false);
 
@@ -180,6 +198,7 @@ function BrainItem({ brain, active, onSelect, emoji, role, canDelete, onDelete }
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
           title="Delete brain"
+          aria-label="Delete brain"
           style={{
             background: "none", border: "none", color: "#f87171",
             cursor: "pointer", fontSize: 13, padding: "0 2px", lineHeight: 1,

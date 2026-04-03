@@ -2,6 +2,9 @@ import { verifyAuth } from "./_lib/verifyAuth.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 
+// SEC-15: Whitelist allowed rel values
+const ALLOWED_RELS = ['related', 'mentions', 'links-to', 'contradicts'];
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
@@ -11,9 +14,22 @@ export default async function handler(req, res) {
   const { links, brain_id } = req.body;
   if (!Array.isArray(links)) return res.status(400).json({ error: "links must be an array" });
 
-  // Validate link structure
-  const valid = links.filter(l => l.from && l.to && l.rel && typeof l.from === "string" && typeof l.to === "string" && typeof l.rel === "string");
-  if (valid.length === 0) return res.status(400).json({ error: "No valid links" });
+  // Validate link structure and rel whitelist
+  const valid = links.filter(l => {
+    if (!l.from || !l.to || !l.rel) return false;
+    if (typeof l.from !== "string" || typeof l.to !== "string" || typeof l.rel !== "string") return false;
+    if (!ALLOWED_RELS.includes(l.rel)) return false;
+    return true;
+  });
+
+  if (valid.length === 0) {
+    // Check if links had invalid rel values
+    const hasInvalidRel = links.some(l => l.rel && !ALLOWED_RELS.includes(l.rel));
+    if (hasInvalidRel) {
+      return res.status(400).json({ error: `rel must be one of: ${ALLOWED_RELS.join(', ')}` });
+    }
+    return res.status(400).json({ error: "No valid links" });
+  }
 
   // Upsert links — store as a JSON column on user profile or a dedicated table
   // For now, store in a simple key-value approach using entries metadata

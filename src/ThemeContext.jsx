@@ -11,6 +11,11 @@ export const DARK = {
   textMuted: "#999",
   textDim: "#777",
   textFaint: "#555",
+  accent: "#4ECDC4",
+  accentLight: "#4ECDC415",
+  accentBorder: "#4ECDC440",
+  error: '#FF6B6B',
+  success: '#51CF66',
 };
 
 export const LIGHT = {
@@ -24,6 +29,11 @@ export const LIGHT = {
   textMuted: "#7070a0",
   textDim: "#8888a8",
   textFaint: "#9a9ab8",
+  accent: "#4ECDC4",
+  accentLight: "#4ECDC415",
+  accentBorder: "#4ECDC440",
+  error: '#FF6B6B',
+  success: '#51CF66',
 };
 
 const ThemeCtx = createContext({ t: DARK, isDark: true, toggleTheme: () => {} });

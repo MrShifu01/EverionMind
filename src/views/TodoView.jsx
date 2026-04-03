@@ -1,4 +1,5 @@
 import { useState } from "react";
+import PropTypes from "prop-types";
 import { PC } from "../data/constants";
 import { useTheme } from "../ThemeContext";
 
@@ -9,8 +10,17 @@ export default function TodoView() {
   });
   const [input, setInput] = useState("");
   const [priority, setPriority] = useState("medium");
+  const [storageError, setStorageError] = useState(null);
 
-  const persist = (updated) => { setTodos(updated); try { localStorage.setItem("openbrain_todos", JSON.stringify(updated)); } catch {} };
+  const persist = (updated) => {
+    setTodos(updated);
+    try {
+      localStorage.setItem("openbrain_todos", JSON.stringify(updated));
+    } catch (err) {
+      setStorageError("Could not save tasks — storage may be full or blocked.");
+      setTimeout(() => setStorageError(null), 5000);
+    }
+  };
   const add = () => { if (!input.trim()) return; persist([{ id: Date.now().toString(), text: input.trim(), done: false, priority, created_at: new Date().toISOString() }, ...todos]); setInput(""); };
   const toggle = (id) => persist(todos.map(todo => todo.id === id ? { ...todo, done: !todo.done } : todo));
   const remove = (id) => persist(todos.filter(todo => todo.id !== id));
@@ -25,6 +35,12 @@ export default function TodoView() {
         <span style={{ fontSize: 13 }}>🔌</span>
         <span style={{ fontSize: 11, color: "#A29BFE", lineHeight: 1.5 }}>Future: auto-populated from POS, Gmail, Calendar &amp; more — see <code style={{ color: "#4ECDC4", fontSize: 10 }}>.planning/roadmap/integrations.md</code></span>
       </div>
+
+      {storageError && (
+        <div role="alert" style={{ background: "#FF6B3515", border: "1px solid #FF6B3540", borderRadius: 8, padding: "10px 14px", marginBottom: 12, fontSize: 12, color: "#FF6B35" }}>
+          ⚠ {storageError}
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
         <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && add()}
@@ -46,10 +62,10 @@ export default function TodoView() {
         const pc = PC[todo.priority] || PC.medium;
         return (
           <div key={todo.id} style={{ display: "flex", alignItems: "center", gap: 12, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, padding: "12px 16px", marginBottom: 8 }}>
-            <button onClick={() => toggle(todo.id)} style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${pc.c}`, background: "transparent", cursor: "pointer", flexShrink: 0 }} />
+            <button onClick={() => toggle(todo.id)} aria-label="Mark task complete" style={{ minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: 6, border: `2px solid ${pc.c}`, background: "transparent", cursor: "pointer", flexShrink: 0 }} />
             <p style={{ margin: 0, fontSize: 14, color: t.textSoft, flex: 1, lineHeight: 1.4 }}>{todo.text}</p>
             <span style={{ fontSize: 9, background: pc.bg, color: pc.c, padding: "2px 8px", borderRadius: 20, fontWeight: 700, flexShrink: 0 }}>{pc.l}</span>
-            <button onClick={() => remove(todo.id)} style={{ background: "transparent", border: "none", color: t.textDim, cursor: "pointer", fontSize: 20, padding: 0, lineHeight: 1, flexShrink: 0 }}>×</button>
+            <button onClick={() => remove(todo.id)} aria-label="Delete task" style={{ minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", color: t.textDim, cursor: "pointer", fontSize: 20, padding: 0, lineHeight: 1, flexShrink: 0 }}>×</button>
           </div>
         );
       })}
@@ -59,9 +75,9 @@ export default function TodoView() {
           <p style={{ fontSize: 11, color: t.textFaint, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 12 }}>Done ({done.length})</p>
           {done.map(todo => (
             <div key={todo.id} style={{ display: "flex", alignItems: "center", gap: 12, border: `1px solid ${t.border}`, borderRadius: 10, padding: "10px 16px", marginBottom: 6, opacity: 0.45 }}>
-              <button onClick={() => toggle(todo.id)} style={{ width: 20, height: 20, borderRadius: 6, border: "2px solid #444", background: "#4ECDC4", cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#0f0f23" }}>✓</button>
+              <button onClick={() => toggle(todo.id)} aria-label="Mark task incomplete" style={{ minHeight: 44, minWidth: 44, width: 20, height: 20, borderRadius: 6, border: "2px solid #444", background: "#4ECDC4", cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#0f0f23" }}>✓</button>
               <p style={{ margin: 0, fontSize: 13, color: t.textDim, textDecoration: "line-through", flex: 1 }}>{todo.text}</p>
-              <button onClick={() => remove(todo.id)} style={{ background: "transparent", border: "none", color: t.textDim, cursor: "pointer", fontSize: 20, padding: 0, lineHeight: 1 }}>×</button>
+              <button onClick={() => remove(todo.id)} aria-label="Delete task" style={{ minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", color: t.textDim, cursor: "pointer", fontSize: 20, padding: 0, lineHeight: 1 }}>×</button>
             </div>
           ))}
         </div>

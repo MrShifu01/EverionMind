@@ -1,17 +1,25 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getAll, remove } from '../lib/offlineQueue';
+import { getAll, remove, enqueue } from '../lib/offlineQueue';
 import { authFetch } from '../lib/authFetch';
 
 const STALE_MS = 7 * 24 * 60 * 60 * 1000;
+// PERF-10: Max retries before permanently dropping a failed operation.
+const MAX_RETRIES = 3;
 
 export function useOfflineSync({ onEntryIdUpdate } = {}) {
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
   const drainingRef = useRef(false);
+  // PERF-7: debounce refreshCount so rapid successive calls (e.g. bulk enqueue)
+  // only trigger one IndexedDB read instead of one per call.
+  const refreshTimerRef = useRef(null);
 
-  const refreshCount = useCallback(async () => {
-    const ops = await getAll();
-    setPendingCount(ops.length);
+  const refreshCount = useCallback(() => {
+    clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(async () => {
+      const ops = await getAll();
+      setPendingCount(ops.length);
+    }, 300);
   }, []);
 
   const drain = useCallback(async () => {
@@ -26,10 +34,26 @@ export function useOfflineSync({ onEntryIdUpdate } = {}) {
           setPendingCount(c => Math.max(0, c - 1));
           continue;
         }
+
+        // PERF-10: Skip ops that are waiting for their next retry window.
+        if (op.nextRetryAt && op.nextRetryAt > Date.now()) continue;
+
         try {
           if (op.type === 'raw-capture') {
             const parseRes = await authFetch('/api/anthropic', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(op.anthropicRequest) });
-            if (!parseRes.ok) continue; // keep in queue, retry later
+            if (!parseRes.ok) {
+              // PERF-10: Increment retry count; drop after MAX_RETRIES.
+              const retryCount = (op.retryCount || 0) + 1;
+              if (retryCount > MAX_RETRIES) {
+                console.error('[offlineSync] Permanently dropping raw-capture op after max retries', op.id);
+                await remove(op.id);
+                setPendingCount(c => Math.max(0, c - 1));
+              } else {
+                await remove(op.id);
+                await enqueue({ ...op, retryCount, nextRetryAt: Date.now() + (Math.pow(2, retryCount) * 1000) });
+              }
+              continue;
+            }
             const data = await parseRes.json().catch(() => null);
             let parsed = {};
             try { parsed = JSON.parse((data?.content?.[0]?.text || '{}').replace(/```json|```/g, '').trim()); } catch {}
@@ -40,6 +64,17 @@ export function useOfflineSync({ onEntryIdUpdate } = {}) {
               if (result?.id && op.tempId) onEntryIdUpdate?.(op.tempId, result.id);
               await remove(op.id);
               setPendingCount(c => Math.max(0, c - 1));
+            } else {
+              // PERF-10: save failure — apply retry backoff.
+              const retryCount = (op.retryCount || 0) + 1;
+              if (retryCount > MAX_RETRIES) {
+                console.error('[offlineSync] Permanently dropping raw-capture save op after max retries', op.id);
+                await remove(op.id);
+                setPendingCount(c => Math.max(0, c - 1));
+              } else {
+                await remove(op.id);
+                await enqueue({ ...op, retryCount, nextRetryAt: Date.now() + (Math.pow(2, retryCount) * 1000) });
+              }
             }
           } else {
             const res = await authFetch(op.url, { method: op.method, headers: { 'Content-Type': 'application/json' }, body: op.body });
@@ -50,15 +85,35 @@ export function useOfflineSync({ onEntryIdUpdate } = {}) {
               }
               await remove(op.id);
               setPendingCount(c => Math.max(0, c - 1));
+            } else {
+              // PERF-10: non-2xx, non-404: apply exponential backoff retry.
+              const retryCount = (op.retryCount || 0) + 1;
+              if (retryCount > MAX_RETRIES) {
+                console.error('[offlineSync] Permanently dropping op after max retries', op.id, op.url);
+                await remove(op.id);
+                setPendingCount(c => Math.max(0, c - 1));
+              } else {
+                await remove(op.id);
+                await enqueue({ ...op, retryCount, nextRetryAt: Date.now() + (Math.pow(2, retryCount) * 1000) });
+              }
             }
           }
-          // non-404 failure: leave in queue, continue to next op
         } catch {
-          // network error: leave in queue
+          // PERF-10: network error — apply exponential backoff retry.
+          const retryCount = (op.retryCount || 0) + 1;
+          if (retryCount > MAX_RETRIES) {
+            console.error('[offlineSync] Permanently dropping op after max retries (network error)', op.id);
+            await remove(op.id);
+            setPendingCount(c => Math.max(0, c - 1));
+          } else {
+            try { await remove(op.id); await enqueue({ ...op, retryCount, nextRetryAt: Date.now() + (Math.pow(2, retryCount) * 1000) }); } catch {}
+          }
         }
       }
     } finally {
       drainingRef.current = false;
+      // Re-sync count from actual queue state after drain completes (bypass debounce)
+      getAll().then(remaining => setPendingCount(remaining.length));
     }
   }, [onEntryIdUpdate]);
 
