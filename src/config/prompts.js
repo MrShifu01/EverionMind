@@ -43,25 +43,25 @@ IMPORTANT: Do NOT suggest merging companies just because they have similar name 
   FILL_BRAIN: `You are helping someone build their {{BRAIN_CONTEXT}} called OpenBrain. Identify important information they should capture but haven't yet. Study the gaps — important facts, records, contacts, plans that are missing. Generate ONE specific, actionable question relevant to this brain type. Return ONLY valid JSON: {"q":"...","cat":"...","p":"high"|"medium"|"low"}`,
 
   /** RefineView: entry quality audit */
-  ENTRY_AUDIT: `You are a ruthlessly skeptical data quality auditor reviewing a personal knowledge base. Your bar is very high — only flag what is obviously, undeniably wrong. If there is any ambiguity, skip it.
+  ENTRY_AUDIT: `You are a thorough data quality auditor reviewing a personal knowledge base. You flag clear problems AND things that seem off but you're not sure about — the user will approve or reject every suggestion.
 
 Today's date: {{TODAY}}
 
-Identify these specific issues (nothing else):
-1. TYPE_MISMATCH — Entry is clearly the wrong type. Example: a named person saved as "note" should be "person"; a physical location saved as "note" should be "place"; a hard deadline saved as "note" should be "reminder". Skip if debatable.
-2. PHONE_FOUND — A phone number clearly appears in content/title but metadata.phone is missing or empty. Only flag if the number is complete and unambiguous.
-3. EMAIL_FOUND — An email address clearly appears in content/title but metadata.email is missing or empty.
-4. URL_FOUND — A full URL (https://...) clearly appears in content but metadata.url is missing.
-5. DATE_FOUND — A specific future deadline or due date is explicitly mentioned in content and not already in metadata.due_date. Only for actual deadlines, not historical dates.
-6. TITLE_POOR — Title is so vague it could describe anything (e.g. "Note", "Info", "Misc"). Very high bar — only if the title is genuinely useless.
-7. STALE_ENTRY — Entry is clearly outdated and should be marked as such. Examples:
-   - A reminder whose date has long passed and is clearly no longer relevant
-   - A task/decision that is clearly completed but not marked done
-   - An entry referencing something that has clearly expired (old subscription, ended contract, past event)
+Identify these issues:
+1. TYPE_MISMATCH — Entry seems like the wrong type. Example: a named person saved as "note" should be "person"; a physical location saved as "note" should be "place"; a hard deadline saved as "note" should be "reminder".
+2. PHONE_FOUND — A phone number appears in content/title but metadata.phone is missing or empty.
+3. EMAIL_FOUND — An email address appears in content/title but metadata.email is missing or empty.
+4. URL_FOUND — A URL (https://...) appears in content but metadata.url is missing.
+5. DATE_FOUND — A deadline or due date is mentioned in content and not already in metadata.due_date. Only for actual deadlines, not historical dates.
+6. TITLE_POOR — Title is vague or could be improved (e.g. "Note", "Info", "Misc", or just not descriptive enough).
+7. STALE_ENTRY — Entry appears outdated. Examples:
+   - A reminder whose date has long passed
+   - A task/decision that seems completed but not marked done
+   - An entry referencing something expired (old subscription, ended contract, past event)
    - For this type: field="metadata.status", suggestedValue="outdated" or "done"
-8. CONTENT_SPARSE — Entry has very little useful information and clearly needs more detail. The title alone is not enough — the content is empty, just repeats the title, or is too vague to be useful as a memory. Suggest what specific information is missing.
+8. CONTENT_SPARSE — Entry has little useful information and could benefit from more detail. The content is empty, just repeats the title, or is too vague to be useful as a memory.
    - For this type: field="content", suggestedValue="<current content + specific prompt for what's missing>" (max 200 chars)
-9. DATE_MISPLACED — A reference/historical date (date of birth, ID issue date, licence date, anniversary) is stored in an actionable date field like metadata.date, metadata.due_date, or metadata.event_date where it does NOT belong. These dates are records, not deadlines.
+9. DATE_MISPLACED — A reference/historical date (date of birth, ID issue date, licence date, anniversary) is stored in an actionable date field like metadata.date, metadata.due_date, or metadata.event_date where it does NOT belong. These are records, not deadlines.
    - For this type: field should be the CORRECT descriptive metadata key (e.g. "metadata.date_of_birth", "metadata.issue_date", "metadata.licence_date"), suggestedValue is the date string, and include which wrong field it's currently in within the reason.
 10. LIFE_CHANGE — Cross-entry pattern analysis: Look across ALL entries for signs of life changes that make older entries stale. Examples:
    - Two different employers mentioned → older job entries should be tagged as previous
@@ -69,17 +69,26 @@ Identify these specific issues (nothing else):
    - Old address when a newer one exists → mark old address as previous
    - Old phone number when a newer one exists for the same person
    - For this type: field="metadata.status", suggestedValue="previous" and explain the conflict in reason
+11. AI_QUESTION — Something looks off but you're not certain. Use this for anything ambiguous, questionable, or worth double-checking with the user. Examples:
+   - An entry that might be a duplicate of another
+   - A name that looks like it could be misspelled
+   - Content that seems contradictory or confusing
+   - An entry that might belong in a different workspace (business vs personal)
+   - A tag that seems wrong or missing
+   - Metadata that looks suspicious or possibly incorrect
+   - Anything you'd ask the user about if you could — now you can
+   - For this type: field is whichever field is questionable, currentValue is the current value, suggestedValue is your best guess at a fix (or "?" if you genuinely don't know), reason should be phrased as a question to the user
 
 Hard rules:
-- Only suggest if confidence > 90%
+- For clear issues (types 1-10): confidence > 70% — the user can always reject
+- For AI_QUESTION (type 11): confidence > 40% — when in doubt, ask. Better to surface something the user dismisses than to miss something important
 - Max 3 suggestions per entry
-- Skip entries that look complete and well-structured
 - For TYPE_MISMATCH: suggestedValue must be one of: note, reminder, document, contact, person, place, idea, color, decision, secret. Use "secret" for entries containing passwords, PINs, credit card numbers, bank details, or credentials
 - For DATE_FOUND: suggestedValue must be ISO date string YYYY-MM-DD
 - For LIFE_CHANGE: compare entries against each other — look for contradictions, superseded info, duplicates with different values
 - Return ONLY a valid JSON array, no markdown, no explanation
 
-Schema: [{"entryId":"...","entryTitle":"...","type":"TYPE_MISMATCH|PHONE_FOUND|EMAIL_FOUND|URL_FOUND|DATE_FOUND|TITLE_POOR|STALE_ENTRY|CONTENT_SPARSE|DATE_MISPLACED|LIFE_CHANGE","field":"...","currentValue":"...","suggestedValue":"...","reason":"max 90 chars"}]
+Schema: [{"entryId":"...","entryTitle":"...","type":"TYPE_MISMATCH|PHONE_FOUND|EMAIL_FOUND|URL_FOUND|DATE_FOUND|TITLE_POOR|STALE_ENTRY|CONTENT_SPARSE|DATE_MISPLACED|LIFE_CHANGE|AI_QUESTION","field":"...","currentValue":"...","suggestedValue":"...","reason":"max 90 chars"}]
 
 If nothing is wrong, return: []`,
 

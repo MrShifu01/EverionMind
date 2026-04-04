@@ -18,6 +18,7 @@ const LABELS = {
   CONTENT_SPARSE: { label: "Needs detail",    icon: "📝", color: "#74B9FF" },
   DATE_MISPLACED: { label: "Date fix",        icon: "📅", color: "#FDCB6E" },
   LIFE_CHANGE:    { label: "Life change",     icon: "🔀", color: "#E17055" },
+  AI_QUESTION:    { label: "Question",        icon: "❓", color: "#FDA7DF" },
   LINK_SUGGESTED: { label: "Relationship",    icon: "⟷",  color: "#96CEB4" },
 };
 
