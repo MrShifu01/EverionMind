@@ -1,4 +1,11 @@
-import { precacheAndRoute } from 'workbox-precaching';
+import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
+
+// Take control immediately when a new SW version is available
+self.skipWaiting();
+self.addEventListener('activate', () => self.clients.claim());
+
+// Remove old precaches from previous SW versions
+cleanupOutdatedCaches();
 
 // Injected by vite-plugin-pwa at build time
 precacheAndRoute(self.__WB_MANIFEST);
