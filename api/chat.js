@@ -43,7 +43,7 @@ LINKS:
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-  if (!rateLimit(req, 20)) return res.status(429).json({ error: "Too many requests" });
+  if (!(await rateLimit(req, 20))) return res.status(429).json({ error: "Too many requests" });
 
   const user = await verifyAuth(req);
   if (!user) return res.status(401).json({ error: "Unauthorized" });

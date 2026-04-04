@@ -7,7 +7,7 @@ const ENTRY_FIELDS = "id,title,content,type,tags,metadata,brain_id,importance,pi
 
 export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
-  if (!rateLimit(req, 60)) return res.status(429).json({ error: "Too many requests" });
+  if (!(await rateLimit(req, 60))) return res.status(429).json({ error: "Too many requests" });
 
   const user = await verifyAuth(req);
   if (!user) return res.status(401).json({ error: "Unauthorized" });

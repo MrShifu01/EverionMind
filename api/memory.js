@@ -8,7 +8,7 @@ const hdrs = (extra = {}) => ({ "Content-Type": "application/json", "apikey": SB
 const MAX_CHARS = 8000;
 
 export default async function handler(req, res) {
-  if (!rateLimit(req, 30)) return res.status(429).json({ error: "Too many requests" });
+  if (!(await rateLimit(req, 30))) return res.status(429).json({ error: "Too many requests" });
   const user = await verifyAuth(req);
   if (!user) return res.status(401).json({ error: "Unauthorized" });
 

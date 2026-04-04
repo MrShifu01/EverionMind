@@ -2,11 +2,10 @@ import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import PropTypes from "prop-types";
 import { useTheme } from "../ThemeContext";
 import { callAI } from "../lib/ai";
-import { aiFetch, getUserModel } from "../lib/aiFetch";
+import { aiFetch, getUserModel, getUserApiKey, getEmbedHeaders } from "../lib/aiFetch";
 import { authFetch } from "../lib/authFetch";
 import { enqueue } from "../lib/offlineQueue";
 import { findConnections, scoreTitle } from "../lib/connectionFinder";
-import { getEmbedHeaders } from "../lib/aiFetch";
 import { TC } from "../data/constants";
 import { PROMPTS } from "../config/prompts";
 
@@ -122,9 +121,13 @@ export default function QuickCapture({ entries, setEntries, links, addLinks, onC
     setLoading(false); setStatus(null);
   };
 
-  const startVoice = useCallback(() => {
+  // Whisper recording state
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+
+  const _startSpeechRecognitionFallback = useCallback(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { setText(t => t + " [Voice not supported in this browser]"); return; }
+    if (!SR) { setText(prev => prev + " [Voice not supported in this browser]"); return; }
     if (listening) { recognitionRef.current?.stop(); return; }
     const recognition = new SR();
     recognition.lang = "en-ZA";
@@ -145,6 +148,98 @@ export default function QuickCapture({ entries, setEntries, links, addLinks, onC
     recognition.start();
     setListening(true);
   }, [listening]);
+
+  // Stop an active MediaRecorder recording and send to Whisper
+  const stopWhisperRecording = useCallback(async () => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state === "inactive") return;
+
+    recorder.stop(); // triggers ondataavailable + onstop
+  }, []);
+
+  const startVoice = useCallback(async () => {
+    // If already recording with Whisper, stop
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      stopWhisperRecording();
+      return;
+    }
+    // If already using SpeechRecognition, stop
+    if (listening) { recognitionRef.current?.stop(); return; }
+
+    const openAIKey = getUserApiKey();
+    const hasWhisper = !!openAIKey;
+
+    if (!hasWhisper) {
+      // Fall back to browser SpeechRecognition
+      _startSpeechRecognitionFallback();
+      return;
+    }
+
+    // Use MediaRecorder + Whisper
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm")
+          ? "audio/webm"
+          : "audio/mp4";
+
+      const recorder = new MediaRecorder(stream, { mimeType });
+      audioChunksRef.current = [];
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop()); // release mic
+        setListening(false);
+
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        audioChunksRef.current = [];
+        mediaRecorderRef.current = null;
+
+        if (blob.size < 1000) return; // too short — skip
+
+        setLoading(true);
+        setStatus("thinking");
+        try {
+          const base64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result.split(",")[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+
+          const transcribeRes = await authFetch("/api/transcribe", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-User-Api-Key": openAIKey },
+            body: JSON.stringify({ audio: base64, mimeType, language: "en" }),
+          });
+
+          if (transcribeRes.ok) {
+            const { text } = await transcribeRes.json();
+            if (text?.trim()) setText(prev => prev ? `${prev} ${text.trim()}` : text.trim());
+          } else {
+            console.warn("[Whisper] transcription failed:", transcribeRes.status);
+            setText(prev => prev + " [Transcription failed — try again]");
+          }
+        } catch (err) {
+          console.error("[Whisper] error:", err);
+          setText(prev => prev + " [Voice error — check console]");
+        }
+        setLoading(false);
+        setStatus(null);
+      };
+
+      recorder.start();
+      setListening(true);
+    } catch (err) {
+      console.warn("[Whisper] mic access denied, falling back to SpeechRecognition:", err.message);
+      _startSpeechRecognitionFallback();
+    }
+  }, [listening, _startSpeechRecognitionFallback, stopWhisperRecording]);
 
   const doSave = useCallback(async (parsed) => {
     setPreview(null);
@@ -295,7 +390,7 @@ export default function QuickCapture({ entries, setEntries, links, addLinks, onC
           placeholder={listening ? "🎤 Listening..." : loading ? "Processing..." : "Quick capture — just type anything..."}
           style={{ flex: 1, padding: "12px 16px", background: listening ? "#1a2e1a" : t.surface, border: `1px solid ${listening ? "#25D36640" : "#4ECDC440"}`, borderRadius: 12, color: t.textSoft, fontSize: 14, outline: "none", fontFamily: "inherit", opacity: loading ? 0.5 : 1 }}
         />
-        <button onClick={startVoice} disabled={loading} title="Voice capture" style={{ padding: "12px 14px", background: listening ? "#25D36620" : t.surface, border: `1px solid ${listening ? "#25D36640" : "#4ECDC440"}`, borderRadius: 12, color: listening ? "#25D366" : "#4ECDC4", cursor: loading ? "default" : "pointer", fontSize: 16 }}>🎤</button>
+        <button onClick={startVoice} disabled={loading} title={getUserApiKey() ? "Voice capture (Whisper) — click to start, click again to stop" : "Voice capture (browser) — click to toggle"} style={{ padding: "12px 14px", background: listening ? "#25D36620" : t.surface, border: `1px solid ${listening ? "#25D36640" : "#4ECDC440"}`, borderRadius: 12, color: listening ? "#25D366" : "#4ECDC4", cursor: loading ? "default" : "pointer", fontSize: 16 }}>🎤</button>
         <button onClick={() => imgRef.current?.click()} disabled={loading} style={{ padding: "12px 14px", background: t.surface, border: "1px solid #4ECDC440", borderRadius: 12, color: loading ? t.textDim : "#4ECDC4", cursor: loading ? "default" : "pointer", fontSize: 16 }}>📷</button>
         <button onClick={capture} disabled={loading || !text.trim()} title={`Save to ${(BRAIN_META_QC[brains[0]?.type] || BRAIN_META_QC.personal).emoji} ${brains[0]?.name || "brain"}`} style={{ padding: "12px 18px", background: text.trim() && !loading ? "linear-gradient(135deg, #4ECDC4, #45B7D1)" : t.surface, border: "none", borderRadius: 12, color: text.trim() && !loading ? "#0f0f23" : t.textFaint, fontWeight: 700, cursor: text.trim() && !loading ? "pointer" : "default", fontSize: 16 }}>+</button>
       </div>

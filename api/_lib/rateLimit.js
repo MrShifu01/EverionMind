@@ -1,46 +1,89 @@
-// SEC-3 AUDIT FINDING — IN-MEMORY RATE LIMITER DOES NOT WORK IN SERVERLESS
-// Each Vercel function instance has its own in-memory Map.
-// Distributing requests across instances completely bypasses rate limits.
-// TODO: Replace with Upstash Redis or @vercel/kv distributed rate limiting.
-// Install: npm install @upstash/ratelimit @upstash/redis
-// Until this is replaced, this rate limiter provides zero real protection.
+// Distributed rate limiter — sliding window using Upstash Redis REST API.
+// Requires UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN env vars.
+// Falls back to in-memory (per-instance, zero real protection in serverless) if unconfigured.
+//
+// Setup: https://console.upstash.com — create a Redis database, copy REST URL + token.
+// Add to Vercel env: UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN
 
-// Per-instance in-memory rate limiter (serverless: limits bursts within a single cold-start instance)
-const counts = new Map();
-
-function isRateLimited(ip, windowMs, limit) {
+// ─── In-memory fallback (same serverless caveat as before) ───────────────────
+const _counts = new Map();
+function _inMemoryLimited(ip, windowMs, limit) {
   const now = Date.now();
-  const entry = counts.get(ip) || { count: 0, reset: now + windowMs };
-
-  if (now > entry.reset) {
-    entry.count = 0;
-    entry.reset = now + windowMs;
-  }
-
-  entry.count++;
-  counts.set(ip, entry);
-  return entry.count > limit;
+  const e = _counts.get(ip) || { count: 0, reset: now + windowMs };
+  if (now > e.reset) { e.count = 0; e.reset = now + windowMs; }
+  e.count++;
+  _counts.set(ip, e);
+  return e.count > limit;
 }
 
-export function rateLimit(req, limit = 20, windowMs = 60_000) {
-  const ip =
+// ─── Upstash sliding window via REST pipeline ─────────────────────────────────
+async function _upstashLimited(ip, windowMs, limit) {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const now = Date.now();
+  const windowStart = now - windowMs;
+  const setKey = `rl:${ip}`;
+  const member = `${now}:${Math.random().toString(36).slice(2, 8)}`;
+
+  // Pipeline: trim old, add new, count, set TTL
+  const pipeline = [
+    ["ZREMRANGEBYSCORE", setKey, "-inf", String(windowStart)],
+    ["ZADD", setKey, String(now), member],
+    ["ZCARD", setKey],
+    ["PEXPIRE", setKey, windowMs],
+  ];
+
+  try {
+    const res = await fetch(`${url}/pipeline`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(pipeline),
+    });
+    if (!res.ok) {
+      console.warn(`[rateLimit] Upstash pipeline HTTP ${res.status} — falling back to in-memory`);
+      return _inMemoryLimited(ip, windowMs, limit);
+    }
+    const data = await res.json();
+    const count = data[2]?.result ?? 0;
+    return count > limit;
+  } catch (err) {
+    console.warn(`[rateLimit] Upstash error — falling back to in-memory: ${err.message}`);
+    return _inMemoryLimited(ip, windowMs, limit);
+  }
+}
+
+function _getIp(req) {
+  return (
     req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
     req.socket?.remoteAddress ||
-    "unknown";
-  return !isRateLimited(ip, windowMs, limit);
+    "unknown"
+  );
 }
 
 /**
- * ARCH-8: Rate limit wrapper. Currently uses in-memory Map (not distributed).
- * To upgrade: replace the isRateLimited body with @upstash/ratelimit sliding window check.
- * npm install @upstash/ratelimit @upstash/redis
+ * Returns true if the request is allowed (not rate-limited).
+ * @param {object} req - Vercel/Node request
+ * @param {number} limit - max requests per window
+ * @param {number} windowMs - window size in milliseconds (default 60s)
+ */
+export async function rateLimit(req, limit = 20, windowMs = 60_000) {
+  const ip = _getIp(req);
+  const limited = process.env.UPSTASH_REDIS_REST_URL
+    ? await _upstashLimited(ip, windowMs, limit)
+    : _inMemoryLimited(ip, windowMs, limit);
+  return !limited;
+}
+
+/**
+ * Middleware wrapper. Usage: export default withRateLimit(handler, { max: 30 })
  */
 export function withRateLimit(handler, { windowMs = 60000, max = 30 } = {}) {
-  return (req, res) => {
-    const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown';
-    if (isRateLimited(ip, windowMs, max)) {
-      return res.status(429).json({ error: 'Too many requests' });
-    }
+  return async (req, res) => {
+    const allowed = await rateLimit(req, max, windowMs);
+    if (!allowed) return res.status(429).json({ error: "Too many requests" });
     return handler(req, res);
   };
 }

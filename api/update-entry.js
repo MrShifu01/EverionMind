@@ -5,7 +5,7 @@ const SB_URL = process.env.SUPABASE_URL;
 
 export default withAuth(async function handler(req, res) {
   if (req.method !== "PATCH") return res.status(405).json({ error: "Method not allowed" });
-  if (!rateLimit(req, 30)) return res.status(429).json({ error: "Too many requests" });
+  if (!(await rateLimit(req, 30))) return res.status(429).json({ error: "Too many requests" });
 
   // req.user is set by withAuth middleware
   const user = { id: req.user };
