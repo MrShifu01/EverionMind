@@ -7,11 +7,12 @@ const hdrs = (extra = {}) => ({ "Content-Type": "application/json", "apikey": SB
 
 const MAX_CHARS = 8000;
 
-// Dispatched via rewrites: /api/memory, /api/activity, /api/health → /api/user-data?resource=X
+// Dispatched via rewrites: /api/memory, /api/activity, /api/health, /api/vault → /api/user-data?resource=X
 export default async function handler(req, res) {
   const resource = req.query.resource;
   if (resource === "activity") return handleActivity(req, res);
   if (resource === "health") return handleHealth(req, res);
+  if (resource === "vault") return handleVault(req, res);
   // Default: memory
   return handleMemory(req, res);
 }
@@ -112,4 +113,64 @@ async function handleHealth(req, res) {
   } catch {
     res.status(500).json({ ok: false });
   }
+}
+
+// ── /api/vault (rewritten to /api/user-data?resource=vault) ──
+async function handleVault(req, res) {
+  if (!(await rateLimit(req, 20))) return res.status(429).json({ error: "Too many requests" });
+
+  const user = await verifyAuth(req);
+  if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+  if (req.method === "GET") {
+    const r = await fetch(
+      `${SB_URL}/rest/v1/vault_keys?user_id=eq.${encodeURIComponent(user.id)}&select=salt,verify_token,recovery_blob`,
+      { headers: hdrs() }
+    );
+    if (!r.ok) return res.status(502).json({ error: "Database error" });
+    const rows = await r.json();
+    if (rows.length === 0) return res.status(200).json({ exists: false });
+    return res.status(200).json({
+      exists: true,
+      salt: rows[0].salt,
+      verify_token: rows[0].verify_token,
+      recovery_blob: rows[0].recovery_blob,
+    });
+  }
+
+  if (req.method === "POST") {
+    const { salt, verify_token, recovery_blob } = req.body || {};
+    if (!salt || typeof salt !== "string" || salt.length !== 32) {
+      return res.status(400).json({ error: "Invalid salt (must be 32-char hex)" });
+    }
+    if (!verify_token || typeof verify_token !== "string") {
+      return res.status(400).json({ error: "Missing verify_token" });
+    }
+    if (!recovery_blob || typeof recovery_blob !== "string") {
+      return res.status(400).json({ error: "Missing recovery_blob" });
+    }
+
+    // Prevent overwrite — vault can only be set up once
+    const existing = await fetch(
+      `${SB_URL}/rest/v1/vault_keys?user_id=eq.${encodeURIComponent(user.id)}&select=user_id`,
+      { headers: hdrs() }
+    );
+    const rows = await existing.json();
+    if (rows.length > 0) {
+      return res.status(409).json({ error: "Vault already set up" });
+    }
+
+    const r = await fetch(`${SB_URL}/rest/v1/vault_keys`, {
+      method: "POST",
+      headers: hdrs({ "Prefer": "return=minimal" }),
+      body: JSON.stringify({ user_id: user.id, salt, verify_token, recovery_blob }),
+    });
+    if (!r.ok) {
+      const err = await r.text().catch(() => r.status);
+      return res.status(502).json({ error: `Database error: ${err}` });
+    }
+    return res.status(201).json({ ok: true });
+  }
+
+  return res.status(405).json({ error: "Method not allowed" });
 }

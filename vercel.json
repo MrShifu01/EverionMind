@@ -20,6 +20,7 @@
     { "source": "/api/memory",           "destination": "/api/user-data?resource=memory" },
     { "source": "/api/activity",         "destination": "/api/user-data?resource=activity" },
     { "source": "/api/health",           "destination": "/api/user-data?resource=health" },
+    { "source": "/api/vault",            "destination": "/api/user-data?resource=vault" },
     { "source": "/((?!api/).*)",         "destination": "/index.html" }
   ],
   "headers": [
