@@ -16,6 +16,9 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  // OTP code entry
+  const [otpCode, setOtpCode] = useState("");
+  const [verifying, setVerifying] = useState(false);
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -28,6 +31,39 @@ export default function LoginScreen() {
     if (error) setError(error.message);
     else setSent(true);
     setLoading(false);
+  };
+
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    if (!otpCode.trim()) return;
+    setVerifying(true);
+    setError(null);
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token: otpCode.trim(),
+      type: "email",
+    });
+    if (error) setError(error.message);
+    // If successful, onAuthStateChange in App.jsx will pick up the session
+    setVerifying(false);
+  };
+
+  const handleResend = async () => {
+    setLoading(true);
+    setError(null);
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.origin },
+    });
+    if (error) setError(error.message);
+    else setError(null);
+    setLoading(false);
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "13px 16px", background: t.surface,
+    border: `1px solid ${t.border}`, borderRadius: 12, color: t.text,
+    fontSize: 15, outline: "none", boxSizing: "border-box",
   };
 
   return (
@@ -69,7 +105,7 @@ export default function LoginScreen() {
           </button>
         )}
         {!showForm && !sent && (
-          <p style={{ fontSize: 12, color: t.textFaint, margin: 0 }}>No password needed — magic link sign in</p>
+          <p style={{ fontSize: 12, color: t.textFaint, margin: 0 }}>No password needed — sign in with email</p>
         )}
 
         {/* Email form */}
@@ -82,11 +118,7 @@ export default function LoginScreen() {
               placeholder="your@email.com"
               required
               autoFocus
-              style={{
-                width: "100%", padding: "13px 16px", background: t.surface,
-                border: `1px solid ${t.border}`, borderRadius: 12, color: t.text,
-                fontSize: 15, outline: "none", boxSizing: "border-box", marginBottom: 10,
-              }}
+              style={{ ...inputStyle, marginBottom: 10 }}
             />
             {error && <p style={{ color: "#FF6B35", fontSize: 13, marginBottom: 10 }}>{error}</p>}
             <div style={{ display: "flex", gap: 8 }}>
@@ -109,34 +141,71 @@ export default function LoginScreen() {
                   cursor: loading || !email ? "default" : "pointer",
                 }}
               >
-                {loading ? "Sending…" : "Send magic link"}
+                {loading ? "Sending…" : "Send code"}
               </button>
             </div>
-            <p style={{ fontSize: 12, color: t.textFaint, marginTop: 8 }}>No password — just click the link in your email</p>
+            <p style={{ fontSize: 12, color: t.textFaint, marginTop: 8 }}>We'll email you a 6-digit code to sign in</p>
           </form>
         )}
 
+        {/* OTP verification */}
         {sent && (
-          <div style={{ maxWidth: 360, margin: "0 auto", textAlign: "center" }}>
-            <div style={{ fontSize: 32, marginBottom: 16 }}>📬</div>
-            <p style={{ color: "#4ECDC4", fontWeight: 700, marginBottom: 8, fontSize: 16 }}>Check your email</p>
+          <div style={{ maxWidth: 360, margin: "0 auto" }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>📬</div>
+            <p style={{ color: "#4ECDC4", fontWeight: 700, marginBottom: 4, fontSize: 16 }}>Check your email</p>
             <p style={{ color: t.textMuted, fontSize: 13, lineHeight: 1.6, margin: "0 0 16px" }}>
-              Magic link sent to <strong style={{ color: t.text }}>{email}</strong>.<br />
-              Click it to sign in — no password needed.
+              Code sent to <strong style={{ color: t.text }}>{email}</strong>
             </p>
-            <button
-              onClick={() => setSent(false)}
-              style={{
-                padding: "10px 24px",
-                background: t.surface,
-                border: `1px solid ${t.border}`,
-                borderRadius: 10,
-                color: t.textMuted, fontSize: 13, fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              Try again
-            </button>
+
+            <form onSubmit={handleVerifyOtp}>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={otpCode}
+                onChange={e => setOtpCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
+                placeholder="Enter 6-digit code"
+                autoFocus
+                style={{
+                  ...inputStyle,
+                  textAlign: "center", fontSize: 24, fontWeight: 700,
+                  letterSpacing: 8, fontFamily: "monospace",
+                  marginBottom: 10,
+                }}
+              />
+              {error && <p style={{ color: "#FF6B35", fontSize: 13, marginBottom: 10 }}>{error}</p>}
+              <button
+                type="submit"
+                disabled={verifying || otpCode.length < 6}
+                style={{
+                  width: "100%", padding: "12px",
+                  background: verifying || otpCode.length < 6 ? t.surface : "linear-gradient(135deg, #4ECDC4, #45B7D1)",
+                  border: "none", borderRadius: 10,
+                  color: verifying || otpCode.length < 6 ? t.textFaint : "#0f0f23",
+                  fontSize: 14, fontWeight: 700,
+                  cursor: verifying || otpCode.length < 6 ? "default" : "pointer",
+                  marginBottom: 12,
+                }}
+              >
+                {verifying ? "Verifying…" : "Sign in"}
+              </button>
+            </form>
+
+            <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+              <button
+                onClick={handleResend}
+                disabled={loading}
+                style={{ background: "none", border: "none", color: "#4ECDC4", fontSize: 13, cursor: "pointer", padding: "4px 8px" }}
+              >
+                {loading ? "Sending…" : "Resend code"}
+              </button>
+              <button
+                onClick={() => { setSent(false); setOtpCode(""); setError(null); }}
+                style={{ background: "none", border: "none", color: t.textFaint, fontSize: 13, cursor: "pointer", padding: "4px 8px" }}
+              >
+                Use different email
+              </button>
+            </div>
           </div>
         )}
       </div>
