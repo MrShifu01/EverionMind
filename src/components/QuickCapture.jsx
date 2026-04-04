@@ -177,16 +177,19 @@ export default function QuickCapture({ entries, setEntries, links, addLinks, onC
       return;
     }
 
-    // Use MediaRecorder + Whisper
+    // Use MediaRecorder + Whisper/Groq
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/webm")
-          ? "audio/webm"
-          : "audio/mp4";
 
-      const recorder = new MediaRecorder(stream, { mimeType });
+      // Determine supported MIME type — iOS only supports mp4/m4a
+      let mimeType = "audio/mp4"; // safe default for iOS
+      if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) mimeType = "audio/webm;codecs=opus";
+      else if (MediaRecorder.isTypeSupported("audio/webm")) mimeType = "audio/webm";
+      else if (MediaRecorder.isTypeSupported("audio/mp4")) mimeType = "audio/mp4";
+      else if (MediaRecorder.isTypeSupported("audio/aac")) mimeType = "audio/aac";
+      else if (MediaRecorder.isTypeSupported("audio/mpeg")) mimeType = "audio/mpeg";
+
+      const recorder = new MediaRecorder(stream, mimeType !== "audio/mp4" ? { mimeType } : undefined);
       audioChunksRef.current = [];
       mediaRecorderRef.current = recorder;
 
@@ -198,7 +201,9 @@ export default function QuickCapture({ entries, setEntries, links, addLinks, onC
         stream.getTracks().forEach(t => t.stop()); // release mic
         setListening(false);
 
-        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        // Use the recorder's actual mimeType (iOS may override what we requested)
+        const actualMime = recorder.mimeType || mimeType;
+        const blob = new Blob(audioChunksRef.current, { type: actualMime });
         audioChunksRef.current = [];
         mediaRecorderRef.current = null;
 
@@ -220,7 +225,7 @@ export default function QuickCapture({ entries, setEntries, links, addLinks, onC
           const transcribeRes = await authFetch("/api/transcribe", {
             method: "POST",
             headers: transcribeHeaders,
-            body: JSON.stringify({ audio: base64, mimeType, language: "en" }),
+            body: JSON.stringify({ audio: base64, mimeType: actualMime, language: "en" }),
           });
 
           if (transcribeRes.ok) {
@@ -238,11 +243,19 @@ export default function QuickCapture({ entries, setEntries, links, addLinks, onC
         setStatus(null);
       };
 
-      recorder.start();
+      recorder.start(1000); // timeslice 1s — ensures ondataavailable fires on iOS
       setListening(true);
     } catch (err) {
-      console.warn("[Whisper] mic access denied, falling back to SpeechRecognition:", err.message);
-      _startSpeechRecognitionFallback();
+      console.warn("[Voice] mic error:", err.message);
+      // Show error to user instead of silently failing
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        setText(prev => prev ? prev : "");
+        setStatus("mic-denied");
+        setTimeout(() => setStatus(null), 3000);
+      } else {
+        // Try browser speech recognition as last resort
+        _startSpeechRecognitionFallback();
+      }
     }
   }, [listening, _startSpeechRecognitionFallback, stopWhisperRecording]);
 
@@ -361,7 +374,7 @@ export default function QuickCapture({ entries, setEntries, links, addLinks, onC
     setLoading(false); setTimeout(() => setStatus(null), 3000);
   };
 
-  const statusMsg = { thinking: "🤖 Parsing...", saving: "💾 Saving...", "saved-db": "✅ Saved & synced!", "saved-local": "📡 Saved — will sync when online", "saved-raw": "📝 Saved", error: "⚠️ Sync failed — queued for retry", "offline-image": "📵 Image uploads need a connection", "img-too-large": "⚠️ Photo too large — try a smaller image", "vault-needed": "🔐 Set up your Vault first to save secrets" };
+  const statusMsg = { thinking: "🤖 Parsing...", saving: "💾 Saving...", "saved-db": "✅ Saved & synced!", "saved-local": "📡 Saved — will sync when online", "saved-raw": "📝 Saved", error: "⚠️ Sync failed — queued for retry", "offline-image": "📵 Image uploads need a connection", "img-too-large": "⚠️ Photo too large — try a smaller image", "vault-needed": "🔐 Set up your Vault first to save secrets", "mic-denied": "🎤 Microphone access denied — check your browser/phone settings" };
 
   if (!canWrite) {
     return (
