@@ -144,7 +144,7 @@ export default function LoginScreen() {
                 {loading ? "Sending…" : "Send code"}
               </button>
             </div>
-            <p style={{ fontSize: 12, color: t.textFaint, marginTop: 8 }}>We'll email you a 6-digit code to sign in</p>
+            <p style={{ fontSize: 12, color: t.textFaint, marginTop: 8 }}>We'll email you a code to sign in</p>
           </form>
         )}
 
@@ -155,7 +155,7 @@ export default function LoginScreen() {
             <p style={{ color: "#4ECDC4", fontWeight: 700, marginBottom: 4, fontSize: 16 }}>Check your email</p>
             <p style={{ color: t.textMuted, fontSize: 13, lineHeight: 1.6, margin: "0 0 16px" }}>
               We sent a sign-in email to <strong style={{ color: t.text }}>{email}</strong>.<br />
-              Enter the 6-digit code, or tap the magic link.
+              Enter the code from the email, or tap the magic link.
             </p>
 
             <form onSubmit={handleVerifyOtp}>
@@ -164,8 +164,8 @@ export default function LoginScreen() {
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 value={otpCode}
-                onChange={e => setOtpCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
-                placeholder="6-digit code"
+                onChange={e => setOtpCode(e.target.value.replace(/[^0-9]/g, ""))}
+                placeholder="Enter code"
                 autoFocus
                 style={{
                   ...inputStyle,
@@ -177,14 +177,14 @@ export default function LoginScreen() {
               {error && <p style={{ color: "#FF6B35", fontSize: 13, marginBottom: 10 }}>{error}</p>}
               <button
                 type="submit"
-                disabled={verifying || otpCode.length < 6}
+                disabled={verifying || otpCode.length < 6 || otpCode.length > 8}
                 style={{
                   width: "100%", padding: "12px",
-                  background: verifying || otpCode.length < 6 ? t.surface : "linear-gradient(135deg, #4ECDC4, #45B7D1)",
+                  background: verifying || otpCode.length < 6 || otpCode.length > 8 ? t.surface : "linear-gradient(135deg, #4ECDC4, #45B7D1)",
                   border: "none", borderRadius: 10,
-                  color: verifying || otpCode.length < 6 ? t.textFaint : "#0f0f23",
+                  color: verifying || otpCode.length < 6 || otpCode.length > 8 ? t.textFaint : "#0f0f23",
                   fontSize: 14, fontWeight: 700,
-                  cursor: verifying || otpCode.length < 6 ? "default" : "pointer",
+                  cursor: verifying || otpCode.length < 6 || otpCode.length > 8 ? "default" : "pointer",
                   marginBottom: 12,
                 }}
               >
