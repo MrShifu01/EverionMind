@@ -204,16 +204,32 @@ export default function SettingsView() {
     const key = embedProvider === "google" ? geminiKey : embedOpenAIKey;
     if (!key) return;
     setEmbedStatus("running");
+    let totalProcessed = 0, totalFailed = 0;
     try {
-      const res = await authFetch("/api/embed", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Embed-Provider": embedProvider, "X-Embed-Key": key },
-        body: JSON.stringify({ brain_id: activeBrain.id, batch: true }),
-      });
-      const data = res.ok ? await res.json() : null;
-      setEmbedStatus(data ? `done:${data.processed}:${data.failed ?? 0}` : "error");
-    } catch { setEmbedStatus("error"); }
-    setTimeout(() => setEmbedStatus(null), 6000);
+      // Process in small batches (5 entries per request) to avoid Vercel 10s timeout
+      for (let i = 0; i < 100; i++) {
+        const res = await authFetch("/api/embed", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Embed-Provider": embedProvider, "X-Embed-Key": key },
+          body: JSON.stringify({ brain_id: activeBrain.id, batch: true }),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => null);
+          if (totalProcessed === 0) { setEmbedStatus(`error:${errData?.error || res.status}`); setTimeout(() => setEmbedStatus(null), 10000); return; }
+          break;
+        }
+        const data = await res.json();
+        totalProcessed += data.processed;
+        totalFailed += data.failed ?? 0;
+        setEmbedStatus(`running:${totalProcessed}`);
+        if ((data.remaining ?? 0) <= 0) break;
+      }
+      setEmbedStatus(`done:${totalProcessed}:${totalFailed}`);
+    } catch (e) {
+      if (totalProcessed === 0) { setEmbedStatus(`error:${e.message || "Network error"}`); }
+      else { setEmbedStatus(`done:${totalProcessed}:${totalFailed}`); }
+    }
+    setTimeout(() => setEmbedStatus(null), 10000);
   };
 
   const fetchOrModels = async (key) => {
@@ -369,11 +385,11 @@ export default function SettingsView() {
               disabled={embedStatus === "running" || !(embedProvider === "google" ? geminiKey : embedOpenAIKey)}
               style={{ padding: "9px 16px", background: (embedProvider === "google" ? geminiKey : embedOpenAIKey) ? "#A29BFE20" : t.bg, border: `1px solid ${(embedProvider === "google" ? geminiKey : embedOpenAIKey) ? "#A29BFE40" : t.border}`, borderRadius: 8, color: (embedProvider === "google" ? geminiKey : embedOpenAIKey) ? "#A29BFE" : t.textFaint, fontSize: 12, fontWeight: 600, cursor: (embedProvider === "google" ? geminiKey : embedOpenAIKey) ? "pointer" : "default" }}
             >
-              {embedStatus === "running" ? "Embedding…" : "Embed all entries"}
+              {embedStatus?.startsWith("running") ? `Embedding…${embedStatus.includes(":") ? ` (${embedStatus.split(":")[1]})` : ""}` : "Embed all entries"}
             </button>
-            {embedStatus && embedStatus !== "running" && (
-              <span style={{ fontSize: 12, color: embedStatus === "error" ? "#FF6B35" : "#A29BFE" }}>
-                {embedStatus === "error" ? "✗ Failed" : (() => { const [, n, f] = embedStatus.split(":"); return `✓ ${n} embedded${+f > 0 ? `, ${f} failed` : ""}`; })()}
+            {embedStatus && !embedStatus.startsWith("running") && (
+              <span style={{ fontSize: 12, color: embedStatus.startsWith("error") ? "#FF6B35" : "#A29BFE" }}>
+                {embedStatus.startsWith("error") ? `✗ ${embedStatus.split(":").slice(1).join(":") || "Failed"}` : (() => { const [, n, f] = embedStatus.split(":"); return `✓ ${n} embedded${+f > 0 ? `, ${f} failed` : ""}`; })()}
               </span>
             )}
           </div>
