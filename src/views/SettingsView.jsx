@@ -124,9 +124,162 @@ function ExportImportPanel({ activeBrain }) {
 /* ═══════════════════════════════════════════════════════════════
    SETTINGS VIEW
    ═══════════════════════════════════════════════════════════════ */
+/* ─── Brain API Keys Panel ─── */
+function BrainApiKeysPanel({ activeBrain }) {
+  const { t } = useTheme();
+  const [keys, setKeys] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [label, setLabel] = useState("");
+  const [newKey, setNewKey] = useState(null); // shown once after generation
+  const [copied, setCopied] = useState(false);
+
+  const fetchKeys = async () => {
+    if (!activeBrain?.id) return;
+    setLoading(true);
+    try {
+      const res = await authFetch(`/api/brains?action=api-keys&brain_id=${activeBrain.id}`);
+      if (res.ok) setKeys(await res.json());
+    } catch {}
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchKeys(); }, [activeBrain?.id]);
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    try {
+      const res = await authFetch("/api/brains?action=generate-api-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brain_id: activeBrain.id, label: label || "Default" }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNewKey(data.api_key);
+        setLabel("");
+        fetchKeys();
+      }
+    } catch {}
+    setGenerating(false);
+  };
+
+  const handleRevoke = async (keyId) => {
+    try {
+      await authFetch("/api/brains?action=api-key", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key_id: keyId, brain_id: activeBrain.id }),
+      });
+      setKeys(prev => prev.filter(k => k.id !== keyId));
+    } catch {}
+  };
+
+  const copyKey = (text) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (!activeBrain) return null;
+  const isOwner = activeBrain.myRole === "owner";
+  if (!isOwner) {
+    return (
+      <div style={{ background: t.surface, borderRadius: 14, padding: "20px 24px", border: `1px solid ${t.border}` }}>
+        <p style={{ margin: 0, fontSize: 13, color: t.textDim }}>Only the brain owner can manage API keys.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ background: t.surface, borderRadius: 14, padding: "20px 24px", marginBottom: 16, border: `1px solid ${t.border}` }}>
+        <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: t.textSoft }}>🔑 API Keys — {activeBrain.name}</p>
+        <p style={{ margin: "0 0 14px", fontSize: 11, color: t.textDim }}>
+          Generate API keys to access this brain's data from external apps (calendar, to-do list, dashboards). Each key gives read access to entries and links.
+        </p>
+
+        {/* New key banner — shown once */}
+        {newKey && (
+          <div style={{ background: "#4ECDC410", border: "1px solid #4ECDC430", borderRadius: 10, padding: "14px 16px", marginBottom: 14 }}>
+            <p style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 700, color: "#4ECDC4" }}>Key created — copy it now, it won't be shown again</p>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <code style={{ flex: 1, padding: "8px 12px", background: t.bg, borderRadius: 6, fontSize: 12, color: t.textSoft, fontFamily: "monospace", wordBreak: "break-all", border: `1px solid ${t.border}` }}>{newKey}</code>
+              <button onClick={() => copyKey(newKey)} style={{ padding: "8px 14px", background: "#4ECDC420", border: "1px solid #4ECDC440", borderRadius: 8, color: "#4ECDC4", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>{copied ? "Copied!" : "Copy"}</button>
+            </div>
+            <button onClick={() => setNewKey(null)} style={{ marginTop: 8, padding: "4px 10px", background: "none", border: "none", color: t.textFaint, fontSize: 11, cursor: "pointer" }}>Dismiss</button>
+          </div>
+        )}
+
+        {/* Generate new key */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+          <input
+            value={label}
+            onChange={e => setLabel(e.target.value)}
+            placeholder="Key label (e.g. Calendar App)"
+            maxLength={100}
+            style={{ flex: 1, minWidth: 140, padding: "9px 12px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textSoft, fontSize: 13, outline: "none" }}
+          />
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            style={{ padding: "9px 16px", background: "#4ECDC420", border: "1px solid #4ECDC440", borderRadius: 8, color: "#4ECDC4", fontSize: 12, fontWeight: 600, cursor: generating ? "default" : "pointer", flexShrink: 0 }}
+          >
+            {generating ? "Generating…" : "+ Generate Key"}
+          </button>
+        </div>
+
+        {/* Existing keys */}
+        {loading && <p style={{ fontSize: 12, color: t.textDim }}>Loading keys…</p>}
+        {!loading && keys.length === 0 && (
+          <p style={{ fontSize: 12, color: t.textFaint, margin: 0, fontStyle: "italic" }}>No API keys yet. Generate one to get started.</p>
+        )}
+        {keys.map(k => (
+          <div key={k.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: `1px solid ${t.border}` }}>
+            <div style={{ flex: 1 }}>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: t.textSoft }}>{k.label}</p>
+              <p style={{ margin: "2px 0 0", fontSize: 10, color: t.textFaint }}>
+                Created {new Date(k.created_at).toLocaleDateString()}
+                {k.last_used_at && ` · Last used ${new Date(k.last_used_at).toLocaleDateString()}`}
+              </p>
+            </div>
+            <button onClick={() => handleRevoke(k.id)} style={{ padding: "5px 12px", background: "#FF6B3515", border: "1px solid #FF6B3530", borderRadius: 6, color: "#FF6B35", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Revoke</button>
+          </div>
+        ))}
+      </div>
+
+      {/* Usage examples */}
+      <div style={{ background: t.surface, borderRadius: 14, padding: "20px 24px", border: `1px solid ${t.border}` }}>
+        <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 600, color: t.textSoft }}>Usage</p>
+        <p style={{ margin: "0 0 8px", fontSize: 11, color: t.textDim }}>Use the API key to fetch data from your brain in external apps:</p>
+        <div style={{ background: t.bg, borderRadius: 8, padding: "12px 14px", border: `1px solid ${t.border}` }}>
+          <code style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.8, whiteSpace: "pre-wrap", fontFamily: "monospace" }}>
+{`# Get all entries
+GET /api/external?action=entries
+Header: X-Brain-Api-Key: ob_...
+
+# Filter by type
+GET /api/external?action=entries&type=reminder
+
+# Entries since a date
+GET /api/external?action=entries&since=2024-01-01
+
+# Get relationships
+GET /api/external?action=links
+
+# Brain metadata
+GET /api/external?action=brain`}
+          </code>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsView() {
   const { t } = useTheme();
   const { activeBrain, canInvite, canManageMembers, refresh: onRefreshBrains } = useBrain();
+  const [settingsTab, setSettingsTab] = useState("general");
   const [testStatus, setTestStatus] = useState(null);
   const [email, setEmail] = useState("");
   const [byoKey, setByoKey] = useState(() => getUserApiKey() || "");
@@ -286,11 +439,44 @@ export default function SettingsView() {
     catch { setTestStatus("fail"); }
     setTimeout(() => setTestStatus(null), 3000);
   };
+  const TABS = [
+    { id: "general",      label: "General",       icon: "⚙" },
+    { id: "ai",           label: "AI Keys",       icon: "🤖" },
+    { id: "brain-api",    label: "Brain API",     icon: "🔑" },
+    { id: "integrations", label: "Integrations",  icon: "🔗" },
+    { id: "security",     label: "Security",      icon: "🔒" },
+  ];
+
   const btn = { padding: "10px 20px", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer" };
   return (
     <div>
       <h2 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 4px", color: t.text }}>Settings</h2>
-      <p style={{ fontSize: 12, color: t.textDim, margin: "0 0 24px" }}>All API keys are managed server-side.</p>
+      <p style={{ fontSize: 12, color: t.textDim, margin: "0 0 16px" }}>Manage your account, keys, and integrations.</p>
+
+      {/* ── Tab Navigation ── */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 20, overflowX: "auto", paddingBottom: 4 }}>
+        {TABS.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setSettingsTab(tab.id)}
+            style={{
+              padding: "8px 14px", borderRadius: 20, border: settingsTab === tab.id ? `1px solid ${t.accent}` : `1px solid ${t.border}`,
+              background: settingsTab === tab.id ? `${t.accent}20` : t.surface,
+              color: settingsTab === tab.id ? t.accent : t.textDim,
+              fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
+              display: "flex", alignItems: "center", gap: 5, minHeight: 40,
+            }}
+          >
+            <span style={{ fontSize: 13 }}>{tab.icon}</span>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ══════════════════════════════════════════════
+          GENERAL TAB
+          ══════════════════════════════════════════════ */}
+      {settingsTab === "general" && <>
       <div style={{ background: t.surface, borderRadius: 14, padding: "20px 24px", marginBottom: 16, border: `1px solid ${t.border}` }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div><p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: t.textSoft }}>Signed in as</p><p style={{ margin: "4px 0 0", fontSize: 12, color: t.textMuted }}>{email}</p></div>
@@ -309,7 +495,64 @@ export default function SettingsView() {
           <button onClick={testDB} style={{ ...btn, background: "#4ECDC420", color: "#4ECDC4" }}>{testStatus === "testing" ? "Testing…" : testStatus === "success" ? "✓ Connected" : testStatus === "fail" ? "✗ Failed" : "Test"}</button>
         </div>
       </div>
-      {/* AI Provider / BYO Key */}
+
+      {/* Brain Members */}
+      {activeBrain && (
+        <div style={{ background: t.surface, borderRadius: 14, padding: "20px 24px", marginBottom: 16, border: `1px solid ${t.border}` }}>
+          <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: t.textSoft }}>🧠 {activeBrain.name} — Members</p>
+          {members.length > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              {members.map(m => (
+                <div key={m.user_id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: `1px solid ${t.border}` }}>
+                  <span style={{ flex: 1, fontSize: 13, color: t.textSoft, fontFamily: "monospace" }}>{m.user_id.slice(0, 8)}…</span>
+                  <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: m.role === "member" ? "#4ECDC420" : "#88888820", color: m.role === "member" ? "#4ECDC4" : "#888", fontWeight: 700, textTransform: "uppercase" }}>{m.role}</span>
+                  {canManageMembers && (
+                    <>
+                      <select value={m.role} onChange={e => handleRoleChange(m.user_id, e.target.value)} style={{ padding: "3px 6px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 6, color: t.textSoft, fontSize: 11, cursor: "pointer" }}>
+                        <option value="member">Member</option>
+                        <option value="viewer">Viewer</option>
+                      </select>
+                      <button onClick={() => handleRemoveMember(m.user_id)} style={{ padding: "3px 8px", background: "#FF6B3515", border: "1px solid #FF6B3530", borderRadius: 6, color: "#FF6B35", fontSize: 11, cursor: "pointer" }}>Remove</button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {canInvite && (
+            <>
+              <p style={{ margin: "0 0 8px", fontSize: 12, color: t.textDim }}>Invite someone to this brain</p>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="their@email.com" type="email" style={{ flex: 2, minWidth: 140, padding: "9px 12px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textSoft, fontSize: 13, outline: "none" }} />
+                <select value={inviteRole} onChange={e => setInviteRole(e.target.value)} style={{ padding: "9px 10px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textSoft, fontSize: 12, cursor: "pointer" }}>
+                  <option value="member">Member (can edit)</option>
+                  <option value="viewer">Viewer (read-only)</option>
+                </select>
+                <button onClick={handleInvite} disabled={!inviteEmail.trim() || inviteStatus === "sending"} style={{ padding: "9px 16px", background: inviteEmail.trim() ? "#4ECDC420" : t.bg, border: `1px solid ${inviteEmail.trim() ? "#4ECDC440" : t.border}`, borderRadius: 8, color: inviteEmail.trim() ? "#4ECDC4" : t.textFaint, fontSize: 12, fontWeight: 600, cursor: inviteEmail.trim() ? "pointer" : "default" }}>
+                  {inviteStatus === "sending" ? "…" : inviteStatus === "sent" ? "✓ Sent" : inviteStatus === "error" ? "✗ Failed" : "Invite"}
+                </button>
+              </div>
+            </>
+          )}
+          {!canInvite && <p style={{ fontSize: 12, color: t.textDim, margin: 0 }}>Only the brain owner can invite members.</p>}
+        </div>
+      )}
+
+      <div style={{ background: t.surface, borderRadius: 14, padding: "20px 24px", marginBottom: 16, border: `1px solid ${t.border}` }}>
+        <NotificationSettings />
+      </div>
+
+      {/* AI Memory Guide */}
+      <MemoryEditor activeBrain={activeBrain} />
+
+      {/* Export / Import */}
+      {activeBrain && <ExportImportPanel activeBrain={activeBrain} />}
+      </>}
+
+      {/* ══════════════════════════════════════════════
+          AI KEYS TAB
+          ══════════════════════════════════════════════ */}
+      {settingsTab === "ai" && <>
       <div style={{ background: t.surface, borderRadius: 14, padding: "20px 24px", marginBottom: 16, border: `1px solid ${t.border}` }}>
         <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: t.textSoft }}>AI Provider</p>
         <p style={{ margin: "0 0 14px", fontSize: 11, color: t.textDim }}>Use your own API key — no OpenBrain credits deducted. Leave blank to use the shared key.</p>
@@ -428,71 +671,37 @@ export default function SettingsView() {
         </div>
       </div>
 
-      {/* Brain Members */}
-      {activeBrain && (
-        <div style={{ background: t.surface, borderRadius: 14, padding: "20px 24px", marginBottom: 16, border: `1px solid ${t.border}` }}>
-          <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: t.textSoft }}>🧠 {activeBrain.name} — Members</p>
-          {members.length > 0 && (
-            <div style={{ marginBottom: 14 }}>
-              {members.map(m => (
-                <div key={m.user_id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: `1px solid ${t.border}` }}>
-                  <span style={{ flex: 1, fontSize: 13, color: t.textSoft, fontFamily: "monospace" }}>{m.user_id.slice(0, 8)}…</span>
-                  <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: m.role === "member" ? "#4ECDC420" : "#88888820", color: m.role === "member" ? "#4ECDC4" : "#888", fontWeight: 700, textTransform: "uppercase" }}>{m.role}</span>
-                  {canManageMembers && (
-                    <>
-                      <select value={m.role} onChange={e => handleRoleChange(m.user_id, e.target.value)} style={{ padding: "3px 6px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 6, color: t.textSoft, fontSize: 11, cursor: "pointer" }}>
-                        <option value="member">Member</option>
-                        <option value="viewer">Viewer</option>
-                      </select>
-                      <button onClick={() => handleRemoveMember(m.user_id)} style={{ padding: "3px 8px", background: "#FF6B3515", border: "1px solid #FF6B3530", borderRadius: 6, color: "#FF6B35", fontSize: 11, cursor: "pointer" }}>Remove</button>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-          {canInvite && (
-            <>
-              <p style={{ margin: "0 0 8px", fontSize: 12, color: t.textDim }}>Invite someone to this brain</p>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="their@email.com" type="email" style={{ flex: 2, minWidth: 140, padding: "9px 12px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textSoft, fontSize: 13, outline: "none" }} />
-                <select value={inviteRole} onChange={e => setInviteRole(e.target.value)} style={{ padding: "9px 10px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textSoft, fontSize: 12, cursor: "pointer" }}>
-                  <option value="member">Member (can edit)</option>
-                  <option value="viewer">Viewer (read-only)</option>
-                </select>
-                <button onClick={handleInvite} disabled={!inviteEmail.trim() || inviteStatus === "sending"} style={{ padding: "9px 16px", background: inviteEmail.trim() ? "#4ECDC420" : t.bg, border: `1px solid ${inviteEmail.trim() ? "#4ECDC440" : t.border}`, borderRadius: 8, color: inviteEmail.trim() ? "#4ECDC4" : t.textFaint, fontSize: 12, fontWeight: 600, cursor: inviteEmail.trim() ? "pointer" : "default" }}>
-                  {inviteStatus === "sending" ? "…" : inviteStatus === "sent" ? "✓ Sent" : inviteStatus === "error" ? "✗ Failed" : "Invite"}
-                </button>
-              </div>
-            </>
-          )}
-          {!canInvite && <p style={{ fontSize: 12, color: t.textDim, margin: 0 }}>Only the brain owner can invite members.</p>}
+      </>}
+
+      {/* ══════════════════════════════════════════════
+          BRAIN API TAB
+          ══════════════════════════════════════════════ */}
+      {settingsTab === "brain-api" && <BrainApiKeysPanel activeBrain={activeBrain} />}
+
+      {/* ══════════════════════════════════════════════
+          INTEGRATIONS TAB
+          ══════════════════════════════════════════════ */}
+      {settingsTab === "integrations" && <>
+        {activeBrain && <TelegramPanel activeBrain={activeBrain} />}
+        {!activeBrain && <p style={{ fontSize: 13, color: t.textDim, padding: 20 }}>Select a brain to configure integrations.</p>}
+      </>}
+
+      {/* ══════════════════════════════════════════════
+          SECURITY TAB
+          ══════════════════════════════════════════════ */}
+      {settingsTab === "security" && <>
+        <div style={{ background: t.surface, borderRadius: 14, padding: "20px 24px", border: `1px solid ${t.border}` }}>
+          <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: t.textSoft }}>🔒 Security PIN</p>
+          <p style={{ margin: "0 0 14px", fontSize: 11, color: t.textDim }}>
+            {pinSet ? "PIN is active — sensitive AI responses require it before being revealed." : "No PIN set — AI responses with passwords or credentials are shown unguarded."}
+          </p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => setShowPinModal(true)} style={{ ...btn, background: "#4ECDC420", color: "#4ECDC4" }}>{pinSet ? "Change PIN" : "Set PIN"}</button>
+            {pinSet && <button onClick={() => { removePin(); setPinSet(false); }} style={{ ...btn, background: "#FF6B3520", color: "#FF6B35" }}>Remove PIN</button>}
+          </div>
+          {showPinModal && <PinGate isSetup onSuccess={() => { setShowPinModal(false); setPinSet(!!getStoredPinHash()); }} onCancel={() => setShowPinModal(false)} />}
         </div>
-      )}
-
-      <div style={{ background: t.surface, borderRadius: 14, padding: "20px 24px", border: `1px solid ${t.border}` }}>
-        <NotificationSettings />
-      </div>
-      {/* Telegram */}
-      {activeBrain && <TelegramPanel activeBrain={activeBrain} />}
-
-      {/* AI Memory Guide */}
-      <MemoryEditor activeBrain={activeBrain} />
-
-      {/* Export / Import */}
-      {activeBrain && <ExportImportPanel activeBrain={activeBrain} />}
-
-      <div style={{ background: t.surface, borderRadius: 14, padding: "20px 24px", marginTop: 16, border: `1px solid ${t.border}` }}>
-        <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: t.textSoft }}>🔒 Security PIN</p>
-        <p style={{ margin: "0 0 14px", fontSize: 11, color: t.textDim }}>
-          {pinSet ? "PIN is active — sensitive AI responses require it before being revealed." : "No PIN set — AI responses with passwords or credentials are shown unguarded."}
-        </p>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => setShowPinModal(true)} style={{ ...btn, background: "#4ECDC420", color: "#4ECDC4" }}>{pinSet ? "Change PIN" : "Set PIN"}</button>
-          {pinSet && <button onClick={() => { removePin(); setPinSet(false); }} style={{ ...btn, background: "#FF6B3520", color: "#FF6B35" }}>Remove PIN</button>}
-        </div>
-        {showPinModal && <PinGate isSetup onSuccess={() => { setShowPinModal(false); setPinSet(!!getStoredPinHash()); }} onCancel={() => setShowPinModal(false)} />}
-      </div>
+      </>}
     </div>
   );
 }

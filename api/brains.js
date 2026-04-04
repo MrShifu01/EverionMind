@@ -286,5 +286,52 @@ export default async function handler(req, res) {
     return res.status(200).json({ code });
   }
 
+  // ── POST /api/brains?action=generate-api-key — create per-brain API key ──
+  if (method === "POST" && action === "generate-api-key") {
+    const { brain_id, label } = req.body;
+    if (!brain_id) return res.status(400).json({ error: "brain_id required" });
+    // Only owner can generate keys
+    const ownerRes = await fetch(`${SB_URL}/rest/v1/brains?id=eq.${encodeURIComponent(brain_id)}&owner_id=eq.${encodeURIComponent(user.id)}`, { headers: hdrs() });
+    if (!(await ownerRes.json()).length) return res.status(403).json({ error: "Not the brain owner" });
+    // Generate a secure random key: ob_<32 hex chars>
+    const bytes = Array.from({ length: 32 }, () => Math.floor(Math.random() * 256));
+    const key = "ob_" + bytes.map(b => b.toString(16).padStart(2, "0")).join("");
+    const r = await fetch(`${SB_URL}/rest/v1/brain_api_keys`, {
+      method: "POST",
+      headers: hdrs({ "Prefer": "return=representation" }),
+      body: JSON.stringify({ brain_id, user_id: user.id, api_key: key, label: (label || "").slice(0, 100) || "Default" }),
+    });
+    if (!r.ok) return res.status(502).json({ error: "Failed to create API key" });
+    const [created] = await r.json();
+    return res.status(200).json({ id: created.id, api_key: key, label: created.label, created_at: created.created_at });
+  }
+
+  // ── GET /api/brains?action=api-keys&brain_id=... — list brain API keys ──
+  if (method === "GET" && action === "api-keys") {
+    const brain_id = req.query.brain_id;
+    if (!brain_id) return res.status(400).json({ error: "brain_id required" });
+    const ownerRes = await fetch(`${SB_URL}/rest/v1/brains?id=eq.${encodeURIComponent(brain_id)}&owner_id=eq.${encodeURIComponent(user.id)}`, { headers: hdrs() });
+    if (!(await ownerRes.json()).length) return res.status(403).json({ error: "Not the brain owner" });
+    const r = await fetch(
+      `${SB_URL}/rest/v1/brain_api_keys?brain_id=eq.${encodeURIComponent(brain_id)}&is_active=eq.true&select=id,label,created_at,last_used_at&order=created_at.desc`,
+      { headers: hdrs() }
+    );
+    if (!r.ok) return res.status(502).json({ error: "Failed to fetch API keys" });
+    return res.status(200).json(await r.json());
+  }
+
+  // ── DELETE /api/brains?action=api-key — revoke a brain API key ──
+  if (method === "DELETE" && action === "api-key") {
+    const { key_id, brain_id } = req.body;
+    if (!key_id || !brain_id) return res.status(400).json({ error: "key_id and brain_id required" });
+    const ownerRes = await fetch(`${SB_URL}/rest/v1/brains?id=eq.${encodeURIComponent(brain_id)}&owner_id=eq.${encodeURIComponent(user.id)}`, { headers: hdrs() });
+    if (!(await ownerRes.json()).length) return res.status(403).json({ error: "Not the brain owner" });
+    const r = await fetch(
+      `${SB_URL}/rest/v1/brain_api_keys?id=eq.${encodeURIComponent(key_id)}&brain_id=eq.${encodeURIComponent(brain_id)}`,
+      { method: "PATCH", headers: hdrs({ "Prefer": "return=minimal" }), body: JSON.stringify({ is_active: false }) }
+    );
+    return res.status(r.ok ? 200 : 502).json({ ok: r.ok });
+  }
+
   return res.status(405).json({ error: "Method not allowed" });
 }
