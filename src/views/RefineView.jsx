@@ -1,10 +1,55 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import { authFetch } from "../lib/authFetch";
 import { callAI } from "../lib/ai";
 import { TC, MODEL } from "../data/constants";
 import { useTheme } from "../ThemeContext";
 import { PROMPTS } from "../config/prompts";
+
+/* ─── Persistence helpers (localStorage, 7-day TTL) ─── */
+const EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
+
+function storageKey(brainId, suffix) {
+  return `openbrain_refine_${brainId || "default"}_${suffix}`;
+}
+
+function loadSuggestions(brainId) {
+  try {
+    const raw = localStorage.getItem(storageKey(brainId, "suggestions"));
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    const cutoff = Date.now() - EXPIRY_MS;
+    return arr.filter(s => s._createdAt > cutoff);
+  } catch { return []; }
+}
+
+function saveSuggestions(brainId, suggestions) {
+  try {
+    localStorage.setItem(storageKey(brainId, "suggestions"), JSON.stringify(suggestions));
+  } catch {}
+}
+
+function loadDismissed(brainId) {
+  try {
+    const raw = localStorage.getItem(storageKey(brainId, "dismissed"));
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    const cutoff = Date.now() - EXPIRY_MS;
+    // Each entry is { key, at } — expire after 7 days
+    return new Set(arr.filter(d => d.at > cutoff).map(d => d.key));
+  } catch { return new Set(); }
+}
+
+function saveDismissed(brainId, dismissedSet) {
+  try {
+    // Preserve existing timestamps, add new ones
+    let existing = [];
+    try { existing = JSON.parse(localStorage.getItem(storageKey(brainId, "dismissed")) || "[]"); } catch {}
+    const existingMap = Object.fromEntries(existing.map(d => [d.key, d.at]));
+    const arr = [...dismissedSet].map(key => ({ key, at: existingMap[key] || Date.now() }));
+    localStorage.setItem(storageKey(brainId, "dismissed"), JSON.stringify(arr));
+  } catch {}
+}
 
 /* ─── Suggestion type metadata ─── */
 const LABELS = {
@@ -25,19 +70,46 @@ const LABELS = {
 
 export default function RefineView({ entries, setEntries, links, addLinks, activeBrain, brains, onSwitchBrain }) {
   const { t } = useTheme();
+  const brainId = activeBrain?.id;
   const [loading, setLoading]         = useState(false);
   const [suggestions, setSuggestions] = useState(null); // null = never run
   const [dismissed, setDismissed]     = useState(new Set());
   const [applying, setApplying]       = useState(new Set());
   const [editingKey, setEditingKey]   = useState(null);
   const [editValue, setEditValue]     = useState("");
+  const initialized = useRef(false);
+
+  /* ── Load persisted suggestions + dismissed on mount / brain switch ── */
+  useEffect(() => {
+    const persisted = loadSuggestions(brainId);
+    const persistedDismissed = loadDismissed(brainId);
+    if (persisted.length > 0) {
+      setSuggestions(persisted);
+      setDismissed(persistedDismissed);
+    } else {
+      setSuggestions(null);
+      setDismissed(new Set());
+    }
+    setEditingKey(null);
+    initialized.current = true;
+  }, [brainId]);
+
+  /* ── Persist suggestions when they change ── */
+  useEffect(() => {
+    if (!initialized.current || suggestions === null) return;
+    saveSuggestions(brainId, suggestions);
+  }, [suggestions, brainId]);
+
+  /* ── Persist dismissed set when it changes ── */
+  useEffect(() => {
+    if (!initialized.current) return;
+    saveDismissed(brainId, dismissed);
+  }, [dismissed, brainId]);
 
   /* ── Analyze: entry quality + link discovery in parallel ── */
   const analyze = useCallback(async () => {
     if (loading) return;
     setLoading(true);
-    setSuggestions(null);
-    setDismissed(new Set());
     setEditingKey(null);
 
     const existingLinkKeys = new Set((links || []).map(l => `${l.from}-${l.to}`));
@@ -152,9 +224,27 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
       } catch {}
     }
 
-    setSuggestions([...entrySuggestions, ...linkSuggestions]);
+    // Stamp new suggestions with creation time
+    const now = Date.now();
+    const newSuggestions = [...entrySuggestions, ...linkSuggestions].map(s => ({
+      ...s,
+      _createdAt: now,
+    }));
+
+    // Merge: keep persisted unexpired suggestions that aren't duplicated by new ones
+    const newKeys = new Set(newSuggestions.map(s => s.type === "LINK_SUGGESTED"
+      ? `link:${s.fromId}:${s.toId}` : `entry:${s.entryId}:${s.field}`));
+    const cutoff = Date.now() - EXPIRY_MS;
+    const kept = (suggestions || []).filter(s => {
+      if (!s._createdAt || s._createdAt < cutoff) return false;
+      const k = s.type === "LINK_SUGGESTED"
+        ? `link:${s.fromId}:${s.toId}` : `entry:${s.entryId}:${s.field}`;
+      return !newKeys.has(k); // don't duplicate
+    });
+
+    setSuggestions([...kept, ...newSuggestions]);
     setLoading(false);
-  }, [loading, entries, links]);
+  }, [loading, entries, links, suggestions]);
 
   /* ── Accept an entry-quality suggestion ── */
   const applyEntry = useCallback(async (s, override) => {
@@ -307,7 +397,7 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
           cursor: !loading ? "pointer" : "default",
         }}
       >
-        {loading ? "Analyzing…" : suggestions === null ? "✦ Analyze my brain" : "✦ Re-analyze"}
+        {loading ? "Analyzing…" : suggestions === null ? "✦ Analyze my brain" : "✦ Re-analyze (keeps unanswered)"}
       </button>
 
       {/* Loading */}
@@ -370,6 +460,7 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
         const busy    = applying.has(key);
         const isEdit  = editingKey === key;
         const isLink  = s.type === "LINK_SUGGESTED";
+        const daysLeft = s._createdAt ? Math.max(0, Math.ceil((s._createdAt + EXPIRY_MS - Date.now()) / (24 * 60 * 60 * 1000))) : null;
 
         // Section divider before first link card
         const sIdx    = visible.indexOf(s);
@@ -393,6 +484,11 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
                     <span style={{ fontSize: 10, background: `${meta.color}18`, color: meta.color, padding: "2px 9px", borderRadius: 20, fontWeight: 700 }}>
                       {meta.icon} {meta.label}
                     </span>
+                    {daysLeft !== null && daysLeft <= 3 && (
+                      <span style={{ fontSize: 9, color: "#FF6B35", fontWeight: 600 }}>
+                        {daysLeft === 0 ? "Expires today" : `${daysLeft}d left`}
+                      </span>
+                    )}
                   </div>
 
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
@@ -462,6 +558,11 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
                     <span style={{ flexShrink: 0, fontSize: 10, background: `${meta.color}18`, color: meta.color, padding: "2px 9px", borderRadius: 20, fontWeight: 700 }}>
                       {meta.icon} {meta.label}
                     </span>
+                    {daysLeft !== null && daysLeft <= 3 && (
+                      <span style={{ flexShrink: 0, fontSize: 9, color: "#FF6B35", fontWeight: 600 }}>
+                        {daysLeft === 0 ? "Expires today" : `${daysLeft}d left`}
+                      </span>
+                    )}
                   </div>
 
                   <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
