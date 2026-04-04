@@ -10,92 +10,82 @@ import { authFetch } from "./authFetch";
 import { supabase } from "./supabase";
 import { MODEL as DEFAULT_MODEL } from "../data/constants";
 
-// Cache the user ID from Supabase auth — updated on every auth state change
-let _cachedUid = null;
-supabase.auth.onAuthStateChange((_event, session) => {
-  _cachedUid = session?.user?.id || null;
-});
-// Also try to load immediately from existing session
-supabase.auth.getSession().then(({ data }) => {
-  _cachedUid = data?.session?.user?.id || _cachedUid || null;
-});
+// Prefix for all settings keys — no user-ID scoping needed (single user per browser)
+const P = "openbrain_";
 
 export function getUserId() {
-  if (_cachedUid) return _cachedUid;
-  // Fallback: parse localStorage for any Supabase auth token
+  // Try Supabase auth session from localStorage
   try {
     const key = Object.keys(localStorage).find(k => k.endsWith("-auth-token"));
     if (key) {
       const data = JSON.parse(localStorage.getItem(key));
-      _cachedUid = data?.user?.id || null;
-      return _cachedUid;
+      return data?.user?.id || null;
     }
   } catch {}
   return null;
 }
 
-export function getUserApiKey() {
+// ─── Migrate old user-scoped keys to new unscoped format ───
+// Run once on load: if new keys don't exist but old user-scoped keys do, copy them over
+try {
   const uid = getUserId();
-  if (!uid) return null;
-  return localStorage.getItem(`openbrain_${uid}_api_key`) || null;
+  if (uid) {
+    const migrations = [
+      ["api_key"], ["model"], ["provider"], ["openrouter_key"], ["openrouter_model"],
+      ["embed_provider"], ["embed_openai_key"], ["gemini_key"],
+    ];
+    for (const [suffix] of migrations) {
+      const oldKey = `openbrain_${uid}_${suffix}`;
+      const newKey = `${P}${suffix}`;
+      if (!localStorage.getItem(newKey) && localStorage.getItem(oldKey)) {
+        localStorage.setItem(newKey, localStorage.getItem(oldKey));
+      }
+    }
+  }
+} catch {}
+
+export function getUserApiKey() {
+  return localStorage.getItem(`${P}api_key`) || null;
 }
 
 export function setUserApiKey(key) {
-  const uid = getUserId();
-  if (!uid) return;
-  if (key) localStorage.setItem(`openbrain_${uid}_api_key`, key);
-  else localStorage.removeItem(`openbrain_${uid}_api_key`);
+  if (key) localStorage.setItem(`${P}api_key`, key);
+  else localStorage.removeItem(`${P}api_key`);
 }
 
 export function getUserModel() {
-  const uid = getUserId();
-  if (!uid) return DEFAULT_MODEL;
-  return localStorage.getItem(`openbrain_${uid}_model`) || DEFAULT_MODEL;
+  return localStorage.getItem(`${P}model`) || DEFAULT_MODEL;
 }
 
 export function setUserModel(model) {
-  const uid = getUserId();
-  if (!uid) return;
-  if (model) localStorage.setItem(`openbrain_${uid}_model`, model);
-  else localStorage.removeItem(`openbrain_${uid}_model`);
+  if (model) localStorage.setItem(`${P}model`, model);
+  else localStorage.removeItem(`${P}model`);
 }
 
 export function getUserProvider() {
-  const uid = getUserId();
-  if (!uid) return "anthropic";
-  return localStorage.getItem(`openbrain_${uid}_provider`) || "anthropic";
+  return localStorage.getItem(`${P}provider`) || "anthropic";
 }
 
 export function setUserProvider(provider) {
-  const uid = getUserId();
-  if (!uid) return;
-  localStorage.setItem(`openbrain_${uid}_provider`, provider || "anthropic");
+  localStorage.setItem(`${P}provider`, provider || "anthropic");
 }
 
 export function getOpenRouterKey() {
-  const uid = getUserId();
-  if (!uid) return null;
-  return localStorage.getItem(`openbrain_${uid}_openrouter_key`) || null;
+  return localStorage.getItem(`${P}openrouter_key`) || null;
 }
 
 export function setOpenRouterKey(key) {
-  const uid = getUserId();
-  if (!uid) return;
-  if (key) localStorage.setItem(`openbrain_${uid}_openrouter_key`, key);
-  else localStorage.removeItem(`openbrain_${uid}_openrouter_key`);
+  if (key) localStorage.setItem(`${P}openrouter_key`, key);
+  else localStorage.removeItem(`${P}openrouter_key`);
 }
 
 export function getOpenRouterModel() {
-  const uid = getUserId();
-  if (!uid) return null;
-  return localStorage.getItem(`openbrain_${uid}_openrouter_model`) || null;
+  return localStorage.getItem(`${P}openrouter_model`) || null;
 }
 
 export function setOpenRouterModel(model) {
-  const uid = getUserId();
-  if (!uid) return;
-  if (model) localStorage.setItem(`openbrain_${uid}_openrouter_model`, model);
-  else localStorage.removeItem(`openbrain_${uid}_openrouter_model`);
+  if (model) localStorage.setItem(`${P}openrouter_model`, model);
+  else localStorage.removeItem(`${P}openrouter_model`);
 }
 
 const TASK_COL = {
@@ -107,30 +97,29 @@ const TASK_COL = {
 };
 
 export function getModelForTask(task) {
-  const uid = getUserId();
-  if (!uid) return null;
-  return localStorage.getItem(`openbrain_${uid}_task_${task}`) || null;
+  return localStorage.getItem(`${P}task_${task}`) || null;
 }
 
 export function setModelForTask(task, model) {
-  const uid = getUserId();
-  if (!uid) return;
-  const lsKey = `openbrain_${uid}_task_${task}`;
+  const lsKey = `${P}task_${task}`;
   if (model) localStorage.setItem(lsKey, model);
   else localStorage.removeItem(lsKey);
   const col = TASK_COL[task];
   if (!col) return;
-  supabase.from("user_ai_settings").upsert(
-    { user_id: uid, [col]: model || null, updated_at: new Date().toISOString() },
-    { onConflict: "user_id" }
-  );
+  const uid = getUserId();
+  if (uid) {
+    supabase.from("user_ai_settings").upsert(
+      { user_id: uid, [col]: model || null, updated_at: new Date().toISOString() },
+      { onConflict: "user_id" }
+    );
+  }
 }
 
 export function loadTaskModels(userId, settingsRow) {
-  if (!userId || !settingsRow) return;
+  if (!settingsRow) return;
   for (const [task, col] of Object.entries(TASK_COL)) {
     const val = settingsRow[col];
-    const lsKey = `openbrain_${userId}_task_${task}`;
+    const lsKey = `${P}task_${task}`;
     if (val) localStorage.setItem(lsKey, val);
     else localStorage.removeItem(lsKey);
   }
@@ -139,41 +128,29 @@ export function loadTaskModels(userId, settingsRow) {
 /* ─── Embedding Provider Settings ─── */
 
 export function getEmbedProvider() {
-  const uid = getUserId();
-  if (!uid) return "openai";
-  return localStorage.getItem(`openbrain_${uid}_embed_provider`) || "openai";
+  return localStorage.getItem(`${P}embed_provider`) || "openai";
 }
 
 export function setEmbedProvider(p) {
-  const uid = getUserId();
-  if (!uid) return;
-  localStorage.setItem(`openbrain_${uid}_embed_provider`, p || "openai");
+  localStorage.setItem(`${P}embed_provider`, p || "openai");
 }
 
 export function getEmbedOpenAIKey() {
-  const uid = getUserId();
-  if (!uid) return null;
-  return localStorage.getItem(`openbrain_${uid}_embed_openai_key`) || null;
+  return localStorage.getItem(`${P}embed_openai_key`) || null;
 }
 
 export function setEmbedOpenAIKey(key) {
-  const uid = getUserId();
-  if (!uid) return;
-  if (key) localStorage.setItem(`openbrain_${uid}_embed_openai_key`, key);
-  else localStorage.removeItem(`openbrain_${uid}_embed_openai_key`);
+  if (key) localStorage.setItem(`${P}embed_openai_key`, key);
+  else localStorage.removeItem(`${P}embed_openai_key`);
 }
 
 export function getGeminiKey() {
-  const uid = getUserId();
-  if (!uid) return null;
-  return localStorage.getItem(`openbrain_${uid}_gemini_key`) || null;
+  return localStorage.getItem(`${P}gemini_key`) || null;
 }
 
 export function setGeminiKey(key) {
-  const uid = getUserId();
-  if (!uid) return;
-  if (key) localStorage.setItem(`openbrain_${uid}_gemini_key`, key);
-  else localStorage.removeItem(`openbrain_${uid}_gemini_key`);
+  if (key) localStorage.setItem(`${P}gemini_key`, key);
+  else localStorage.removeItem(`${P}gemini_key`);
 }
 
 /** Returns the active embedding key for the currently selected embed provider. */

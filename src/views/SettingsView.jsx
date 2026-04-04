@@ -184,7 +184,13 @@ export default function SettingsView() {
   const OR_SHORTLIST = MODELS.OPENROUTER;
   const modelOptions = byoProvider === "openai" ? OPENAI_MODELS : ANTHROPIC_MODELS;
 
-  const saveByoKey = (key) => { setByoKey(key); setUserApiKey(key || null); };
+  const [keySaved, setKeySaved] = useState(false);
+  const saveByoKey = (key) => { setByoKey(key); setKeySaved(false); };
+  const handleSaveKey = () => {
+    setUserApiKey(byoKey || null);
+    setKeySaved(true);
+    setTimeout(() => setKeySaved(false), 2000);
+  };
   const saveByoProvider = (p) => {
     setByoProvider(p); setUserProvider(p);
     if (p === "openai") { if (!OPENAI_MODELS.includes(byoModel)) { setByoModel(OPENAI_MODELS[0]); setUserModel(OPENAI_MODELS[0]); } }
@@ -321,6 +327,7 @@ export default function SettingsView() {
               <div style={{ display: "flex", gap: 8 }}>
                 <input type={showKey ? "text" : "password"} value={byoKey} onChange={e => saveByoKey(e.target.value)} placeholder={byoProvider === "openai" ? "sk-..." : "sk-ant-..."} style={{ flex: 1, padding: "9px 12px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textSoft, fontSize: 13, fontFamily: "monospace", outline: "none" }} />
                 <button onClick={() => setShowKey(s => !s)} style={{ padding: "9px 12px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textDim, cursor: "pointer", fontSize: 12 }}>{showKey ? "Hide" : "Show"}</button>
+                <button onClick={handleSaveKey} disabled={!byoKey} style={{ padding: "9px 14px", background: keySaved ? "#25D36620" : byoKey ? "#4ECDC420" : t.bg, border: `1px solid ${keySaved ? "#25D36640" : byoKey ? "#4ECDC440" : t.border}`, borderRadius: 8, color: keySaved ? "#25D366" : byoKey ? "#4ECDC4" : t.textFaint, cursor: byoKey ? "pointer" : "default", fontSize: 12, fontWeight: 600 }}>{keySaved ? "Saved!" : "Save"}</button>
                 <button onClick={testByoKey} disabled={!byoKey} style={{ padding: "9px 14px", background: byoKey ? "#4ECDC420" : t.bg, border: `1px solid ${byoKey ? "#4ECDC440" : t.border}`, borderRadius: 8, color: byoKey ? "#4ECDC4" : t.textFaint, cursor: byoKey ? "pointer" : "default", fontSize: 12, fontWeight: 600 }}>{byoTestStatus === "testing" ? "…" : byoTestStatus === "ok" ? "✓" : byoTestStatus === "fail" ? "✗" : "Test"}</button>
               </div>
             </div>
