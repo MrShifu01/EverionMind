@@ -56,7 +56,7 @@ export default async function handler(req, res) {
   const genKey = (req.headers["x-user-api-key"] || "").trim();
   if (!genKey) return res.status(400).json({ error: "X-User-Api-Key header required" });
 
-  const { message, brain_id, history = [], provider = "anthropic", model } = req.body || {};
+  const { message, brain_id, history = [], provider = "anthropic", model, secrets = [] } = req.body || {};
   if (!message || typeof message !== "string" || !message.trim()) return res.status(400).json({ error: "message required" });
   if (!brain_id || typeof brain_id !== "string") return res.status(400).json({ error: "brain_id required" });
 
@@ -109,9 +109,18 @@ export default async function handler(req, res) {
       similarity: e.similarity?.toFixed(3),
     }))
   );
+  // Include decrypted vault secrets if provided (client decrypts, sends plaintext)
+  const safeSecrets = Array.isArray(secrets)
+    ? secrets.slice(0, 50).map(s => ({ title: String(s.title || "").slice(0, 200), content: String(s.content || "").slice(0, 500), tags: Array.isArray(s.tags) ? s.tags.slice(0, 10) : [] }))
+    : [];
+  const secretsBlock = safeSecrets.length
+    ? `\n\nVAULT SECRETS (user's encrypted entries, decrypted client-side — treat as highly sensitive, only share when directly asked):\n${JSON.stringify(safeSecrets)}`
+    : "";
+
   const system = CHAT_SYSTEM
     .replace("{{MEMORIES}}", memoriesText)
-    .replace("{{LINKS}}", JSON.stringify(relevantLinks));
+    .replace("{{LINKS}}", JSON.stringify(relevantLinks))
+    + secretsBlock;
 
   // 5. Sanitize history (last 10 turns, max 20 messages)
   const safeHistory = Array.isArray(history)

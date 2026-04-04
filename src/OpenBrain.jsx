@@ -509,6 +509,11 @@ export default function OpenBrain() {
     setChatMsgs(p => [...p, { role: "user", content: msg }]);
     setChatLoading(true);
     try {
+      // If vault is unlocked, include decrypted secret entries as extra context
+      const secrets = cryptoKey
+        ? entries.filter(e => e.type === "secret").map(e => ({ title: e.title, content: e.content?.slice(0, 500), tags: e.tags }))
+        : [];
+
       const embedHeaders = getEmbedHeaders();
       let data;
       if (embedHeaders && activeBrain?.id) {
@@ -524,14 +529,15 @@ export default function OpenBrain() {
             ...embedHeaders,
             ...(genKey ? { "X-User-Api-Key": genKey } : {}),
           },
-          body: JSON.stringify({ message: msg, brain_id: activeBrain.id, history, provider, model }),
+          body: JSON.stringify({ message: msg, brain_id: activeBrain.id, history, provider, model, secrets }),
         });
         data = await res.json();
       } else {
-        // Fallback: existing top-100 context, no history
+        // Fallback: existing top-100 context, no history — include decrypted secrets
+        const contextWithSecrets = secrets.length ? [...chatContext, ...secrets.map(s => ({ ...s, type: "secret" }))] : chatContext;
         const res = await callAI({
           max_tokens: 1000,
-          system: PROMPTS.CHAT.replace("{{MEMORIES}}", JSON.stringify(chatContext)).replace("{{LINKS}}", JSON.stringify(links)),
+          system: PROMPTS.CHAT.replace("{{MEMORIES}}", JSON.stringify(contextWithSecrets)).replace("{{LINKS}}", JSON.stringify(links)),
           messages: [{ role: "user", content: msg }],
         });
         data = await res.json();
