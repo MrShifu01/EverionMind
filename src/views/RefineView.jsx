@@ -14,6 +14,10 @@ const LABELS = {
   URL_FOUND:      { label: "URL / link",      icon: "🔗", color: "#FFEAA7" },
   DATE_FOUND:     { label: "Date / deadline", icon: "📅", color: "#FF6B35" },
   TITLE_POOR:     { label: "Better title",    icon: "✏️",  color: "#DDA0DD" },
+  STALE_ENTRY:    { label: "Stale / outdated",icon: "🕰️", color: "#FF8C42" },
+  CONTENT_SPARSE: { label: "Needs detail",    icon: "📝", color: "#74B9FF" },
+  DATE_MISPLACED: { label: "Date fix",        icon: "📅", color: "#FDCB6E" },
+  LIFE_CHANGE:    { label: "Life change",     icon: "🔀", color: "#E17055" },
   LINK_SUGGESTED: { label: "Relationship",    icon: "⟷",  color: "#96CEB4" },
 };
 
@@ -47,15 +51,17 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
       const slim = batch.map(e => ({
         id:       e.id,
         title:    e.title,
-        content:  (e.content || "").slice(0, 400),
+        content:  (e.content || "").slice(0, 500),
         type:     e.type,
         metadata: e.metadata || {},
         tags:     e.tags || [],
+        created_at: e.created_at || null,
       }));
       try {
+        const todayStr = new Date().toISOString().slice(0, 10);
         const res  = await callAI({
-          max_tokens: 1500,
-          system:     PROMPTS.ENTRY_AUDIT,
+          max_tokens: 2000,
+          system:     PROMPTS.ENTRY_AUDIT.replace("{{TODAY}}", todayStr),
           messages:   [{ role: "user", content: `Review these ${slim.length} entries:\n\n${JSON.stringify(slim)}` }],
         });
         const data = await res.json();
@@ -161,6 +167,8 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
     const body = { id: entry.id };
     if (s.field === "type")  body.type  = value;
     else if (s.field === "title") body.title = value;
+    else if (s.field === "content") body.content = value;
+    else if (s.field === "tags") body.tags = [...new Set([...(entry.tags || []), ...value.split(",").map(t => t.trim()).filter(Boolean)])];
     else if (s.field.startsWith("metadata.")) {
       const k = s.field.slice("metadata.".length);
       body.metadata = { ...(entry.metadata || {}), [k]: value };
@@ -176,6 +184,8 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
         if (e.id !== entry.id) return e;
         if (s.field === "type")  return { ...e, type: value };
         if (s.field === "title") return { ...e, title: value };
+        if (s.field === "content") return { ...e, content: value };
+        if (s.field === "tags") return { ...e, tags: [...new Set([...(e.tags || []), ...value.split(",").map(t => t.trim()).filter(Boolean)])] };
         if (s.field.startsWith("metadata.")) {
           const k = s.field.slice("metadata.".length);
           return { ...e, metadata: { ...(e.metadata || {}), [k]: value } };
@@ -259,7 +269,7 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
       <div style={{ marginBottom: 20 }}>
         <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#EAEAEA" }}>Refine{isSharedBrain ? ` — ${activeBrain.name}` : ""}</h2>
         <p style={{ margin: "4px 0 0", fontSize: 12, color: "#555" }}>
-          AI skeptically audits every entry — and discovers missing relationships between them.
+          AI audits every entry — fixes data, spots stale info, detects life changes, and discovers relationships.
         </p>
         {/* Brain selector — owners only, when multiple brains exist */}
         {isOwnerMultiBrain && onSwitchBrain && (
@@ -304,9 +314,9 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
         <div style={{ textAlign: "center", padding: "40px 20px", background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 14, marginBottom: 20 }}>
           <div style={{ fontSize: 22, marginBottom: 10 }}>✦</div>
           <p style={{ color: "#A29BFE", fontSize: 14, margin: 0, fontWeight: 600 }}>
-            Auditing {entries.length} entries + mapping relationships…
+            Deep-analyzing {entries.length} entries…
           </p>
-          <p style={{ color: "#555", fontSize: 11, margin: "6px 0 0" }}>Running entry quality + link discovery in parallel</p>
+          <p style={{ color: "#555", fontSize: 11, margin: "6px 0 0" }}>Quality fixes, stale detection, life changes, and relationship mapping</p>
         </div>
       )}
 

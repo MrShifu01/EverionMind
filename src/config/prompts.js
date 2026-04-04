@@ -37,7 +37,7 @@ IMPORTANT: Do NOT suggest merging companies just because they have similar name 
   CHAT: `You are OpenBrain, the user's memory assistant. Be concise. When you mention a phone number, format it clearly. If the answer contains a phone number, put it on its own line.\n\nMEMORIES:\n{{MEMORIES}}\n\nLINKS:\n{{LINKS}}`,
 
   /** Onboarding + SuggestionsView: parse a Q&A into a structured entry */
-  QA_PARSE: `Parse this Q&A into a structured entry. Return ONLY valid JSON:\n{"title":"...","content":"...","type":"note|person|place|idea|contact|document|reminder|color|decision|secret","metadata":{},"tags":[]}\nFor dates use: metadata.due_date, metadata.expiry_date, metadata.event_date (YYYY-MM-DD), metadata.day_of_week for recurring ("wednesday").\nUse type "secret" for passwords, PINs, credit card numbers, bank details, security codes, API keys, or any sensitive credentials.`,
+  QA_PARSE: `Parse this Q&A into a structured entry. Return ONLY valid JSON:\n{"title":"...","content":"...","type":"note|person|place|idea|contact|document|reminder|color|decision|secret","metadata":{},"tags":[]}\nFor dates use: metadata.due_date, metadata.expiry_date, metadata.event_date (YYYY-MM-DD), metadata.day_of_week for recurring ("wednesday").\nFor reference/historical dates (date of birth, ID issue date, licence date, anniversary), use descriptive keys like metadata.date_of_birth, metadata.issue_date, metadata.licence_date — NOT metadata.date.\nUse type "secret" for passwords, PINs, credit card numbers, bank details, security codes, API keys, or any sensitive credentials.`,
 
   /** SuggestionsView: generate a gap-filling question for the brain */
   FILL_BRAIN: `You are helping someone build their {{BRAIN_CONTEXT}} called OpenBrain. Identify important information they should capture but haven't yet. Study the gaps — important facts, records, contacts, plans that are missing. Generate ONE specific, actionable question relevant to this brain type. Return ONLY valid JSON: {"q":"...","cat":"...","p":"high"|"medium"|"low"}`,
@@ -45,23 +45,41 @@ IMPORTANT: Do NOT suggest merging companies just because they have similar name 
   /** RefineView: entry quality audit */
   ENTRY_AUDIT: `You are a ruthlessly skeptical data quality auditor reviewing a personal knowledge base. Your bar is very high — only flag what is obviously, undeniably wrong. If there is any ambiguity, skip it.
 
-Only identify these specific issues (nothing else):
+Today's date: {{TODAY}}
+
+Identify these specific issues (nothing else):
 1. TYPE_MISMATCH — Entry is clearly the wrong type. Example: a named person saved as "note" should be "person"; a physical location saved as "note" should be "place"; a hard deadline saved as "note" should be "reminder". Skip if debatable.
 2. PHONE_FOUND — A phone number clearly appears in content/title but metadata.phone is missing or empty. Only flag if the number is complete and unambiguous.
 3. EMAIL_FOUND — An email address clearly appears in content/title but metadata.email is missing or empty.
 4. URL_FOUND — A full URL (https://...) clearly appears in content but metadata.url is missing.
 5. DATE_FOUND — A specific future deadline or due date is explicitly mentioned in content and not already in metadata.due_date. Only for actual deadlines, not historical dates.
 6. TITLE_POOR — Title is so vague it could describe anything (e.g. "Note", "Info", "Misc"). Very high bar — only if the title is genuinely useless.
+7. STALE_ENTRY — Entry is clearly outdated and should be marked as such. Examples:
+   - A reminder whose date has long passed and is clearly no longer relevant
+   - A task/decision that is clearly completed but not marked done
+   - An entry referencing something that has clearly expired (old subscription, ended contract, past event)
+   - For this type: field="metadata.status", suggestedValue="outdated" or "done"
+8. CONTENT_SPARSE — Entry has very little useful information and clearly needs more detail. The title alone is not enough — the content is empty, just repeats the title, or is too vague to be useful as a memory. Suggest what specific information is missing.
+   - For this type: field="content", suggestedValue="<current content + specific prompt for what's missing>" (max 200 chars)
+9. DATE_MISPLACED — A reference/historical date (date of birth, ID issue date, licence date, anniversary) is stored in an actionable date field like metadata.date, metadata.due_date, or metadata.event_date where it does NOT belong. These dates are records, not deadlines.
+   - For this type: field should be the CORRECT descriptive metadata key (e.g. "metadata.date_of_birth", "metadata.issue_date", "metadata.licence_date"), suggestedValue is the date string, and include which wrong field it's currently in within the reason.
+10. LIFE_CHANGE — Cross-entry pattern analysis: Look across ALL entries for signs of life changes that make older entries stale. Examples:
+   - Two different employers mentioned → older job entries should be tagged as previous
+   - Two different spouses/partners → older relationship entries need updating
+   - Old address when a newer one exists → mark old address as previous
+   - Old phone number when a newer one exists for the same person
+   - For this type: field="metadata.status", suggestedValue="previous" and explain the conflict in reason
 
 Hard rules:
 - Only suggest if confidence > 90%
-- Max 2 suggestions per entry
+- Max 3 suggestions per entry
 - Skip entries that look complete and well-structured
 - For TYPE_MISMATCH: suggestedValue must be one of: note, reminder, document, contact, person, place, idea, color, decision, secret. Use "secret" for entries containing passwords, PINs, credit card numbers, bank details, or credentials
 - For DATE_FOUND: suggestedValue must be ISO date string YYYY-MM-DD
+- For LIFE_CHANGE: compare entries against each other — look for contradictions, superseded info, duplicates with different values
 - Return ONLY a valid JSON array, no markdown, no explanation
 
-Schema: [{"entryId":"...","entryTitle":"...","type":"TYPE_MISMATCH|PHONE_FOUND|EMAIL_FOUND|URL_FOUND|DATE_FOUND|TITLE_POOR","field":"type|metadata.phone|metadata.email|metadata.url|metadata.due_date|title","currentValue":"...","suggestedValue":"...","reason":"max 90 chars"}]
+Schema: [{"entryId":"...","entryTitle":"...","type":"TYPE_MISMATCH|PHONE_FOUND|EMAIL_FOUND|URL_FOUND|DATE_FOUND|TITLE_POOR|STALE_ENTRY|CONTENT_SPARSE|DATE_MISPLACED|LIFE_CHANGE","field":"...","currentValue":"...","suggestedValue":"...","reason":"max 90 chars"}]
 
 If nothing is wrong, return: []`,
 
