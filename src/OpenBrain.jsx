@@ -3,7 +3,8 @@ import { useTheme } from "./ThemeContext";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { authFetch } from "./lib/authFetch";
 import { callAI } from "./lib/ai";
-import { getEmbedHeaders, getUserProvider, getUserModel, getUserApiKey, getOpenRouterKey, getOpenRouterModel } from "./lib/aiFetch";
+import { getEmbedHeaders, getUserProvider, getUserModel, getUserApiKey, getOpenRouterKey, getOpenRouterModel, getUserId } from "./lib/aiFetch";
+import { getOrCreateKey, encryptEntry, decryptEntry } from "./lib/crypto";
 import { PROMPTS } from "./config/prompts";
 import { TC, fmtD, MODEL, INITIAL_ENTRIES, LINKS } from "./data/constants";
 import { useBrain as useBrainHook } from "./hooks/useBrain";
@@ -103,7 +104,10 @@ const EntryCard = memo(function EntryCard({ entry: e, onSelect }) {
         {imp && <span style={{ fontSize: 9, background: e.importance === 2 ? "#FF6B3530" : "#FFEAA720", color: e.importance === 2 ? "#FF6B35" : "#FFEAA7", padding: "2px 8px", borderRadius: 20, fontWeight: 600 }}>{imp}</span>}
       </div>
       <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: t.text, lineHeight: 1.3 }}>{e.title}</h3>
-      <p style={{ margin: "8px 0 0", fontSize: 13, color: t.textMuted, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{e.content}</p>
+      {e.type === "secret"
+        ? <p style={{ margin: "8px 0 0", fontSize: 13, color: "#FF4757", lineHeight: 1.5, fontStyle: "italic" }}>Encrypted — tap to reveal</p>
+        : <p style={{ margin: "8px 0 0", fontSize: 13, color: t.textMuted, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{e.content}</p>
+      }
       {e.tags?.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 10 }}>
         {e.tags.slice(0, 4).map(tag => <span key={tag} style={{ fontSize: 10, color: t.textDim, background: isDark ? "#ffffff08" : "#00000008", padding: "2px 8px", borderRadius: 20 }}>{tag}</span>)}
         {e.tags.length > 4 && <span style={{ fontSize: 10, color: t.textFaint }}>+{e.tags.length - 4}</span>}
@@ -187,6 +191,13 @@ export default function OpenBrain() {
     return [];
   });
   const [entriesLoaded, setEntriesLoaded] = useState(false);
+  const [cryptoKey, setCryptoKey] = useState(null);
+
+  // E2E: initialise device-bound AES-256-GCM key for secret entries
+  useEffect(() => {
+    const uid = getUserId();
+    if (uid) getOrCreateKey(uid).then(setCryptoKey).catch(err => console.error("[crypto:init]", err));
+  }, []);
 
   // PERF-8: On mount, upgrade the initial state from IndexedDB (richer than localStorage).
   // Only runs once; if IDB has data and localStorage was empty/stale, this hydrates faster.
@@ -270,12 +281,16 @@ export default function OpenBrain() {
     const url = `/api/entries?brain_id=${encodeURIComponent(activeBrain.id)}`;
     authFetch(url)
       .then(r => r.ok ? r.json() : null)
-      .then(data => {
+      .then(async (data) => {
         if (Array.isArray(data) && data.length > 0) {
-          setEntries(data);
-          writeEntriesCache(data); // PERF-8: write to IDB (with localStorage fallback)
+          // E2E: decrypt secret entries client-side before storing in state
+          const decrypted = cryptoKey
+            ? await Promise.all(data.map(e => e.type === "secret" ? decryptEntry(e, cryptoKey) : e))
+            : data;
+          setEntries(decrypted);
+          writeEntriesCache(decrypted); // PERF-8: write to IDB (with localStorage fallback)
           // ARCH-5: Build search index at load time — O(n) once, not on every filter
-          data.forEach(indexEntry);
+          decrypted.forEach(indexEntry);
         }
         setEntriesLoaded(true);
       })
@@ -383,20 +398,31 @@ export default function OpenBrain() {
       if (previous) setLastAction({ type: "update", id, previous: { title: previous.title, content: previous.content, type: previous.type, tags: previous.tags, metadata: previous.metadata } });
       return;
     }
+    // E2E: encrypt content & metadata for secret entries before sending to server
+    const entryType = changes.type || previous?.type;
+    const isSecret = entryType === "secret";
+    let serverChanges = { ...changes };
+    if (isSecret && cryptoKey && (changes.content || changes.metadata)) {
+      const encrypted = await encryptEntry({ content: changes.content, metadata: changes.metadata }, cryptoKey);
+      if (changes.content) serverChanges.content = encrypted.content;
+      if (changes.metadata) serverChanges.metadata = encrypted.metadata;
+    }
     try {
-      const res = await authFetch("/api/update-entry", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...changes }) });
+      const res = await authFetch("/api/update-entry", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...serverChanges }) });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error((data?.message || data?.error) ?? `HTTP ${res.status}`);
       if (Array.isArray(data) && data.length === 0) throw new Error(`No row matched id=${id}`);
     } catch (e) { captureError(e, 'handleUpdate'); showError(`Save failed: ${e.message}`); setSaveError(`Save failed: ${e.message}`); setTimeout(() => setSaveError(null), 5000); return; }
-    // Fire-and-forget re-embedding for the updated entry (non-blocking)
-    const embedHeaders = getEmbedHeaders();
-    if (embedHeaders) {
-      authFetch("/api/embed", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...embedHeaders },
-        body: JSON.stringify({ entry_id: id }),
-      }).catch(() => {}); // best-effort, never blocks
+    // Fire-and-forget re-embedding (skip for secret entries — encrypted content can't be embedded)
+    if (!isSecret) {
+      const embedHeaders = getEmbedHeaders();
+      if (embedHeaders) {
+        authFetch("/api/embed", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...embedHeaders },
+          body: JSON.stringify({ entry_id: id }),
+        }).catch(() => {}); // best-effort, never blocks
+      }
     }
     // ARCH-5: Re-index the updated entry so search stays accurate
     removeFromIndex(id);
@@ -589,7 +615,7 @@ export default function OpenBrain() {
         </div>
       </div>
 
-      <QuickCapture entries={entries} setEntries={setEntries} links={links} addLinks={addLinks} onCreated={handleCreated} onUpdate={handleUpdate} brainId={activeBrain?.id} brains={brains} isOnline={isOnline} refreshCount={refreshCount} canWrite={canWrite} />
+      <QuickCapture entries={entries} setEntries={setEntries} links={links} addLinks={addLinks} onCreated={handleCreated} onUpdate={handleUpdate} brainId={activeBrain?.id} brains={brains} isOnline={isOnline} refreshCount={refreshCount} canWrite={canWrite} cryptoKey={cryptoKey} />
 
       {showBrainTip && (
         <BrainTipCard

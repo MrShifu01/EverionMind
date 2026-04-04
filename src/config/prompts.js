@@ -8,7 +8,8 @@ export const PROMPTS = {
   CAPTURE: `You classify and structure a raw text capture into an OpenBrain entry. Return ONLY valid JSON.
 Format: {"title":"...","content":"...","type":"...","metadata":{},"tags":[],"workspace":"business"|"personal"|"both"}
 
-TYPE RULES (pick the BEST match): person, contact, place, document, reminder, idea, decision, color, note
+TYPE RULES (pick the BEST match): person, contact, place, document, reminder, idea, decision, color, note, secret
+- secret: passwords, PINs, credit card numbers, bank account details, security codes, API keys, private keys, 2FA backup codes, or any sensitive credentials
 
 EXTRACTION RULES:
 - Put phone numbers, IDs into metadata
@@ -36,7 +37,7 @@ IMPORTANT: Do NOT suggest merging companies just because they have similar name 
   CHAT: `You are OpenBrain, the user's memory assistant. Be concise. When you mention a phone number, format it clearly. If the answer contains a phone number, put it on its own line.\n\nMEMORIES:\n{{MEMORIES}}\n\nLINKS:\n{{LINKS}}`,
 
   /** Onboarding + SuggestionsView: parse a Q&A into a structured entry */
-  QA_PARSE: `Parse this Q&A into a structured entry. Return ONLY valid JSON:\n{"title":"...","content":"...","type":"note|person|place|idea|contact|document|reminder|color|decision","metadata":{},"tags":[]}\nFor dates use: metadata.due_date, metadata.expiry_date, metadata.event_date (YYYY-MM-DD), metadata.day_of_week for recurring ("wednesday").`,
+  QA_PARSE: `Parse this Q&A into a structured entry. Return ONLY valid JSON:\n{"title":"...","content":"...","type":"note|person|place|idea|contact|document|reminder|color|decision|secret","metadata":{},"tags":[]}\nFor dates use: metadata.due_date, metadata.expiry_date, metadata.event_date (YYYY-MM-DD), metadata.day_of_week for recurring ("wednesday").\nUse type "secret" for passwords, PINs, credit card numbers, bank details, security codes, API keys, or any sensitive credentials.`,
 
   /** SuggestionsView: generate a gap-filling question for the brain */
   FILL_BRAIN: `You are helping someone build their {{BRAIN_CONTEXT}} called OpenBrain. Identify important information they should capture but haven't yet. Study the gaps — important facts, records, contacts, plans that are missing. Generate ONE specific, actionable question relevant to this brain type. Return ONLY valid JSON: {"q":"...","cat":"...","p":"high"|"medium"|"low"}`,
@@ -56,7 +57,7 @@ Hard rules:
 - Only suggest if confidence > 90%
 - Max 2 suggestions per entry
 - Skip entries that look complete and well-structured
-- For TYPE_MISMATCH: suggestedValue must be one of: note, reminder, document, contact, person, place, idea, color, decision
+- For TYPE_MISMATCH: suggestedValue must be one of: note, reminder, document, contact, person, place, idea, color, decision, secret. Use "secret" for entries containing passwords, PINs, credit card numbers, bank details, or credentials
 - For DATE_FOUND: suggestedValue must be ISO date string YYYY-MM-DD
 - Return ONLY a valid JSON array, no markdown, no explanation
 

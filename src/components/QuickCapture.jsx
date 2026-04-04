@@ -3,6 +3,7 @@ import PropTypes from "prop-types";
 import { useTheme } from "../ThemeContext";
 import { callAI } from "../lib/ai";
 import { aiFetch, getUserModel, getUserApiKey, getEmbedHeaders } from "../lib/aiFetch";
+import { encryptEntry } from "../lib/crypto";
 import { authFetch } from "../lib/authFetch";
 import { enqueue } from "../lib/offlineQueue";
 import { findConnections, scoreTitle } from "../lib/connectionFinder";
@@ -75,7 +76,7 @@ function PreviewModal({ preview, entries, onSave, onUpdate, onCancel }) {
   );
 }
 
-export default function QuickCapture({ entries, setEntries, links, addLinks, onCreated, onUpdate, isOnline = true, refreshCount, brainId, brains = [], canWrite = true }) {
+export default function QuickCapture({ entries, setEntries, links, addLinks, onCreated, onUpdate, isOnline = true, refreshCount, brainId, brains = [], canWrite = true, cryptoKey = null }) {
   const { t } = useTheme();
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
@@ -255,7 +256,17 @@ export default function QuickCapture({ entries, setEntries, links, addLinks, onC
           onCreated?.(newEntry);
           setStatus("saved-local");
         } else {
-          const rpcRes = await authFetch("/api/capture", { method: "POST", headers: { "Content-Type": "application/json", ...(getEmbedHeaders() || {}) }, body: JSON.stringify({ p_title: parsed.title, p_content: parsed.content || "", p_type: parsed.type || "note", p_metadata: parsed.metadata || {}, p_tags: parsed.tags || [], p_brain_id: primaryBrainId, p_extra_brain_ids: extraBrainIds }) });
+          // E2E: encrypt content & metadata for secret entries before sending to server
+          const isSecret = (parsed.type || "note") === "secret";
+          let serverContent = parsed.content || "";
+          let serverMetadata = parsed.metadata || {};
+          if (isSecret && cryptoKey) {
+            const encrypted = await encryptEntry({ content: serverContent, metadata: serverMetadata }, cryptoKey);
+            serverContent = encrypted.content;
+            serverMetadata = encrypted.metadata;
+          }
+          const captureHeaders = { "Content-Type": "application/json", ...(isSecret ? {} : (getEmbedHeaders() || {})) };
+          const rpcRes = await authFetch("/api/capture", { method: "POST", headers: captureHeaders, body: JSON.stringify({ p_title: parsed.title, p_content: serverContent, p_type: parsed.type || "note", p_metadata: serverMetadata, p_tags: parsed.tags || [], p_brain_id: primaryBrainId, p_extra_brain_ids: extraBrainIds }) });
           if (rpcRes.ok) {
             const result = await rpcRes.json();
             const newEntry = { id: result?.id || Date.now().toString(), title: parsed.title, content: parsed.content || "", type: parsed.type || "note", metadata: parsed.metadata || {}, pinned: false, importance: 0, tags: parsed.tags || [], created_at: new Date().toISOString() };

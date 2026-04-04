@@ -18,6 +18,8 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
   const [editTags, setEditTags] = useState((entry.tags || []).join(', '));
   const [editBrainId, setEditBrainId] = useState(entry.brain_id || '');
   const [shareMsg, setShareMsg] = useState(null);
+  const [secretRevealed, setSecretRevealed] = useState(false);
+  const isSecret = entry.type === 'secret';
   const cfg = TC[editType] || TC.note;
   const related = links.filter(l => l.from === entry.id || l.to === entry.id).map(l => ({
     ...l,
@@ -128,8 +130,19 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
     );
   }
 
-  // Share always available
-  quickActions.push(<button key="share" onClick={handleShare} style={abtn('#45B7D1')}>📤 Share</button>);
+  if (isSecret) {
+    if (secretRevealed) {
+      quickActions.push(
+        <button key="copy-secret" onClick={() => { navigator.clipboard.writeText(entry.content || '').then(() => { setShareMsg('Copied to clipboard'); setTimeout(() => setShareMsg(null), 2500); }); }} style={abtn('#FF4757')}>📋 Copy</button>
+      );
+      quickActions.push(
+        <button key="hide-secret" onClick={() => setSecretRevealed(false)} style={abtn('#666')}>👁 Hide</button>
+      );
+    }
+  }
+
+  // Share always available (but not for secret entries)
+  if (!isSecret) quickActions.push(<button key="share" onClick={handleShare} style={abtn('#45B7D1')}>📤 Share</button>);
 
   return (
     <div role="dialog" aria-modal="true" aria-labelledby="detail-modal-title" style={{ position: 'fixed', inset: 0, background: '#000000CC', zIndex: 1000 /* z-index scale: PinGate=9999, Onboarding=3000, DetailModal=1000 */, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }} onClick={editing ? undefined : onClose}>
@@ -157,7 +170,7 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
             <div><label style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Title</label><input autoFocus value={editTitle} onChange={e => setEditTitle(e.target.value)} style={inp} /></div>
             <div><label style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Type</label>
               <select value={editType} onChange={e => setEditType(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
-                {['note','person','place','idea','contact','document','reminder','color','decision'].map(typ => <option key={typ} value={typ}>{typ}</option>)}
+                {['note','person','place','idea','contact','document','reminder','color','decision','secret'].map(typ => <option key={typ} value={typ}>{typ}</option>)}
               </select>
             </div>
             <div><label style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Content</label><textarea value={editContent} onChange={e => setEditContent(e.target.value)} rows={4} style={{ ...inp, resize: 'vertical', lineHeight: 1.6 }} /></div>
@@ -185,10 +198,20 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
           </div>
         ) : (
           <div style={{ padding: '16px 16px' }}>
-            <p style={{ color: t.textMid, fontSize: 14, lineHeight: 1.7, margin: 0 }}>{editContent}</p>
-            {meta.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px', marginTop: 12 }}>
-              {meta.map(([k, v]) => <div key={k} style={{ fontSize: 12 }}><span style={{ color: t.textMuted, textTransform: 'capitalize' }}>{k.replace(/_/g, ' ')}: </span><span style={{ color: t.textMid }}>{Array.isArray(v) ? v.join(', ') : String(v)}</span></div>)}
-            </div>}
+            {isSecret && !secretRevealed ? (
+              <div style={{ textAlign: 'center', padding: '24px 16px' }}>
+                <div style={{ fontSize: 32, marginBottom: 12 }}>🔐</div>
+                <p style={{ color: t.textDim, fontSize: 13, margin: '0 0 16px' }}>This entry is end-to-end encrypted</p>
+                <button onClick={() => setSecretRevealed(true)} style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #FF4757, #FF6B81)', border: 'none', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 44 }}>Reveal content</button>
+              </div>
+            ) : (
+              <>
+                <p style={{ color: t.textMid, fontSize: 14, lineHeight: 1.7, margin: 0, ...(isSecret ? { fontFamily: 'monospace', background: '#FF475710', padding: '12px', borderRadius: 8, border: '1px solid #FF475730' } : {}) }}>{editContent}</p>
+                {meta.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px', marginTop: 12 }}>
+                  {meta.map(([k, v]) => <div key={k} style={{ fontSize: 12 }}><span style={{ color: t.textMuted, textTransform: 'capitalize' }}>{k.replace(/_/g, ' ')}: </span><span style={{ color: t.textMid, ...(isSecret ? { fontFamily: 'monospace' } : {}) }}>{Array.isArray(v) ? v.join(', ') : String(v)}</span></div>)}
+                </div>}
+              </>
+            )}
             {editTags.split(',').map(tag => tag.trim()).filter(Boolean).length > 0 && <div style={{ marginTop: 16 }}><div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{editTags.split(',').map(tag => tag.trim()).filter(Boolean).map(tag => <span key={tag} style={{ fontSize: 11, color: cfg.c, background: cfg.c + '15', padding: '4px 12px', borderRadius: 20 }}>{tag}</span>)}</div></div>}
             {related.length > 0 && <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${t.border}` }}>
               <p style={{ fontSize: 11, color: t.textDim, fontWeight: 600, marginBottom: 10, textTransform: 'uppercase' }}>Connections</p>

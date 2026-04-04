@@ -5,7 +5,7 @@ import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 
-const ALLOWED_TYPES = ["note", "person", "place", "idea", "contact", "document", "reminder", "color", "decision"];
+const ALLOWED_TYPES = ["note", "person", "place", "idea", "contact", "document", "reminder", "color", "decision", "secret"];
 
 // SEC-15: Whitelist allowed rel values
 const ALLOWED_RELS = ['related', 'mentions', 'links-to', 'contradicts'];
