@@ -30,7 +30,7 @@ function TelegramPanel({ activeBrain }) {
       <p style={{ margin: "0 0 12px", fontSize: 11, color: t.textDim }}>Connect Telegram to save entries by sending messages to the bot.</p>
       {code ? (
         <div style={{ background: t.bg, borderRadius: 10, padding: "12px 16px" }}>
-          <p style={{ margin: "0 0 6px", fontSize: 12, color: t.textMuted }}>Send this code to <strong>@OpenBrainBot</strong> on Telegram:</p>
+          <p style={{ margin: "0 0 6px", fontSize: 12, color: t.textMuted }}>Send this code to <strong>@TheOneAndOnlyOpenBrainBot</strong> on Telegram:</p>
           <p style={{ margin: 0, fontSize: 22, fontWeight: 700, fontFamily: "monospace", color: "#4ECDC4", letterSpacing: 4 }}>{code}</p>
           <p style={{ margin: "6px 0 0", fontSize: 11, color: t.textFaint }}>Expires in 10 minutes</p>
         </div>
