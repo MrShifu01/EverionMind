@@ -1,2 +1,4 @@
 Get users to easily! link to telegram for their own openbrain chat
 Revoke leaked Telegram Bot Token (flagged by GitGuardian, commit d811ad2) — go to @BotFather /revoke, generate new token, update Supabase env vars (BOT_TOKEN / TELEGRAM_BOT_TOKEN)
+Set up push notifications — run `npx web-push generate-vapid-keys`, then add to Vercel env vars: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (mailto:your@email.com), VITE_VAPID_PUBLIC_KEY (same as public key). Redeploy after.
+Update Supabase email template to show OTP code — go to Auth → Email Templates → Magic Link, add {{ .Token }} to show the login code for PWA sign-in
