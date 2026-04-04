@@ -220,7 +220,7 @@ export default function OpenBrain() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Brain context + role ───
-  const { brains, activeBrain, setActiveBrain, createBrain, deleteBrain, refresh } = useBrainHook(
+  const { brains, activeBrain, setActiveBrain, createBrain, deleteBrain, refresh, loading: brainsLoading } = useBrainHook(
     useCallback(() => {
       // Reset local state when brain switches
       setEntries([]);
@@ -652,6 +652,23 @@ export default function OpenBrain() {
     canInvite,
     canManageMembers,
   }), [activeBrain, brains, refresh, canInvite, canManageMembers]);
+
+  // Show loading state while brains are being fetched to prevent read-only / onboarding flash
+  if (brainsLoading) {
+    return (
+      <div style={{ minHeight: "100vh", background: t.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Söhne', system-ui, -apple-system, sans-serif" }}>
+        <div style={{ fontSize: 48, marginBottom: 16, animation: "ob-pulse 1.5s ease-in-out infinite" }}>🧠</div>
+        <p style={{ fontSize: 13, color: t.textDim, margin: 0 }}>Loading your brains...</p>
+        <div style={{ width: 120, height: 3, borderRadius: 3, background: t.surface, overflow: "hidden", marginTop: 12 }}>
+          <div style={{ width: "40%", height: "100%", borderRadius: 3, background: "linear-gradient(90deg, #4ECDC4, #45B7D1)", animation: "ob-slide 1.2s ease-in-out infinite" }} />
+        </div>
+        <style>{`
+          @keyframes ob-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.08); opacity: 0.7; } }
+          @keyframes ob-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
+        `}</style>
+      </div>
+    );
+  }
 
   return (
     <EntriesContext.Provider value={entriesValue}>
