@@ -657,11 +657,13 @@ export default function OpenBrain() {
     <EntriesContext.Provider value={entriesValue}>
     <BrainContext.Provider value={brainValue}>
     <div style={{ minHeight: "100vh", background: t.bg, color: t.text, fontFamily: "'Söhne', system-ui, -apple-system, sans-serif", transition: "background 0.25s, color 0.25s", overflowX: "hidden" }}>
-      <div style={{ padding: "16px 12px 0" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "nowrap" }}>
-          <div style={{ width: 32, height: 32, minWidth: 32, borderRadius: 10, background: "linear-gradient(135deg, #4ECDC4, #45B7D1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>🧠</div>
-          <div style={{ minWidth: 0 }}><h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, letterSpacing: -0.5, whiteSpace: "nowrap" }}>OpenBrain</h1><p style={{ margin: 0, fontSize: 10, color: t.textDim }}>Your eternal memory</p></div>
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+      <div style={{ padding: "12px 12px 0" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "nowrap" }}>
+          <div
+            onClick={() => setNavOpen(o => !o)}
+            style={{ width: 34, height: 34, minWidth: 34, borderRadius: 10, background: "linear-gradient(135deg, #4ECDC4, #45B7D1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, cursor: "pointer" }}
+          >🧠</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             {brains.length > 0 && (
               <BrainSwitcher
                 brains={brains}
@@ -675,11 +677,13 @@ export default function OpenBrain() {
                 onBrainTip={(brain) => setShowBrainTip(brain)}
               />
             )}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
             {/* Theme toggle */}
             <button
               onClick={toggleTheme}
               title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-              style={{ width: 36, height: 36, borderRadius: 8, border: `1px solid ${isDark ? "#4a4a6a" : "#c0c0e0"}`, background: isDark ? "#2a2a4a" : "#ffffff", cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}
+              style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${isDark ? "#4a4a6a" : "#c0c0e0"}`, background: isDark ? "#2a2a4a" : "#ffffff", cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, padding: 0 }}
             >
               {isDark ? "🌙" : "☀️"}
             </button>
@@ -687,9 +691,9 @@ export default function OpenBrain() {
             <button
               onClick={() => setNavOpen(o => !o)}
               title="Menu"
-              style={{ width: 36, height: 36, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8, cursor: "pointer", flexShrink: 0, padding: 0 }}
+              style={{ width: 34, height: 34, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8, cursor: "pointer", flexShrink: 0, padding: 0 }}
             >
-              {[0,1,2].map(i => <div key={i} style={{ width: 16, height: 2, background: t.textMid, borderRadius: 1 }} />)}
+              {[0,1,2].map(i => <div key={i} style={{ width: 14, height: 2, background: t.textMid, borderRadius: 1 }} />)}
             </button>
           </div>
         </div>
@@ -755,15 +759,24 @@ export default function OpenBrain() {
 
       <div style={{ padding: "12px 12px" }}>
         {view === "capture" && (
-          <div style={{ paddingTop: 20, color: t.textDim }}>
+          <div style={{ paddingTop: 8 }}>
             <OnboardingChecklist activeBrain={activeBrain} onNavigate={setView} />
-            <div style={{ textAlign: "center", paddingTop: 20 }}>
-              <p style={{ fontSize: 13, marginBottom: 20 }}>Tap ☰ to navigate — or just start capturing above.</p>
-              <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
-                {[{ id: "grid", l: "Memory Grid", ic: "▦" }, { id: "suggest", l: "Fill Brain", ic: "✦" }, { id: "vault", l: "Vault", ic: "🔐" }, { id: "chat", l: "Ask", ic: "◈" }].map(v => (
-                  <button key={v.id} onClick={() => setView(v.id)} style={{ padding: "10px 18px", background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, color: t.textMid, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{v.ic} {v.l}</button>
-                ))}
-              </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 4 }}>
+              {[
+                { id: "grid",    l: "Memory Grid", ic: "▦", desc: "Browse all memories" },
+                { id: "suggest", l: "Fill Brain",   ic: "✦", desc: "Guided questions" },
+                { id: "chat",    l: "Ask",          ic: "◈", desc: "Chat with your brain" },
+                { id: "vault",   l: "Vault",        ic: "🔐", desc: "Encrypted secrets" },
+              ].map(v => (
+                <button key={v.id} onClick={() => setView(v.id)} style={{
+                  padding: "14px 12px", background: t.surface, border: `1px solid ${t.border}`,
+                  borderRadius: 12, cursor: "pointer", textAlign: "left",
+                }}>
+                  <div style={{ fontSize: 16, marginBottom: 4 }}>{v.ic}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{v.l}</div>
+                  <div style={{ fontSize: 11, color: t.textDim, marginTop: 2 }}>{v.desc}</div>
+                </button>
+              ))}
             </div>
           </div>
         )}

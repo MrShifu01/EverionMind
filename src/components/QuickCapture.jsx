@@ -386,38 +386,19 @@ export default function QuickCapture({ entries, setEntries, links, addLinks, onC
   }
 
   return (
-    <div style={{ padding: "0 12px 12px" }}>
-      {brains.length > 1 ? (
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-          {brains.map(b => {
-            const bm = BRAIN_META_QC[b.type] || BRAIN_META_QC.personal;
-            const active = selectedBrainIds.includes(b.id);
-            return (
-              <button key={b.id} onClick={() => toggleBrain(b.id)} style={{ padding: "4px 11px", borderRadius: 20, border: active ? "1px solid #4ECDC4" : `1px solid ${t.border}`, background: active ? "#4ECDC420" : t.surface, color: active ? "#4ECDC4" : t.textDim, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
-                {bm.emoji} {b.name}
-              </button>
-            );
-          })}
-        </div>
-      ) : brains.length === 1 ? (
-        <div style={{ marginBottom: 8 }}>
-          <span style={{ fontSize: 11, color: t.textDim, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 20, padding: "4px 11px", fontWeight: 600 }}>
-            {(BRAIN_META_QC[brains[0].type] || BRAIN_META_QC.personal).emoji} {brains[0].name}
-          </span>
-        </div>
-      ) : null}
-      <div style={{ display: "flex", gap: 8 }}>
+    <div style={{ padding: "0 12px 8px" }}>
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
         <input type="file" accept="image/*" ref={imgRef} onChange={handleImageUpload} style={{ display: "none" }} />
         <input
           value={text} onChange={e => setText(e.target.value)}
           onKeyDown={e => e.key === "Enter" && !e.shiftKey && capture()}
           disabled={loading}
-          placeholder={listening ? "🎤 Listening..." : loading ? "Processing..." : "Quick capture — just type anything..."}
-          style={{ flex: 1, padding: "12px 16px", background: listening ? "#1a2e1a" : t.surface, border: `1px solid ${listening ? "#25D36640" : "#4ECDC440"}`, borderRadius: 12, color: t.textSoft, fontSize: 14, outline: "none", fontFamily: "inherit", opacity: loading ? 0.5 : 1 }}
+          placeholder={listening ? "Listening..." : loading ? "Processing..." : "Quick capture — just type anything..."}
+          style={{ flex: 1, minWidth: 0, padding: "10px 14px", background: listening ? "#1a2e1a" : t.surface, border: `1px solid ${listening ? "#25D36640" : t.border}`, borderRadius: 10, color: t.textSoft, fontSize: 14, outline: "none", fontFamily: "inherit", opacity: loading ? 0.5 : 1 }}
         />
-        <button onClick={startVoice} disabled={loading} title={getUserApiKey() ? "Voice capture (Whisper) — click to start, click again to stop" : "Voice capture (browser) — click to toggle"} style={{ padding: "12px 14px", background: listening ? "#25D36620" : t.surface, border: `1px solid ${listening ? "#25D36640" : "#4ECDC440"}`, borderRadius: 12, color: listening ? "#25D366" : "#4ECDC4", cursor: loading ? "default" : "pointer", fontSize: 16 }}>🎤</button>
-        <button onClick={() => imgRef.current?.click()} disabled={loading} style={{ padding: "12px 14px", background: t.surface, border: "1px solid #4ECDC440", borderRadius: 12, color: loading ? t.textDim : "#4ECDC4", cursor: loading ? "default" : "pointer", fontSize: 16 }}>📷</button>
-        <button onClick={capture} disabled={loading || !text.trim()} title={`Save to ${(BRAIN_META_QC[brains[0]?.type] || BRAIN_META_QC.personal).emoji} ${brains[0]?.name || "brain"}`} style={{ padding: "12px 18px", background: text.trim() && !loading ? "linear-gradient(135deg, #4ECDC4, #45B7D1)" : t.surface, border: "none", borderRadius: 12, color: text.trim() && !loading ? "#0f0f23" : t.textFaint, fontWeight: 700, cursor: text.trim() && !loading ? "pointer" : "default", fontSize: 16 }}>+</button>
+        <button onClick={startVoice} disabled={loading} title="Voice capture" style={{ width: 40, height: 40, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: listening ? "#25D36620" : t.surface, border: `1px solid ${listening ? "#25D36640" : t.border}`, borderRadius: 10, color: listening ? "#25D366" : t.textMuted, cursor: loading ? "default" : "pointer", fontSize: 16, padding: 0 }}>🎤</button>
+        <button onClick={() => imgRef.current?.click()} disabled={loading} title="Photo capture" style={{ width: 40, height: 40, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, color: loading ? t.textDim : t.textMuted, cursor: loading ? "default" : "pointer", fontSize: 16, padding: 0 }}>📷</button>
+        <button onClick={capture} disabled={loading || !text.trim()} title={`Save to ${(BRAIN_META_QC[brains[0]?.type] || BRAIN_META_QC.personal).emoji} ${brains[0]?.name || "brain"}`} style={{ width: 40, height: 40, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: text.trim() && !loading ? "linear-gradient(135deg, #4ECDC4, #45B7D1)" : t.surface, border: "none", borderRadius: 10, color: text.trim() && !loading ? "#0f0f23" : t.textFaint, fontWeight: 700, cursor: text.trim() && !loading ? "pointer" : "default", fontSize: 18, padding: 0 }}>+</button>
       </div>
       {status && <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "6px 0 0 4px" }}>
         <p style={{ fontSize: 11, color: status === "vault-needed" ? "#FF4757" : status.includes("error") ? "#FF6B35" : "#4ECDC4", margin: 0 }}>{statusMsg[status]}</p>

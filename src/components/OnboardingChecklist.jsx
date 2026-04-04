@@ -6,7 +6,6 @@ import { BUSINESS_SUGGESTIONS } from "../data/businessSuggestions";
 
 const DISMISSED_KEY = "openbrain_checklist_dismissed";
 const ANSWERED_KEY = "openbrain_answered_qs";
-const MAX_VISIBLE = 5;
 
 function getSuggestions(type) {
   if (type === "family") return FAMILY_SUGGESTIONS;
@@ -39,13 +38,17 @@ export default function OnboardingChecklist({ activeBrain, onNavigate }) {
     );
   }, [brainType, answered, dismissed]);
 
-  if (questions.length === 0) return null;
+  // Group by category
+  const categories = useMemo(() => {
+    const cats = {};
+    questions.forEach(q => {
+      if (!cats[q.cat]) cats[q.cat] = [];
+      cats[q.cat].push(q);
+    });
+    return Object.entries(cats).sort((a, b) => b[1].length - a[1].length);
+  }, [questions]);
 
-  function dismiss(q) {
-    const next = [...dismissed, q];
-    setDismissed(next);
-    try { localStorage.setItem(DISMISSED_KEY, JSON.stringify(next)); } catch {}
-  }
+  if (questions.length === 0) return null;
 
   function dismissAll() {
     const next = [...dismissed, ...questions.map(s => s.q)];
@@ -53,92 +56,100 @@ export default function OnboardingChecklist({ activeBrain, onNavigate }) {
     try { localStorage.setItem(DISMISSED_KEY, JSON.stringify(next)); } catch {}
   }
 
-  // Group by category for display
-  const grouped = {};
-  const visible = expanded ? questions : questions.slice(0, MAX_VISIBLE);
-  visible.forEach(q => {
-    if (!grouped[q.cat]) grouped[q.cat] = [];
-    grouped[q.cat].push(q);
-  });
+  function dismissCategory(cat) {
+    const catQs = questions.filter(q => q.cat === cat).map(q => q.q);
+    const next = [...dismissed, ...catQs];
+    setDismissed(next);
+    try { localStorage.setItem(DISMISSED_KEY, JSON.stringify(next)); } catch {}
+  }
 
-  const brainLabel = brainType === "business" ? "Business" : brainType === "family" ? "Family" : "Personal";
+  const brainEmoji = brainType === "business" ? "🏪" : brainType === "family" ? "🏠" : "🧠";
 
   return (
-    <div style={{ marginBottom: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: t.textMid }}>
-          {brainLabel} brain — things to capture
-          <span style={{ fontSize: 11, fontWeight: 400, color: t.textDim, marginLeft: 6 }}>
-            {questions.length} remaining
-          </span>
-        </p>
-        <button
-          onClick={dismissAll}
-          style={{ background: "none", border: "none", color: t.textFaint, fontSize: 11, cursor: "pointer", padding: "2px 6px" }}
-        >
-          Dismiss all
-        </button>
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {Object.entries(grouped).map(([cat, items]) => (
-          <div key={cat}>
-            <p style={{ margin: "6px 0 4px", fontSize: 10, fontWeight: 600, color: t.textDim, textTransform: "uppercase", letterSpacing: 1 }}>
-              {cat}
-            </p>
-            {items.map(item => (
-              <div
-                key={item.q}
-                onClick={() => onNavigate("suggest")}
-                style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", marginBottom: 4,
-                  background: t.surface,
-                  border: `1px solid ${t.border}`,
-                  borderRadius: 10,
-                  cursor: "pointer",
-                }}
-              >
-                <span style={{ fontSize: 10, color: "#FF6B35", flexShrink: 0 }}>●</span>
-                <p style={{ margin: 0, fontSize: 12, color: t.textSoft, flex: 1, lineHeight: 1.4 }}>
-                  {item.q}
-                </p>
-                <button
-                  onClick={e => { e.stopPropagation(); dismiss(item.q); }}
-                  title="Dismiss"
-                  style={{ background: "none", border: "none", color: t.textFaint, fontSize: 15, cursor: "pointer", padding: "2px 6px", flexShrink: 0, lineHeight: 1 }}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-
-      {questions.length > MAX_VISIBLE && (
-        <button
-          onClick={() => setExpanded(e => !e)}
-          style={{ display: "block", margin: "8px auto 0", background: "none", border: "none", color: "#4ECDC4", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
-        >
-          {expanded ? "Show less" : `Show ${questions.length - MAX_VISIBLE} more`}
-        </button>
-      )}
-
-      <button
-        onClick={() => onNavigate("suggest")}
+    <div style={{
+      background: t.surface,
+      border: `1px solid ${t.border}`,
+      borderRadius: 14,
+      overflow: "hidden",
+      marginBottom: 12,
+    }}>
+      {/* Compact header — always visible */}
+      <div
+        onClick={() => setExpanded(e => !e)}
         style={{
-          display: "block", width: "100%", marginTop: 10,
-          padding: "10px 16px",
-          background: "rgba(78,205,196,0.08)",
-          border: "1px solid rgba(78,205,196,0.25)",
-          borderRadius: 10,
-          color: "#4ECDC4", fontSize: 12, fontWeight: 600,
+          display: "flex", alignItems: "center", gap: 10,
+          padding: "12px 14px",
           cursor: "pointer",
         }}
       >
-        Go to Fill Brain to answer these →
-      </button>
+        <span style={{ fontSize: 14 }}>{brainEmoji}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: t.text }}>
+            {questions.length} things to capture
+          </p>
+          <p style={{ margin: 0, fontSize: 11, color: t.textDim }}>
+            {categories.slice(0, 3).map(([cat]) => cat).join(" · ")}
+            {categories.length > 3 && ` +${categories.length - 3}`}
+          </p>
+        </div>
+        <span style={{ fontSize: 10, color: t.textDim, flexShrink: 0 }}>{expanded ? "▲" : "▼"}</span>
+      </div>
+
+      {/* Expanded: show categories as compact rows */}
+      {expanded && (
+        <div style={{ borderTop: `1px solid ${t.border}`, padding: "6px 0" }}>
+          {categories.map(([cat, items]) => (
+            <div
+              key={cat}
+              onClick={() => onNavigate("suggest")}
+              style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "8px 14px",
+                cursor: "pointer",
+              }}
+            >
+              <span style={{ fontSize: 11, color: t.textDim, flex: 1, fontWeight: 500 }}>
+                {cat} <span style={{ color: t.textFaint }}>({items.length})</span>
+              </span>
+              <button
+                onClick={e => { e.stopPropagation(); dismissCategory(cat); }}
+                style={{ background: "none", border: "none", color: t.textFaint, fontSize: 13, cursor: "pointer", padding: "2px 4px", lineHeight: 1 }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+
+          <div style={{ display: "flex", gap: 8, padding: "8px 14px 10px", borderTop: `1px solid ${t.border}`, marginTop: 4 }}>
+            <button
+              onClick={() => onNavigate("suggest")}
+              style={{
+                flex: 1, padding: "8px 12px",
+                background: "rgba(78,205,196,0.1)",
+                border: "1px solid rgba(78,205,196,0.25)",
+                borderRadius: 8,
+                color: "#4ECDC4", fontSize: 12, fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Fill Brain →
+            </button>
+            <button
+              onClick={dismissAll}
+              style={{
+                padding: "8px 12px",
+                background: "none",
+                border: `1px solid ${t.border}`,
+                borderRadius: 8,
+                color: t.textFaint, fontSize: 12,
+                cursor: "pointer",
+              }}
+            >
+              Dismiss all
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
