@@ -12,7 +12,10 @@ import { MODEL as DEFAULT_MODEL } from "../data/constants";
 
 export function getUserId() {
   try {
-    const key = Object.keys(localStorage).find(k => k.includes("supabase") && k.includes("auth-token"));
+    // Supabase v2 uses "sb-<ref>-auth-token"; older versions use keys containing "supabase"
+    const key = Object.keys(localStorage).find(k =>
+      (k.includes("supabase") || k.startsWith("sb-")) && k.includes("auth-token")
+    );
     if (key) {
       const data = JSON.parse(localStorage.getItem(key));
       return data?.user?.id || null;
