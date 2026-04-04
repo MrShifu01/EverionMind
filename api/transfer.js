@@ -1,5 +1,6 @@
 import { verifyAuth } from "./_lib/verifyAuth.js";
 import { rateLimit } from "./_lib/rateLimit.js";
+import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -23,15 +24,10 @@ async function handleExport(req, res) {
   const { brain_id } = req.query;
   if (!brain_id) return res.status(400).json({ error: "brain_id required" });
 
-  // Check role — viewers cannot export (also covers "not a member" case)
-  const roleRes = await fetch(
-    `${SB_URL}/rest/v1/brain_members?brain_id=eq.${encodeURIComponent(brain_id)}&user_id=eq.${encodeURIComponent(user.id)}&select=role`,
-    { headers: hdrs() }
-  );
-  if (!roleRes.ok) return res.status(502).json({ error: "Database error" });
-  const [membership] = await roleRes.json();
-  if (!membership) return res.status(403).json({ error: "Not a member" });
-  if (membership.role === 'viewer') return res.status(403).json({ error: "Viewers cannot export" });
+  // Check role — viewers cannot export
+  const access = await checkBrainAccess(user.id, brain_id);
+  if (!access) return res.status(403).json({ error: "Not a member" });
+  if (access.role === 'viewer') return res.status(403).json({ error: "Viewers cannot export" });
 
   // Fetch brain metadata for owned brains
   const ownedRes = await fetch(`${SB_URL}/rest/v1/brains?id=eq.${encodeURIComponent(brain_id)}&owner_id=eq.${encodeURIComponent(user.id)}`, { headers: hdrs() });

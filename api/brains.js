@@ -1,5 +1,6 @@
 import { verifyAuth } from "./_lib/verifyAuth.js";
 import { rateLimit } from "./_lib/rateLimit.js";
+import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -169,18 +170,9 @@ export default async function handler(req, res) {
     const { brain_id } = req.query;
     if (!brain_id) return res.status(400).json({ error: "brain_id required" });
 
-    // Verify caller is in this brain
-    const accessRes = await fetch(
-      `${SB_URL}/rest/v1/brain_members?brain_id=eq.${encodeURIComponent(brain_id)}&user_id=eq.${encodeURIComponent(user.id)}`,
-      { headers: hdrs() }
-    );
-    const access = await accessRes.json();
-    const isOwner = await fetch(
-      `${SB_URL}/rest/v1/brains?id=eq.${encodeURIComponent(brain_id)}&owner_id=eq.${encodeURIComponent(user.id)}`,
-      { headers: hdrs() }
-    ).then(r => r.json()).then(d => d.length > 0);
-
-    if (!access.length && !isOwner) return res.status(403).json({ error: "Not a brain member" });
+    // Verify caller is in this brain (member or owner)
+    const brainAccess = await checkBrainAccess(user.id, brain_id);
+    if (!brainAccess) return res.status(403).json({ error: "Not a brain member" });
 
     const membersRes = await fetch(
       `${SB_URL}/rest/v1/brain_members?brain_id=eq.${encodeURIComponent(brain_id)}&select=*`,

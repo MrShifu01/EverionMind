@@ -1,5 +1,6 @@
 import { verifyAuth } from "./_lib/verifyAuth.js";
 import { rateLimit } from "./_lib/rateLimit.js";
+import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 
@@ -57,20 +58,10 @@ async function handleCapture(req, res) {
 
   // Verify user is a member/owner of each extra brain before inserting
   if (Array.isArray(p_extra_brain_ids) && p_extra_brain_ids.length > 0) {
-    const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const sbHdrs = {
-      "Content-Type": "application/json",
-      "apikey": sbKey,
-      "Authorization": `Bearer ${sbKey}`,
-    };
     for (const brainId of p_extra_brain_ids) {
       if (typeof brainId !== "string") continue;
-      const memberRes = await fetch(
-        `${SB_URL}/rest/v1/brain_members?brain_id=eq.${encodeURIComponent(brainId)}&user_id=eq.${encodeURIComponent(user.id)}&select=role`,
-        { headers: sbHdrs }
-      );
-      const members = memberRes.ok ? await memberRes.json() : [];
-      if (!members.length) {
+      const access = await checkBrainAccess(user.id, brainId);
+      if (!access) {
         return res.status(403).json({ error: `Not a member of brain ${brainId}` });
       }
     }

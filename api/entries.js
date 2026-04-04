@@ -1,5 +1,6 @@
 import { verifyAuth } from "./_lib/verifyAuth.js";
 import { rateLimit } from "./_lib/rateLimit.js";
+import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -25,13 +26,9 @@ async function handleGet(req, res) {
   const brain_id = req.query.brain_id;
 
   if (brain_id) {
-    // SEC-1: Verify the requesting user is a member of this brain
-    const memberRes = await fetch(
-      `${SB_URL}/rest/v1/brain_members?brain_id=eq.${encodeURIComponent(brain_id)}&user_id=eq.${encodeURIComponent(user.id)}&select=role`,
-      { headers: sbHdrs() }
-    );
-    const [member] = await memberRes.json();
-    if (!member) return res.status(403).json({ error: "Forbidden" });
+    // SEC-1: Verify the requesting user is a member or owner of this brain
+    const access = await checkBrainAccess(user.id, brain_id);
+    if (!access) return res.status(403).json({ error: "Forbidden" });
 
     // Use RPC to get entries visible in this brain (primary + cross-brain shares)
     const rpcRes = await fetch(`${SB_URL}/rest/v1/rpc/get_entries_for_brain?select=${encodeURIComponent(ENTRY_FIELDS)}`, {
@@ -73,7 +70,7 @@ async function handleDelete(req, res) {
     return res.status(400).json({ error: "Missing or invalid id" });
   }
 
-  // SEC-1: Verify the requesting user is a member of this entry's brain
+  // SEC-1: Verify the requesting user is a member or owner of this entry's brain
   const entryRes = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&select=brain_id`, {
     headers: sbHdrs(),
   });
@@ -81,13 +78,8 @@ async function handleDelete(req, res) {
   const [entry] = await entryRes.json();
   if (!entry) return res.status(404).json({ error: "Not found" });
 
-  const memberRes = await fetch(
-    `${SB_URL}/rest/v1/brain_members?brain_id=eq.${encodeURIComponent(entry.brain_id)}&user_id=eq.${encodeURIComponent(user.id)}&select=role`,
-    { headers: sbHdrs() }
-  );
-  if (!memberRes.ok) return res.status(502).json({ error: "Database error" });
-  const [member] = await memberRes.json();
-  if (!member) return res.status(403).json({ error: "Forbidden" });
+  const access = await checkBrainAccess(user.id, entry.brain_id);
+  if (!access) return res.status(403).json({ error: "Forbidden" });
 
   const response = await fetch(
     `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`,
@@ -137,7 +129,7 @@ async function handlePatch(req, res) {
   if (metadata !== undefined && typeof metadata === "object" && !Array.isArray(metadata)) patch.metadata = metadata;
   if (brain_id !== undefined && typeof brain_id === "string" && brain_id.length <= 100) patch.brain_id = brain_id;
 
-  // SEC-1: Verify the requesting user is a member of this entry's brain
+  // SEC-1: Verify the requesting user is a member or owner of this entry's brain
   const entryRes = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&select=brain_id`, {
     headers: sbHdrs(),
   });
@@ -145,13 +137,8 @@ async function handlePatch(req, res) {
   const [entry] = await entryRes.json();
   if (!entry) return res.status(404).json({ error: "Not found" });
 
-  const memberRes = await fetch(
-    `${SB_URL}/rest/v1/brain_members?brain_id=eq.${encodeURIComponent(entry.brain_id)}&user_id=eq.${encodeURIComponent(user.id)}&select=role`,
-    { headers: sbHdrs() }
-  );
-  if (!memberRes.ok) return res.status(502).json({ error: "Database error" });
-  const [member] = await memberRes.json();
-  if (!member) return res.status(403).json({ error: "Forbidden" });
+  const access = await checkBrainAccess(user.id, entry.brain_id);
+  if (!access) return res.status(403).json({ error: "Forbidden" });
 
   const response = await fetch(
     `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`,

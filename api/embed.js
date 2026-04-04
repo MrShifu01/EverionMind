@@ -12,6 +12,7 @@
 import { verifyAuth } from "./_lib/verifyAuth.js";
 import { rateLimit } from "./_lib/rateLimit.js";
 import { generateEmbedding, generateEmbeddingsBatch, buildEntryText } from "./_lib/generateEmbedding.js";
+import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -47,13 +48,9 @@ export default async function handler(req, res) {
     const [entry] = await entryRes.json();
     if (!entry) return res.status(404).json({ error: "Entry not found" });
 
-    // Verify user is a member of the entry's brain
-    const memberRes = await fetch(
-      `${SB_URL}/rest/v1/brain_members?brain_id=eq.${encodeURIComponent(entry.brain_id)}&user_id=eq.${encodeURIComponent(user.id)}&select=role`,
-      { headers: SB_HEADERS }
-    );
-    const [member] = memberRes.ok ? await memberRes.json() : [];
-    if (!member) return res.status(403).json({ error: "Forbidden" });
+    // Verify user is a member or owner of the entry's brain
+    const access = await checkBrainAccess(user.id, entry.brain_id);
+    if (!access) return res.status(403).json({ error: "Forbidden" });
 
     try {
       const embedding = await generateEmbedding(buildEntryText(entry), provider, apiKey);
@@ -80,13 +77,9 @@ export default async function handler(req, res) {
   if (batch && brain_id) {
     if (typeof brain_id !== "string" || brain_id.length > 100) return res.status(400).json({ error: "Invalid brain_id" });
 
-    // Verify user is a member of this brain
-    const memberRes = await fetch(
-      `${SB_URL}/rest/v1/brain_members?brain_id=eq.${encodeURIComponent(brain_id)}&user_id=eq.${encodeURIComponent(user.id)}&select=role`,
-      { headers: SB_HEADERS }
-    );
-    const [member] = memberRes.ok ? await memberRes.json() : [];
-    if (!member) return res.status(403).json({ error: "Forbidden" });
+    // Verify user is a member or owner of this brain
+    const access = await checkBrainAccess(user.id, brain_id);
+    if (!access) return res.status(403).json({ error: "Forbidden" });
 
     // Fetch entries that need embedding (missing or stale provider)
     const entriesRes = await fetch(

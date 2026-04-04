@@ -25,6 +25,7 @@
 import { verifyAuth } from "./_lib/verifyAuth.js";
 import { rateLimit } from "./_lib/rateLimit.js";
 import { generateEmbedding } from "./_lib/generateEmbedding.js";
+import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -59,13 +60,9 @@ export default async function handler(req, res) {
   if (!message || typeof message !== "string" || !message.trim()) return res.status(400).json({ error: "message required" });
   if (!brain_id || typeof brain_id !== "string") return res.status(400).json({ error: "brain_id required" });
 
-  // Verify brain membership
-  const memberRes = await fetch(
-    `${SB_URL}/rest/v1/brain_members?brain_id=eq.${encodeURIComponent(brain_id)}&user_id=eq.${encodeURIComponent(user.id)}&select=role`,
-    { headers: SB_HEADERS }
-  );
-  const [member] = memberRes.ok ? await memberRes.json() : [];
-  if (!member) return res.status(403).json({ error: "Forbidden" });
+  // Verify brain membership or ownership
+  const access = await checkBrainAccess(user.id, brain_id);
+  if (!access) return res.status(403).json({ error: "Forbidden" });
 
   // 1. Embed the question
   let queryEmbedding;
