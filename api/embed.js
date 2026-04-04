@@ -34,7 +34,7 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(400).json({ error: "X-Embed-Key header required" });
   if (!["openai", "google"].includes(provider)) return res.status(400).json({ error: "X-Embed-Provider must be openai or google" });
 
-  const { entry_id, brain_id, batch } = req.body || {};
+  const { entry_id, brain_id, batch, force } = req.body || {};
 
   // ── Single entry mode ──────────────────────────────────────────
   if (entry_id && !batch) {
@@ -81,10 +81,13 @@ export default async function handler(req, res) {
     const access = await checkBrainAccess(user.id, brain_id);
     if (!access) return res.status(403).json({ error: "Forbidden" });
 
-    // Fetch entries that need embedding (missing or stale provider)
+    // Fetch entries that need embedding
     // Limit to 5 per request to stay within Vercel Hobby 10s timeout
+    const filter = force
+      ? `brain_id=eq.${encodeURIComponent(brain_id)}`
+      : `brain_id=eq.${encodeURIComponent(brain_id)}&or=(embedded_at.is.null,embedding_provider.neq.${encodeURIComponent(provider)})`;
     const entriesRes = await fetch(
-      `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brain_id)}&select=id,title,content,tags&or=(embedded_at.is.null,embedding_provider.neq.${encodeURIComponent(provider)})&limit=5`,
+      `${SB_URL}/rest/v1/entries?${filter}&select=id,title,content,tags&limit=5`,
       { headers: SB_HEADERS }
     );
     if (!entriesRes.ok) return res.status(502).json({ error: "Database error" });
@@ -93,7 +96,7 @@ export default async function handler(req, res) {
 
     // Count total remaining for progress tracking
     const countRes = await fetch(
-      `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brain_id)}&or=(embedded_at.is.null,embedding_provider.neq.${encodeURIComponent(provider)})&select=id`,
+      `${SB_URL}/rest/v1/entries?${filter}&select=id`,
       { headers: { ...SB_HEADERS, "Prefer": "count=exact" } }
     );
     const remaining = parseInt(countRes.headers.get("content-range")?.split("/")?.[1] || "0", 10);

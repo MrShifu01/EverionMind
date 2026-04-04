@@ -205,7 +205,7 @@ export default function SettingsView() {
   const saveEmbedOpenAIKey = (k) => { setEmbedOpenAIKeyState(k); setEmbedOpenAIKey(k || null); };
   const saveGeminiKey = (k) => { setGeminiKeyState(k); setGeminiKey(k || null); };
 
-  const handleReembed = async () => {
+  const handleReembed = async (force = false) => {
     if (!activeBrain?.id) return;
     const key = embedProvider === "google" ? geminiKey : embedOpenAIKey;
     if (!key) return;
@@ -217,7 +217,7 @@ export default function SettingsView() {
         const res = await authFetch("/api/embed", {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-Embed-Provider": embedProvider, "X-Embed-Key": key },
-          body: JSON.stringify({ brain_id: activeBrain.id, batch: true }),
+          body: JSON.stringify({ brain_id: activeBrain.id, batch: true, force }),
         });
         if (!res.ok) {
           const errData = await res.json().catch(() => null);
@@ -392,7 +392,14 @@ export default function SettingsView() {
               disabled={embedStatus === "running" || !(embedProvider === "google" ? geminiKey : embedOpenAIKey)}
               style={{ padding: "9px 16px", background: (embedProvider === "google" ? geminiKey : embedOpenAIKey) ? "#A29BFE20" : t.bg, border: `1px solid ${(embedProvider === "google" ? geminiKey : embedOpenAIKey) ? "#A29BFE40" : t.border}`, borderRadius: 8, color: (embedProvider === "google" ? geminiKey : embedOpenAIKey) ? "#A29BFE" : t.textFaint, fontSize: 12, fontWeight: 600, cursor: (embedProvider === "google" ? geminiKey : embedOpenAIKey) ? "pointer" : "default" }}
             >
-              {embedStatus?.startsWith("running") ? `Embedding…${embedStatus.includes(":") ? ` (${embedStatus.split(":")[1]})` : ""}` : "Embed all entries"}
+              {embedStatus?.startsWith("running") ? `Embedding…${embedStatus.includes(":") ? ` (${embedStatus.split(":")[1]})` : ""}` : "Embed new"}
+            </button>
+            <button
+              onClick={() => handleReembed(true)}
+              disabled={embedStatus?.startsWith("running") || !(embedProvider === "google" ? geminiKey : embedOpenAIKey)}
+              style={{ padding: "9px 16px", background: (embedProvider === "google" ? geminiKey : embedOpenAIKey) ? "#FF6B3520" : t.bg, border: `1px solid ${(embedProvider === "google" ? geminiKey : embedOpenAIKey) ? "#FF6B3540" : t.border}`, borderRadius: 8, color: (embedProvider === "google" ? geminiKey : embedOpenAIKey) ? "#FF6B35" : t.textFaint, fontSize: 12, fontWeight: 600, cursor: (embedProvider === "google" ? geminiKey : embedOpenAIKey) ? "pointer" : "default" }}
+            >
+              Re-embed all
             </button>
             {embedStatus && !embedStatus.startsWith("running") && (
               <span style={{ fontSize: 12, color: embedStatus.startsWith("error") ? "#FF6B35" : "#A29BFE" }}>
