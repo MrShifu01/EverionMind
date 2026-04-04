@@ -68,13 +68,17 @@ export default function NotificationSettings() {
     try {
       const reg = await navigator.serviceWorker.ready;
       const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+      if (!vapidKey) {
+        flash("VAPID key not configured — push notifications need server setup");
+        return;
+      }
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(vapidKey),
       });
       setSubscription(sub);
       const json = sub.toJSON();
-      await authFetch("/api/push-subscribe", {
+      const resp = await authFetch("/api/push-subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -83,8 +87,14 @@ export default function NotificationSettings() {
           userAgent: navigator.userAgent.slice(0, 150),
         }),
       });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        flash("Failed to save subscription — " + (err.error || "server error"));
+        return;
+      }
       flash("Notifications enabled");
     } catch (err) {
+      console.error("[Push] subscribe error:", err);
       flash("Failed to enable — " + (err.message || "unknown error"));
     }
   }
@@ -126,7 +136,9 @@ export default function NotificationSettings() {
 
   function flash(msg) {
     setStatusMsg(msg);
-    setTimeout(() => setStatusMsg(null), 3000);
+    // Keep error messages visible longer
+    const isError = msg.includes("Failed") || msg.includes("not configured");
+    setTimeout(() => setStatusMsg(null), isError ? 8000 : 3000);
   }
 
   const card = {
@@ -180,7 +192,9 @@ export default function NotificationSettings() {
     <div>
       <p style={{ fontSize: 14, fontWeight: 700, color: t.text, margin: "0 0 4px" }}>Notifications</p>
       <p style={{ fontSize: 11, color: t.textDim, margin: "0 0 14px" }}>
-        {saving ? "Saving…" : statusMsg || "Get reminders and daily prompts on any device."}
+        <span style={{ color: statusMsg && (statusMsg.includes("Failed") || statusMsg.includes("not configured")) ? "#FF6B35" : undefined }}>
+          {saving ? "Saving…" : statusMsg || "Get reminders and daily prompts on any device."}
+        </span>
       </p>
 
       {/* Master toggle / permission state */}
