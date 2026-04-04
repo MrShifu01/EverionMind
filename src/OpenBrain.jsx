@@ -19,6 +19,7 @@ import BrainSwitcher from "./components/BrainSwitcher";
 import CreateBrainModal from "./components/CreateBrainModal";
 import OnboardingModal from "./components/OnboardingModal";
 import BrainTipCard from "./components/BrainTipCard";
+import OnboardingChecklist from "./components/OnboardingChecklist";
 import QuickCapture from "./components/QuickCapture";
 import SupplierPanel from "./components/SupplierPanel";
 import SettingsView from "./views/SettingsView";
@@ -754,12 +755,15 @@ export default function OpenBrain() {
 
       <div style={{ padding: "12px 12px" }}>
         {view === "capture" && (
-          <div style={{ textAlign: "center", paddingTop: 40, color: t.textDim }}>
-            <p style={{ fontSize: 13, marginBottom: 20 }}>Tap ☰ to navigate — or just start capturing above.</p>
-            <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
-              {[{ id: "grid", l: "Memory Grid", ic: "▦" }, { id: "suggest", l: "Fill Brain", ic: "✦" }, { id: "vault", l: "Vault", ic: "🔐" }, { id: "chat", l: "Ask", ic: "◈" }].map(v => (
-                <button key={v.id} onClick={() => setView(v.id)} style={{ padding: "10px 18px", background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, color: t.textMid, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{v.ic} {v.l}</button>
-              ))}
+          <div style={{ paddingTop: 20, color: t.textDim }}>
+            <OnboardingChecklist entries={entries} onNavigate={setView} />
+            <div style={{ textAlign: "center", paddingTop: 20 }}>
+              <p style={{ fontSize: 13, marginBottom: 20 }}>Tap ☰ to navigate — or just start capturing above.</p>
+              <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+                {[{ id: "grid", l: "Memory Grid", ic: "▦" }, { id: "suggest", l: "Fill Brain", ic: "✦" }, { id: "vault", l: "Vault", ic: "🔐" }, { id: "chat", l: "Ask", ic: "◈" }].map(v => (
+                  <button key={v.id} onClick={() => setView(v.id)} style={{ padding: "10px 18px", background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, color: t.textMid, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{v.ic} {v.l}</button>
+                ))}
+              </div>
             </div>
           </div>
         )}
