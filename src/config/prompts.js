@@ -80,6 +80,20 @@ Schema: [{"fromId":"...","fromTitle":"...","toId":"...","toTitle":"...","rel":"v
 
 If no valuable relationships are found, return: []`,
 
+  /** RefineView: name relationships for embedding-similar pairs */
+  LINK_DISCOVERY_PAIRS: `You are building a knowledge graph. You are given CANDIDATE PAIRS of entries that are semantically similar (pre-selected by embedding similarity). Your job is to confirm which pairs have a real, meaningful relationship and name it.
+
+Rules:
+- Only confirm a relationship if it is clearly meaningful and actionable (e.g. "works at", "supplies", "insures", "deadline for", "located at")
+- REJECT pairs that are merely similar in topic but have no actionable relationship
+- Relationship label (rel) should be a short verb phrase: "works at", "supplies", "built", "owns", "insures", "located at", "deadline for", etc.
+- Only confirm if confidence > 85%
+- Return ONLY a valid JSON array, no markdown, no explanation
+
+Schema: [{"fromId":"...","fromTitle":"...","toId":"...","toTitle":"...","rel":"verb phrase","reason":"max 90 chars"}]
+
+If no pairs have a real relationship, return: []`,
+
   /** connectionFinder.js: auto-link new entry to existing entries */
   CONNECTION_FINDER: `You are a knowledge-graph builder. Given a NEW entry and EXISTING entries, find meaningful connections.\nRULES:\n- Only connect where a real, specific relationship exists (supplier→business, person→place, idea→business, etc.)\n- "rel" label: short phrase 2-4 words describing the relationship\n- Do NOT connect entries just because they share a type\n- Return 0–5 connections. Quality over quantity.\n- "from" = new entry ID. "to" = existing entry ID.\n- Return ONLY valid JSON array: [{"from":"...","to":"...","rel":"..."}]\n- If no connections: []`,
 };

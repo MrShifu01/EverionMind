@@ -64,36 +64,86 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
       } catch {}
     }));
 
-    /* Link discovery — single call over all entries */
+    /* Link discovery — embedding-powered pair selection */
     let linkSuggestions = [];
-    try {
-      const slim = entries.slice(0, 60).map(e => ({
-        id: e.id, title: e.title, type: e.type,
-        content: (e.content || "").slice(0, 200),
-        tags: (e.tags || []).slice(0, 6),
+    // Named links have a `rel` property; similarity-only links have `similarity`
+    const namedLinkKeys = new Set(
+      (links || []).filter(l => l.rel).flatMap(l => [`${l.from}-${l.to}`, `${l.to}-${l.from}`])
+    );
+    // Find similarity pairs that don't already have a named relationship
+    const similarityPairs = (links || [])
+      .filter(l => typeof l.similarity === "number" && !namedLinkKeys.has(`${l.from}-${l.to}`) && !namedLinkKeys.has(`${l.to}-${l.from}`))
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, 30);
+
+    const entryMap = Object.fromEntries(entries.map(e => [e.id, e]));
+
+    if (similarityPairs.length > 0) {
+      // Embedding-powered: send pre-selected candidate pairs to AI for naming
+      const PAIR_BATCH = 15;
+      const pairBatches = [];
+      for (let i = 0; i < similarityPairs.length; i += PAIR_BATCH) pairBatches.push(similarityPairs.slice(i, i + PAIR_BATCH));
+
+      await Promise.all(pairBatches.map(async (batch) => {
+        const candidates = batch.map(l => {
+          const a = entryMap[l.from], b = entryMap[l.to];
+          if (!a || !b) return null;
+          return {
+            fromId: a.id, fromTitle: a.title, fromType: a.type, fromContent: (a.content || "").slice(0, 200), fromTags: (a.tags || []).slice(0, 6),
+            toId: b.id, toTitle: b.title, toType: b.type, toContent: (b.content || "").slice(0, 200), toTags: (b.tags || []).slice(0, 6),
+          };
+        }).filter(Boolean);
+        if (candidates.length === 0) return;
+        try {
+          const res = await callAI({
+            max_tokens: 1200,
+            system: PROMPTS.LINK_DISCOVERY_PAIRS,
+            messages: [{ role: "user", content: `CANDIDATE PAIRS:\n${JSON.stringify(candidates)}` }],
+          });
+          const data = await res.json();
+          const raw = (data.content?.[0]?.text || "[]").replace(/```json|```/g, "").trim();
+          try {
+            const p = JSON.parse(raw);
+            if (Array.isArray(p)) {
+              linkSuggestions.push(...p.filter(l =>
+                l.fromId && l.toId &&
+                !existingLinkKeys.has(`${l.fromId}-${l.toId}`) &&
+                !existingLinkKeys.has(`${l.toId}-${l.fromId}`)
+              ).map(l => ({ ...l, type: "LINK_SUGGESTED" })));
+            }
+          } catch {}
+        } catch {}
       }));
-      const res  = await callAI({
-        max_tokens: 1200,
-        system:     PROMPTS.LINK_DISCOVERY,
-        messages:   [{
-          role:    "user",
-          content: `Entries:\n${JSON.stringify(slim)}\n\nExisting links (do NOT re-suggest these):\n${JSON.stringify([...existingLinkKeys])}`,
-        }],
-      });
-      const data = await res.json();
-      const raw  = (data.content?.[0]?.text || "[]").replace(/```json|```/g, "").trim();
+    } else {
+      // Fallback: no embeddings — use old approach with first 60 entries
       try {
-        const p = JSON.parse(raw);
-        if (Array.isArray(p)) {
-          // Filter out already-existing links (both directions)
-          linkSuggestions = p.filter(l =>
-            l.fromId && l.toId &&
-            !existingLinkKeys.has(`${l.fromId}-${l.toId}`) &&
-            !existingLinkKeys.has(`${l.toId}-${l.fromId}`)
-          ).map(l => ({ ...l, type: "LINK_SUGGESTED" }));
-        }
+        const slim = entries.slice(0, 60).map(e => ({
+          id: e.id, title: e.title, type: e.type,
+          content: (e.content || "").slice(0, 200),
+          tags: (e.tags || []).slice(0, 6),
+        }));
+        const res  = await callAI({
+          max_tokens: 1200,
+          system:     PROMPTS.LINK_DISCOVERY,
+          messages:   [{
+            role:    "user",
+            content: `Entries:\n${JSON.stringify(slim)}\n\nExisting links (do NOT re-suggest these):\n${JSON.stringify([...existingLinkKeys])}`,
+          }],
+        });
+        const data = await res.json();
+        const raw  = (data.content?.[0]?.text || "[]").replace(/```json|```/g, "").trim();
+        try {
+          const p = JSON.parse(raw);
+          if (Array.isArray(p)) {
+            linkSuggestions = p.filter(l =>
+              l.fromId && l.toId &&
+              !existingLinkKeys.has(`${l.fromId}-${l.toId}`) &&
+              !existingLinkKeys.has(`${l.toId}-${l.fromId}`)
+            ).map(l => ({ ...l, type: "LINK_SUGGESTED" }));
+          }
+        } catch {}
       } catch {}
-    } catch {}
+    }
 
     setSuggestions([...entrySuggestions, ...linkSuggestions]);
     setLoading(false);
