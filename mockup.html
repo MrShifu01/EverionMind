@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenBrain — Redesign Mockup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #0f0f23;
+    color: #eaeaea;
+    overflow-x: hidden;
+  }
+
+  /* ===== MOBILE FRAME ===== */
+  .phone-frame {
+    width: 390px;
+    height: 844px;
+    border: 3px solid #333;
+    border-radius: 40px;
+    overflow: hidden;
+    position: relative;
+    background: #0f0f23;
+    margin: 20px auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .phone-frame::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 28px;
+    background: #111;
+    border-radius: 0 0 16px 16px;
+    z-index: 100;
+  }
+  .screen {
+    height: 100%;
+    overflow-y: auto;
+    padding-bottom: 80px;
+    padding-top: 0;
+  }
+  .screen::-webkit-scrollbar { width: 0; }
+
+  /* ===== HEADER (MobileHeader) ===== */
+  .mobile-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 38px 12px 8px;
+    background: #0f0f23;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+  .brain-icon {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #4ECDC4, #45B7D1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+  }
+  .brain-name {
+    flex: 1;
+    min-width: 0;
+  }
+  .brain-name h1 {
+    font-size: 15px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .brain-name .sync-status {
+    font-size: 10px;
+    color: #4ECDC4;
+    font-weight: 600;
+  }
+  .header-btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    border-radius: 10px;
+    border: 1px solid #2a2a4a;
+    background: #1a1a2e;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    cursor: pointer;
+    color: #eaeaea;
+  }
+
+  /* ===== QUICK CAPTURE ===== */
+  .quick-capture {
+    padding: 0 12px 8px;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .capture-input {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 14px;
+    background: #1a1a2e;
+    border: 1px solid #2a2a4a;
+    border-radius: 10px;
+    color: #a0a0b8;
+    font-size: 14px;
+    outline: none;
+  }
+  .capture-btn {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #1a1a2e;
+    border: 1px solid #2a2a4a;
+    border-radius: 10px;
+    color: #a0a0b8;
+    font-size: 16px;
+    cursor: pointer;
+  }
+  .capture-btn.primary {
+    background: linear-gradient(135deg, #4ECDC4, #45B7D1);
+    border: none;
+    color: #0f0f23;
+    font-weight: 700;
+    font-size: 18px;
+  }
+
+  /* ===== STATS ROW ===== */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding: 0 12px;
+    margin-bottom: 16px;
+  }
+  .stat-card {
+    background: #1a1a2e;
+    border-radius: 10px;
+    padding: 10px 8px;
+    text-align: center;
+    border: 1px solid #2a2a4a;
+  }
+  .stat-card .value { font-size: 22px; font-weight: 800; }
+  .stat-card .label {
+    font-size: 8px;
+    color: #9090a8;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 2px;
+  }
+
+  /* ===== TYPE FILTERS ===== */
+  .type-filters {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 0 12px;
+    margin-bottom: 16px;
+    scrollbar-width: none;
+  }
+  .type-filters::-webkit-scrollbar { display: none; }
+  .type-pill {
+    flex-shrink: 0;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: none;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    background: #1a1a2e;
+    color: #a0a0b8;
+  }
+  .type-pill.active {
+    background: #4ECDC4;
+    color: #0f0f23;
+  }
+
+  /* ===== ENTRY CARDS ===== */
+  .entries-grid {
+    display: grid;
+    gap: 12px;
+    padding: 0 12px;
+  }
+  .entry-card {
+    background: #1a1a2e;
+    border: 1px solid #2a2a4a;
+    border-radius: 12px;
+    padding: 16px 20px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.15s, border-color 0.15s;
+  }
+  .entry-card:hover {
+    transform: translateY(-2px);
+  }
+  .entry-card.pinned {
+    border-color: rgba(78, 205, 196, 0.5);
+  }
+  .entry-card .pin-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #4ECDC4, transparent);
+  }
+  .entry-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .entry-meta .icon { font-size: 20px; }
+  .entry-meta .type {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+  }
+  .entry-meta .badge {
+    font-size: 9px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+  .entry-card h3 {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.3;
+    margin-bottom: 8px;
+  }
+  .entry-card p {
+    font-size: 13px;
+    color: #a0a0b8;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .entry-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 10px;
+  }
+  .entry-tags span {
+    font-size: 10px;
+    color: #9090a8;
+    background: rgba(255,255,255,0.03);
+    padding: 2px 8px;
+    border-radius: 20px;
+  }
+
+  /* ===== SKELETON CARDS ===== */
+  .skeleton-card {
+    background: #1a1a2e;
+    border: 1px solid #2a2a4a;
+    border-radius: 12px;
+    padding: 16px 20px;
+    overflow: hidden;
+  }
+  .skeleton-line {
+    border-radius: 6px;
+    background: linear-gradient(90deg, #2a2a4a 25%, #3a3a5a 50%, #2a2a4a 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* ===== BOTTOM NAV ===== */
+  .bottom-nav {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    background: rgba(15, 15, 35, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid #2a2a4a;
+    z-index: 900;
+    padding-bottom: 8px;
+  }
+  .nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 56px;
+    padding: 8px 4px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #a0a0b8;
+    transition: color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .nav-item.active { color: #4ECDC4; }
+  .nav-item .nav-icon {
+    font-size: 20px;
+    line-height: 1;
+  }
+  .nav-item .nav-label {
+    font-size: 10px;
+    font-weight: 500;
+  }
+  .nav-item.active .nav-label { font-weight: 700; }
+
+  /* ===== NUDGE BANNER ===== */
+  .nudge-banner {
+    margin: 0 12px 12px;
+    padding: 10px 12px;
+    background: #1a1a2e;
+    border: 1px solid rgba(162, 155, 254, 0.25);
+    border-radius: 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .nudge-banner p {
+    margin: 0;
+    flex: 1;
+    font-size: 13px;
+    color: #bbb;
+    line-height: 1.5;
+  }
+  .nudge-dismiss {
+    background: none;
+    border: none;
+    color: #7a7a9a;
+    font-size: 18px;
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  /* ===== LAYOUT CONTROLS ===== */
+  .section-title {
+    padding: 0 12px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  /* ===== MULTI-SCREEN LAYOUT ===== */
+  .screens-container {
+    display: flex;
+    gap: 40px;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 40px 20px;
+    background: #080818;
+    min-height: 100vh;
+  }
+  .screen-label {
+    text-align: center;
+    color: #7a7a9a;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+
+  /* ===== ONBOARDING ===== */
+  .onboarding-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+    padding: 20px;
+  }
+  .onboarding-card {
+    background: #16162a;
+    border: 1px solid #2a2a4a;
+    border-radius: 18px;
+    padding: 24px 16px;
+    max-width: 340px;
+    width: 100%;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.7);
+  }
+  .progress-dots {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    margin-bottom: 28px;
+  }
+  .dot {
+    height: 8px;
+    border-radius: 4px;
+    transition: all 0.3s;
+  }
+  .dot.active { width: 20px; background: #4ECDC4; }
+  .dot.done { width: 8px; background: rgba(78,205,196,0.5); }
+  .dot.pending { width: 8px; background: #1a1a2e; }
+  .usecase-btn {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    margin-bottom: 8px;
+  }
+  .usecase-btn.selected {
+    background: rgba(78,205,196,0.08);
+    border: 1px solid rgba(78,205,196,0.37);
+  }
+  .usecase-btn.unselected {
+    background: #1a1a2e;
+    border: 1px solid #2a2a4a;
+  }
+  .check-circle {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  .check-circle.on { background: #4ECDC4; color: #0f0f23; }
+  .check-circle.off { border: 2px solid #2a2a4a; }
+  .cta-btn {
+    padding: 12px 28px;
+    background: linear-gradient(135deg, #4ECDC4, #45B7D1);
+    border: none;
+    border-radius: 12px;
+    color: #0f0f23;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<div class="screens-container">
+
+<!-- ===== SCREEN 1: ONBOARDING (Step 1 of 3) ===== -->
+<div>
+  <div class="screen-label">Onboarding (Step 1 of 3)</div>
+  <div class="phone-frame">
+    <div class="screen" style="display:flex;align-items:center;justify-content:center;">
+      <div class="onboarding-overlay">
+        <div class="onboarding-card">
+          <div class="progress-dots">
+            <div class="dot active"></div>
+            <div class="dot pending"></div>
+            <div class="dot pending"></div>
+          </div>
+          <div style="text-align:center;margin-bottom:24px">
+            <div style="font-size:36px;margin-bottom:10px">&#129504;</div>
+            <h2 style="font-size:20px;font-weight:800">What will you use OpenBrain for?</h2>
+            <p style="margin:8px 0 0;font-size:13px;color:#9090a8">We'll set up the right brain for you.</p>
+          </div>
+          <div class="usecase-btn selected">
+            <span style="font-size:24px">&#129504;</span>
+            <div style="flex:1">
+              <div style="font-size:14px;font-weight:700;color:#4ECDC4">Personal</div>
+              <div style="font-size:12px;color:#9090a8;margin-top:2px">Identity, health, finances, contacts, documents</div>
+            </div>
+            <div class="check-circle on">&#10003;</div>
+          </div>
+          <div class="usecase-btn unselected">
+            <span style="font-size:24px">&#127968;</span>
+            <div style="flex:1">
+              <div style="font-size:14px;font-weight:700;color:#eaeaea">Family</div>
+              <div style="font-size:12px;color:#9090a8;margin-top:2px">Household, kids, shared finances, emergencies</div>
+            </div>
+            <div class="check-circle off"></div>
+          </div>
+          <div class="usecase-btn selected">
+            <span style="font-size:24px">&#127978;</span>
+            <div style="flex:1">
+              <div style="font-size:14px;font-weight:700;color:#4ECDC4">Business</div>
+              <div style="font-size:12px;color:#9090a8;margin-top:2px">Staff, suppliers, SOPs, licences, costs</div>
+            </div>
+            <div class="check-circle on">&#10003;</div>
+          </div>
+          <p style="font-size:11px;color:#7a7a9a;text-align:center;margin:8px 0 16px">Select all that apply</p>
+          <div style="display:flex;justify-content:flex-end">
+            <button class="cta-btn">Set up my brain &#8594;</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCREEN 2: MAIN APP — GRID VIEW ===== -->
+<div>
+  <div class="screen-label">Grid View (Main App)</div>
+  <div class="phone-frame">
+    <div class="screen">
+
+      <!-- MobileHeader -->
+      <div class="mobile-header">
+        <div class="brain-icon">&#129504;</div>
+        <div class="brain-name">
+          <h1>Personal Brain</h1>
+          <div class="sync-status">Synced</div>
+        </div>
+        <button class="header-btn">&#127769;</button>
+      </div>
+
+      <!-- QuickCapture -->
+      <div class="quick-capture">
+        <input class="capture-input" placeholder="Quick capture — just type anything..." readonly>
+        <button class="capture-btn">&#127908;</button>
+        <button class="capture-btn">&#128247;</button>
+        <button class="capture-btn primary">+</button>
+      </div>
+
+      <!-- Nudge Banner -->
+      <div class="nudge-banner">
+        <span style="font-size:16px;flex-shrink:0">&#128161;</span>
+        <p>Your passport expires in 43 days. Consider renewing it before your trip to Lisbon in June.</p>
+        <button class="nudge-dismiss">&#10005;</button>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="value" style="color:#4ECDC4">47</div>
+          <div class="label">Memories</div>
+        </div>
+        <div class="stat-card">
+          <div class="value" style="color:#FFD700">3</div>
+          <div class="label">Pinned</div>
+        </div>
+        <div class="stat-card">
+          <div class="value" style="color:#A29BFE">8</div>
+          <div class="label">Types</div>
+        </div>
+        <div class="stat-card">
+          <div class="value" style="color:#FF6B35">12</div>
+          <div class="label">Links</div>
+        </div>
+      </div>
+
+      <!-- Type Filters -->
+      <div class="type-filters">
+        <button class="type-pill active">All (47)</button>
+        <button class="type-pill">&#128221; note (12)</button>
+        <button class="type-pill">&#128199; contact (9)</button>
+        <button class="type-pill">&#9200; reminder (7)</button>
+        <button class="type-pill">&#128196; document (6)</button>
+        <button class="type-pill">&#128274; secret (4)</button>
+      </div>
+
+      <!-- Entry Cards -->
+      <div class="entries-grid">
+        <div class="entry-card pinned">
+          <div class="pin-bar"></div>
+          <div class="entry-meta">
+            <span class="icon">&#128199;</span>
+            <span class="type" style="color:#45B7D1">contact</span>
+            <span style="font-size:10px">&#128204;</span>
+            <span class="badge" style="background:#FF6B3530;color:#FF6B35">Important</span>
+          </div>
+          <h3>Dr. Sarah Chen — GP</h3>
+          <p>Primary care physician. Mediclinic Sandton, Suite 301. Phone: 011-784-5500. Available Mon-Fri 8am-5pm.</p>
+          <div class="entry-tags">
+            <span>health</span>
+            <span>doctor</span>
+            <span>medical</span>
+          </div>
+        </div>
+
+        <div class="entry-card">
+          <div class="entry-meta">
+            <span class="icon">&#9200;</span>
+            <span class="type" style="color:#FF6B35">reminder</span>
+            <span class="badge" style="background:#FFEAA720;color:#FFEAA7">Critical</span>
+          </div>
+          <h3>Renew Passport — ZA</h3>
+          <p>Current passport expires 2026-05-18. Apply at Home Affairs Randburg or use online portal. Need: ID, photos, R400.</p>
+          <div class="entry-tags">
+            <span>travel</span>
+            <span>documents</span>
+            <span>urgent</span>
+          </div>
+        </div>
+
+        <div class="entry-card">
+          <div class="entry-meta">
+            <span class="icon">&#128274;</span>
+            <span class="type" style="color:#FF4757">secret</span>
+          </div>
+          <h3>Home Alarm Code</h3>
+          <p style="color:#FF4757;font-style:italic">Encrypted — tap to reveal</p>
+        </div>
+
+        <div class="entry-card pinned">
+          <div class="pin-bar"></div>
+          <div class="entry-meta">
+            <span class="icon">&#128221;</span>
+            <span class="type" style="color:#A29BFE">note</span>
+            <span style="font-size:10px">&#128204;</span>
+          </div>
+          <h3>Tax Reference Number</h3>
+          <p>SARS tax reference: 1234567890. eFiling profile active. Tax practitioner: David at PKF. Filing deadline: Nov.</p>
+          <div class="entry-tags">
+            <span>finance</span>
+            <span>tax</span>
+            <span>SARS</span>
+          </div>
+        </div>
+
+        <div class="entry-card">
+          <div class="entry-meta">
+            <span class="icon">&#128196;</span>
+            <span class="type" style="color:#4ECDC4">document</span>
+          </div>
+          <h3>Discovery Medical Aid</h3>
+          <p>Plan: Classic Smart Comprehensive. Member #: 10098754. Emergency line: 0860-999-911. Annual limit: R450k.</p>
+          <div class="entry-tags">
+            <span>medical-aid</span>
+            <span>insurance</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- BottomNav -->
+    <div class="bottom-nav">
+      <button class="nav-item">
+        <span class="nav-icon">+</span>
+        <span class="nav-label">Capture</span>
+      </button>
+      <button class="nav-item active">
+        <span class="nav-icon">&#9638;</span>
+        <span class="nav-label">Grid</span>
+      </button>
+      <button class="nav-item">
+        <span class="nav-icon">&#10022;</span>
+        <span class="nav-label">Fill Brain</span>
+      </button>
+      <button class="nav-item">
+        <span class="nav-icon">&#9672;</span>
+        <span class="nav-label">Ask</span>
+      </button>
+      <button class="nav-item">
+        <span class="nav-icon">&#8801;</span>
+        <span class="nav-label">More</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCREEN 3: SKELETON LOADING STATE ===== -->
+<div>
+  <div class="screen-label">Loading State (Skeleton)</div>
+  <div class="phone-frame">
+    <div class="screen">
+
+      <!-- MobileHeader -->
+      <div class="mobile-header">
+        <div class="brain-icon">&#129504;</div>
+        <div class="brain-name">
+          <h1>Personal Brain</h1>
+          <div class="sync-status" style="color:#FF6B6B">Offline</div>
+        </div>
+        <button class="header-btn">&#127769;</button>
+      </div>
+
+      <!-- QuickCapture -->
+      <div class="quick-capture">
+        <input class="capture-input" placeholder="Quick capture — just type anything..." readonly>
+        <button class="capture-btn">&#127908;</button>
+        <button class="capture-btn">&#128247;</button>
+        <button class="capture-btn primary">+</button>
+      </div>
+
+      <!-- Stats skeleton -->
+      <div class="stats-row">
+        <div class="stat-card"><div class="skeleton-line" style="height:22px;width:60%;margin:0 auto 4px;border-radius:4px"></div><div class="skeleton-line" style="height:8px;width:80%;margin:0 auto;border-radius:4px"></div></div>
+        <div class="stat-card"><div class="skeleton-line" style="height:22px;width:60%;margin:0 auto 4px;border-radius:4px"></div><div class="skeleton-line" style="height:8px;width:80%;margin:0 auto;border-radius:4px"></div></div>
+        <div class="stat-card"><div class="skeleton-line" style="height:22px;width:60%;margin:0 auto 4px;border-radius:4px"></div><div class="skeleton-line" style="height:8px;width:80%;margin:0 auto;border-radius:4px"></div></div>
+        <div class="stat-card"><div class="skeleton-line" style="height:22px;width:60%;margin:0 auto 4px;border-radius:4px"></div><div class="skeleton-line" style="height:8px;width:80%;margin:0 auto;border-radius:4px"></div></div>
+      </div>
+
+      <!-- Skeleton Cards -->
+      <div class="entries-grid">
+        <div class="skeleton-card">
+          <div class="skeleton-line" style="height:14px;width:60%;margin-bottom:12px"></div>
+          <div class="skeleton-line" style="height:10px;width:90%;margin-bottom:8px"></div>
+          <div class="skeleton-line" style="height:10px;width:75%;margin-bottom:8px"></div>
+          <div class="skeleton-line" style="height:8px;width:40%;margin-top:12px"></div>
+        </div>
+        <div class="skeleton-card">
+          <div class="skeleton-line" style="height:14px;width:50%;margin-bottom:12px"></div>
+          <div class="skeleton-line" style="height:10px;width:85%;margin-bottom:8px"></div>
+          <div class="skeleton-line" style="height:10px;width:65%;margin-bottom:8px"></div>
+          <div class="skeleton-line" style="height:8px;width:35%;margin-top:12px"></div>
+        </div>
+        <div class="skeleton-card">
+          <div class="skeleton-line" style="height:14px;width:70%;margin-bottom:12px"></div>
+          <div class="skeleton-line" style="height:10px;width:80%;margin-bottom:8px"></div>
+          <div class="skeleton-line" style="height:10px;width:60%;margin-bottom:8px"></div>
+          <div class="skeleton-line" style="height:8px;width:45%;margin-top:12px"></div>
+        </div>
+        <div class="skeleton-card">
+          <div class="skeleton-line" style="height:14px;width:55%;margin-bottom:12px"></div>
+          <div class="skeleton-line" style="height:10px;width:95%;margin-bottom:8px"></div>
+          <div class="skeleton-line" style="height:10px;width:70%;margin-bottom:8px"></div>
+          <div class="skeleton-line" style="height:8px;width:50%;margin-top:12px"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- BottomNav -->
+    <div class="bottom-nav">
+      <button class="nav-item">
+        <span class="nav-icon">+</span>
+        <span class="nav-label">Capture</span>
+      </button>
+      <button class="nav-item active">
+        <span class="nav-icon">&#9638;</span>
+        <span class="nav-label">Grid</span>
+      </button>
+      <button class="nav-item">
+        <span class="nav-icon">&#10022;</span>
+        <span class="nav-label">Fill Brain</span>
+      </button>
+      <button class="nav-item">
+        <span class="nav-icon">&#9672;</span>
+        <span class="nav-label">Ask</span>
+      </button>
+      <button class="nav-item">
+        <span class="nav-icon">&#8801;</span>
+        <span class="nav-label">More</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+</div>
+
+</body>
+</html>
