@@ -9,6 +9,8 @@ import { enqueue } from "../lib/offlineQueue";
 import { findConnections, scoreTitle } from "../lib/connectionFinder";
 import { TC } from "../data/constants";
 import { PROMPTS } from "../config/prompts";
+import { trackCaptureEdits, getBufferedFeedback, shouldDistill, distillAndUpdate } from "../lib/feedbackLearning";
+import { useMemory } from "../MemoryContext";
 
 const BRAIN_META_QC = {
   personal: { emoji: "🧠" },
@@ -78,6 +80,7 @@ function PreviewModal({ preview, entries, onSave, onUpdate, onCancel }) {
 
 export default function QuickCapture({ entries, setEntries, links, addLinks, onCreated, onUpdate, isOnline = true, refreshCount, brainId, brains = [], canWrite = true, cryptoKey = null, onNavigate = null }) {
   const { t } = useTheme();
+  const { memoryGuide, refreshMemory } = useMemory();
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState(null);
@@ -260,6 +263,21 @@ export default function QuickCapture({ entries, setEntries, links, addLinks, onC
   }, [listening, _startSpeechRecognitionFallback, stopWhisperRecording]);
 
   const doSave = useCallback(async (parsed) => {
+    // Track user edits vs AI suggestion
+    if (parsed._aiOriginal) {
+      trackCaptureEdits(parsed._aiOriginal, parsed, parsed._raw);
+      // Fire-and-forget distillation check
+      if (shouldDistill(getBufferedFeedback())) {
+        const getMem = async () => memoryGuide || "";
+        const saveMem = async (content) => {
+          try {
+            await authFetch("/api/memory", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content }) });
+            refreshMemory?.();
+          } catch {}
+        };
+        distillAndUpdate(callAI, getMem, saveMem).catch(() => {});
+      }
+    }
     setPreview(null);
     setLoading(true); setStatus("saving");
     try {
@@ -331,7 +349,7 @@ export default function QuickCapture({ entries, setEntries, links, addLinks, onC
       setStatus("error");
     }
     setLoading(false); setTimeout(() => setStatus(null), 3000);
-  }, [entries, links, addLinks, onCreated, setEntries, isOnline, refreshCount, primaryBrainId, extraBrainIds]);
+  }, [entries, links, addLinks, onCreated, setEntries, isOnline, refreshCount, primaryBrainId, extraBrainIds, memoryGuide, refreshMemory]);
 
   const capture = async () => {
     if (!text.trim()) return;
@@ -348,13 +366,13 @@ export default function QuickCapture({ entries, setEntries, links, addLinks, onC
       return;
     }
     try {
-      const res = await callAI({ system: PROMPTS.CAPTURE, max_tokens: 800, messages: [{ role: "user", content: input }] });
+      const res = await callAI({ system: PROMPTS.CAPTURE, max_tokens: 800, messages: [{ role: "user", content: input }], memoryGuide });
       const data = await res.json();
       let parsed = {};
       try { parsed = JSON.parse((data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim()); } catch {}
       if (parsed.title) {
         setLoading(false); setStatus(null);
-        setPreview({ ...parsed, _raw: input });
+        setPreview({ ...parsed, _raw: input, _aiOriginal: { title: parsed.title, type: parsed.type, tags: [...(parsed.tags || [])] } });
         return;
       }
       const newEntry = { id: Date.now().toString(), title: input.slice(0, 60), content: input, type: "note", metadata: {}, pinned: false, importance: 0, tags: [], created_at: new Date().toISOString() };

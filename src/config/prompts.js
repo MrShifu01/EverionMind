@@ -95,6 +95,43 @@ Schema: [{"fromId":"...","fromTitle":"...","toId":"...","toTitle":"...","rel":"v
 
 If no pairs have a real relationship, return: []`,
 
+  /** feedbackLearning.js: distill user corrections into lasting preference rules */
+  DISTILL_FEEDBACK: `You are a learning system for OpenBrain, a personal knowledge base. You analyze user corrections to AI suggestions and extract lasting preference rules.
+
+TASK: Given a batch of user feedback events (corrections, rejections, edits to AI suggestions), distill them into concise, reusable rules that will prevent the same mistakes.
+
+RULES FOR OUTPUT:
+- Return ONLY bullet points starting with "- "
+- Each rule must be specific and actionable (not vague)
+- Merge overlapping rules into one
+- If an existing rule already covers a correction, keep it unchanged
+- If a new pattern contradicts an existing rule, replace the old rule with the updated one
+- Maximum 20 rules total
+- Focus on PATTERNS, not one-off corrections (need 2+ similar events to create a rule)
+- Rules should be about classification, typing, naming, metadata extraction, and relationship preferences
+- Be concise: each rule should be one line, under 120 characters
+
+EXAMPLES:
+- When input contains a person's name, classify as "person" not "note"
+- South African phone numbers (07x/08x) always go in metadata.phone
+- Business supplier entries should be typed as "contact" not "person"
+- User prefers short titles under 40 characters
+- Do not suggest type changes for entries tagged "meeting-notes"
+
+If no clear pattern emerges from the feedback, return an empty response.`,
+
+  /** feedbackLearning.js: consolidate/prune memory rules for hygiene */
+  CONSOLIDATE_MEMORY: `You maintain the [Learned Preferences] section of a user's OpenBrain memory guide. Your job is to keep it lean, non-redundant, and always improving.
+
+TASK: Given the current rules, consolidate them:
+1. Merge rules that say the same thing differently into ONE rule
+2. Remove rules that contradict each other (keep the newer/more specific one)
+3. Remove rules that are too vague to be actionable
+4. Keep the total under 20 rules
+5. Preserve the user's intent — do not invent new rules
+
+Return ONLY bullet points starting with "- ". If all rules are already clean, return them unchanged.`,
+
   /** connectionFinder.js: auto-link new entry to existing entries */
   CONNECTION_FINDER: `You are a knowledge-graph builder. Given a NEW entry and EXISTING entries, find meaningful connections.\nRULES:\n- Only connect where a real, specific relationship exists (supplier→business, person→place, idea→business, etc.)\n- "rel" label: short phrase 2-4 words describing the relationship\n- Do NOT connect entries just because they share a type\n- Return 0–5 connections. Quality over quantity.\n- "from" = new entry ID. "to" = existing entry ID.\n- Return ONLY valid JSON array: [{"from":"...","to":"...","rel":"..."}]\n- If no connections: []`,
 };

@@ -9,6 +9,8 @@ import { TC, PC, MODEL } from "../data/constants";
 import { useTheme } from "../ThemeContext";
 import { PROMPTS } from "../config/prompts";
 import { getEmbedHeaders } from "../lib/aiFetch";
+import { bufferFeedback, createFeedbackEvent, FEEDBACK_TYPES, getBufferedFeedback, shouldDistill, distillAndUpdate } from "../lib/feedbackLearning";
+import { useMemory } from "../MemoryContext";
 
 /* ─── Brain-type → question set ─── */
 function getSuggestionsForType(type) {
@@ -26,6 +28,7 @@ const BRAIN_META = {
 
 export default function SuggestionsView({ entries, setEntries, activeBrain, brains }) {
   const { t } = useTheme();
+  const { memoryGuide, refreshMemory } = useMemory();
 
   // Multi-select: which brains to pull questions from (default = [activeBrain])
   const [selectedBrainIds, setSelectedBrainIds] = useState(() => activeBrain?.id ? [activeBrain.id] : []);
@@ -249,6 +252,18 @@ export default function SuggestionsView({ entries, setEntries, activeBrain, brai
         const updated = skipped.filter(s => s.q !== current.q);
         localStorage.setItem("openbrain_onboarding_skipped", JSON.stringify(updated));
       } catch {}
+    }
+
+    // Trigger distillation if buffer from other components (QuickCapture, Refine) is full
+    if (shouldDistill(getBufferedFeedback())) {
+      const getMem = async () => memoryGuide || "";
+      const saveMem = async (content) => {
+        try {
+          await authFetch("/api/memory", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content }) });
+          refreshMemory?.();
+        } catch {}
+      };
+      distillAndUpdate(callAI, getMem, saveMem).catch(() => {});
     }
 
     setSaving(false);

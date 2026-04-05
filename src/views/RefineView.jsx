@@ -5,6 +5,8 @@ import { callAI } from "../lib/ai";
 import { TC, MODEL } from "../data/constants";
 import { useTheme } from "../ThemeContext";
 import { PROMPTS } from "../config/prompts";
+import { trackRefineAction, getBufferedFeedback, shouldDistill, distillAndUpdate } from "../lib/feedbackLearning";
+import { useMemory } from "../MemoryContext";
 
 /* ─── Suggestion type metadata ─── */
 const LABELS = {
@@ -20,12 +22,26 @@ const LABELS = {
 
 export default function RefineView({ entries, setEntries, links, addLinks, activeBrain, brains, onSwitchBrain }) {
   const { t } = useTheme();
+  const { memoryGuide, refreshMemory } = useMemory();
   const [loading, setLoading]         = useState(false);
   const [suggestions, setSuggestions] = useState(null); // null = never run
   const [dismissed, setDismissed]     = useState(new Set());
   const [applying, setApplying]       = useState(new Set());
   const [editingKey, setEditingKey]   = useState(null);
   const [editValue, setEditValue]     = useState("");
+
+  /* ── Fire-and-forget distillation check ── */
+  const maybeDistill = useCallback(() => {
+    if (!shouldDistill(getBufferedFeedback())) return;
+    const getMem = async () => memoryGuide || "";
+    const saveMem = async (content) => {
+      try {
+        await authFetch("/api/memory", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content }) });
+        refreshMemory?.();
+      } catch {}
+    };
+    distillAndUpdate(callAI, getMem, saveMem).catch(() => {});
+  }, [memoryGuide, refreshMemory]);
 
   /* ── Analyze: entry quality + link discovery in parallel ── */
   const analyze = useCallback(async () => {
@@ -57,6 +73,7 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
           max_tokens: 1500,
           system:     PROMPTS.ENTRY_AUDIT,
           messages:   [{ role: "user", content: `Review these ${slim.length} entries:\n\n${JSON.stringify(slim)}` }],
+          memoryGuide,
         });
         const data = await res.json();
         const raw  = (data.content?.[0]?.text || "[]").replace(/```json|```/g, "").trim();
@@ -155,6 +172,17 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
     const key   = `entry:${s.entryId}:${s.field}`;
     setApplying(p => new Set(p).add(key));
 
+    // Track feedback: accept or edit
+    trackRefineAction(override ? "edit" : "accept", {
+      suggestionType: s.type,
+      field: s.field,
+      suggestedValue: s.suggestedValue,
+      currentValue: s.currentValue,
+      userValue: override || undefined,
+      entryTitle: s.entryTitle,
+    });
+    maybeDistill();
+
     const entry = entries.find(e => e.id === s.entryId);
     if (!entry) { setApplying(p => { const n = new Set(p); n.delete(key); return n; }); return; }
 
@@ -187,13 +215,23 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
     setDismissed(p => new Set(p).add(key));
     setApplying(p => { const n = new Set(p); n.delete(key); return n; });
     setEditingKey(null);
-  }, [entries, setEntries]);
+  }, [entries, setEntries, maybeDistill]);
 
   /* ── Accept a link suggestion ── */
   const applyLink = useCallback(async (s, relOverride) => {
     const rel = relOverride ?? s.rel;
     const key = `link:${s.fromId}:${s.toId}`;
     setApplying(p => new Set(p).add(key));
+
+    // Track feedback: accept or edit
+    trackRefineAction(relOverride ? "edit" : "accept", {
+      suggestionType: "LINK_SUGGESTED",
+      fromTitle: s.fromTitle,
+      toTitle: s.toTitle,
+      suggestedValue: s.rel,
+      userValue: relOverride || undefined,
+    });
+    maybeDistill();
 
     const newLink = { from: s.fromId, to: s.toId, rel };
     try {
@@ -208,12 +246,27 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
     setDismissed(p => new Set(p).add(key));
     setApplying(p => { const n = new Set(p); n.delete(key); return n; });
     setEditingKey(null);
-  }, [addLinks]);
+  }, [addLinks, maybeDistill]);
 
-  const reject = useCallback((key) => {
+  const reject = useCallback((key, suggestion) => {
+    // Track rejection feedback
+    if (suggestion) {
+      const isLink = suggestion.type === "LINK_SUGGESTED";
+      trackRefineAction("reject", {
+        suggestionType: suggestion.type,
+        field: isLink ? undefined : suggestion.field,
+        suggestedValue: isLink ? suggestion.rel : suggestion.suggestedValue,
+        currentValue: isLink ? undefined : suggestion.currentValue,
+        entryTitle: isLink ? undefined : suggestion.entryTitle,
+        fromTitle: isLink ? suggestion.fromTitle : undefined,
+        toTitle: isLink ? suggestion.toTitle : undefined,
+        rel: isLink ? suggestion.rel : undefined,
+      });
+      maybeDistill();
+    }
     setDismissed(p => new Set(p).add(key));
     setEditingKey(null);
-  }, []);
+  }, [maybeDistill]);
 
   /* ── Key helpers ── */
   const keyOf = (s) => s.type === "LINK_SUGGESTED"
@@ -431,7 +484,7 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
                       </>
                     ) : (
                       <>
-                        <button onClick={() => reject(key)} disabled={busy} style={{ flex: 1, minHeight: 44, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FF6B35", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✗ Reject</button>
+                        <button onClick={() => reject(key, s)} disabled={busy} style={{ flex: 1, minHeight: 44, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FF6B35", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✗ Reject</button>
                         <button onClick={() => { setEditingKey(key); setEditValue(s.rel); }} disabled={busy} style={{ flex: 1, minHeight: 44, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FFEAA7", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✎ Edit</button>
                         <button onClick={() => applyLink(s)} disabled={busy} style={{ flex: 2, minHeight: 44, padding: "9px 0", background: busy ? "#252540" : `linear-gradient(135deg, #96CEB4, ${t.accent})`, border: "none", borderRadius: 8, color: busy ? "#444" : "#0f0f23", fontSize: 12, fontWeight: 700, cursor: busy ? "default" : "pointer" }}>
                           {busy ? "Saving…" : "✓ Accept"}
@@ -488,7 +541,7 @@ export default function RefineView({ entries, setEntries, links, addLinks, activ
                       </>
                     ) : (
                       <>
-                        <button onClick={() => reject(key)} disabled={busy} style={{ flex: 1, minHeight: 44, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FF6B35", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✗ Reject</button>
+                        <button onClick={() => reject(key, s)} disabled={busy} style={{ flex: 1, minHeight: 44, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FF6B35", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✗ Reject</button>
                         <button onClick={() => { setEditingKey(key); setEditValue(s.suggestedValue); }} disabled={busy} style={{ flex: 1, minHeight: 44, padding: "9px 0", background: "#252540", border: "none", borderRadius: 8, color: "#FFEAA7", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✎ Edit</button>
                         <button onClick={() => applyEntry(s)} disabled={busy} style={{ flex: 2, minHeight: 44, padding: "9px 0", background: busy ? "#252540" : `linear-gradient(135deg, ${t.accent}, #45B7D1)`, border: "none", borderRadius: 8, color: busy ? "#444" : "#0f0f23", fontSize: 12, fontWeight: 700, cursor: busy ? "default" : "pointer" }}>
                           {busy ? "Saving…" : "✓ Accept"}
