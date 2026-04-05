@@ -129,7 +129,7 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock 
     setBusy(true);
     setError("");
     try {
-      const key = await decryptVaultKeyFromRecovery(vaultData.recovery_blob, cleaned);
+      const key = await decryptVaultKeyFromRecovery(vaultData!.recovery_blob, cleaned);
       if (!key) { setError("Invalid recovery key"); setBusy(false); return; }
       onVaultUnlock(key);
       setStatus("unlocked");
@@ -380,14 +380,14 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock 
                       </div>
                     )}
                     <div style={{ display: "flex", gap: 8 }}>
-                      <button onClick={() => copyToClipboard(e.content, "Content copied")} style={{ padding: "8px 14px", background: "#FF475720", border: "1px solid #FF475740", borderRadius: 8, color: "#FF4757", fontSize: 12, fontWeight: 600, cursor: "pointer", minHeight: 36 }}>📋 Copy content</button>
+                      <button onClick={() => copyToClipboard(e.content || "", "Content copied")} style={{ padding: "8px 14px", background: "#FF475720", border: "1px solid #FF475740", borderRadius: 8, color: "#FF4757", fontSize: 12, fontWeight: 600, cursor: "pointer", minHeight: 36 }}>📋 Copy content</button>
                       <button onClick={() => onSelect(e)} style={{ padding: "8px 14px", background: t.surface2 || "#1a1a2e", border: `1px solid ${t.border}`, borderRadius: 8, color: t.textDim, fontSize: 12, fontWeight: 600, cursor: "pointer", minHeight: 36 }}>Edit</button>
                     </div>
                   </div>
                 ) : (
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ fontSize: 13, color: t.textDim, letterSpacing: 3 }}>••••••••••••</span>
-                    {e.tags?.length > 0 && e.tags.slice(0, 3).map(tag => (
+                    {(e.tags?.length ?? 0) > 0 && e.tags!.slice(0, 3).map((tag: string) => (
                       <span key={tag} style={{ fontSize: 10, color: "#FF4757", background: "#FF475710", padding: "2px 8px", borderRadius: 20 }}>{tag}</span>
                     ))}
                   </div>
