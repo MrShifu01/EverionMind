@@ -1,8 +1,6 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import PropTypes from "prop-types";
 import { useTheme } from "../ThemeContext";
-import { authFetch } from "../lib/authFetch";
-import { MODEL } from "../data/constants";
 
 /* ─── 30 essential starter questions ─── */
 export const ONBOARDING_QUESTIONS = [
@@ -41,9 +39,7 @@ export const ONBOARDING_QUESTIONS = [
 const ALL_STEPS = [
   { id: "purpose", title: "What will you use OpenBrain for?", subtitle: "We'll set up the right brain for you." },
   { id: "setup",   title: "Here's what we've set up",         subtitle: "Your brain is ready. You can add more later." },
-  { id: "starter", title: "30 things to capture on day one",  subtitle: "The details you'll desperately need someday." },
-  { id: "ios",     title: "Get notified on iPhone",           subtitle: "One quick step before notifications work." },
-  { id: "start",   title: "You're ready to go",               subtitle: "Start by answering a few questions or capturing your first memory." },
+  { id: "start",   title: "You're ready to go",               subtitle: "Start by capturing your first memory or answering guided questions in Fill Brain." },
 ];
 
 function needsIOSStep() {
@@ -62,19 +58,14 @@ export default function OnboardingModal({ onComplete }) {
   const [step, setStep] = useState(0);
   const [selected, setSelected] = useState(["personal"]);
 
-  const STEPS = ALL_STEPS.filter(s => s.id !== "ios" || needsIOSStep());
+  const STEPS = ALL_STEPS;
   const START_STEP = STEPS.length - 1;
-  const IOS_STEP   = STEPS.findIndex(s => s.id === "ios");
 
-  // Starter questions state
-  const [qIdx, setQIdx] = useState(0);
-  const [answer, setAnswer] = useState("");
-  const [showInput, setShowInput] = useState(false);
-  const [imgLoading, setImgLoading] = useState(false);
-  const [imgError, setImgError] = useState(null);
-  const [answeredItems, setAnsweredItems] = useState([]); // [{q, a, cat}]
-  const [skippedQs, setSkippedQs] = useState([]);         // [{q, cat, p}]
-  const imgRef = useRef(null);
+  // Starter questions state — kept for backward compat with onComplete signature
+  const [answeredItems] = useState([]); // [{q, a, cat}]
+  const [skippedQs] = useState(() =>
+    ONBOARDING_QUESTIONS.map(q => ({ q: q.q, cat: q.cat, p: q.p }))
+  );
 
   function toggleUseCase(id) {
     setSelected(prev =>
@@ -87,74 +78,6 @@ export default function OnboardingModal({ onComplete }) {
   function handleComplete() {
     try { localStorage.setItem("openbrain_onboarded", "1"); } catch {}
     onComplete(selected, answeredItems, skippedQs);
-  }
-
-  /* ── Starter questions helpers ── */
-  const currentQ = ONBOARDING_QUESTIONS[qIdx];
-  const totalQs   = ONBOARDING_QUESTIONS.length;
-  const qProgress = qIdx / totalQs;
-
-  async function handleImageUpload(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = "";
-    if (file.size > 4 * 1024 * 1024) { setImgError("Photo too large — try a smaller image"); setTimeout(() => setImgError(null), 3000); return; }
-    setImgLoading(true);
-    try {
-      const base64 = await new Promise((res, rej) => {
-        const reader = new FileReader();
-        reader.onload = () => res(reader.result.split(",")[1]);
-        reader.onerror = rej;
-        reader.readAsDataURL(file);
-      });
-      const apiRes = await authFetch("/api/anthropic", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: MODEL, max_tokens: 600,
-          messages: [{ role: "user", content: [
-            { type: "image", source: { type: "base64", media_type: file.type, data: base64 } },
-            { type: "text", text: "Extract all relevant information from this image for the question. Output the extracted content, clean and readable. Preserve structure if it's a document or card. No commentary." },
-          ]}]
-        })
-      });
-      const data = await apiRes.json();
-      const extracted = data.content?.[0]?.text?.trim() || "";
-      if (extracted) setAnswer(extracted);
-    } catch {}
-    setImgLoading(false);
-  }
-
-  function handleSaveAnswer() {
-    if (!answer.trim()) return;
-    const item = { q: currentQ.q, a: answer.trim(), cat: currentQ.cat };
-    setAnsweredItems(prev => [...prev, item]);
-    advanceQ();
-  }
-
-  function handleSkip() {
-    setSkippedQs(prev => [...prev, { q: currentQ.q, cat: currentQ.cat, p: currentQ.p }]);
-    advanceQ();
-  }
-
-  function handleSkipAll() {
-    const remaining = ONBOARDING_QUESTIONS.slice(qIdx);
-    setSkippedQs(prev => [...prev, ...remaining]);
-    setStep(START_STEP); // jump to ready
-    resetQInput();
-  }
-
-  function advanceQ() {
-    resetQInput();
-    if (qIdx + 1 >= totalQs) {
-      setStep(START_STEP); // all done → ready
-    } else {
-      setQIdx(n => n + 1);
-    }
-  }
-
-  function resetQInput() {
-    setAnswer("");
-    setShowInput(false);
   }
 
   /* ── Styles ── */
@@ -205,7 +128,7 @@ export default function OnboardingModal({ onComplete }) {
 
         <div style={{ textAlign: "center", marginBottom: 24 }}>
           <div style={{ fontSize: 36, marginBottom: 10 }}>
-            {step === 2 ? "📋" : "🧠"}
+            {step === START_STEP ? "🚀" : "🧠"}
           </div>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: t.text }}>{STEPS[step].title}</h2>
           <p style={{ margin: "8px 0 0", fontSize: 13, color: t.textDim }}>{STEPS[step].subtitle}</p>
@@ -273,132 +196,20 @@ export default function OnboardingModal({ onComplete }) {
           </div>
         )}
 
-        {/* Step 2 — Starter questions */}
-        {step === 2 && (
-          <div style={{ marginBottom: 24 }}>
-            {/* Progress bar */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-              <div style={{ flex: 1, height: 4, background: t.surface, borderRadius: 4, overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${qProgress * 100}%`, background: "linear-gradient(90deg, #4ECDC4, #45B7D1)", transition: "width 0.3s" }} />
-              </div>
-              <span style={{ fontSize: 11, color: t.textDim, flexShrink: 0 }}>{qIdx + 1} / {totalQs}</span>
-            </div>
-
-            {/* Stats row */}
-            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-              {[
-                { l: "Answered", v: answeredItems.length, c: "#4ECDC4" },
-                { l: "Skipped",  v: skippedQs.length,    c: "#FF6B35" },
-              ].map(s => (
-                <div key={s.l} style={{ flex: 1, background: t.surface, borderRadius: 8, padding: "8px 10px", textAlign: "center", border: `1px solid ${t.border}` }}>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: s.c }}>{s.v}</div>
-                  <div style={{ fontSize: 9, color: t.textDim, textTransform: "uppercase", letterSpacing: 1 }}>{s.l}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Question card */}
-            <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 14, padding: "20px 18px", marginBottom: 14, position: "relative" }}>
-              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "linear-gradient(90deg, #FF6B35, transparent)", borderRadius: "14px 14px 0 0" }} />
-              <div style={{ fontSize: 10, color: t.textDim, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
-                {currentQ.cat}
-              </div>
-              <p style={{ margin: 0, fontSize: 15, color: t.text, lineHeight: 1.6, fontWeight: 500 }}>
-                {currentQ.q}
-              </p>
-            </div>
-
-            {/* Upload hint */}
-            <div style={{ padding: "10px 14px", background: "#4ECDC408", border: "1px solid #4ECDC420", borderRadius: 10, marginBottom: 14 }}>
-              <p style={{ margin: 0, fontSize: 11, color: t.textDim, lineHeight: 1.5 }}>
-                📷 <strong style={{ color: "#4ECDC4" }}>Have a photo?</strong> Upload a pic of the document — OpenBrain will read it and autofill your answer.
-                &nbsp;<span style={{ color: t.textFaint }}>Or come back to any skipped question in Fill Brain later.</span>
-              </p>
-            </div>
-
-            {!showInput ? (
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={handleSkip} style={{ ...btn(false), flex: 1, padding: "11px 10px", fontSize: 13 }}>
-                  Skip →
-                </button>
-                <button onClick={() => setShowInput(true)} style={{ ...btn(true), flex: 2, padding: "11px 10px", fontSize: 13 }}>
-                  Answer this
-                </button>
-              </div>
-            ) : (
-              <div>
-                <input type="file" accept="image/*" capture="environment" ref={imgRef} onChange={handleImageUpload} style={{ display: "none" }} />
-                <textarea
-                  value={answer}
-                  onChange={e => setAnswer(e.target.value)}
-                  placeholder="Type your answer, or tap the camera to scan a document..."
-                  autoFocus
-                  style={{ width: "100%", boxSizing: "border-box", minHeight: 90, padding: "12px 14px", background: t.surface, border: "1px solid #4ECDC440", borderRadius: 10, color: t.textSoft, fontSize: 13, lineHeight: 1.6, outline: "none", resize: "vertical", fontFamily: "inherit", opacity: imgLoading ? 0.5 : 1 }}
-                />
-                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                  {imgError && <p style={{ fontSize: 12, color: "#FF6B35", margin: "0 0 4px", gridColumn: "1/-1" }}>{imgError}</p>}
-                  <button onClick={resetQInput} style={{ ...btn(false), flex: 1, padding: "10px 8px", fontSize: 12 }}>Cancel</button>
-                  <button onClick={() => imgRef.current?.click()} disabled={imgLoading} title="Take photo or upload" style={{ padding: "10px 14px", background: t.surface, border: "1px solid #4ECDC440", borderRadius: 10, color: imgLoading ? t.textDim : "#4ECDC4", cursor: imgLoading ? "default" : "pointer", fontSize: 16 }}>
-                    {imgLoading ? "⏳" : "📷"}
-                  </button>
-                  <button onClick={handleSaveAnswer} disabled={!answer.trim() || imgLoading} style={{ ...btn(!answer.trim() || imgLoading ? false : true), flex: 2, padding: "10px 8px", fontSize: 12 }}>
-                    {imgLoading ? "Reading photo…" : "Save answer →"}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Skip all */}
-            <div style={{ textAlign: "center", marginTop: 14 }}>
-              <button
-                onClick={handleSkipAll}
-                style={{ padding: "8px 18px", background: "transparent", border: "none", color: t.textFaint, fontSize: 11, cursor: "pointer", textDecoration: "underline" }}
-              >
-                Skip all — I'll fill these in later
-              </button>
-              <p style={{ margin: "4px 0 0", fontSize: 10, color: t.textFaint }}>
-                Skipped questions will appear in Fill Brain so you can come back to them.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* iOS Home Screen step — only shown on iOS when not in standalone */}
-        {IOS_STEP !== -1 && step === IOS_STEP && (
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ padding: "16px 18px", background: t.surface, border: `1px solid ${t.border}`, borderRadius: 14, marginBottom: 16 }}>
-              <ol style={{ margin: 0, padding: "0 0 0 18px", fontSize: 13, color: t.textMuted, lineHeight: 2.2 }}>
-                <li>Tap the <strong style={{ color: t.text }}>Share button</strong> <span style={{ color: "#4ECDC4" }}>□↑</span> in Safari</li>
-                <li>Tap <strong style={{ color: t.text }}>"Add to Home Screen"</strong></li>
-                <li>Open OpenBrain from your Home Screen</li>
-                <li>Come back to <strong style={{ color: t.text }}>Settings → Notifications</strong> to enable</li>
-              </ol>
-            </div>
-            <div style={{ padding: "10px 14px", background: "#4ECDC408", border: "1px solid #4ECDC420", borderRadius: 10 }}>
-              <p style={{ margin: 0, fontSize: 11, color: t.textDim }}>
-                iOS requires apps to be on the Home Screen before allowing push notifications.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Start step — Ready */}
+        {/* Step 2 — Ready to go */}
         {step === START_STEP && (
           <div style={{ marginBottom: 24 }}>
-            {(answeredItems.length > 0 || skippedQs.length > 0) && (
-              <div style={{ padding: "12px 16px", background: "#4ECDC415", border: "1px solid #4ECDC430", borderRadius: 10, marginBottom: 16 }}>
-                <p style={{ margin: 0, fontSize: 12, color: t.textDim, lineHeight: 1.5 }}>
-                  {answeredItems.length > 0 && <><strong style={{ color: "#4ECDC4" }}>{answeredItems.length} answer{answeredItems.length > 1 ? "s" : ""}</strong> will be saved to your brain. </>}
-                  {skippedQs.length > 0 && <><strong style={{ color: "#FF6B35" }}>{skippedQs.length} question{skippedQs.length > 1 ? "s" : ""}</strong> added to your Fill Brain queue.</>}
-                </p>
-              </div>
-            )}
+            <div style={{ padding: "12px 16px", background: "#4ECDC415", border: "1px solid #4ECDC430", borderRadius: 10, marginBottom: 16 }}>
+              <p style={{ margin: 0, fontSize: 12, color: t.textDim, lineHeight: 1.5 }}>
+                <strong style={{ color: "#4ECDC4" }}>{skippedQs.length} guided questions</strong> are waiting in Fill Brain to help you build your memory.
+              </p>
+            </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {[
-                { ic: "✦", label: "Fill Brain",    desc: "Answer guided questions to build your memory" },
+                { ic: "\u2726", label: "Fill Brain",    desc: "Answer guided questions to build your memory" },
                 { ic: "+", label: "Quick Capture",  desc: "Type anything — AI will structure it" },
-                { ic: "◇", label: "Refine",         desc: "AI audits entries and finds missing connections" },
-                { ic: "◈", label: "Ask",            desc: "Chat with AI about everything you've stored" },
+                { ic: "\u25C7", label: "Refine",         desc: "AI audits entries and finds missing connections" },
+                { ic: "\u25C8", label: "Ask",            desc: "Chat with AI about everything you've stored" },
               ].map(f => (
                 <div key={f.label} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10 }}>
                   <span style={{ fontSize: 16, color: "#4ECDC4", width: 24, textAlign: "center", flexShrink: 0 }}>{f.ic}</span>
@@ -409,22 +220,26 @@ export default function OnboardingModal({ onComplete }) {
                 </div>
               ))}
             </div>
+            {needsIOSStep() && (
+              <div style={{ marginTop: 14, padding: "12px 16px", background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10 }}>
+                <p style={{ margin: 0, fontSize: 12, color: t.textDim, lineHeight: 1.5 }}>
+                  📱 <strong style={{ color: t.textMuted }}>iPhone tip:</strong> Tap Share → "Add to Home Screen" to enable push notifications.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
         {/* Navigation */}
         <div style={{ display: "flex", gap: 10, justifyContent: step === 0 ? "flex-end" : "space-between" }}>
-          {step > 0 && step !== 2 && (
+          {step > 0 && (
             <button onClick={() => setStep(s => s - 1)} style={btn(false)}>← Back</button>
           )}
           {step === 0 && (
             <button onClick={() => setStep(1)} style={btn(true)}>Set up my brain →</button>
           )}
           {step === 1 && (
-            <button onClick={() => setStep(2)} style={btn(true)}>Answer starter questions →</button>
-          )}
-          {IOS_STEP !== -1 && step === IOS_STEP && (
-            <button onClick={() => setStep(START_STEP)} style={btn(true)}>Got it →</button>
+            <button onClick={() => setStep(START_STEP)} style={btn(true)}>Let's go →</button>
           )}
           {step === START_STEP && (
             <button onClick={handleComplete} style={btn(true)}>Start capturing →</button>

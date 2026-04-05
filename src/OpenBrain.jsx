@@ -22,6 +22,9 @@ import BrainTipCard from "./components/BrainTipCard";
 import OnboardingChecklist from "./components/OnboardingChecklist";
 import QuickCapture from "./components/QuickCapture";
 import SupplierPanel from "./components/SupplierPanel";
+import BottomNav from "./components/BottomNav";
+import MobileHeader from "./components/MobileHeader";
+import SkeletonCard from "./components/SkeletonCard";
 import SettingsView from "./views/SettingsView";
 import { inferWorkspace } from "./lib/workspaceInfer";
 import { EntriesContext } from "./context/EntriesContext";
@@ -36,8 +39,7 @@ const RefineView      = lazy(() => import("./views/RefineView"));
 const VaultView       = lazy(() => import("./views/VaultView"));
 
 function Loader() {
-  const { t } = useTheme();
-  return <div style={{ padding: 40, textAlign: "center", color: t.textFaint, fontSize: 13 }}>Loading…</div>;
+  return <div style={{ padding: "12px 0" }}><SkeletonCard count={3} /></div>;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -673,47 +675,29 @@ export default function OpenBrain() {
   return (
     <EntriesContext.Provider value={entriesValue}>
     <BrainContext.Provider value={brainValue}>
-    <div style={{ minHeight: "100vh", background: t.bg, color: t.text, fontFamily: "'Söhne', system-ui, -apple-system, sans-serif", transition: "background 0.25s, color 0.25s", overflowX: "hidden" }}>
-      <div style={{ padding: "12px 12px 0" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "nowrap" }}>
-          <div
-            style={{ width: 34, height: 34, minWidth: 34, borderRadius: 10, background: "linear-gradient(135deg, #4ECDC4, #45B7D1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}
-          >🧠</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            {brains.length > 0 && (
-              <BrainSwitcher
-                brains={brains}
-                activeBrain={activeBrain}
-                onSwitch={setActiveBrain}
-                onBrainCreated={async (brain) => {
-                  await refresh();
-                  setActiveBrain(brain);
-                }}
-                onBrainDeleted={deleteBrain}
-                onBrainTip={(brain) => setShowBrainTip(brain)}
-              />
-            )}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-            {/* Theme toggle */}
-            <button
-              onClick={toggleTheme}
-              title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-              style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${isDark ? "#4a4a6a" : "#c0c0e0"}`, background: isDark ? "#2a2a4a" : "#ffffff", cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, padding: 0 }}
-            >
-              {isDark ? "🌙" : "☀️"}
-            </button>
-            {/* Hamburger */}
-            <button
-              onClick={() => setNavOpen(o => !o)}
-              title="Menu"
-              style={{ width: 34, height: 34, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8, cursor: "pointer", flexShrink: 0, padding: 0 }}
-            >
-              {[0,1,2].map(i => <div key={i} style={{ width: 14, height: 2, background: t.textMid, borderRadius: 1 }} />)}
-            </button>
-          </div>
-        </div>
-      </div>
+    <div style={{ minHeight: "100vh", background: t.bg, color: t.text, fontFamily: "'Söhne', system-ui, -apple-system, sans-serif", transition: "background 0.25s, color 0.25s", overflowX: "hidden", paddingBottom: 72 }}>
+      <MobileHeader
+        brainName={activeBrain?.name || "OpenBrain"}
+        brainEmoji="🧠"
+        onToggleTheme={toggleTheme}
+        isDark={isDark}
+        isOnline={isOnline}
+        pendingCount={pendingCount}
+      >
+        {brains.length > 0 && (
+          <BrainSwitcher
+            brains={brains}
+            activeBrain={activeBrain}
+            onSwitch={setActiveBrain}
+            onBrainCreated={async (brain) => {
+              await refresh();
+              setActiveBrain(brain);
+            }}
+            onBrainDeleted={deleteBrain}
+            onBrainTip={(brain) => setShowBrainTip(brain)}
+          />
+        )}
+      </MobileHeader>
 
       <QuickCapture entries={entries} setEntries={setEntries} links={links} addLinks={addLinks} onCreated={handleCreated} onUpdate={handleUpdate} brainId={activeBrain?.id} brains={brains} isOnline={isOnline} refreshCount={refreshCount} canWrite={canWrite} cryptoKey={cryptoKey} onNavigate={setView} />
 
@@ -820,7 +804,9 @@ export default function OpenBrain() {
               <div key={s.l} style={{ background: t.surface, borderRadius: 10, padding: "10px 8px", textAlign: "center", border: `1px solid ${t.border}` }}><div style={{ fontSize: 22, fontWeight: 800, color: s.c }}>{s.v}</div><div style={{ fontSize: 8, color: t.textDim, textTransform: "uppercase", letterSpacing: 1, marginTop: 2 }}>{s.l}</div></div>
             )}
           </div>
-          {filtered.length > 0 ? <VirtualGrid filtered={filtered} setSelected={setSelected} /> : <p style={{ textAlign: "center", color: "#555", marginTop: 40 }}>No memories match.</p>}
+          {!entriesLoaded ? <div style={{ display: "grid", gap: 12 }}><SkeletonCard count={4} /></div>
+            : filtered.length > 0 ? <VirtualGrid filtered={filtered} setSelected={setSelected} />
+            : <p style={{ textAlign: "center", color: t.textDim, marginTop: 40 }}>No memories match.</p>}
         </>}
 
         {view === "suppliers" && <SupplierPanel entries={entries} onSelect={setSelected} onReorder={handleReorder} />}
@@ -1002,6 +988,18 @@ export default function OpenBrain() {
           }}
         />
       )}
+
+      <BottomNav
+        activeView={view}
+        onNavigate={(id) => {
+          if (id === "more") {
+            setNavOpen(o => !o);
+          } else {
+            setView(id);
+            setNavOpen(false);
+          }
+        }}
+      />
     </div>
     </BrainContext.Provider>
     </EntriesContext.Provider>
