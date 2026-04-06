@@ -578,15 +578,15 @@ export default function SuggestionsView({
   const bm = BRAIN_META[brainType as keyof typeof BRAIN_META] || BRAIN_META.personal;
 
   return (
-    <div>
+    <div className="px-4 py-4 space-y-4">
       {/* Brain selector chips — multi-select */}
       {brains?.length > 0 && (
         <div>
-          <p>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#777] mb-2">
             Fill which brain{brains.length > 1 ? "s" : ""}?
           </p>
           {brains.length > 1 ? (
-            <div>
+            <div className="flex flex-wrap gap-2 mb-2">
               {brains.map((b: Brain) => {
                 const bmt =
                   BRAIN_META[(b.type || "personal") as keyof typeof BRAIN_META] ||
@@ -596,33 +596,39 @@ export default function SuggestionsView({
                   <button
                     key={b.id}
                     onClick={() => toggleBrain(b.id)}
+                    className="flex items-center gap-1.5 rounded-full px-3 py-1.5 border text-xs font-medium transition-colors"
+                    style={{
+                      background: active ? "rgba(114,239,245,0.1)" : "rgba(38,38,38,0.5)",
+                      borderColor: active ? "rgba(114,239,245,0.3)" : "rgba(72,72,71,0.2)",
+                      color: active ? "#72eff5" : "#aaa",
+                    }}
                   >
                     <span>{bmt.emoji}</span>
                     <span>{b.name}</span>
                     {active && selectedBrainIds.length > 1 && selectedBrainIds[0] === b.id && (
-                      <span>✓ saves here</span>
+                      <span className="text-[10px] text-[#72eff5] ml-1">✓ saves here</span>
                     )}
                   </button>
                 );
               })}
             </div>
           ) : (
-            <span>
+            <span className="text-sm text-white">
               {bm.emoji} {targetBrain?.name || bm.label}
             </span>
           )}
-          <p>
+          <p className="text-xs text-[#777] mt-1">
             {selectedBrainIds.length > 1 ? (
               <>
                 Showing merged questions · saves go to{" "}
-                <strong>
+                <strong className="text-white">
                   {bm.emoji} {targetBrain?.name || bm.label}
                 </strong>
               </>
             ) : (
               <>
                 Showing questions for{" "}
-                <strong>
+                <strong className="text-white">
                   {bm.emoji} {targetBrain?.name || bm.label}
                 </strong>
               </>
@@ -631,32 +637,47 @@ export default function SuggestionsView({
         </div>
       )}
 
-      <div>
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-3">
         {[
-          { l: "Answered", v: answered },
-          { l: "Skipped", v: skipped },
-          { l: "Remaining", v: Math.max(0, total - (idx % Math.max(total, 1))) },
+          { l: "Answered", v: answered, color: "#72eff5" },
+          { l: "Skipped", v: skipped, color: "#777" },
+          { l: "Remaining", v: Math.max(0, total - (idx % Math.max(total, 1))), color: "#d575ff" },
         ].map((s) => (
-          <div key={s.l}>
-            <div>{s.v}</div>
-            <div>{s.l}</div>
+          <div
+            key={s.l}
+            className="rounded-xl border px-3 py-2.5 text-center"
+            style={{ background: "rgba(38,38,38,0.5)", borderColor: "rgba(72,72,71,0.15)" }}
+          >
+            <div className="text-xl font-bold" style={{ color: s.color }}>{s.v}</div>
+            <div className="text-[10px] uppercase tracking-widest text-[#777] font-semibold">{s.l}</div>
           </div>
         ))}
       </div>
 
-      <div>
+      {/* Progress bar */}
+      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(72,72,71,0.2)" }}>
         <div
+          className="h-full rounded-full transition-all duration-500"
           style={{
             width: `${Math.min(total > 0 ? ((answered + skipped) / total) * 100 : 0, 100)}%`,
+            background: "linear-gradient(90deg, #72eff5, #d575ff)",
           }}
         />
       </div>
 
-      <div>
+      {/* Category filter chips */}
+      <div className="flex flex-wrap gap-2">
         <button
           onClick={() => {
             setFilterCat("all");
             setIdx(0);
+          }}
+          className="rounded-full px-3 py-1.5 text-xs font-medium border transition-colors"
+          style={{
+            background: filterCat === "all" ? "rgba(114,239,245,0.15)" : "rgba(38,38,38,0.5)",
+            borderColor: filterCat === "all" ? "rgba(114,239,245,0.3)" : "rgba(72,72,71,0.2)",
+            color: filterCat === "all" ? "#72eff5" : "#aaa",
           }}
         >
           All
@@ -668,85 +689,130 @@ export default function SuggestionsView({
               setFilterCat(c);
               setIdx(0);
             }}
+            className="rounded-full px-3 py-1.5 text-xs font-medium border transition-colors"
+            style={{
+              background: filterCat === c ? "rgba(114,239,245,0.15)" : "rgba(38,38,38,0.5)",
+              borderColor: filterCat === c ? "rgba(114,239,245,0.3)" : "rgba(72,72,71,0.2)",
+              color: filterCat === c ? "#72eff5" : "#aaa",
+            }}
           >
             {c} ({n})
           </button>
         ))}
       </div>
 
+      {/* Pool empty state */}
       {poolEmpty && (
-        <div>
-          <span>
+        <div
+          className="rounded-2xl border px-4 py-3 text-center"
+          style={{ background: "rgba(114,239,245,0.05)", borderColor: "rgba(114,239,245,0.15)" }}
+        >
+          <span className="text-xs text-[#72eff5]">
             ✨ All {answeredQs.size} static questions answered — AI is now driving
           </span>
         </div>
       )}
+
+      {/* AI loading state */}
       {isAiSlot && aiLoading && (
-        <div>
-          <div>✨</div>
-          <p>AI is generating a personalised question…</p>
+        <div
+          className="rounded-2xl border px-4 py-6 text-center"
+          style={{ background: "rgba(213,117,255,0.05)", borderColor: "rgba(213,117,255,0.15)" }}
+        >
+          <div className="text-2xl mb-2">✨</div>
+          <p className="text-sm text-[#d575ff]">AI is generating a personalised question…</p>
         </div>
       )}
+
+      {/* Current question card */}
       {current && !aiLoading && (
-        <div>
-          <div>
-            <span>{pc.l}</span>
-            <span>{current.cat}</span>
+        <div
+          className="rounded-2xl border px-4 py-4"
+          style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}
+        >
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <span
+              className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
+              style={{ color: pc.l === "High" ? "#ff6e84" : pc.l === "Medium" ? "#ffb400" : "#72eff5", background: pc.l === "High" ? "rgba(255,110,132,0.1)" : pc.l === "Medium" ? "rgba(255,180,0,0.1)" : "rgba(114,239,245,0.1)" }}
+            >
+              {pc.l}
+            </span>
+            <span
+              className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+              style={{ color: "#d575ff", background: "rgba(213,117,255,0.1)" }}
+            >
+              {current.cat}
+            </span>
             {isAiSlot && (
-              <span>✨ AI</span>
+              <span
+                className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                style={{ color: "#72eff5", background: "rgba(114,239,245,0.1)" }}
+              >
+                ✨ AI
+              </span>
             )}
             {!isAiSlot &&
               current &&
               onboardingSkipped.find((s: Suggestion) => s.q === current.q) && (
-                <span>↩ From onboarding</span>
+                <span
+                  className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                  style={{ color: "#ffb400", background: "rgba(255,180,0,0.1)" }}
+                >
+                  ↩ From onboarding
+                </span>
               )}
-            <span>#{idx + 1}/{total}</span>
+            <span className="text-[10px] text-[#555] ml-auto">#{idx + 1}/{total}</span>
           </div>
-          <p>{current.q}</p>
+          <p className="text-base font-medium text-white leading-relaxed">{current.q}</p>
         </div>
       )}
 
+      {/* Action buttons / Answer input */}
       {!showInput ? (
-        <div>
+        <div className="flex gap-3">
           <button
             onClick={() => {
               setSkipped((s) => s + 1);
               next("skip");
             }}
             disabled={aiLoading}
+            className="flex-1 py-3 rounded-xl border text-sm font-medium text-[#aaa] transition-colors hover:bg-white/5 disabled:opacity-40"
+            style={{ borderColor: "rgba(72,72,71,0.3)", background: "transparent" }}
           >
             Skip →
           </button>
           <button
             onClick={() => setShowInput(true)}
             disabled={!current || aiLoading}
+            className="flex-[2] py-3 rounded-xl text-sm font-bold transition-colors disabled:opacity-40"
+            style={{ background: "linear-gradient(135deg, #72eff5, #1fb1b7)", color: "#0a0a0a" }}
           >
             Answer this
           </button>
         </div>
       ) : (
-        <div>
-          <input
-            type="file"
-            accept="image/*"
-            ref={imgRef}
-            onChange={handleImageUpload}
-          />
+        <div className="space-y-3">
+          {/* Hidden file inputs */}
+          <input type="file" accept="image/*" ref={imgRef} onChange={handleImageUpload} className="hidden" />
           <input
             type="file"
             accept=".txt,.md,.csv,.pdf,.docx,text/plain,text/markdown,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             ref={fileRef}
             onChange={handleFileUpload}
+            className="hidden"
           />
-          {imgError && <p>{imgError}</p>}
-          {micError && <p>{micError}</p>}
+          {imgError && <p className="text-xs text-[#ff6e84]">{imgError}</p>}
+          {micError && <p className="text-xs text-[#ff6e84]">{micError}</p>}
           <textarea
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
             placeholder={listening ? "Listening..." : "Type your answer..."}
             autoFocus
+            rows={3}
+            className="w-full rounded-xl border px-3 py-3 text-sm text-white bg-transparent outline-none resize-none placeholder:text-[#555] focus:border-[rgba(114,239,245,0.5)] transition-colors"
+            style={{ borderColor: "rgba(72,72,71,0.3)", fontFamily: "'Inter', sans-serif" }}
           />
-          <div>
+          <div className="flex items-center gap-2">
             <button
               onClick={() => {
                 setShowInput(false);
@@ -755,6 +821,8 @@ export default function SuggestionsView({
                 recognitionRef.current?.stop();
                 mediaRecorderRef.current?.state !== "inactive" && mediaRecorderRef.current?.stop();
               }}
+              className="px-3 py-2 rounded-xl border text-xs text-[#aaa] transition-colors hover:bg-white/5"
+              style={{ borderColor: "rgba(72,72,71,0.3)", background: "transparent" }}
             >
               Cancel
             </button>
@@ -763,76 +831,107 @@ export default function SuggestionsView({
                 setSkipped((s) => s + 1);
                 next("skip");
               }}
+              className="px-3 py-2 rounded-xl border text-xs text-[#aaa] transition-colors hover:bg-white/5"
+              style={{ borderColor: "rgba(72,72,71,0.3)", background: "transparent" }}
             >
               Skip
             </button>
-            <button
-              onClick={startVoice}
-              disabled={imgLoading || saving}
-              title="Voice input"
-            >
-              {listening ? "⏹" : "🎤"}
-            </button>
-            <button
-              onClick={() => imgRef.current?.click()}
-              disabled={imgLoading || saving}
-              title="Upload photo"
-            >
-              📷
-            </button>
-            <button
-              onClick={() => fileRef.current?.click()}
-              disabled={imgLoading || saving}
-              title="Upload file (PDF, Word, MD, TXT)"
-            >
-              📄
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={!answer.trim() || saving || imgLoading}
-            >
-              {saving
-                ? "Saving..."
-                : imgLoading
-                  ? "Processing..."
-                  : listening
-                    ? "Listening..."
-                    : `Save to ${bm.emoji} ${targetBrain?.name || bm.label}`}
-            </button>
+            <div className="flex items-center gap-1 ml-auto">
+              <button
+                onClick={startVoice}
+                disabled={imgLoading || saving}
+                title="Voice input"
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors hover:bg-white/10 disabled:opacity-40"
+                style={listening ? { background: "rgba(255,110,132,0.2)" } : undefined}
+              >
+                {listening ? "⏹" : "🎤"}
+              </button>
+              <button
+                onClick={() => imgRef.current?.click()}
+                disabled={imgLoading || saving}
+                title="Upload photo"
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors hover:bg-white/10 disabled:opacity-40"
+              >
+                📷
+              </button>
+              <button
+                onClick={() => fileRef.current?.click()}
+                disabled={imgLoading || saving}
+                title="Upload file (PDF, Word, MD, TXT)"
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors hover:bg-white/10 disabled:opacity-40"
+              >
+                📄
+              </button>
+            </div>
           </div>
+          <button
+            onClick={handleSave}
+            disabled={!answer.trim() || saving || imgLoading}
+            className="w-full py-3 rounded-xl text-sm font-bold transition-colors disabled:opacity-40"
+            style={{ background: "linear-gradient(135deg, #72eff5, #1fb1b7)", color: "#0a0a0a" }}
+          >
+            {saving
+              ? "Saving..."
+              : imgLoading
+                ? "Processing..."
+                : listening
+                  ? "Listening..."
+                  : `Save to ${bm.emoji} ${targetBrain?.name || bm.label}`}
+          </button>
         </div>
       )}
 
+      {/* Session history */}
       {saved.length > 0 && (
-        <div>
-          <div>
-            <p>
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold text-[#777] uppercase tracking-widest">
               This session ({saved.length})
             </p>
-            <button onClick={copyAll}>
-              📋 Copy All for Claude
+            <button
+              onClick={copyAll}
+              className="text-[10px] font-semibold px-2.5 py-1 rounded-lg transition-colors hover:bg-white/5"
+              style={{ color: "#72eff5" }}
+            >
+              📋 Copy All
             </button>
           </div>
-          {saved.map((s, i) => (
-            <div key={i}>
-              <div>
-                <span>{s.cat}</span>
-                {s.brain && (
-                  <span>
-                    {BRAIN_META[(s.brain.type || "personal") as keyof typeof BRAIN_META]?.emoji}{" "}
-                    {s.brain.name}
+          <div className="space-y-2">
+            {saved.map((s, i) => (
+              <div
+                key={i}
+                className="rounded-xl border px-3 py-2.5"
+                style={{ background: "rgba(38,38,38,0.4)", borderColor: "rgba(72,72,71,0.15)" }}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span
+                    className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                    style={{ color: "#d575ff", background: "rgba(213,117,255,0.1)" }}
+                  >
+                    {s.cat}
                   </span>
-                )}
-                {s.db && (
-                  <span>Saved to DB</span>
-                )}
+                  {s.brain && (
+                    <span className="text-[10px] text-[#777]">
+                      {BRAIN_META[(s.brain.type || "personal") as keyof typeof BRAIN_META]?.emoji}{" "}
+                      {s.brain.name}
+                    </span>
+                  )}
+                  {s.db && (
+                    <span
+                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full ml-auto"
+                      style={{ color: "#72eff5", background: "rgba(114,239,245,0.1)" }}
+                    >
+                      Saved
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-[#aaa] leading-relaxed">
+                  {s.a.slice(0, 120)}
+                  {s.a.length > 120 ? "…" : ""}
+                </p>
               </div>
-              <p>
-                {s.a.slice(0, 120)}
-                {s.a.length > 120 ? "…" : ""}
-              </p>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
     </div>
