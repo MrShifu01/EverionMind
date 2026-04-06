@@ -55,7 +55,7 @@ interface TodoItem {
   dateStr: string;
 }
 
-/* ─── Mini Calendar ─── */
+/* ─── Collapsible Mini Calendar ─── */
 function MiniCalendar({
   dateMap,
   selectedDay,
@@ -65,6 +65,7 @@ function MiniCalendar({
   selectedDay: string | null;
   onSelectDay: (key: string | null) => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const [month, setMonth] = useState<Date>(() => new Date());
   const year = month.getFullYear();
   const mon = month.getMonth();
@@ -76,89 +77,90 @@ function MiniCalendar({
     ...Array(firstDow).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ];
-  const monthLabel = month.toLocaleDateString("en-ZA", { month: "long", year: "numeric" });
+  const monthLabel = month.toLocaleDateString("en-ZA", { month: "short", year: "numeric" });
   const dayKey = (d: number) =>
     `${year}-${String(mon + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 
+  // Count total events this month
+  const eventCount = Object.keys(dateMap).filter((k) => k.startsWith(`${year}-${String(mon + 1).padStart(2, "0")}`)).length;
+
   return (
-    <div className="bg-ob-surface border-ob-border mb-4 rounded-xl border p-3">
-      <div className="mb-3 flex items-center justify-between">
-        <button
-          onClick={() => setMonth(new Date(year, mon - 1, 1))}
-          aria-label="Previous month"
-          className="bg-ob-bg border-ob-border text-ob-text-muted min-h-9 min-w-9 cursor-pointer rounded-lg border px-3 py-1.5 text-sm"
-        >
-          ←
-        </button>
-        <span className="text-ob-text text-sm font-bold">{monthLabel}</span>
-        <button
-          onClick={() => setMonth(new Date(year, mon + 1, 1))}
-          aria-label="Next month"
-          className="bg-ob-bg border-ob-border text-ob-text-muted min-h-9 min-w-9 cursor-pointer rounded-lg border px-3 py-1.5 text-sm"
-        >
-          →
-        </button>
-      </div>
-      <div className="mb-0.5 grid grid-cols-7 gap-0.5">
-        {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
-          <div
-            key={d}
-            className="text-ob-text-faint py-0.5 text-center text-[8px] font-bold tracking-[1px]"
-          >
-            {d}
-          </div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7 gap-0.5">
-        {cells.map((day, i) => {
-          if (!day) return <div key={`e${i}`} />;
-          const key = dayKey(day);
-          const dots = dateMap[key] || [];
-          const isToday = key === today;
-          const isSel = key === selectedDay;
-          return (
-            <div
-              key={key}
-              onClick={() => onSelectDay(isSel ? null : key)}
-              className={`flex aspect-square min-h-9 cursor-pointer flex-col items-center justify-center rounded-lg ${
-                isSel
-                  ? "bg-teal"
-                  : isToday
-                    ? "bg-teal/[0.12]"
-                    : dots.length
-                      ? "bg-ob-bg"
-                      : "bg-transparent"
-              } ${
-                isToday && !isSel
-                  ? "border-teal/[0.25] border"
-                  : dots.length && !isSel
-                    ? "border-ob-border border"
-                    : "border border-transparent"
-              }`}
-            >
+    <div className="bg-ob-surface border-ob-border mb-3 rounded-xl border">
+      {/* Header — always visible, acts as toggle */}
+      <button
+        onClick={() => setExpanded((s) => !s)}
+        className="flex w-full cursor-pointer items-center justify-between border-none bg-transparent px-3 py-2.5"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-sm">📅</span>
+          <span className="text-ob-text text-[13px] font-semibold">{monthLabel}</span>
+          {eventCount > 0 && (
+            <span className="text-ob-text-dim text-[10px]">· {eventCount} days with events</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {expanded && (
+            <>
               <span
-                className={`text-[11px] ${isToday ? "font-extrabold" : "font-normal"} ${isSel ? "text-ob-bg" : isToday ? "text-teal" : "text-ob-text-mid"}`}
+                onClick={(e) => { e.stopPropagation(); setMonth(new Date(year, mon - 1, 1)); }}
+                className="text-ob-text-muted px-1.5 text-sm"
+              >←</span>
+              <span
+                onClick={(e) => { e.stopPropagation(); setMonth(new Date(year, mon + 1, 1)); }}
+                className="text-ob-text-muted px-1.5 text-sm"
+              >→</span>
+            </>
+          )}
+          <span className="text-ob-text-muted text-xs">{expanded ? "▾" : "▸"}</span>
+        </div>
+      </button>
+
+      {/* Calendar grid — only when expanded */}
+      {expanded && (
+        <div className="px-2.5 pb-2.5">
+          <div className="mb-0.5 grid grid-cols-7">
+            {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+              <div
+                key={i}
+                className="text-ob-text-faint text-center text-[8px] font-bold"
               >
-                {day}
-              </span>
-              {dots.length > 0 && !isSel && (
-                <div className="mt-0.5 flex gap-0.5">
-                  {dots.slice(0, 3).map((e, ei) => (
-                    <div
-                      key={ei}
-                      className="h-1 w-1 rounded-full"
-                      style={{
-                        background:
-                          (e as any).importance >= 2 ? "#FF6B35" : (TC[e.type] || TC.note).c,
-                      }}
-                    />
-                  ))}
+                {d}
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7">
+            {cells.map((day, i) => {
+              if (!day) return <div key={`e${i}`} />;
+              const key = dayKey(day);
+              const dots = dateMap[key] || [];
+              const isToday = key === today;
+              const isSel = key === selectedDay;
+              return (
+                <div
+                  key={key}
+                  onClick={() => onSelectDay(isSel ? null : key)}
+                  className={`relative flex h-7 cursor-pointer items-center justify-center rounded ${
+                    isSel
+                      ? "bg-teal"
+                      : isToday
+                        ? "bg-teal/[0.12]"
+                        : "bg-transparent"
+                  }`}
+                >
+                  <span
+                    className={`text-[10px] ${isToday ? "font-extrabold" : "font-normal"} ${isSel ? "text-ob-bg" : isToday ? "text-teal" : "text-ob-text-mid"}`}
+                  >
+                    {day}
+                  </span>
+                  {dots.length > 0 && !isSel && (
+                    <div className="absolute bottom-0.5 h-1 w-1 rounded-full bg-orange" />
+                  )}
                 </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

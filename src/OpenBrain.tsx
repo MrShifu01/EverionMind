@@ -1104,19 +1104,20 @@ export default function OpenBrain() {
             {view === "capture" && (
               <div className="pt-2">
                 <OnboardingChecklist activeBrain={activeBrain} onNavigate={setView} />
-                <div className="mt-1 grid grid-cols-2 gap-2">
+                <div className="mt-3 grid grid-cols-2 gap-2.5">
                   {[
                     { id: "grid", l: "Memory Grid", ic: "▦", desc: "Browse all memories" },
                     { id: "suggest", l: "Fill Brain", ic: "✦", desc: "Guided questions" },
+                    { id: "todos", l: "Todos", ic: "✓", desc: "Deadlines & calendar" },
                     { id: "chat", l: "Ask", ic: "◈", desc: "Chat with your brain" },
                     { id: "vault", l: "Vault", ic: "🔐", desc: "Encrypted secrets" },
                   ].map((v) => (
                     <button
                       key={v.id}
                       onClick={() => setView(v.id)}
-                      className="bg-ob-surface border-ob-border cursor-pointer rounded-xl border px-3 py-3.5 text-left"
+                      className="bg-ob-surface border-ob-border cursor-pointer rounded-xl border px-4 py-4 text-left"
                     >
-                      <div className="mb-1 text-base">{v.ic}</div>
+                      <div className="mb-1.5 text-lg">{v.ic}</div>
                       <div className="text-ob-text text-[13px] font-semibold">{v.l}</div>
                       <div className="text-ob-text-dim mt-0.5 text-[11px]">{v.desc}</div>
                     </button>
