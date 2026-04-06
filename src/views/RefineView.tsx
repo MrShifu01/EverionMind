@@ -462,30 +462,42 @@ export default function RefineView({
   const isOwnerMultiBrain = isOwner && brains.length > 1;
 
   return (
-    <div>
+    <div className="px-4 py-4 space-y-4" style={{ background: "#0e0e0e", minHeight: "100%" }}>
       {/* Header */}
-      <div>
-        <h2>
+      <div className="space-y-3">
+        <h2
+          className="text-xl font-semibold text-white"
+          style={{ fontFamily: "'Manrope', sans-serif" }}
+        >
           Refine{isSharedBrain ? ` — ${activeBrain.name}` : ""}
         </h2>
-        <p>
+        <p className="text-sm" style={{ color: "#aaa" }}>
           AI skeptically audits every entry — and discovers missing relationships between them.
         </p>
         {activeBrain?.id && getDecisionCount(activeBrain.id) > 0 && (
-          <div>
-            <span />
+          <div className="flex items-center gap-2 text-xs" style={{ color: "#72eff5" }}>
+            <span
+              className="inline-block w-2 h-2 rounded-full"
+              style={{ background: "#72eff5" }}
+            />
             Learning from {getDecisionCount(activeBrain.id)} past decisions
           </div>
         )}
         {/* Brain selector — owners only, when multiple brains exist */}
         {isOwnerMultiBrain && onSwitchBrain && (
-          <div>
+          <div className="flex flex-wrap gap-2 pt-1">
             {brains.map((b) => {
               const active = b.id === activeBrain?.id;
               return (
                 <button
                   key={b.id}
                   onClick={() => onSwitchBrain(b)}
+                  className="rounded-full px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 transition-all"
+                  style={{
+                    background: active ? "rgba(114,239,245,0.12)" : "rgba(38,38,38,0.6)",
+                    border: active ? "1px solid rgba(114,239,245,0.5)" : "1px solid rgba(72,72,71,0.2)",
+                    color: active ? "#72eff5" : "#aaa",
+                  }}
                 >
                   <span>{BRAIN_EMOJI[b.type || "personal"] || "🧠"}</span>
                   <span>{b.name}</span>
@@ -495,7 +507,10 @@ export default function RefineView({
           </div>
         )}
         {!isOwnerMultiBrain && activeBrain && (
-          <span>
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs"
+            style={{ background: "rgba(38,38,38,0.6)", border: "1px solid rgba(72,72,71,0.2)", color: "#aaa" }}
+          >
             {BRAIN_EMOJI[activeBrain.type || "personal"] || "🧠"} {activeBrain.name}
           </span>
         )}
@@ -505,18 +520,30 @@ export default function RefineView({
       <button
         onClick={analyze}
         disabled={loading}
+        className="w-full rounded-xl py-3 text-sm font-semibold tracking-wide transition-all"
+        style={{
+          background: loading ? "rgba(38,38,38,0.6)" : "linear-gradient(135deg, #72eff5, #1fb1b7)",
+          color: loading ? "#555" : "#0a0a0a",
+          opacity: loading ? 0.6 : 1,
+          border: "none",
+          cursor: loading ? "not-allowed" : "pointer",
+          fontFamily: "'Manrope', sans-serif",
+        }}
       >
         {loading ? "Analyzing…" : suggestions === null ? "✦ Analyze my brain" : "✦ Re-analyze"}
       </button>
 
       {/* Loading */}
       {loading && (
-        <div>
-          <div>✦</div>
-          <p>
+        <div
+          className="rounded-2xl p-8 text-center space-y-3"
+          style={{ background: "rgba(38,38,38,0.6)", border: "1px solid rgba(72,72,71,0.2)" }}
+        >
+          <div className="text-3xl animate-pulse" style={{ color: "#72eff5" }}>✦</div>
+          <p className="text-sm font-medium animate-pulse text-white">
             Auditing {entries.length} entries + mapping relationships…
           </p>
-          <p>
+          <p className="text-xs" style={{ color: "#555" }}>
             Running entry quality + link discovery in parallel
           </p>
         </div>
@@ -524,22 +551,27 @@ export default function RefineView({
 
       {/* Stats */}
       {suggestions !== null && !loading && (
-        <div>
+        <div className="grid grid-cols-4 gap-3">
           {[
-            { l: "Entries", v: entries.length },
+            { l: "Entries", v: entries.length, c: "#72eff5" },
             {
               l: "Fixes",
               v:
                 visible.filter((s) => s.type !== "LINK_SUGGESTED").length +
                 dismissed.size -
                 linkCount,
+              c: "#d575ff",
             },
-            { l: "Links", v: linkCount },
-            { l: "Remaining", v: visible.length },
+            { l: "Links", v: linkCount, c: "#96CEB4" },
+            { l: "Remaining", v: visible.length, c: "#FFEAA7" },
           ].map((s) => (
-            <div key={s.l}>
-              <div>{s.v}</div>
-              <div>{s.l}</div>
+            <div
+              key={s.l}
+              className="rounded-2xl p-3 text-center"
+              style={{ background: "rgba(38,38,38,0.6)", border: "1px solid rgba(72,72,71,0.2)" }}
+            >
+              <div className="text-2xl font-bold" style={{ color: s.c, fontFamily: "'Manrope', sans-serif" }}>{s.v}</div>
+              <div className="text-xs mt-1" style={{ color: "#777" }}>{s.l}</div>
             </div>
           ))}
         </div>
@@ -547,10 +579,13 @@ export default function RefineView({
 
       {/* Nothing found */}
       {noneFound && !loading && (
-        <div>
-          <div>✓</div>
-          <p>Everything looks clean</p>
-          <p>
+        <div
+          className="rounded-2xl p-8 text-center space-y-2"
+          style={{ background: "rgba(38,38,38,0.6)", border: "1px solid rgba(72,72,71,0.2)" }}
+        >
+          <div className="text-3xl" style={{ color: "#72eff5" }}>✓</div>
+          <p className="text-sm font-medium text-white">Everything looks clean</p>
+          <p className="text-xs" style={{ color: "#777" }}>
             No high-confidence improvements or missing links found
           </p>
         </div>
@@ -558,16 +593,19 @@ export default function RefineView({
 
       {/* All done */}
       {allDone && !loading && (
-        <div>
-          <div>✦</div>
-          <p>All suggestions resolved</p>
-          <p>Re-analyze to check again</p>
+        <div
+          className="rounded-2xl p-8 text-center space-y-2"
+          style={{ background: "rgba(38,38,38,0.6)", border: "1px solid rgba(72,72,71,0.2)" }}
+        >
+          <div className="text-3xl" style={{ color: "#d575ff" }}>✦</div>
+          <p className="text-sm font-medium text-white">All suggestions resolved</p>
+          <p className="text-xs" style={{ color: "#777" }}>Re-analyze to check again</p>
         </div>
       )}
 
       {/* Section labels */}
       {!loading && entryCount > 0 && (
-        <p>
+        <p className="text-[10px] uppercase tracking-widest font-semibold pt-2" style={{ color: "#555" }}>
           Entry fixes ({entryCount})
         </p>
       )}
@@ -592,26 +630,32 @@ export default function RefineView({
         return (
           <div key={key}>
             {showDivider && (
-              <p>
+              <p className="text-[10px] uppercase tracking-widest font-semibold pt-4 pb-1" style={{ color: "#555" }}>
                 Missing relationships ({linkCount})
               </p>
             )}
 
-            <div>
+            <div
+              className="rounded-2xl p-4 space-y-3"
+              style={{ background: "rgba(38,38,38,0.6)", border: "1px solid rgba(72,72,71,0.2)" }}
+            >
               {isLink ? (
                 /* ── Link card ── */
                 <>
-                  <div>
-                    <span>
+                  <div className="flex items-center justify-end">
+                    <span
+                      className="rounded-full px-2.5 py-0.5 text-[11px] font-medium"
+                      style={{ background: `${meta.color}18`, color: meta.color }}
+                    >
                       {meta.icon} {meta.label}
                     </span>
                   </div>
 
-                  <div>
+                  <div className="flex items-center gap-3">
                     {/* From entry */}
-                    <div>
-                      <div>From</div>
-                      <div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: "#555" }}>From</div>
+                      <div className="text-sm text-white truncate">
                         {(TC as Record<string, any>)[
                           entries.find((e) => e.id === ls.fromId)?.type || "note"
                         ]?.i || "📝"}{" "}
@@ -620,7 +664,7 @@ export default function RefineView({
                     </div>
 
                     {/* Rel label / edit input */}
-                    <div>
+                    <div className="flex-shrink-0 text-center px-2">
                       {isEdit ? (
                         <input
                           autoFocus
@@ -633,18 +677,24 @@ export default function RefineView({
                           }}
                           placeholder="relationship…"
                           maxLength={50}
+                          className="w-32 rounded-lg px-2 py-1 text-xs text-center outline-none"
+                          style={{
+                            background: "rgba(20,20,20,0.8)",
+                            border: "1px solid rgba(114,239,245,0.4)",
+                            color: "#fff",
+                          }}
                         />
                       ) : (
-                        <span>
+                        <span className="text-xs font-medium" style={{ color: "#72eff5" }}>
                           ⟶ {ls.rel} ⟶
                         </span>
                       )}
                     </div>
 
                     {/* To entry */}
-                    <div>
-                      <div>To</div>
-                      <div>
+                    <div className="flex-1 min-w-0 text-right">
+                      <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: "#555" }}>To</div>
+                      <div className="text-sm text-white truncate">
                         {(TC as Record<string, any>)[
                           entries.find((e) => e.id === ls.toId)?.type || "note"
                         ]?.i || "📝"}{" "}
@@ -653,24 +703,40 @@ export default function RefineView({
                     </div>
                   </div>
 
-                  <p>{ls.reason}</p>
+                  <p className="text-xs leading-relaxed" style={{ color: "#777" }}>{ls.reason}</p>
 
-                  <div>
+                  <div className="flex items-center gap-2 pt-1">
                     {isEdit ? (
                       <>
-                        <button onClick={() => setEditingKey(null)}>
+                        <button
+                          onClick={() => setEditingKey(null)}
+                          className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
+                          style={{ background: "transparent", border: "1px solid rgba(72,72,71,0.3)", color: "#777" }}
+                        >
                           Cancel
                         </button>
                         <button
                           onClick={() => editValue.trim() && applyLink(ls, editValue.trim())}
                           disabled={!editValue.trim() || busy}
+                          className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
+                          style={{
+                            background: !editValue.trim() || busy ? "rgba(38,38,38,0.6)" : "linear-gradient(135deg, #72eff5, #1fb1b7)",
+                            color: !editValue.trim() || busy ? "#555" : "#0a0a0a",
+                            border: "none",
+                            opacity: !editValue.trim() || busy ? 0.5 : 1,
+                          }}
                         >
                           Apply
                         </button>
                       </>
                     ) : (
                       <>
-                        <button onClick={() => reject(key, s)} disabled={busy}>
+                        <button
+                          onClick={() => reject(key, s)}
+                          disabled={busy}
+                          className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
+                          style={{ background: "transparent", border: "1px solid rgba(72,72,71,0.3)", color: "#ff6e84", opacity: busy ? 0.5 : 1 }}
+                        >
                           ✗ Reject
                         </button>
                         <button
@@ -679,10 +745,22 @@ export default function RefineView({
                             setEditValue(ls.rel);
                           }}
                           disabled={busy}
+                          className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
+                          style={{ background: "transparent", border: "1px solid rgba(72,72,71,0.3)", color: "#aaa", opacity: busy ? 0.5 : 1 }}
                         >
                           ✎ Edit
                         </button>
-                        <button onClick={() => applyLink(ls)} disabled={busy}>
+                        <button
+                          onClick={() => applyLink(ls)}
+                          disabled={busy}
+                          className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
+                          style={{
+                            background: busy ? "rgba(38,38,38,0.6)" : "linear-gradient(135deg, #72eff5, #1fb1b7)",
+                            color: busy ? "#555" : "#0a0a0a",
+                            border: "none",
+                            opacity: busy ? 0.5 : 1,
+                          }}
+                        >
                           {busy ? "Saving…" : "✓ Accept"}
                         </button>
                       </>
@@ -692,39 +770,48 @@ export default function RefineView({
               ) : (
                 /* ── Entry-quality card ── */
                 <>
-                  <div>
-                    <span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">
                       {(TC as Record<string, any>)[
                         entries.find((e) => e.id === es.entryId)?.type || "note"
                       ]?.i || "📝"}
                     </span>
-                    <span>
+                    <span className="text-sm font-medium text-white truncate flex-1">
                       {es.entryTitle ||
                         entries.find((e) => e.id === es.entryId)?.title ||
                         es.entryId}
                     </span>
-                    <span>
+                    <span
+                      className="rounded-full px-2.5 py-0.5 text-[11px] font-medium flex-shrink-0"
+                      style={{ background: `${meta.color}18`, color: meta.color }}
+                    >
                       {meta.icon} {meta.label}
                     </span>
                   </div>
 
-                  <div>
-                    <div>
-                      <div>Current</div>
-                      <div>
-                        {es.currentValue || <em>empty</em>}
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: "#555" }}>Current</div>
+                      <div
+                        className="text-xs rounded-lg px-2.5 py-1.5 break-words"
+                        style={{ background: "rgba(20,20,20,0.5)", color: "#777" }}
+                      >
+                        {es.currentValue || <em style={{ color: "#555" }}>empty</em>}
                       </div>
                     </div>
-                    <span>→</span>
-                    <div>
-                      <div>Suggested</div>
-                      <div>
+                    <span className="text-sm mt-5 flex-shrink-0" style={{ color: "#555" }}>→</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: "#555" }}>Suggested</div>
+                      <div
+                        className="text-xs rounded-lg px-2.5 py-1.5 break-words"
+                        style={{ background: "rgba(114,239,245,0.06)", color: "#72eff5" }}
+                      >
                         {es.suggestedValue}
                       </div>
                     </div>
                   </div>
 
-                  <p>{es.reason}</p>
+                  <p className="text-xs leading-relaxed" style={{ color: "#777" }}>{es.reason}</p>
 
                   {isEdit && (
                     <input
@@ -736,25 +823,47 @@ export default function RefineView({
                         if (e.key === "Escape") setEditingKey(null);
                       }}
                       maxLength={50}
+                      className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                      style={{
+                        background: "rgba(20,20,20,0.8)",
+                        border: "1px solid rgba(114,239,245,0.4)",
+                        color: "#fff",
+                      }}
                     />
                   )}
 
-                  <div>
+                  <div className="flex items-center gap-2 pt-1">
                     {isEdit ? (
                       <>
-                        <button onClick={() => setEditingKey(null)}>
+                        <button
+                          onClick={() => setEditingKey(null)}
+                          className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
+                          style={{ background: "transparent", border: "1px solid rgba(72,72,71,0.3)", color: "#777" }}
+                        >
                           Cancel
                         </button>
                         <button
                           onClick={() => editValue.trim() && applyEntry(es, editValue.trim())}
                           disabled={!editValue.trim() || busy}
+                          className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
+                          style={{
+                            background: !editValue.trim() || busy ? "rgba(38,38,38,0.6)" : "linear-gradient(135deg, #72eff5, #1fb1b7)",
+                            color: !editValue.trim() || busy ? "#555" : "#0a0a0a",
+                            border: "none",
+                            opacity: !editValue.trim() || busy ? 0.5 : 1,
+                          }}
                         >
                           Apply
                         </button>
                       </>
                     ) : (
                       <>
-                        <button onClick={() => reject(key, s)} disabled={busy}>
+                        <button
+                          onClick={() => reject(key, s)}
+                          disabled={busy}
+                          className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
+                          style={{ background: "transparent", border: "1px solid rgba(72,72,71,0.3)", color: "#ff6e84", opacity: busy ? 0.5 : 1 }}
+                        >
                           ✗ Reject
                         </button>
                         <button
@@ -763,10 +872,22 @@ export default function RefineView({
                             setEditValue(es.suggestedValue);
                           }}
                           disabled={busy}
+                          className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
+                          style={{ background: "transparent", border: "1px solid rgba(72,72,71,0.3)", color: "#aaa", opacity: busy ? 0.5 : 1 }}
                         >
                           ✎ Edit
                         </button>
-                        <button onClick={() => applyEntry(es)} disabled={busy}>
+                        <button
+                          onClick={() => applyEntry(es)}
+                          disabled={busy}
+                          className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
+                          style={{
+                            background: busy ? "rgba(38,38,38,0.6)" : "linear-gradient(135deg, #72eff5, #1fb1b7)",
+                            color: busy ? "#555" : "#0a0a0a",
+                            border: "none",
+                            opacity: busy ? 0.5 : 1,
+                          }}
+                        >
                           {busy ? "Saving…" : "✓ Accept"}
                         </button>
                       </>
