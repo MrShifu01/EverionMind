@@ -39,11 +39,8 @@ import { EntriesContext } from "./context/EntriesContext";
 import { BrainContext } from "./context/BrainContext";
 
 const SuggestionsView = lazy(() => import("./views/SuggestionsView"));
-const CalendarView = lazy(() => import("./views/CalendarView"));
 const TodoView = lazy(() => import("./views/TodoView"));
-const GraphView = lazy(() => import("./views/GraphView"));
 const DetailModal = lazy(() => import("./views/DetailModal"));
-const RefineView = lazy(() => import("./views/RefineView"));
 const VaultView = lazy(() => import("./views/VaultView"));
 
 function Loader() {
@@ -380,7 +377,6 @@ export default function OpenBrain() {
   const [navOpen, setNavOpen] = useState(false);
   const [selected, setSelected] = useState(null);
   const [links, setLinks] = useState(LINKS);
-  const [graphError, setGraphError] = useState(null);
   const addLinks = (newLinks) => setLinks((prev) => [...prev, ...newLinks]);
   const { canWrite, canInvite, canManageMembers, role: myRole } = useRole(activeBrain);
   const { isDark, toggleTheme } = useTheme();
@@ -460,30 +456,15 @@ export default function OpenBrain() {
         captureError(err, "fetchEntries");
         setEntriesLoaded(true);
       });
-    // Load similarity graph links from embeddings
-    setGraphError(null);
+    // Load similarity links from embeddings
     authFetch(`/api/search?brain_id=${encodeURIComponent(activeBrain.id)}&threshold=0.55`)
-      .then(async (r) => {
-        if (!r.ok) {
-          const err = await r.text().catch(() => r.status);
-          setGraphError(`API ${r.status}: ${err.slice(0, 120)}`);
-          return null;
-        }
-        return r.json();
-      })
+      .then(async (r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!data) return;
         const linkArr = Array.isArray(data) ? data : data.links || [];
-        const embedded = data.embedded ?? "?";
-        if (linkArr.length > 0) {
-          setLinks(linkArr);
-          setGraphError(null);
-        } else
-          setGraphError(
-            `0 links (${embedded} embedded / ${entries.length} entries)${data.message ? " — " + data.message : ""}`,
-          );
+        if (linkArr.length > 0) setLinks(linkArr);
       })
-      .catch((e) => setGraphError(e.message));
+      .catch(() => {});
   }, [activeBrain?.id]);
 
   // Proactive intelligence nudge — runs once per session after entries load
@@ -937,11 +918,8 @@ export default function OpenBrain() {
   const navViews = [
     { id: "grid", l: "Grid", ic: "▦" },
     { id: "suggest", l: "Fill Brain", ic: "✦" },
-    { id: "refine", l: "Refine", ic: "◇" },
-    { id: "calendar", l: "Calendar", ic: "📅" },
     { id: "todos", l: "Todos", ic: "✓" },
     { id: "timeline", l: "Timeline", ic: "◔" },
-    { id: "graph", l: "Graph", ic: "◉" },
     { id: "vault", l: "Vault", ic: "🔐" },
     { id: "chat", l: "Ask", ic: "◈" },
     { id: "settings", l: "Settings", ic: "⚙" },
@@ -1246,24 +1224,6 @@ export default function OpenBrain() {
                 />
               </Suspense>
             )}
-            {view === "refine" && (
-              <Suspense fallback={<Loader />}>
-                <RefineView
-                  entries={entries}
-                  setEntries={setEntries}
-                  links={links}
-                  addLinks={addLinks}
-                  activeBrain={activeBrain}
-                  brains={brains}
-                  onSwitchBrain={setActiveBrain}
-                />
-              </Suspense>
-            )}
-            {view === "calendar" && (
-              <Suspense fallback={<Loader />}>
-                <CalendarView />
-              </Suspense>
-            )}
             {view === "todos" && (
               <Suspense fallback={<Loader />}>
                 <TodoView entries={entries} />
@@ -1271,19 +1231,6 @@ export default function OpenBrain() {
             )}
             {view === "timeline" && (
               <VirtualTimeline sorted={sortedTimeline} setSelected={setSelected} />
-            )}
-            {view === "graph" && (
-              <Suspense fallback={<Loader />}>
-                <p className="text-ob-text-faint mb-3 text-xs">
-                  Knowledge graph — click nodes to view
-                </p>
-                <GraphView
-                  onSelect={setSelected}
-                  entries={entries}
-                  links={links}
-                  graphError={graphError}
-                />
-              </Suspense>
             )}
             {view === "vault" && (
               <Suspense fallback={<Loader />}>

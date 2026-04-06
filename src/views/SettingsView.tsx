@@ -299,6 +299,8 @@ export default function SettingsView() {
   const [geminiKey, setGeminiKeyState] = useState(() => getGeminiKey() || "");
   const [embedStatus, setEmbedStatus] = useState<string | null>(null); // "running" | "done:N:M" | "error"
   const [showEmbedKey, setShowEmbedKey] = useState(false);
+  // Advanced section toggle
+  const [showAdvanced, setShowAdvanced] = useState(false);
   // Brain members
   const [members, setMembers] = useState<BrainMember[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -599,6 +601,21 @@ export default function SettingsView() {
           </button>
         </div>
       </div>
+      {/* Advanced toggle */}
+      <button
+        onClick={() => setShowAdvanced((s) => !s)}
+        className="bg-ob-surface border-ob-border mb-4 flex w-full cursor-pointer items-center justify-between rounded-[14px] border px-6 py-4"
+      >
+        <div>
+          <p className="text-ob-text-soft m-0 text-sm font-semibold">⚡ Advanced Settings</p>
+          <p className="text-ob-text-dim m-0 mt-0.5 text-[11px]">
+            AI provider, embeddings, voice, Telegram, memory guide
+          </p>
+        </div>
+        <span className="text-ob-text-muted text-lg">{showAdvanced ? "▾" : "▸"}</span>
+      </button>
+
+      {showAdvanced && <>
       {/* AI Provider / BYO Key */}
       <div className="bg-ob-surface border-ob-border mb-4 rounded-[14px] border px-6 py-5">
         <p className="text-ob-text-soft m-0 mb-1 text-sm font-semibold">AI Provider</p>
@@ -606,7 +623,7 @@ export default function SettingsView() {
           Use your own API key — no OpenBrain credits deducted. Leave blank to use the shared key.
         </p>
         <div className="mb-3 flex flex-wrap gap-2">
-          {["anthropic", "openai", "openrouter"].map((p) => (
+          {["anthropic", "openrouter"].map((p) => (
             <button
               key={p}
               onClick={() => saveByoProvider(p)}
@@ -1088,6 +1105,13 @@ export default function SettingsView() {
         </div>
       </div>
 
+      {/* Telegram */}
+      {activeBrain && <TelegramPanel activeBrain={activeBrain} />}
+
+      {/* AI Memory Guide */}
+      <MemoryEditor activeBrain={activeBrain} />
+      </>}
+
       {/* Brain Members */}
       {activeBrain && (
         <div className="bg-ob-surface border-ob-border mb-4 rounded-[14px] border px-6 py-5">
@@ -1234,11 +1258,6 @@ export default function SettingsView() {
       <div className="bg-ob-surface border-ob-border rounded-[14px] border px-6 py-5">
         <NotificationSettings />
       </div>
-      {/* Telegram */}
-      {activeBrain && <TelegramPanel activeBrain={activeBrain} />}
-
-      {/* AI Memory Guide */}
-      <MemoryEditor activeBrain={activeBrain} />
 
       {/* Export / Import */}
       {activeBrain && <ExportImportPanel activeBrain={activeBrain} />}

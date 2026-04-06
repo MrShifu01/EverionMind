@@ -44,61 +44,6 @@ If EXISTING ENTRIES context is provided below the input, check if the new input 
   /** SuggestionsView: generate a gap-filling question for the brain */
   FILL_BRAIN: `You are helping someone build their {{BRAIN_CONTEXT}} called OpenBrain. Identify important information they should capture but haven't yet. Study the gaps — important facts, records, contacts, plans that are missing. Generate ONE specific, actionable question relevant to this brain type. Return ONLY valid JSON: {"q":"...","cat":"...","p":"high"|"medium"|"low"}`,
 
-  /** RefineView: entry quality audit */
-  ENTRY_AUDIT: `You are a ruthlessly skeptical data quality auditor reviewing a personal knowledge base. Your bar is very high — only flag what is obviously, undeniably wrong. If there is any ambiguity, skip it.
-
-Only identify these specific issues (nothing else):
-1. TYPE_MISMATCH — Entry is clearly the wrong type. Example: a named person saved as "note" should be "person"; a physical location saved as "note" should be "place"; a hard deadline saved as "note" should be "reminder". Skip if debatable.
-2. PHONE_FOUND — A phone number clearly appears in content/title but metadata.phone is missing or empty. Only flag if the number is complete and unambiguous.
-3. EMAIL_FOUND — An email address clearly appears in content/title but metadata.email is missing or empty.
-4. URL_FOUND — A full URL (https://...) clearly appears in content but metadata.url is missing.
-5. DATE_FOUND — A specific future deadline or due date is explicitly mentioned in content and not already in metadata.due_date. Only for actual deadlines, not historical dates.
-6. TITLE_POOR — Title is so vague it could describe anything (e.g. "Note", "Info", "Misc"). Very high bar — only if the title is genuinely useless.
-7. SPLIT_SUGGESTED — Entry content contains multiple clearly distinct topics, facts, or records that should each be their own entry. Example: a single entry containing a company registration number AND directors AND address should be split. A recipe collection crammed into one entry should be split. Only flag if there are 2+ clearly separable items. suggestedValue should be a short description of how to split (e.g. "Split into: CIPC number, directors, tax number").
-
-Hard rules:
-- Only suggest if confidence > 90%
-- Max 2 suggestions per entry
-- Skip entries that look complete and well-structured
-- For TYPE_MISMATCH: suggestedValue must be one of: note, reminder, document, contact, person, place, idea, color, decision, secret. Use "secret" for entries containing passwords, PINs, credit card numbers, bank details, or credentials
-- For DATE_FOUND: suggestedValue must be ISO date string YYYY-MM-DD
-- For SPLIT_SUGGESTED: suggestedValue is a brief description of the suggested split
-- Return ONLY a valid JSON array, no markdown, no explanation
-
-Schema: [{"entryId":"...","entryTitle":"...","type":"TYPE_MISMATCH|PHONE_FOUND|EMAIL_FOUND|URL_FOUND|DATE_FOUND|TITLE_POOR|SPLIT_SUGGESTED","field":"type|metadata.phone|metadata.email|metadata.url|metadata.due_date|title|content","currentValue":"...","suggestedValue":"...","reason":"max 90 chars"}]
-
-If nothing is wrong, return: []`,
-
-  /** RefineView: link / relationship discovery */
-  LINK_DISCOVERY: `You are building a knowledge graph for a personal/business brain. Your job is to find non-obvious, high-value relationships between entries that are not yet linked.
-
-Rules:
-- Only suggest a relationship if it is clearly meaningful and actionable (e.g. "this person works at this company", "this supplier provides this ingredient", "this idea is for this place")
-- Do NOT suggest relationships that are trivially obvious from shared tags alone
-- Do NOT suggest relationships that already exist in the provided existing links list
-- Relationship label (rel) should be a short verb phrase: "works at", "supplies", "built", "owns", "relates to", "deadline for", etc.
-- Maximum 8 link suggestions total
-- Only suggest if confidence > 85%
-- Return ONLY a valid JSON array, no markdown, no explanation
-
-Schema: [{"fromId":"...","fromTitle":"...","toId":"...","toTitle":"...","rel":"verb phrase","reason":"max 90 chars"}]
-
-If no valuable relationships are found, return: []`,
-
-  /** RefineView: name relationships for embedding-similar pairs */
-  LINK_DISCOVERY_PAIRS: `You are building a knowledge graph. You are given CANDIDATE PAIRS of entries that are semantically similar (pre-selected by embedding similarity). Your job is to confirm which pairs have a real, meaningful relationship and name it.
-
-Rules:
-- Only confirm a relationship if it is clearly meaningful and actionable (e.g. "works at", "supplies", "insures", "deadline for", "located at")
-- REJECT pairs that are merely similar in topic but have no actionable relationship
-- Relationship label (rel) should be a short verb phrase: "works at", "supplies", "built", "owns", "insures", "located at", "deadline for", etc.
-- Only confirm if confidence > 85%
-- Return ONLY a valid JSON array, no markdown, no explanation
-
-Schema: [{"fromId":"...","fromTitle":"...","toId":"...","toTitle":"...","rel":"verb phrase","reason":"max 90 chars"}]
-
-If no pairs have a real relationship, return: []`,
-
   /** File upload: split a document into multiple entries */
   FILE_SPLIT: `You are an AI assistant that intelligently splits uploaded document content into separate, focused OpenBrain entries. Each entry should capture ONE distinct piece of information — do NOT create long monolithic entries.
 
