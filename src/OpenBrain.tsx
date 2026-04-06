@@ -1009,7 +1009,7 @@ export default function OpenBrain() {
             )}
           </DesktopSidebar>
 
-          <div>
+          <div className="overflow-x-hidden w-full">
           {/* Main content — pushed right of sidebar on desktop, below fixed header on mobile */}
           {/* Main scroll area — offset from sidebar on desktop */}
           <div className="min-h-dvh bg-background lg:ml-72">

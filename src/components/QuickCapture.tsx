@@ -884,7 +884,7 @@ export default function QuickCapture({
     <div className="px-4 pt-3 pb-2">
       {/* Capture input bar */}
       <div
-        className="flex items-center gap-2 rounded-2xl px-3 py-2 border transition-colors focus-within:border-[rgba(114,239,245,0.5)]"
+        className="flex items-center gap-2 rounded-2xl px-4 py-3.5 border transition-colors focus-within:border-[rgba(114,239,245,0.5)]"
         style={{
           background: "rgba(38,38,38,0.6)",
           backdropFilter: "blur(16px)",
