@@ -666,40 +666,7 @@ export default function SuggestionsView({
         />
       </div>
 
-      {/* Category filter chips */}
-      <div className="flex flex-wrap gap-2">
-        <button
-          onClick={() => {
-            setFilterCat("all");
-            setIdx(0);
-          }}
-          className="rounded-full px-3 py-1.5 text-xs font-medium border transition-colors"
-          style={{
-            background: filterCat === "all" ? "rgba(114,239,245,0.15)" : "rgba(38,38,38,0.5)",
-            borderColor: filterCat === "all" ? "rgba(114,239,245,0.3)" : "rgba(72,72,71,0.2)",
-            color: filterCat === "all" ? "#72eff5" : "#aaa",
-          }}
-        >
-          All
-        </button>
-        {cats.map(([c, n]: [string, number]) => (
-          <button
-            key={c}
-            onClick={() => {
-              setFilterCat(c);
-              setIdx(0);
-            }}
-            className="rounded-full px-3 py-1.5 text-xs font-medium border transition-colors"
-            style={{
-              background: filterCat === c ? "rgba(114,239,245,0.15)" : "rgba(38,38,38,0.5)",
-              borderColor: filterCat === c ? "rgba(114,239,245,0.3)" : "rgba(72,72,71,0.2)",
-              color: filterCat === c ? "#72eff5" : "#aaa",
-            }}
-          >
-            {c} ({n})
-          </button>
-        ))}
-      </div>
+      {/* Category filter chips removed — not needed */}
 
       {/* Pool empty state */}
       {poolEmpty && (

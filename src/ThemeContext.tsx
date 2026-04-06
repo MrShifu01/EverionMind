@@ -97,20 +97,18 @@ const ThemeCtx = createContext<ThemeContextValue>({
 });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [isDark, setIsDark] = useState(() => {
-    const saved = localStorage.getItem("openbrain_theme");
-    return saved ? saved === "dark" : true;
-  });
+  // App is dark-mode only — inline styles use hardcoded dark colors
+  const [isDark] = useState(true);
 
   useEffect(() => {
     const root = document.documentElement;
-    root.setAttribute("data-theme", isDark ? "dark" : "light");
-    root.classList.toggle("dark", isDark);
-    root.classList.toggle("light", !isDark);
-    localStorage.setItem("openbrain_theme", isDark ? "dark" : "light");
-  }, [isDark]);
+    root.setAttribute("data-theme", "dark");
+    root.classList.add("dark");
+    root.classList.remove("light");
+    localStorage.setItem("openbrain_theme", "dark");
+  }, []);
 
-  const toggleTheme = () => setIsDark((d) => !d);
+  const toggleTheme = () => {}; // no-op — dark mode only
   const t = isDark ? DARK : LIGHT;
 
   return <ThemeCtx.Provider value={{ t, isDark, toggleTheme }}>{children}</ThemeCtx.Provider>;
