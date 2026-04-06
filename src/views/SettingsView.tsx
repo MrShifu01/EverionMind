@@ -616,36 +616,7 @@ export default function SettingsView() {
         </div>
       </div>
 
-      {/* ── Security PIN ── */}
-      <div className="rounded-2xl border p-4 space-y-3" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
-        <p className="text-sm font-semibold text-white">Security PIN</p>
-        <p className="text-xs" style={{ color: "#aaa" }}>
-          {pinSet
-            ? "PIN is active — sensitive AI responses are protected."
-            : "No PIN set — credentials in AI responses are shown unguarded."}
-        </p>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowPinModal(true)}
-            className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors hover:bg-white/5"
-            style={{ color: "#72eff5", borderColor: "rgba(114,239,245,0.2)" }}
-          >
-            {pinSet ? "Change PIN" : "Set PIN"}
-          </button>
-          {pinSet && (
-            <button
-              onClick={() => {
-                removePin();
-                setPinSet(false);
-              }}
-              className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors hover:bg-white/5"
-              style={{ color: "#ff6e84", borderColor: "rgba(255,110,132,0.3)" }}
-            >
-              Remove
-            </button>
-          )}
-        </div>
-      </div>
+      {/* Security PIN section removed */}
 
       {/* ── Notifications ── */}
       <div className="rounded-2xl border p-4" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
@@ -1109,16 +1080,6 @@ export default function SettingsView() {
       <MemoryEditor activeBrain={activeBrain} />
       </>}
 
-      {showPinModal && (
-        <PinGate
-          isSetup
-          onSuccess={() => {
-            setShowPinModal(false);
-            setPinSet(!!getStoredPinHash());
-          }}
-          onCancel={() => setShowPinModal(false)}
-        />
-      )}
     </div>
   );
 }

@@ -64,8 +64,8 @@ export default function BottomNav({ activeView, onNavigate }: BottomNavProps) {
       aria-label="Primary navigation"
       className="lg:hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center justify-around px-3 py-2 w-[92vw] max-w-sm rounded-full glass-panel-dark border"
       style={{
-        borderColor: "rgba(72,72,71,0.12)",
-        boxShadow: "0 20px 40px rgba(0,0,0,0.4), 0 0 20px rgba(213,117,255,0.10)",
+        borderColor: "rgba(255,255,255,0.08)",
+        boxShadow: "0 0 0 0.5px rgba(255,255,255,0.06), 0 20px 40px rgba(0,0,0,0.4)",
         paddingBottom: "max(8px, env(safe-area-inset-bottom))",
       }}
     >

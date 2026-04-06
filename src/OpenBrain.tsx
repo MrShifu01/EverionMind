@@ -1246,17 +1246,7 @@ export default function OpenBrain() {
                   />
                 </div>
 
-                {/* Workspace filter — only show if business brain exists */}
-                {brains.some((b) => b.type === "business") && (
-                  <div className="flex gap-2">
-                    {[{ ws: "all", label: "All" }, { ws: "personal", label: "Personal" }, { ws: "business", label: "Business" }].map(({ ws, label }) => (
-                      <button key={ws} onClick={() => { setWorkspace(ws); localStorage.setItem("openbrain_workspace", ws); }}
-                        className="text-xs font-semibold uppercase tracking-widest px-3 py-1.5 rounded-full transition-all press-scale"
-                        style={{ background: workspace === ws ? "rgba(114,239,245,0.12)" : "#1a1919", color: workspace === ws ? "#72eff5" : "#adaaaa", border: `1px solid ${workspace === ws ? "rgba(114,239,245,0.25)" : "rgba(72,72,71,0.15)"}` }}
-                      >{label}</button>
-                    ))}
-                  </div>
-                )}
+                {/* Workspace filter removed */}
 
                 {!entriesLoaded ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
