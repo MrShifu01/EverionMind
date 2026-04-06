@@ -98,7 +98,7 @@ export default function LoginScreen(): JSX.Element {
         display: "flex",
         flexDirection: "column",
         position: "relative",
-        overflow: "hidden",
+        overflowX: "hidden",
       }}
     >
       {/* Atmospheric background */}
@@ -115,6 +115,7 @@ export default function LoginScreen(): JSX.Element {
 
       {/* ── DESKTOP: two-column layout ── */}
       <div
+        className="login-two-col"
         style={{
           flex: 1,
           display: "flex",
@@ -623,7 +624,18 @@ export default function LoginScreen(): JSX.Element {
           50% { opacity: 1; }
         }
         @media (max-width: 768px) {
-          .login-two-col { flex-direction: column !important; }
+          .login-two-col {
+            flex-direction: column !important;
+            min-height: auto !important;
+          }
+          .login-two-col > div:first-child {
+            border-right: none !important;
+            border-bottom: 1px solid rgba(72,72,71,0.15) !important;
+          }
+          .login-two-col > div:last-child {
+            width: 100% !important;
+            padding: 40px 24px !important;
+          }
         }
       `}</style>
     </div>
