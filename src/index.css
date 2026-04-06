@@ -283,3 +283,11 @@ h1, h2, h3, h4 {
 @utility font-headline {
   font-family: "Manrope", system-ui, -apple-system, sans-serif;
 }
+
+/* ─── Desktop layout: ensure proper scrollbar for sidebar ─── */
+@media (min-width: 768px) {
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(72,72,71,0.25); border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(72,72,71,0.4); }
+}

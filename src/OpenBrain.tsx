@@ -32,6 +32,7 @@ import QuickCapture from "./components/QuickCapture";
 import SupplierPanel from "./components/SupplierPanel";
 import BottomNav from "./components/BottomNav";
 import MobileHeader from "./components/MobileHeader";
+import DesktopSidebar from "./components/DesktopSidebar";
 import SkeletonCard from "./components/SkeletonCard";
 import SettingsView from "./views/SettingsView";
 import { inferWorkspace } from "./lib/workspaceInfer";
@@ -74,7 +75,7 @@ function UndoToast({ action, onUndo, onDismiss }) {
     action.type
   ];
   return (
-    <div className="fixed bottom-[80px] left-1/2 z-[2000] box-border flex max-w-[calc(100vw-32px)] min-w-[240px] -translate-x-1/2 items-center gap-3 rounded-2xl border px-4 py-3" style={{ background: "rgba(38,38,38,0.85)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", borderColor: "rgba(114,239,245,0.2)", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
+    <div className="fixed bottom-[80px] md:bottom-6 left-1/2 z-[2000] box-border flex max-w-[calc(100vw-32px)] min-w-[240px] -translate-x-1/2 items-center gap-3 rounded-2xl border px-4 py-3" style={{ background: "rgba(38,38,38,0.85)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", borderColor: "rgba(114,239,245,0.2)", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
       <span className="text-sm" style={{ color: "#adaaaa" }}>{label}</span>
       <button
         onClick={onUndo}
@@ -198,7 +199,9 @@ const EntryCard = memo(function EntryCard({ entry: e, onSelect }) {
    VIRTUALISED GRID
    ═══════════════════════════════════════════════════════════════ */
 function VirtualGrid({ filtered, setSelected }) {
-  const COLS = typeof window !== "undefined" && window.innerWidth >= 640 ? 2 : 1;
+  const COLS = typeof window !== "undefined"
+    ? window.innerWidth >= 1280 ? 3 : window.innerWidth >= 640 ? 2 : 1
+    : 1;
   const rows = useMemo(() => {
     const r = [];
     for (let i = 0; i < filtered.length; i += COLS) r.push(filtered.slice(i, i + COLS));
@@ -984,7 +987,40 @@ export default function OpenBrain() {
   return (
     <EntriesContext.Provider value={entriesValue}>
       <BrainContext.Provider value={brainValue}>
-        <div className="bg-ob-bg text-ob-text min-h-screen overflow-x-hidden pb-[80px] font-['Söhne',system-ui,-apple-system,sans-serif] transition-[background,color] duration-[250ms]">
+        <>
+          {/* Desktop sidebar — fixed, outside overflow container */}
+          <DesktopSidebar
+            activeBrainName={activeBrain?.name || "OpenBrain"}
+            view={view}
+            onNavigate={(id) => { setView(id); setNavOpen(false); }}
+            isDark={isDark}
+            onToggleTheme={toggleTheme}
+            isOnline={isOnline}
+            pendingCount={pendingCount}
+            entryCount={entries.length}
+            onShowCreateBrain={() => setShowCreateBrain(true)}
+            navViews={navViews}
+          >
+            {brains.length > 0 && (
+              <BrainSwitcher
+                brains={brains}
+                activeBrain={activeBrain}
+                onSwitch={setActiveBrain}
+                onBrainCreated={async (brain) => {
+                  await refresh();
+                  setActiveBrain(brain);
+                }}
+                onBrainDeleted={deleteBrain}
+                onBrainTip={(brain) => setShowBrainTip(brain)}
+              />
+            )}
+          </DesktopSidebar>
+
+          <div className="bg-ob-bg text-ob-text min-h-screen overflow-x-hidden font-['Söhne',system-ui,-apple-system,sans-serif] transition-[background,color] duration-[250ms]">
+          {/* Main content — pushed right of sidebar on desktop */}
+          <div className="pb-[80px] md:pb-8 md:pl-[220px]">
+
+          {/* Mobile header — hidden on desktop */}
           <MobileHeader
             brainName={activeBrain?.name || "OpenBrain"}
             brainEmoji="🧠"
@@ -1111,7 +1147,7 @@ export default function OpenBrain() {
             />
           )}
 
-          <div className="animate-fade-in px-5 py-4">
+          <div className="animate-fade-in px-5 py-4 md:px-8 md:py-6 md:max-w-4xl md:mx-auto">
             {view === "capture" && (
               <div className="animate-fade-in pt-1">
                 <OnboardingChecklist activeBrain={activeBrain} onNavigate={setView} />
@@ -1141,7 +1177,7 @@ export default function OpenBrain() {
                 </button>
 
                 {/* Secondary actions — clean grid */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {[
                     { id: "grid", l: "Memory Grid", ic: "▦", desc: "Browse all" },
                     { id: "chat", l: "Ask Brain", ic: "◈", desc: "Chat with your data" },
@@ -1291,7 +1327,7 @@ export default function OpenBrain() {
             )}
 
             {view === "chat" && (
-              <div className="animate-fade-in flex h-[calc(100vh-200px)] max-h-[calc(100dvh-200px)] flex-col">
+              <div className="animate-fade-in flex h-[calc(100dvh-180px)] md:h-[calc(100dvh-100px)] flex-col">
                 <div className="mb-3 flex-1 overflow-auto">
                   {chatMsgs.length === 0 && (
                     <div className="flex flex-col items-center justify-center pt-16 pb-8">
@@ -1578,7 +1614,10 @@ export default function OpenBrain() {
               }
             }}
           />
-        </div>
+
+          </div>{/* /main content wrapper */}
+          </div>{/* /bg-ob-bg */}
+        </>
       </BrainContext.Provider>
     </EntriesContext.Provider>
   );

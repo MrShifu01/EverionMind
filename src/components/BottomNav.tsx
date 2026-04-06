@@ -25,7 +25,7 @@ export default function BottomNav({ activeView, onNavigate }: BottomNavProps) {
 
   return (
     <div
-      className="fixed right-0 bottom-0 left-0 z-[900] flex items-end justify-center pb-[env(safe-area-inset-bottom,0px)] px-4 pb-4"
+      className="md:hidden fixed right-0 bottom-0 left-0 z-[900] flex items-end justify-center pb-[env(safe-area-inset-bottom,0px)] px-4 pb-4"
     >
       <nav
         aria-label="Main navigation"
