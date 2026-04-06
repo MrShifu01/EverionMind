@@ -29,20 +29,38 @@ function PreviewModal({ preview, entries, onSave, onUpdate, onCancel }) {
     return entries.filter((e) => scoreTitle(title, e.title) > 50).slice(0, 3);
   }, [title, entries]);
   return (
-    <div onClick={onCancel}>
-      <div onClick={(e) => e.stopPropagation()}>
-        <div>
-          <span>Preview before saving</span>
-          <button onClick={onCancel}>✕</button>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl border p-5"
+        style={{ background: "#1a1919", borderColor: "rgba(72,72,71,0.2)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-sm font-semibold text-white">Preview before saving</span>
+          <button onClick={onCancel} className="text-[#777] hover:text-white text-lg">✕</button>
         </div>
-        <div>
+        <div className="space-y-3">
           <div>
-            <label>Title</label>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} />
+            <label className="block text-[10px] font-semibold uppercase tracking-widest text-[#aaa] mb-1.5">Title</label>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full rounded-xl border px-3 py-2.5 text-sm text-white bg-transparent outline-none focus:border-[rgba(114,239,245,0.5)] transition-colors"
+              style={{ borderColor: "rgba(72,72,71,0.3)", fontFamily: "'Inter', sans-serif" }}
+            />
           </div>
           <div>
-            <label>Type</label>
-            <select value={type} onChange={(e) => setType(e.target.value)}>
+            <label className="block text-[10px] font-semibold uppercase tracking-widest text-[#aaa] mb-1.5">Type</label>
+            <select
+              value={type}
+              onChange={(e) => setType(e.target.value)}
+              className="w-full rounded-xl border px-3 py-2.5 text-sm text-white outline-none appearance-none cursor-pointer focus:border-[rgba(114,239,245,0.5)] transition-colors"
+              style={{ borderColor: "rgba(72,72,71,0.3)", background: "rgba(38,38,38,0.6)" }}
+            >
               {Object.keys(TC).map((t) => (
                 <option key={t} value={t}>
                   {TC[t].i} {t}
@@ -51,23 +69,24 @@ function PreviewModal({ preview, entries, onSave, onUpdate, onCancel }) {
             </select>
           </div>
           <div>
-            <label>
-              Tags{" "}
-              <span>(comma separated)</span>
+            <label className="block text-[10px] font-semibold uppercase tracking-widest text-[#aaa] mb-1.5">
+              Tags <span className="normal-case tracking-normal text-[#555]">(comma separated)</span>
             </label>
             <input
               value={tags}
               onChange={(e) => setTags(e.target.value)}
               placeholder="tag1, tag2"
+              className="w-full rounded-xl border px-3 py-2.5 text-sm text-white bg-transparent outline-none placeholder:text-[#555] focus:border-[rgba(114,239,245,0.5)] transition-colors"
+              style={{ borderColor: "rgba(72,72,71,0.3)", fontFamily: "'Inter', sans-serif" }}
             />
           </div>
         </div>
         {dupes.length > 0 && (
-          <div>
-            <p>⚠ Similar entries found — update one instead?</p>
+          <div className="mt-4 p-3 rounded-xl border" style={{ borderColor: "rgba(255,180,0,0.2)", background: "rgba(255,180,0,0.05)" }}>
+            <p className="text-xs text-[#ffb400] font-semibold mb-2">⚠ Similar entries found — update one instead?</p>
             {dupes.map((d) => (
-              <div key={d.id}>
-                <span>• {d.title}</span>
+              <div key={d.id} className="flex items-center justify-between gap-2 py-1.5">
+                <span className="text-xs text-[#aaa] truncate">• {d.title}</span>
                 <button
                   onClick={() => {
                     onUpdate(d.id, {
@@ -79,6 +98,8 @@ function PreviewModal({ preview, entries, onSave, onUpdate, onCancel }) {
                     });
                     onCancel();
                   }}
+                  className="text-[10px] font-semibold px-2.5 py-1 rounded-lg flex-shrink-0"
+                  style={{ color: "#72eff5", background: "rgba(114,239,245,0.1)" }}
                 >
                   Update this
                 </button>
@@ -86,8 +107,14 @@ function PreviewModal({ preview, entries, onSave, onUpdate, onCancel }) {
             ))}
           </div>
         )}
-        <div>
-          <button onClick={onCancel}>Cancel</button>
+        <div className="flex gap-3 mt-5">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2.5 rounded-xl border text-sm text-[#aaa] transition-colors hover:bg-white/5"
+            style={{ borderColor: "rgba(72,72,71,0.3)", background: "transparent" }}
+          >
+            Cancel
+          </button>
           <button
             onClick={() =>
               onSave({
@@ -98,6 +125,8 @@ function PreviewModal({ preview, entries, onSave, onUpdate, onCancel }) {
               })
             }
             disabled={!title.trim()}
+            className="flex-[2] py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-40"
+            style={{ background: "linear-gradient(135deg, #72eff5, #1fb1b7)", color: "#0a0a0a" }}
           >
             Save to OpenBrain
           </button>
@@ -839,28 +868,41 @@ export default function QuickCapture({
 
   if (!canWrite) {
     return (
-      <div>
-        <span>🔒</span>
-        <span>You have view-only access to this brain</span>
+      <div className="px-4 pt-3 pb-2">
+        <div
+          className="flex items-center gap-2 rounded-2xl px-4 py-3 border"
+          style={{ background: "rgba(38,38,38,0.4)", borderColor: "rgba(72,72,71,0.15)" }}
+        >
+          <span>🔒</span>
+          <span className="text-sm text-[#777]">You have view-only access to this brain</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div>
-      <div>
-        <input
-          type="file"
-          accept="image/*"
-          ref={imgRef}
-          onChange={handleImageUpload}
-        />
+    <div className="px-4 pt-3 pb-2">
+      {/* Capture input bar */}
+      <div
+        className="flex items-center gap-2 rounded-2xl px-3 py-2 border transition-colors focus-within:border-[rgba(114,239,245,0.5)]"
+        style={{
+          background: "rgba(38,38,38,0.6)",
+          backdropFilter: "blur(16px)",
+          WebkitBackdropFilter: "blur(16px)",
+          borderColor: "rgba(72,72,71,0.2)",
+        }}
+      >
+        {/* Hidden file inputs */}
+        <input type="file" accept="image/*" ref={imgRef} onChange={handleImageUpload} className="hidden" />
         <input
           type="file"
           accept=".txt,.md,.csv,.pdf,.docx,text/plain,text/markdown,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           ref={fileRef}
           onChange={handleFileUpload}
+          className="hidden"
         />
+
+        {/* Text input */}
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -873,51 +915,74 @@ export default function QuickCapture({
                 ? "Processing..."
                 : "Quick capture — just type anything..."
           }
+          className="flex-1 min-w-0 bg-transparent text-white text-sm outline-none placeholder:text-[#555]"
+          style={{ fontFamily: "'Inter', sans-serif" }}
         />
-        <button
-          onClick={startVoice}
-          disabled={loading}
-          title="Voice capture"
-        >
-          🎤
-        </button>
-        <button
-          onClick={() => imgRef.current?.click()}
-          disabled={loading}
-          title="Photo capture"
-        >
-          📷
-        </button>
-        <button
-          onClick={() => fileRef.current?.click()}
-          disabled={loading}
-          title="Upload file (PDF, Word, MD, TXT)"
-        >
-          📄
-        </button>
-        <button
-          onClick={capture}
-          disabled={loading || !text.trim()}
-          title={`Save to ${(BRAIN_META_QC[brains[0]?.type] || BRAIN_META_QC.personal).emoji} ${brains[0]?.name || "brain"}`}
-        >
-          +
-        </button>
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button
+            onClick={startVoice}
+            disabled={loading}
+            title="Voice capture"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors hover:bg-white/10 disabled:opacity-40"
+            style={listening ? { background: "rgba(255,110,132,0.2)" } : undefined}
+          >
+            🎤
+          </button>
+          <button
+            onClick={() => imgRef.current?.click()}
+            disabled={loading}
+            title="Photo capture"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors hover:bg-white/10 disabled:opacity-40"
+          >
+            📷
+          </button>
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={loading}
+            title="Upload file (PDF, Word, MD, TXT)"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors hover:bg-white/10 disabled:opacity-40"
+          >
+            📄
+          </button>
+          <button
+            onClick={capture}
+            disabled={loading || !text.trim()}
+            title={`Save to ${(BRAIN_META_QC[brains[0]?.type] || BRAIN_META_QC.personal).emoji} ${brains[0]?.name || "brain"}`}
+            className="w-8 h-8 flex items-center justify-center rounded-xl text-lg font-bold transition-all disabled:opacity-30"
+            style={{
+              background: text.trim() ? "linear-gradient(135deg, #72eff5, #1fb1b7)" : "rgba(72,72,71,0.3)",
+              color: text.trim() ? "#0a0a0a" : "#555",
+            }}
+          >
+            +
+          </button>
+        </div>
       </div>
+
+      {/* Status message */}
       {status && (
-        <div>
-          <p>{statusMsg[status]}</p>
+        <div className="mt-2 px-1">
+          <p className="text-xs" style={{ color: status === "error" || status.includes("large") || status.includes("unsupported") ? "#ff6e84" : "#72eff5" }}>
+            {statusMsg[status]}
+          </p>
           {status === "vault-needed" && onNavigate && (
             <button
               onClick={() => {
                 onNavigate("vault");
                 setStatus(null);
               }}
+              className="text-xs font-semibold mt-1 px-3 py-1 rounded-lg transition-colors"
+              style={{ color: "#72eff5", background: "rgba(114,239,245,0.1)" }}
             >
               Open Vault
             </button>
           )}
         </div>
       )}
+
+      {/* Preview modal */}
       {preview && (
         <PreviewModal
           preview={preview}
@@ -927,49 +992,80 @@ export default function QuickCapture({
           onCancel={() => setPreview(null)}
         />
       )}
+
+      {/* Multi-entry preview modal */}
       {multiPreview && (
-        <div onClick={() => setMultiPreview(null)}>
-          <div onClick={(e) => e.stopPropagation()}>
-            <div>
-              <span>✂️ {multiPreview.length} entries found in file</span>
-              <button onClick={() => setMultiPreview(null)}>✕</button>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
+          onClick={() => setMultiPreview(null)}
+        >
+          <div
+            className="w-full max-w-lg max-h-[80vh] overflow-y-auto rounded-2xl border p-5"
+            style={{ background: "#1a1919", borderColor: "rgba(72,72,71,0.2)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-white">✂️ {multiPreview.length} entries found in file</span>
+              <button onClick={() => setMultiPreview(null)} className="text-[#777] hover:text-white text-lg">✕</button>
             </div>
-            <p>
+            <p className="text-xs text-[#777] mb-4">
               Review the entries extracted from your file. Remove any you don't want, then save all.
             </p>
-            {multiPreview.map((entry, i) => (
-              <div key={i}>
-                <button
-                  onClick={() => setMultiPreview((prev) => prev.filter((_, j) => j !== i))}
-                  title="Remove"
+            <div className="space-y-3">
+              {multiPreview.map((entry, i) => (
+                <div
+                  key={i}
+                  className="relative rounded-xl border p-3"
+                  style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}
                 >
-                  ✕
-                </button>
-                <div>
-                  <span>{TC[entry.type]?.i || "📝"}</span>
-                  <span>{entry.title}</span>
-                  <span>{entry.type}</span>
-                </div>
-                <p>
-                  {(entry.content || "").slice(0, 150)}
-                  {(entry.content || "").length > 150 ? "…" : ""}
-                </p>
-                {entry.tags?.length > 0 && (
-                  <div>
-                    {entry.tags.map((tag) => (
-                      <span key={tag}>{tag}</span>
-                    ))}
+                  <button
+                    onClick={() => setMultiPreview((prev) => prev.filter((_, j) => j !== i))}
+                    title="Remove"
+                    className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full text-xs text-[#777] hover:text-white hover:bg-white/10"
+                  >
+                    ✕
+                  </button>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span>{TC[entry.type]?.i || "📝"}</span>
+                    <span className="text-sm font-semibold text-white truncate">{entry.title}</span>
+                    <span className="text-[10px] uppercase tracking-wider text-[#777] ml-auto mr-6">{entry.type}</span>
                   </div>
-                )}
-              </div>
-            ))}
-            <div>
-              <button onClick={() => setMultiPreview(null)}>Cancel</button>
+                  <p className="text-xs text-[#777] leading-relaxed">
+                    {(entry.content || "").slice(0, 150)}
+                    {(entry.content || "").length > 150 ? "…" : ""}
+                  </p>
+                  {entry.tags?.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {entry.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="text-[10px] px-2 py-0.5 rounded-full"
+                          style={{ color: "#72eff5", background: "rgba(114,239,245,0.1)" }}
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => setMultiPreview(null)}
+                className="flex-1 py-2.5 rounded-xl border text-sm text-[#aaa] transition-colors hover:bg-white/5"
+                style={{ borderColor: "rgba(72,72,71,0.3)", background: "transparent" }}
+              >
+                Cancel
+              </button>
               <button
                 onClick={() => saveMultiEntries(multiPreview)}
                 disabled={multiPreview.length === 0}
+                className="flex-[2] py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-40"
+                style={{ background: "linear-gradient(135deg, #72eff5, #1fb1b7)", color: "#0a0a0a" }}
               >
-                Save {multiPreview.length} entries to OpenBrain
+                Save {multiPreview.length} entries
               </button>
             </div>
           </div>
