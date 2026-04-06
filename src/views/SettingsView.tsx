@@ -63,23 +63,28 @@ function TelegramPanel({ activeBrain }: { activeBrain: Brain }) {
   };
 
   return (
-    <div>
-      <p>Telegram</p>
-      <p>
+    <div className="rounded-2xl border p-4 space-y-3" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
+      <p className="text-sm font-semibold text-white">Telegram</p>
+      <p className="text-xs" style={{ color: "#aaa" }}>
         Connect Telegram to save entries by messaging the bot.
       </p>
       {code ? (
-        <div>
-          <p>
-            Send this code to <strong>@TheOneAndOnlyOpenBrainBot</strong> on Telegram:
+        <div className="space-y-2">
+          <p className="text-xs" style={{ color: "#aaa" }}>
+            Send this code to <strong className="text-white">@TheOneAndOnlyOpenBrainBot</strong> on Telegram:
           </p>
-          <p>{code}</p>
-          <p>Expires in 10 minutes</p>
+          <p className="text-lg font-mono font-bold tracking-widest text-center py-2" style={{ color: "#72eff5" }}>{code}</p>
+          <p className="text-[10px] text-center" style={{ color: "#555" }}>Expires in 10 minutes</p>
         </div>
       ) : (
         <button
           onClick={generateCode}
           disabled={generating}
+          className="rounded-xl px-4 py-2 text-xs font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
+          style={{
+            background: "linear-gradient(135deg, #72eff5, #1fb1b7)",
+            color: "#0a0a0a",
+          }}
         >
           {generating ? "Generating…" : "Connect Telegram"}
         </button>
@@ -114,9 +119,9 @@ function MemoryEditor({ activeBrain }: { activeBrain?: any }) {
     setTimeout(() => setStatus(null), 3000);
   };
   return (
-    <div>
-      <p>AI Memory Guide</p>
-      <p>
+    <div className="rounded-2xl border p-4 space-y-3" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
+      <p className="text-sm font-semibold text-white">AI Memory Guide</p>
+      <p className="text-xs" style={{ color: "#aaa" }}>
         Markdown guide injected into every AI call for context. Do not include IDs or bank details.
       </p>
       <textarea
@@ -126,14 +131,23 @@ function MemoryEditor({ activeBrain }: { activeBrain?: any }) {
         placeholder={
           "# OpenBrain Classification Guide\n\n## Business Context\n- ...\n\n## Personal Context\n- ..."
         }
+        className="w-full rounded-xl px-3 py-2.5 text-xs bg-transparent border outline-none text-white placeholder:text-[#555] resize-y"
+        style={{ borderColor: "rgba(72,72,71,0.3)" }}
+        onFocus={(e) => (e.target.style.borderColor = "rgba(114,239,245,0.5)")}
+        onBlur={(e) => (e.target.style.borderColor = "rgba(72,72,71,0.3)")}
       />
-      <div>
-        <span>
+      <div className="flex items-center justify-between">
+        <span className="text-[10px]" style={{ color: "#555" }}>
           {content.length}/{MAX}
         </span>
         <button
           onClick={save}
           disabled={saving}
+          className="rounded-xl px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
+          style={{
+            background: "linear-gradient(135deg, #72eff5, #1fb1b7)",
+            color: "#0a0a0a",
+          }}
         >
           {saving
             ? "Saving…"
@@ -211,14 +225,18 @@ function ExportImportPanel({ activeBrain }: { activeBrain: Brain }) {
           : null;
 
   return (
-    <div>
-      <p>Export / Import</p>
-      <p>
-        Export all entries from <strong>{activeBrain.name}</strong> as JSON, or import from a
+    <div className="rounded-2xl border p-4 space-y-3" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
+      <p className="text-sm font-semibold text-white">Export / Import</p>
+      <p className="text-xs" style={{ color: "#aaa" }}>
+        Export all entries from <strong className="text-white">{activeBrain.name}</strong> as JSON, or import from a
         previous export.
       </p>
-      <div>
-        <button onClick={handleExport}>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleExport}
+          className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors hover:bg-white/5"
+          style={{ color: "#aaa", borderColor: "rgba(72,72,71,0.3)" }}
+        >
           ⬇ Export Brain
         </button>
         <input
@@ -226,16 +244,25 @@ function ExportImportPanel({ activeBrain }: { activeBrain: Brain }) {
           accept=".json"
           ref={fileRef}
           onChange={handleImportFile}
+          className="hidden"
         />
         <button
           onClick={() => fileRef.current?.click()}
           disabled={importing}
+          className="rounded-xl px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
+          style={{
+            background: "linear-gradient(135deg, #72eff5, #1fb1b7)",
+            color: "#0a0a0a",
+          }}
         >
           {importing ? "Importing…" : "⬆ Import"}
         </button>
       </div>
       {statusMsg && (
-        <p>
+        <p
+          className="text-xs"
+          style={{ color: statusMsg.startsWith("✓") ? "#72eff5" : "#ff6e84" }}
+        >
           {statusMsg}
         </p>
       )}
@@ -522,34 +549,42 @@ export default function SettingsView() {
   };
 
   return (
-    <div>
+    <div className="px-4 py-4 space-y-4" style={{ background: "#0e0e0e", fontFamily: "'Manrope', sans-serif" }}>
       {/* Header */}
       <div>
-        <h2>Settings</h2>
-        <p>Manage your account and preferences</p>
+        <h2 className="text-xl font-bold text-white">Settings</h2>
+        <p className="text-sm" style={{ color: "#777" }}>Manage your account and preferences</p>
       </div>
 
       {/* ── Account ── */}
-      <div>
-        <div>
+      <div className="rounded-2xl border p-4" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
+        <div className="flex items-center justify-between">
           <div>
-            <p>Account</p>
-            <p>{email}</p>
+            <p className="text-sm font-semibold text-white">Account</p>
+            <p className="text-xs" style={{ color: "#aaa" }}>{email}</p>
           </div>
-          <button onClick={() => supabase.auth.signOut()}>
+          <button
+            onClick={() => supabase.auth.signOut()}
+            className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors hover:bg-white/5"
+            style={{ color: "#ff6e84", borderColor: "rgba(255,110,132,0.3)" }}
+          >
             Sign out
           </button>
         </div>
       </div>
 
       {/* ── Connection Status ── */}
-      <div>
-        <div>
+      <div className="rounded-2xl border p-4 space-y-3" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
+        <div className="flex items-center justify-between">
           <div>
-            <p>AI Status</p>
-            <p>Claude AI (Haiku)</p>
+            <p className="text-sm font-semibold text-white">AI Status</p>
+            <p className="text-xs" style={{ color: "#777" }}>Claude AI (Haiku)</p>
           </div>
-          <button onClick={testAI}>
+          <button
+            onClick={testAI}
+            className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors hover:bg-white/5"
+            style={{ color: "#aaa", borderColor: "rgba(72,72,71,0.3)" }}
+          >
             {testStatus === "testing-ai"
               ? "Testing…"
               : testStatus === "ai-success"
@@ -559,13 +594,17 @@ export default function SettingsView() {
                   : "Test"}
           </button>
         </div>
-        <div />
-        <div>
+        <div className="border-t" style={{ borderColor: "rgba(72,72,71,0.2)" }} />
+        <div className="flex items-center justify-between">
           <div>
-            <p>Database</p>
-            <p>Supabase</p>
+            <p className="text-sm font-semibold text-white">Database</p>
+            <p className="text-xs" style={{ color: "#777" }}>Supabase</p>
           </div>
-          <button onClick={testDB}>
+          <button
+            onClick={testDB}
+            className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors hover:bg-white/5"
+            style={{ color: "#aaa", borderColor: "rgba(72,72,71,0.3)" }}
+          >
             {testStatus === "testing"
               ? "Testing…"
               : testStatus === "success"
@@ -578,15 +617,19 @@ export default function SettingsView() {
       </div>
 
       {/* ── Security PIN ── */}
-      <div>
-        <p>Security PIN</p>
-        <p>
+      <div className="rounded-2xl border p-4 space-y-3" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
+        <p className="text-sm font-semibold text-white">Security PIN</p>
+        <p className="text-xs" style={{ color: "#aaa" }}>
           {pinSet
             ? "PIN is active — sensitive AI responses are protected."
             : "No PIN set — credentials in AI responses are shown unguarded."}
         </p>
-        <div>
-          <button onClick={() => setShowPinModal(true)}>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowPinModal(true)}
+            className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors hover:bg-white/5"
+            style={{ color: "#72eff5", borderColor: "rgba(114,239,245,0.2)" }}
+          >
             {pinSet ? "Change PIN" : "Set PIN"}
           </button>
           {pinSet && (
@@ -595,6 +638,8 @@ export default function SettingsView() {
                 removePin();
                 setPinSet(false);
               }}
+              className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors hover:bg-white/5"
+              style={{ color: "#ff6e84", borderColor: "rgba(255,110,132,0.3)" }}
             >
               Remove
             </button>
@@ -603,7 +648,7 @@ export default function SettingsView() {
       </div>
 
       {/* ── Notifications ── */}
-      <div>
+      <div className="rounded-2xl border p-4" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
         <NotificationSettings />
       </div>
 
@@ -612,18 +657,18 @@ export default function SettingsView() {
 
       {/* ── Brain Members ── */}
       {activeBrain && (
-        <div>
-          <p>
+        <div className="rounded-2xl border p-4 space-y-3" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
+          <p className="text-sm font-semibold text-white">
             {activeBrain.name} — Members
           </p>
           {members.length > 0 && (
-            <div>
+            <div className="space-y-2">
               {members.map((m) => (
-                <div key={m.user_id}>
-                  <span>
+                <div key={m.user_id} className="flex items-center gap-2 text-xs">
+                  <span className="font-mono" style={{ color: "#aaa" }}>
                     {m.user_id.slice(0, 8)}…
                   </span>
-                  <span>
+                  <span className="rounded-full px-2 py-0.5" style={{ color: "#72eff5", background: "rgba(114,239,245,0.1)" }}>
                     {m.role}
                   </span>
                   {canManageMembers && (
@@ -631,11 +676,17 @@ export default function SettingsView() {
                       <select
                         value={m.role}
                         onChange={(e) => handleRoleChange(m.user_id, e.target.value)}
+                        className="rounded-xl px-2 py-1 text-xs bg-transparent border outline-none text-white"
+                        style={{ borderColor: "rgba(72,72,71,0.3)" }}
                       >
                         <option value="member">Member</option>
                         <option value="viewer">Viewer</option>
                       </select>
-                      <button onClick={() => handleRemoveMember(m.user_id)}>
+                      <button
+                        onClick={() => handleRemoveMember(m.user_id)}
+                        className="text-xs transition-colors hover:underline"
+                        style={{ color: "#ff6e84" }}
+                      >
                         Remove
                       </button>
                     </>
@@ -645,18 +696,24 @@ export default function SettingsView() {
             </div>
           )}
           {canInvite && (
-            <div>
-              <p>Invite someone to this brain</p>
-              <div>
+            <div className="space-y-2 pt-2 border-t" style={{ borderColor: "rgba(72,72,71,0.2)" }}>
+              <p className="text-xs font-medium" style={{ color: "#777" }}>Invite someone to this brain</p>
+              <div className="flex items-center gap-2">
                 <input
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                   placeholder="their@email.com"
                   type="email"
+                  className="flex-1 rounded-xl px-3 py-2 text-xs bg-transparent border outline-none text-white placeholder:text-[#555]"
+                  style={{ borderColor: "rgba(72,72,71,0.3)" }}
+                  onFocus={(e) => (e.target.style.borderColor = "rgba(114,239,245,0.5)")}
+                  onBlur={(e) => (e.target.style.borderColor = "rgba(72,72,71,0.3)")}
                 />
                 <select
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value)}
+                  className="rounded-xl px-2 py-2 text-xs bg-transparent border outline-none text-white"
+                  style={{ borderColor: "rgba(72,72,71,0.3)" }}
                 >
                   <option value="member">Member</option>
                   <option value="viewer">Viewer</option>
@@ -664,6 +721,11 @@ export default function SettingsView() {
                 <button
                   onClick={handleInvite}
                   disabled={!inviteEmail.trim() || inviteStatus === "sending"}
+                  className="rounded-xl px-3 py-2 text-xs font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
+                  style={{
+                    background: "linear-gradient(135deg, #72eff5, #1fb1b7)",
+                    color: "#0a0a0a",
+                  }}
                 >
                   {inviteStatus === "sending"
                     ? "…"
@@ -677,34 +739,44 @@ export default function SettingsView() {
             </div>
           )}
           {!canInvite && (
-            <p>Only the brain owner can invite members.</p>
+            <p className="text-xs" style={{ color: "#555" }}>Only the brain owner can invite members.</p>
           )}
         </div>
       )}
 
       {/* ── Advanced toggle ── */}
-      <button onClick={() => setShowAdvanced((s) => !s)}>
-        <div>
-          <p>Advanced</p>
-          <p>
+      <button
+        onClick={() => setShowAdvanced((s) => !s)}
+        className="w-full rounded-2xl border p-4 flex items-center justify-between transition-colors hover:bg-white/5"
+        style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}
+      >
+        <div className="text-left">
+          <p className="text-sm font-semibold text-white">Advanced</p>
+          <p className="text-xs" style={{ color: "#777" }}>
             AI provider, embeddings, voice, Telegram
           </p>
         </div>
-        <span>{showAdvanced ? "▾" : "▸"}</span>
+        <span style={{ color: "#555" }}>{showAdvanced ? "▾" : "▸"}</span>
       </button>
 
       {showAdvanced && <>
       {/* AI Provider / BYO Key */}
-      <div>
-        <p>AI Provider</p>
-        <p>
+      <div className="rounded-2xl border p-4 space-y-3" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
+        <p className="text-sm font-semibold text-white">AI Provider</p>
+        <p className="text-xs" style={{ color: "#aaa" }}>
           Use your own API key — no OpenBrain credits deducted. Leave blank to use the shared key.
         </p>
-        <div>
+        <div className="flex items-center gap-2">
           {["anthropic", "openrouter"].map((p) => (
             <button
               key={p}
               onClick={() => saveByoProvider(p)}
+              className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors"
+              style={{
+                color: byoProvider === p ? "#0a0a0a" : "#aaa",
+                borderColor: byoProvider === p ? "transparent" : "rgba(72,72,71,0.3)",
+                background: byoProvider === p ? "linear-gradient(135deg, #72eff5, #1fb1b7)" : "transparent",
+              }}
             >
               {p === "openrouter" ? "OpenRouter" : p.charAt(0).toUpperCase() + p.slice(1)}
             </button>
@@ -712,33 +784,44 @@ export default function SettingsView() {
         </div>
         {byoProvider === "openrouter" ? (
           <>
-            <p>
+            <p className="text-xs" style={{ color: "#777" }}>
               OpenRouter lets you use hundreds of models with one key.{" "}
               <a
                 href="https://openrouter.ai/keys"
                 target="_blank"
                 rel="noreferrer"
+                style={{ color: "#72eff5" }}
               >
                 Get a key →
               </a>
             </p>
-            <div>
-              <p>
+            <div className="space-y-1">
+              <p className="text-xs font-medium" style={{ color: "#777" }}>
                 OpenRouter API Key
               </p>
-              <div>
+              <div className="flex items-center gap-2">
                 <input
                   type={showKey ? "text" : "password"}
                   value={orKey}
                   onChange={(e) => saveOrKey(e.target.value)}
                   placeholder="sk-or-..."
+                  className="flex-1 rounded-xl px-3 py-2 text-xs bg-transparent border outline-none text-white placeholder:text-[#555]"
+                  style={{ borderColor: "rgba(72,72,71,0.3)" }}
+                  onFocus={(e) => (e.target.style.borderColor = "rgba(114,239,245,0.5)")}
+                  onBlur={(e) => (e.target.style.borderColor = "rgba(72,72,71,0.3)")}
                 />
-                <button onClick={() => setShowKey((s) => !s)}>
+                <button
+                  onClick={() => setShowKey((s) => !s)}
+                  className="rounded-xl px-2 py-2 text-xs border transition-colors hover:bg-white/5"
+                  style={{ color: "#777", borderColor: "rgba(72,72,71,0.3)" }}
+                >
                   {showKey ? "Hide" : "Show"}
                 </button>
                 <button
                   onClick={testByoKey}
                   disabled={!orKey}
+                  className="rounded-xl px-2 py-2 text-xs border transition-colors hover:bg-white/5 disabled:opacity-40"
+                  style={{ color: "#aaa", borderColor: "rgba(72,72,71,0.3)" }}
                 >
                   {byoTestStatus === "testing"
                     ? "…"
@@ -750,11 +833,11 @@ export default function SettingsView() {
                 </button>
               </div>
             </div>
-            <div>
-              <p>
+            <div className="space-y-1">
+              <p className="text-xs font-medium" style={{ color: "#777" }}>
                 Model{" "}
                 {orModels.length > 0 && (
-                  <span>
+                  <span style={{ color: "#555" }}>
                     ({orModels.length} available)
                   </span>
                 )}
@@ -762,6 +845,8 @@ export default function SettingsView() {
               <select
                 value={orModel}
                 onChange={(e) => saveOrModel(e.target.value)}
+                className="w-full rounded-xl px-3 py-2 text-xs bg-transparent border outline-none text-white"
+                style={{ borderColor: "rgba(72,72,71,0.3)" }}
               >
                 {(orModels.length > 0
                   ? orModels.map((m) => ({
@@ -775,34 +860,49 @@ export default function SettingsView() {
                   </option>
                 ))}
               </select>
-              <p>
+              <p className="text-[10px]" style={{ color: "#555" }}>
                 Tip: choose a model with ZDR (zero data retention) for sensitive entries.
               </p>
             </div>
           </>
         ) : (
           <>
-            <div>
-              <p>API Key</p>
-              <div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium" style={{ color: "#777" }}>API Key</p>
+              <div className="flex items-center gap-2">
                 <input
                   type={showKey ? "text" : "password"}
                   value={byoKey}
                   onChange={(e) => saveByoKey(e.target.value)}
                   placeholder={byoProvider === "openai" ? "sk-..." : "sk-ant-..."}
+                  className="flex-1 rounded-xl px-3 py-2 text-xs bg-transparent border outline-none text-white placeholder:text-[#555]"
+                  style={{ borderColor: "rgba(72,72,71,0.3)" }}
+                  onFocus={(e) => (e.target.style.borderColor = "rgba(114,239,245,0.5)")}
+                  onBlur={(e) => (e.target.style.borderColor = "rgba(72,72,71,0.3)")}
                 />
-                <button onClick={() => setShowKey((s) => !s)}>
+                <button
+                  onClick={() => setShowKey((s) => !s)}
+                  className="rounded-xl px-2 py-2 text-xs border transition-colors hover:bg-white/5"
+                  style={{ color: "#777", borderColor: "rgba(72,72,71,0.3)" }}
+                >
                   {showKey ? "Hide" : "Show"}
                 </button>
                 <button
                   onClick={handleSaveKey}
                   disabled={!byoKey}
+                  className="rounded-xl px-2 py-2 text-xs font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
+                  style={{
+                    background: "linear-gradient(135deg, #72eff5, #1fb1b7)",
+                    color: "#0a0a0a",
+                  }}
                 >
                   {keySaved ? "Saved!" : "Save"}
                 </button>
                 <button
                   onClick={testByoKey}
                   disabled={!byoKey}
+                  className="rounded-xl px-2 py-2 text-xs border transition-colors hover:bg-white/5 disabled:opacity-40"
+                  style={{ color: "#aaa", borderColor: "rgba(72,72,71,0.3)" }}
                 >
                   {byoTestStatus === "testing"
                     ? "…"
@@ -814,11 +914,13 @@ export default function SettingsView() {
                 </button>
               </div>
             </div>
-            <div>
-              <p>Model</p>
+            <div className="space-y-1">
+              <p className="text-xs font-medium" style={{ color: "#777" }}>Model</p>
               <select
                 value={byoModel}
                 onChange={(e) => saveByoModel(e.target.value)}
+                className="w-full rounded-xl px-3 py-2 text-xs bg-transparent border outline-none text-white"
+                style={{ borderColor: "rgba(72,72,71,0.3)" }}
               >
                 {modelOptions.map((m) => (
                   <option key={m} value={m}>
@@ -832,67 +934,94 @@ export default function SettingsView() {
       </div>
 
       {/* Embedding Provider */}
-      <div>
-        <p>Semantic Search & RAG</p>
-        <p>
+      <div className="rounded-2xl border p-4 space-y-3" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
+        <p className="text-sm font-semibold text-white">Semantic Search & RAG</p>
+        <p className="text-xs" style={{ color: "#aaa" }}>
           Powers semantic search, RAG chat, and smarter connection discovery. Requires a separate
           embedding API key.
         </p>
-        <div>
+        <div className="flex items-center gap-2">
           {["openai", "google"].map((p) => (
             <button
               key={p}
               onClick={() => saveEmbedProvider(p)}
+              className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors"
+              style={{
+                color: embedProvider === p ? "#0a0a0a" : "#aaa",
+                borderColor: embedProvider === p ? "transparent" : "rgba(72,72,71,0.3)",
+                background: embedProvider === p ? "linear-gradient(135deg, #72eff5, #1fb1b7)" : "transparent",
+              }}
             >
               {p === "openai" ? "OpenAI" : "Google"}
             </button>
           ))}
         </div>
         {embedProvider === "openai" ? (
-          <div>
-            <p>
+          <div className="space-y-1">
+            <p className="text-xs font-medium" style={{ color: "#777" }}>
               OpenAI API Key{" "}
-              <span>(text-embedding-3-small)</span>
+              <span style={{ color: "#555" }}>(text-embedding-3-small)</span>
             </p>
-            <div>
+            <div className="flex items-center gap-2">
               <input
                 type={showEmbedKey ? "text" : "password"}
                 value={embedOpenAIKey}
                 onChange={(e) => saveEmbedOpenAIKey(e.target.value)}
                 placeholder="sk-..."
+                className="flex-1 rounded-xl px-3 py-2 text-xs bg-transparent border outline-none text-white placeholder:text-[#555]"
+                style={{ borderColor: "rgba(72,72,71,0.3)" }}
+                onFocus={(e) => (e.target.style.borderColor = "rgba(114,239,245,0.5)")}
+                onBlur={(e) => (e.target.style.borderColor = "rgba(72,72,71,0.3)")}
               />
-              <button onClick={() => setShowEmbedKey((s) => !s)}>
+              <button
+                onClick={() => setShowEmbedKey((s) => !s)}
+                className="rounded-xl px-2 py-2 text-xs border transition-colors hover:bg-white/5"
+                style={{ color: "#777", borderColor: "rgba(72,72,71,0.3)" }}
+              >
                 {showEmbedKey ? "Hide" : "Show"}
               </button>
             </div>
           </div>
         ) : (
-          <div>
-            <p>
+          <div className="space-y-1">
+            <p className="text-xs font-medium" style={{ color: "#777" }}>
               Google Gemini API Key{" "}
-              <span>(text-embedding-004)</span>
+              <span style={{ color: "#555" }}>(text-embedding-004)</span>
             </p>
-            <div>
+            <div className="flex items-center gap-2">
               <input
                 type={showEmbedKey ? "text" : "password"}
                 value={geminiKey}
                 onChange={(e) => saveGeminiKey(e.target.value)}
                 placeholder="AIza..."
+                className="flex-1 rounded-xl px-3 py-2 text-xs bg-transparent border outline-none text-white placeholder:text-[#555]"
+                style={{ borderColor: "rgba(72,72,71,0.3)" }}
+                onFocus={(e) => (e.target.style.borderColor = "rgba(114,239,245,0.5)")}
+                onBlur={(e) => (e.target.style.borderColor = "rgba(72,72,71,0.3)")}
               />
-              <button onClick={() => setShowEmbedKey((s) => !s)}>
+              <button
+                onClick={() => setShowEmbedKey((s) => !s)}
+                className="rounded-xl px-2 py-2 text-xs border transition-colors hover:bg-white/5"
+                style={{ color: "#777", borderColor: "rgba(72,72,71,0.3)" }}
+              >
                 {showEmbedKey ? "Hide" : "Show"}
               </button>
             </div>
           </div>
         )}
         {activeBrain && (
-          <div>
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => handleReembed()}
               disabled={
                 embedStatus === "running" ||
                 !(embedProvider === "google" ? geminiKey : embedOpenAIKey)
               }
+              className="rounded-xl px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
+              style={{
+                background: "linear-gradient(135deg, #72eff5, #1fb1b7)",
+                color: "#0a0a0a",
+              }}
             >
               {embedStatus?.startsWith("running")
                 ? `Embedding…${embedStatus.includes(":") ? ` (${embedStatus.split(":")[1]})` : ""}`
@@ -904,11 +1033,13 @@ export default function SettingsView() {
                 embedStatus?.startsWith("running") ||
                 !(embedProvider === "google" ? geminiKey : embedOpenAIKey)
               }
+              className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors hover:bg-white/5 disabled:opacity-40"
+              style={{ color: "#aaa", borderColor: "rgba(72,72,71,0.3)" }}
             >
               Re-embed all
             </button>
             {embedStatus && !embedStatus.startsWith("running") && (
-              <span>
+              <span className="text-xs" style={{ color: embedStatus.startsWith("error") ? "#ff6e84" : "#72eff5" }}>
                 {embedStatus.startsWith("error")
                   ? `✗ ${embedStatus.split(":").slice(1).join(":") || "Failed"}`
                   : (() => {
@@ -919,30 +1050,31 @@ export default function SettingsView() {
             )}
           </div>
         )}
-        <p>
+        <p className="text-[10px]" style={{ color: "#555" }}>
           New entries are embedded automatically. Use "Embed all" to backfill or after switching providers.
         </p>
       </div>
 
       {/* Voice Transcription */}
-      <div>
-        <p>Voice Transcription</p>
-        <p>
+      <div className="rounded-2xl border p-4 space-y-3" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
+        <p className="text-sm font-semibold text-white">Voice Transcription</p>
+        <p className="text-xs" style={{ color: "#aaa" }}>
           Powers the mic button in Quick Capture. Uses Groq Whisper (fast, free tier).{" "}
           <a
             href="https://console.groq.com/keys"
             target="_blank"
             rel="noreferrer"
+            style={{ color: "#72eff5" }}
           >
             Get a free key →
           </a>
         </p>
-        <div>
-          <p>
+        <div className="space-y-1">
+          <p className="text-xs font-medium" style={{ color: "#777" }}>
             Groq API Key{" "}
-            <span>(whisper-large-v3-turbo)</span>
+            <span style={{ color: "#555" }}>(whisper-large-v3-turbo)</span>
           </p>
-          <div>
+          <div className="flex items-center gap-2">
             <input
               type={showGroqKey ? "text" : "password"}
               value={groqKeyVal}
@@ -951,12 +1083,20 @@ export default function SettingsView() {
                 setGroqKey(e.target.value);
               }}
               placeholder="gsk_..."
+              className="flex-1 rounded-xl px-3 py-2 text-xs bg-transparent border outline-none text-white placeholder:text-[#555]"
+              style={{ borderColor: "rgba(72,72,71,0.3)" }}
+              onFocus={(e) => (e.target.style.borderColor = "rgba(114,239,245,0.5)")}
+              onBlur={(e) => (e.target.style.borderColor = "rgba(72,72,71,0.3)")}
             />
-            <button onClick={() => setShowGroqKey((s) => !s)}>
+            <button
+              onClick={() => setShowGroqKey((s) => !s)}
+              className="rounded-xl px-2 py-2 text-xs border transition-colors hover:bg-white/5"
+              style={{ color: "#777", borderColor: "rgba(72,72,71,0.3)" }}
+            >
               {showGroqKey ? "Hide" : "Show"}
             </button>
           </div>
-          <p>
+          <p className="text-[10px]" style={{ color: "#555" }}>
             Also works with an OpenAI key (set above) — but Groq is faster and free.
           </p>
         </div>
