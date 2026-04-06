@@ -53,6 +53,9 @@ Only identify these specific issues (nothing else):
 5. DATE_FOUND — A specific future deadline or due date is explicitly mentioned in content and not already in metadata.due_date. Only for actual deadlines, not historical dates.
 6. TITLE_POOR — Title is so vague it could describe anything (e.g. "Note", "Info", "Misc"). Very high bar — only if the title is genuinely useless.
 7. SPLIT_SUGGESTED — Entry content contains multiple clearly distinct topics, facts, or records that should each be their own entry. Example: a single entry containing a company registration number AND directors AND address should be split. A recipe collection crammed into one entry should be split. Only flag if there are 2+ clearly separable items. suggestedValue should be a short description of how to split (e.g. "Split into: CIPC number, directors, tax number").
+8. MERGE_SUGGESTED — Two or more entries in this batch are clearly about the same thing and should be merged into one. Example: "John Smith phone" and "John Smith email" should be a single contact entry; two entries about the same event with overlapping info should merge. entryId is the primary entry to keep, suggestedValue is the ID of the entry to merge into it, and currentValue lists both titles. Only flag if the entries are obviously duplicates or fragments of the same record.
+9. CONTENT_WEAK — Entry has a title but content is empty, trivially short (under 10 words), or just repeats the title. suggestedValue should be a brief description of what content should be added (e.g. "Add address, phone number, and business hours"). Only flag if the entry type clearly warrants more detail (contacts, places, documents, decisions).
+10. TAG_SUGGESTED — Entry has no tags or obviously missing important tags based on its content. suggestedValue should be comma-separated suggested tags (max 4). Only flag if the tags are clearly warranted and useful for search/filtering.
 
 Hard rules:
 - Only suggest if confidence > 90%
@@ -61,9 +64,12 @@ Hard rules:
 - For TYPE_MISMATCH: suggestedValue must be one of: note, reminder, document, contact, person, place, idea, color, decision, secret. Use "secret" for entries containing passwords, PINs, credit card numbers, bank details, or credentials
 - For DATE_FOUND: suggestedValue must be ISO date string YYYY-MM-DD
 - For SPLIT_SUGGESTED: suggestedValue is a brief description of the suggested split
+- For MERGE_SUGGESTED: entryId is the entry to keep, suggestedValue is the entry ID to merge into it, currentValue lists both titles separated by " + "
+- For CONTENT_WEAK: suggestedValue is a brief description of what content to add
+- For TAG_SUGGESTED: suggestedValue is comma-separated tag suggestions
 - Return ONLY a valid JSON array, no markdown, no explanation
 
-Schema: [{"entryId":"...","entryTitle":"...","type":"TYPE_MISMATCH|PHONE_FOUND|EMAIL_FOUND|URL_FOUND|DATE_FOUND|TITLE_POOR|SPLIT_SUGGESTED","field":"type|metadata.phone|metadata.email|metadata.url|metadata.due_date|title|content","currentValue":"...","suggestedValue":"...","reason":"max 90 chars"}]
+Schema: [{"entryId":"...","entryTitle":"...","type":"TYPE_MISMATCH|PHONE_FOUND|EMAIL_FOUND|URL_FOUND|DATE_FOUND|TITLE_POOR|SPLIT_SUGGESTED|MERGE_SUGGESTED|CONTENT_WEAK|TAG_SUGGESTED","field":"type|metadata.phone|metadata.email|metadata.url|metadata.due_date|title|content|tags","currentValue":"...","suggestedValue":"...","reason":"max 90 chars"}]
 
 If nothing is wrong, return: []`,
 

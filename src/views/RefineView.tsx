@@ -54,6 +54,9 @@ const LABELS = {
   DATE_FOUND: { label: "Date / deadline", icon: "📅", color: "#FF6B35" },
   TITLE_POOR: { label: "Better title", icon: "✏️", color: "#DDA0DD" },
   SPLIT_SUGGESTED: { label: "Split entry", icon: "✂️", color: "#E17055" },
+  MERGE_SUGGESTED: { label: "Merge entries", icon: "🔀", color: "#74B9FF" },
+  CONTENT_WEAK: { label: "Needs content", icon: "📝", color: "#FDCB6E" },
+  TAG_SUGGESTED: { label: "Add tags", icon: "🏷️", color: "#00CEC9" },
   LINK_SUGGESTED: { label: "Relationship", icon: "⟷", color: "#96CEB4" },
 };
 
@@ -262,33 +265,67 @@ export default function RefineView({
         return;
       }
 
-      const body: Record<string, any> = { id: entry.id };
-      if (s.field === "type") body.type = value;
-      else if (s.field === "title") body.title = value;
-      else if (s.field.startsWith("metadata.")) {
-        const k = s.field.slice("metadata.".length);
-        body.metadata = { ...(entry.metadata || {}), [k]: value };
-      }
+      /* ── MERGE: combine two entries into one, delete the other ── */
+      if (s.type === "MERGE_SUGGESTED") {
+        const mergeTargetId = s.suggestedValue; // ID of entry to merge in
+        const mergeTarget = entries.find((e: Entry) => e.id === mergeTargetId);
+        if (mergeTarget) {
+          // Combine content and tags into the primary entry
+          const combinedContent = [entry.content, mergeTarget.content].filter(Boolean).join("\n\n");
+          const combinedTags = [...new Set([...(entry.tags || []), ...(mergeTarget.tags || [])])];
+          const combinedMeta = { ...(mergeTarget.metadata || {}), ...(entry.metadata || {}) };
+          try {
+            await authFetch("/api/update-entry", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: entry.id, content: combinedContent, tags: combinedTags, metadata: combinedMeta }),
+            });
+            await authFetch("/api/delete-entry", {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: mergeTargetId }),
+            });
+            setEntries((prev) =>
+              prev
+                .map((e) => e.id === entry.id ? { ...e, content: combinedContent, tags: combinedTags, metadata: combinedMeta } : e)
+                .filter((e) => e.id !== mergeTargetId),
+            );
+          } catch {}
+        }
+      } else {
+        /* ── Standard field updates ── */
+        const body: Record<string, any> = { id: entry.id };
+        if (s.field === "type") body.type = value;
+        else if (s.field === "title") body.title = value;
+        else if (s.field === "tags") body.tags = value.split(",").map((t: string) => t.trim()).filter(Boolean);
+        else if (s.field === "content") body.content = value;
+        else if (s.field.startsWith("metadata.")) {
+          const k = s.field.slice("metadata.".length);
+          body.metadata = { ...(entry.metadata || {}), [k]: value };
+        }
 
-      try {
-        await authFetch("/api/update-entry", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        setEntries((prev) =>
-          prev.map((e) => {
-            if (e.id !== entry.id) return e;
-            if (s.field === "type") return { ...e, type: value as any };
-            if (s.field === "title") return { ...e, title: value };
-            if (s.field.startsWith("metadata.")) {
-              const k = s.field.slice("metadata.".length);
-              return { ...e, metadata: { ...(e.metadata || {}), [k]: value } };
-            }
-            return e;
-          }),
-        );
-      } catch {}
+        try {
+          await authFetch("/api/update-entry", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          setEntries((prev) =>
+            prev.map((e) => {
+              if (e.id !== entry.id) return e;
+              if (s.field === "type") return { ...e, type: value as any };
+              if (s.field === "title") return { ...e, title: value };
+              if (s.field === "tags") return { ...e, tags: value.split(",").map((t: string) => t.trim()).filter(Boolean) };
+              if (s.field === "content") return { ...e, content: value };
+              if (s.field.startsWith("metadata.")) {
+                const k = s.field.slice("metadata.".length);
+                return { ...e, metadata: { ...(e.metadata || {}), [k]: value } };
+              }
+              return e;
+            }),
+          );
+        } catch {}
+      }
 
       setDismissed((p) => new Set(p).add(key));
       setApplying((p) => {
