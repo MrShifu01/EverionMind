@@ -140,7 +140,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     const brains: any[] = await brainRes.json();
     if (!brains.length) return res.status(403).json({ error: "Not the brain owner" });
 
-    // Generate token server-side (avoids pgcrypto dependency in DB)
+    // Generate token server-side — avoids relying on pgcrypto DB extension
     const token = randomBytes(32).toString("hex");
     const brainName = brains[0]?.name || "a brain";
 
@@ -163,11 +163,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
 
     if (!inviteRes.ok) {
       const detail = await inviteRes.text().catch(() => "");
-      console.error("[brains:invite] Failed:", detail);
-      return res.status(502).json({ error: "Failed to create invite" });
+      console.error("[brains:invite] Failed:", inviteRes.status, detail);
+      return res.status(502).json({ error: "Failed to create invite", detail });
     }
 
-    const [invite]: any[] = await inviteRes.json();
+    const inviteData = await inviteRes.json().catch(() => []);
+    const invite = Array.isArray(inviteData) ? inviteData[0] : inviteData;
 
     // Send email notification via Resend (fire-and-forget; non-fatal if unconfigured)
     const resendKey = process.env.RESEND_API_KEY;

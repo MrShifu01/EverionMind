@@ -6,7 +6,9 @@ import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 
-const ALLOWED_TYPES = ["note", "person", "place", "idea", "contact", "document", "reminder", "color", "decision", "secret"];
+// Entry types are flexible — the AI decides the best label.
+// The only reserved type is "secret" (triggers E2E encryption).
+// We sanitise the value but impose no whitelist.
 
 // SEC-15: Whitelist allowed rel values
 const ALLOWED_RELS = ['related', 'mentions', 'links-to', 'contradicts'];
@@ -31,10 +33,6 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
   if (!p_title || typeof p_title !== "string" || p_title.trim().length === 0) {
     return res.status(400).json({ error: "Missing or invalid title" });
   }
-  if (p_type !== undefined && !ALLOWED_TYPES.includes(p_type)) {
-    return res.status(400).json({ error: "Invalid type" });
-  }
-
   if (p_extra_brain_ids !== undefined && p_extra_brain_ids !== null) {
     if (!Array.isArray(p_extra_brain_ids)) {
       return res.status(400).json({ error: "p_extra_brain_ids must be an array" });
@@ -51,7 +49,7 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
   const safeBody: Record<string, any> = {
     p_title: p_title.trim().slice(0, 500),
     p_content: p_content ? String(p_content).slice(0, 10000) : "",
-    p_type: ALLOWED_TYPES.includes(p_type) ? p_type : "note",
+    p_type: typeof p_type === "string" && p_type.trim() ? p_type.trim().slice(0, 50).toLowerCase() : "note",
     p_metadata: p_metadata && typeof p_metadata === "object" && !Array.isArray(p_metadata) ? p_metadata : {},
     p_tags: Array.isArray(p_tags) ? p_tags.filter((t: any) => typeof t === "string").slice(0, 50) : [],
     p_user_id: user.id,

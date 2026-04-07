@@ -2,33 +2,18 @@
  * AI-powered file content splitting utilities.
  * Takes extracted text from uploaded files and determines
  * if/how it should be split into multiple OpenBrain entries.
+ *
+ * Entry types are flexible — the AI chooses the most descriptive label.
+ * The only reserved type is "secret", which triggers E2E encryption.
  */
-
-const VALID_CAPTURE_TYPES = [
-  "note", "person", "place", "idea", "contact",
-  "document", "reminder", "color", "decision", "secret",
-] as const;
-
-type CaptureType = typeof VALID_CAPTURE_TYPES[number];
 
 interface SplitEntry {
   title: string;
   content: string;
-  type: CaptureType;
+  type: string;
   metadata?: Record<string, unknown>;
   tags?: string[];
 }
-
-/**
- * Normalise an AI-returned type value to a valid CaptureType.
- * Falls back to "note" if the value is missing or not in the allowed list.
- */
-export function normaliseType(type: string | undefined | null): CaptureType {
-  return VALID_CAPTURE_TYPES.includes(type as CaptureType)
-    ? (type as CaptureType)
-    : "note";
-}
-
 /**
  * Heuristic check: should this content be sent to AI for splitting?
  * Returns true if content is long enough and has structural indicators
@@ -65,6 +50,8 @@ export function buildSplitPrompt(content: string, brainType: string): string {
 
 /**
  * Parse the AI response from a FILE_SPLIT call into entry objects.
+ * Types are passed through as-is — AI decides the best descriptive label.
+ * Falls back to "note" only when the type field is missing or empty.
  */
 export function parseAISplitResponse(raw: string): SplitEntry[] {
   try {
@@ -75,7 +62,7 @@ export function parseAISplitResponse(raw: string): SplitEntry[] {
       .filter((e: any) => e && typeof e.title === "string" && e.title.trim())
       .map((e: any) => ({
         ...e,
-        type: normaliseType(e.type),
+        type: typeof e.type === "string" && e.type.trim() ? e.type.trim() : "note",
       }));
   } catch {
     return [];

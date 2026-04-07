@@ -12,7 +12,7 @@ import { recordDecision } from "../lib/learningEngine";
 import { TC } from "../data/constants";
 import { PROMPTS } from "../config/prompts";
 import { isSupportedFile, isTextFile, readTextFile, readFileAsBase64 } from "../lib/fileParser";
-import { shouldSplitContent, buildSplitPrompt, parseAISplitResponse, normaliseType } from "../lib/fileSplitter";
+import { shouldSplitContent, buildSplitPrompt, parseAISplitResponse } from "../lib/fileSplitter";
 
 const BRAIN_META_QC = {
   personal: { emoji: "🧠" },
@@ -360,7 +360,7 @@ export default function QuickCapture({
           body: JSON.stringify({
             p_title: parsed.title,
             p_content: parsed.content || "",
-            p_type: normaliseType(parsed.type),
+            p_type: parsed.type || "note",
             p_metadata: parsed.metadata || {},
             p_tags: parsed.tags || [],
             p_brain_id: primaryBrainId,
@@ -369,6 +369,17 @@ export default function QuickCapture({
         });
         if (rpcRes.ok) {
           const result = await rpcRes.json();
+          // Client-side embed: more reliable than server fire-and-forget
+          if (result?.id && parsed.type !== "secret") {
+            const embedHeaders = getEmbedHeaders();
+            if (embedHeaders) {
+              authFetch("/api/embed", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...embedHeaders },
+                body: JSON.stringify({ entry_id: result.id }),
+              }).catch(() => {});
+            }
+          }
           const newEntry = {
             id: result?.id || Date.now().toString() + savedCount,
             ...parsed,
@@ -640,7 +651,7 @@ export default function QuickCapture({
               body: JSON.stringify({
                 p_title: parsed.title,
                 p_content: serverContent,
-                p_type: normaliseType(parsed.type),
+                p_type: parsed.type || "note",
                 p_metadata: serverMetadata,
                 p_tags: parsed.tags || [],
                 p_brain_id: primaryBrainId,
@@ -649,6 +660,17 @@ export default function QuickCapture({
             });
             if (rpcRes.ok) {
               const result = await rpcRes.json();
+              // Client-side embed: fire immediately after capture succeeds
+              if (result?.id && !isSecret) {
+                const embedHeaders = getEmbedHeaders();
+                if (embedHeaders) {
+                  authFetch("/api/embed", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", ...embedHeaders },
+                    body: JSON.stringify({ entry_id: result.id }),
+                  }).catch(() => {});
+                }
+              }
               const newEntry = {
                 id: result?.id || Date.now().toString(),
                 title: parsed.title,
@@ -663,7 +685,6 @@ export default function QuickCapture({
               setEntries((prev) => [newEntry, ...prev]);
               onCreated?.(newEntry);
               setStatus("saved-db");
-              // Embedding now handled server-side in /api/capture
               // PERF-6: debounce findConnections by 5 s; skip during bulk import
               // (heuristic: if entries grew by more than 3 since last run, it's a bulk import)
               const currentLength = entries.length;

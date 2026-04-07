@@ -1,16 +1,9 @@
 // ─── Core Domain Types ───
 
-export type EntryType =
-  | "reminder"
-  | "document"
-  | "contact"
-  | "place"
-  | "person"
-  | "idea"
-  | "color"
-  | "decision"
-  | "note"
-  | "secret";
+// Entry types are flexible strings — the AI picks the most descriptive label.
+// Well-known types with dedicated icons: reminder, document, contact, place,
+// person, idea, color, decision, note. "secret" is reserved for E2E encryption.
+export type EntryType = string;
 
 export type Priority = "high" | "medium" | "low";
 

@@ -1,6 +1,7 @@
 import type { EntryType, TypeConfig, Priority, PriorityConfig, Entry, Link } from "../types";
 
-export const TC: Record<EntryType, TypeConfig> = {
+// Well-known type icons — unknown types fall back to TC.note at the call site.
+export const TC: Record<string, TypeConfig> = {
   reminder: { i: "⏰", c: "#FF6B35" },
   document: { i: "📄", c: "#4ECDC4" },
   contact: { i: "📇", c: "#45B7D1" },

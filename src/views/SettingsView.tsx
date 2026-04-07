@@ -338,12 +338,15 @@ export default function SettingsView() {
         setInviteEmail("");
         setTimeout(() => setInviteStatus(null), 3000);
       } else {
+        const errData = await res.json().catch(() => ({}));
+        console.error("[invite] failed:", res.status, errData);
         setInviteStatus("error");
-        setTimeout(() => setInviteStatus(null), 3000);
+        setTimeout(() => setInviteStatus(null), 4000);
       }
-    } catch {
+    } catch (e) {
+      console.error("[invite] exception:", e);
       setInviteStatus("error");
-      setTimeout(() => setInviteStatus(null), 3000);
+      setTimeout(() => setInviteStatus(null), 4000);
     }
   };
 
