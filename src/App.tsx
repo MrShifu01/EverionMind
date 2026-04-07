@@ -104,6 +104,29 @@ function LoadingScreen(): JSX.Element {
 
 export default function App(): JSX.Element {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
+  const [inviteMsg, setInviteMsg] = useState<string | null>(null);
+
+  // Accept a brain invite token from the URL (?invite=<hex64>)
+  useEffect(() => {
+    if (!session) return;
+    const params = new URLSearchParams(window.location.search);
+    const inviteToken = params.get("invite");
+    if (!inviteToken) return;
+    // Clear the token from the URL immediately
+    window.history.replaceState(null, "", window.location.pathname);
+    fetch("/api/brains?action=accept", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: inviteToken }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.ok) setInviteMsg("You've joined the brain! Refreshing…");
+        else setInviteMsg(data.error || "Invite link invalid or already used.");
+        setTimeout(() => { setInviteMsg(null); window.location.reload(); }, 2500);
+      })
+      .catch(() => setInviteMsg("Failed to accept invite. Please try again."));
+  }, [session]);
 
   useEffect(() => {
     const tokens = getHashTokens();
@@ -135,6 +158,18 @@ export default function App(): JSX.Element {
     <ThemeProvider>
       <ErrorBoundary>
         <MemoryProvider>
+          {inviteMsg && (
+            <div
+              style={{
+                position: "fixed", top: 0, left: 0, right: 0, zIndex: 9999,
+                background: "#1a1919", borderBottom: "1px solid rgba(114,239,245,0.2)",
+                color: "#72eff5", textAlign: "center", padding: "14px 16px",
+                fontSize: "14px", fontFamily: "sans-serif",
+              }}
+            >
+              {inviteMsg}
+            </div>
+          )}
           <OpenBrain />
         </MemoryProvider>
       </ErrorBoundary>
