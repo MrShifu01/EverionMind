@@ -231,5 +231,14 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Prevent iOS from auto-zooming the page when focusing inputs with small text.
+   iOS Safari zooms in when input font-size < 16px; this locks inputs to 16px
+   on mobile without changing their visual appearance (controlled by padding/height). */
+@media (max-width: 1024px) {
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+}
+
 /* App is dark-mode only — light mode removed because all component
    inline styles use hardcoded dark colors that CSS variables can't override */

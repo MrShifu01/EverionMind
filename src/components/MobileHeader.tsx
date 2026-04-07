@@ -41,10 +41,10 @@ export default function MobileHeader({
           </svg>
         </div>
         <h1
-          className="font-bold text-on-surface truncate text-base"
+          className="font-bold text-on-surface text-base"
           style={{ fontFamily: "'Manrope', sans-serif" }}
         >
-          {brainName}
+          OB
         </h1>
       </div>
 
