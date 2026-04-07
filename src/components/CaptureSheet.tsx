@@ -33,7 +33,6 @@ function PreviewModal({
   onCancel: () => void;
 }) {
   const [title, setTitle] = useState(preview.title || "");
-  const [type, setType] = useState(preview.type || "note");
   const [tags, setTags] = useState((preview.tags || []).join(", "));
 
   return (
@@ -89,7 +88,7 @@ function PreviewModal({
               onSave({
                 ...preview,
                 title: title.trim(),
-                type,
+                type: preview.type,
                 tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
               })
             }
