@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { TC } from "../data/constants";
 import { resolveIcon, pickDefaultIcon } from "../lib/typeIcons";
 import { extractPhone, toWaUrl } from "../lib/phone";
+import { authFetch } from "../lib/authFetch";
 import type { Entry, Brain, EntryType } from "../types";
 
 interface DetailLink {
@@ -97,9 +98,7 @@ export default function DetailModal({
   // Fetch extra brain assignments when edit mode opens
   useEffect(() => {
     if (!editing || extraBrainsLoaded || !entry.id) return;
-    fetch(`/api/entry-brains?entry_id=${encodeURIComponent(entry.id)}`, {
-      credentials: "include",
-    })
+    authFetch(`/api/entry-brains?entry_id=${encodeURIComponent(entry.id)}`)
       .then((r) => r.json())
       .then((ids: string[]) => {
         const clean = Array.isArray(ids) ? ids : [];
@@ -138,17 +137,15 @@ export default function DetailModal({
       const toRemove = [...prevSet].filter((id) => !nextSet.has(id));
       await Promise.all([
         ...toAdd.map((brain_id) =>
-          fetch("/api/entry-brains", {
+          authFetch("/api/entry-brains", {
             method: "POST",
-            credentials: "include",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ entry_id: entry.id, brain_id }),
           }).catch(() => {}),
         ),
         ...toRemove.map((brain_id) =>
-          fetch(`/api/entry-brains?entry_id=${encodeURIComponent(entry.id)}&brain_id=${encodeURIComponent(brain_id)}`, {
+          authFetch(`/api/entry-brains?entry_id=${encodeURIComponent(entry.id)}&brain_id=${encodeURIComponent(brain_id)}`, {
             method: "DELETE",
-            credentials: "include",
           }).catch(() => {}),
         ),
       ]);
