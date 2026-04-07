@@ -6,10 +6,12 @@
 export const PROMPTS: Record<string, string> = {
   /** QuickCapture: classify & structure raw text into a typed entry */
   CAPTURE: `You classify and structure a raw text capture into an OpenBrain entry. Return ONLY valid JSON.
-Format: {"title":"...","content":"...","type":"...","metadata":{},"tags":[],"workspace":"business"|"personal"|"both"}
+Format: {"title":"...","content":"...","type":"...","icon":"SINGLE_EMOJI","metadata":{},"tags":[],"workspace":"business"|"personal"|"both"}
 
 TYPE RULES: Choose the most descriptive single-word type for this entry. Be specific and semantic — prefer types like "supplier", "employee", "recipe", "ingredient", "contract", "vehicle", "property" over generic "note". Well-known types include: person, contact, place, document, reminder, idea, decision, color, note — but you are not limited to these.
 - IMPORTANT: Use type "secret" (and ONLY "secret") for passwords, PINs, credit card numbers, bank account details, security codes, API keys, private keys, 2FA backup codes, or any sensitive credentials
+
+ICON RULES: Choose ONE emoji that best represents the type — not the specific entry, the whole category. Examples: recipe→🍳, supplier→📦, vehicle→🚗, person→👤, contract→📋. All entries of the same type must share the same emoji — be consistent.
 
 EXTRACTION RULES:
 - Put phone numbers, IDs into metadata
@@ -129,7 +131,7 @@ EXTRACTION RULES:
 - metadata.price, metadata.unit for costs
 
 Return ONLY a valid JSON array:
-[{"title":"...","content":"...","type":"...","metadata":{},"tags":[]}]
+[{"title":"...","content":"...","type":"...","icon":"SINGLE_EMOJI","metadata":{},"tags":[]}]
 
 If the content is already a single focused topic, return it as a single entry. Never return an empty array — always extract at least one entry.`,
 
