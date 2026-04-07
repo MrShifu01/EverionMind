@@ -69,6 +69,22 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
     }
   }
 
+  // S3-4: URL deduplication — merge instead of duplicate when same URL exists
+  const sourceUrl = safeBody.p_metadata?.source_url || safeBody.p_metadata?.url;
+  if (sourceUrl && p_brain_id) {
+    const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+    const dedupRes = await fetch(`${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(p_brain_id)}&select=id,metadata`, { headers: { "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}` } });
+    if (dedupRes.ok) {
+      const existing: any[] = await dedupRes.json();
+      const dupe = existing.find((e: any) => e.metadata?.source_url === sourceUrl || e.metadata?.url === sourceUrl);
+      if (dupe) {
+        const merged = { ...dupe.metadata, sources: [...(dupe.metadata?.sources || [sourceUrl]), sourceUrl] };
+        await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(dupe.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json", "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}`, "Prefer": "return=representation" }, body: JSON.stringify({ metadata: merged }) });
+        return res.status(200).json({ id: dupe.id, merged: true });
+      }
+    }
+  }
+
   const response = await fetch(`${SB_URL}/rest/v1/rpc/capture`, {
     method: "POST",
     headers: {

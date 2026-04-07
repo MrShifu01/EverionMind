@@ -24,7 +24,11 @@ async function handleExport(req: ApiRequest, res: ApiResponse): Promise<void> {
   const user: any = await verifyAuth(req);
   if (!user) return res.status(401).json({ error: "Unauthorized" });
 
-  const { brain_id } = req.query;
+  const { brain_id, scope } = req.query;
+
+  // S3-2: full account export
+  if (scope === "full") return handleFullExport(req, res, user);
+
   if (!brain_id) return res.status(400).json({ error: "brain_id required" });
 
   // Check role — viewers cannot export
@@ -122,4 +126,28 @@ async function handleImport(req: ApiRequest, res: ApiResponse): Promise<void> {
   }
 
   return res.status(200).json({ imported, skipped, errors: errors.slice(0, 20) });
+}
+
+// S3-2: GET /api/transfer?scope=full — exports ALL brains + entries + links
+async function handleFullExport(req: ApiRequest, res: ApiResponse, user: any): Promise<void> {
+  const brainsRes = await fetch(`${SB_URL}/rest/v1/brains?owner_id=eq.${encodeURIComponent(user.id)}&order=created_at.asc`, { headers: hdrs() });
+  if (!brainsRes.ok) return res.status(502).json({ error: "Failed to fetch brains" });
+  const brains: any[] = await brainsRes.json();
+
+  const allEntries: any[] = [];
+  const allLinks: any[] = [];
+  for (const brain of brains) {
+    const er = await fetch(`${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brain.id)}&order=created_at.asc`, { headers: hdrs() });
+    if (er.ok) { const rows: any[] = await er.json(); allEntries.push(...rows); }
+    const ids = allEntries.filter((e: any) => e.brain_id === brain.id).map((e: any) => e.id);
+    if (ids.length > 0) {
+      const lr = await fetch(`${SB_URL}/rest/v1/entry_links?or=(from_id.in.(${ids.join(",")}),to_id.in.(${ids.join(",")}))`, { headers: hdrs() });
+      if (lr.ok) { const rows: any[] = await lr.json(); allLinks.push(...rows); }
+    }
+  }
+
+  const payload = { version: 2, scope: "full", exported_at: new Date().toISOString(), brains, entries: allEntries, links: allLinks };
+  res.setHeader("Content-Disposition", `attachment; filename="everion-full-export-${new Date().toISOString().slice(0,10)}.json"`);
+  res.setHeader("Content-Type", "application/json");
+  return res.status(200).json(payload);
 }
