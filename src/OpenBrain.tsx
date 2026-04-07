@@ -1303,6 +1303,8 @@ export default function OpenBrain() {
                   onSelect={setSelected}
                   cryptoKey={cryptoKey}
                   onVaultUnlock={handleVaultUnlock}
+                  brainId={activeBrain?.id}
+                  onEntryCreated={(e) => setEntries((prev) => [e, ...prev])}
                 />
               </Suspense>
             )}

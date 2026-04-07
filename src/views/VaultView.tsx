@@ -5,6 +5,7 @@ import {
   setupVault,
   unlockVault,
   decryptEntry,
+  encryptEntry,
   generateRecoveryKey,
   encryptVaultKeyForRecovery,
   decryptVaultKeyFromRecovery,
@@ -25,9 +26,11 @@ interface VaultViewProps {
   onSelect: (entry: Entry) => void;
   cryptoKey: CryptoKey | null;
   onVaultUnlock: (key: CryptoKey | null) => void;
+  brainId?: string;
+  onEntryCreated?: (entry: Entry) => void;
 }
 
-export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock }: VaultViewProps) {
+export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock, brainId, onEntryCreated }: VaultViewProps) {
   const [status, setStatus] = useState("loading");
   const [passphrase, setPassphrase] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -41,6 +44,15 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock 
   const [revealedIds, setRevealedIds] = useState<Set<string>>(new Set());
   const [copyMsg, setCopyMsg] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Add Secret modal state
+  const [showAddSecret, setShowAddSecret] = useState(false);
+  const [addTitle, setAddTitle] = useState("");
+  const [addContent, setAddContent] = useState("");
+  const [addTags, setAddTags] = useState("");
+  const [addMetaRows, setAddMetaRows] = useState<{ key: string; value: string }[]>([]);
+  const [addError, setAddError] = useState("");
+  const [addBusy, setAddBusy] = useState(false);
 
   const secrets = entries.filter((e: Entry) => e.type === "secret");
 
@@ -177,6 +189,85 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock 
       setTimeout(() => setCopyMsg(null), 2000);
     });
   };
+
+  const resetAddForm = () => {
+    setAddTitle("");
+    setAddContent("");
+    setAddTags("");
+    setAddMetaRows([]);
+    setAddError("");
+  };
+
+  const handleAddSecret = useCallback(async () => {
+    if (!cryptoKey) {
+      setAddError("Vault is locked");
+      return;
+    }
+    if (!addTitle.trim() || !addContent.trim()) {
+      setAddError("Title and content are required");
+      return;
+    }
+    setAddBusy(true);
+    setAddError("");
+    try {
+      const tagList = addTags
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+      const metadata: Record<string, string> = {};
+      for (const row of addMetaRows) {
+        const k = row.key.trim();
+        const v = row.value.trim();
+        if (k && v) metadata[k] = v;
+      }
+
+      // Encrypt locally — never sent in plaintext, never embedded by AI
+      const plain = {
+        title: addTitle.trim(),
+        content: addContent,
+        type: "secret" as const,
+        tags: tagList,
+        metadata,
+      };
+      const encrypted = await encryptEntry(plain as any, cryptoKey);
+
+      const res = await authFetch("/api/capture", {
+        method: "POST",
+        // No embed headers — bypass AI parsing/embeddings entirely
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          p_title: plain.title,
+          p_content: encrypted.content,
+          p_type: "secret",
+          p_metadata: encrypted.metadata,
+          p_tags: tagList,
+          ...(brainId ? { p_brain_id: brainId } : {}),
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+      const result = await res.json().catch(() => null);
+      const newEntry: Entry = {
+        id: result?.id || Date.now().toString(),
+        title: plain.title,
+        content: plain.content,
+        type: "secret",
+        tags: tagList,
+        metadata: metadata as any,
+      } as Entry;
+
+      setDecryptedSecrets((prev) => [newEntry, ...prev]);
+      onEntryCreated?.(newEntry);
+      resetAddForm();
+      setShowAddSecret(false);
+    } catch (e: any) {
+      setAddError(e.message || "Failed to save secret");
+    }
+    setAddBusy(false);
+  }, [addTitle, addContent, addTags, addMetaRows, cryptoKey, brainId, onEntryCreated]);
 
   // ── Loading ──
   if (status === "loading") {
@@ -448,19 +539,34 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock 
             {decryptedSecrets.length} secret {decryptedSecrets.length === 1 ? "entry" : "entries"}
           </p>
         </div>
-        <button
-          onClick={() => {
-            setStatus("locked");
-            setPassphrase("");
-            setRecoveryInput("");
-            setRevealedIds(new Set());
-            onVaultUnlock(null);
-          }}
-          className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors hover:bg-white/5"
-          style={{ color: "#aaa", borderColor: "rgba(72,72,71,0.3)" }}
-        >
-          🔒 Lock
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              resetAddForm();
+              setShowAddSecret(true);
+            }}
+            className="rounded-xl px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-90"
+            style={{
+              background: "linear-gradient(135deg, #72eff5, #1fb1b7)",
+              color: "#0a0a0a",
+            }}
+          >
+            ➕ Add Secret
+          </button>
+          <button
+            onClick={() => {
+              setStatus("locked");
+              setPassphrase("");
+              setRecoveryInput("");
+              setRevealedIds(new Set());
+              onVaultUnlock(null);
+            }}
+            className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors hover:bg-white/5"
+            style={{ color: "#aaa", borderColor: "rgba(72,72,71,0.3)" }}
+          >
+            🔒 Lock
+          </button>
+        </div>
       </div>
 
       {copyMsg && (
@@ -570,6 +676,178 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock 
               </div>
             );
           })}
+        </div>
+      )}
+
+      {showAddSecret && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-3 py-6"
+          style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
+          onClick={() => !addBusy && setShowAddSecret(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl border overflow-hidden"
+            style={{
+              background: "rgba(20,20,20,0.98)",
+              borderColor: "rgba(72,72,71,0.3)",
+              fontFamily: "'Manrope', sans-serif",
+            }}
+          >
+            <div className="p-4 border-b" style={{ borderColor: "rgba(72,72,71,0.2)" }}>
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-bold text-white">➕ Add Secret</h3>
+                <button
+                  onClick={() => !addBusy && setShowAddSecret(false)}
+                  className="text-lg leading-none"
+                  style={{ color: "#777" }}
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="text-[11px] mt-1" style={{ color: "#777" }}>
+                Encrypted on this device. AI never sees this entry.
+              </p>
+            </div>
+
+            <div className="p-4 space-y-3 max-h-[70vh] overflow-y-auto">
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "#777" }}>
+                  Title
+                </label>
+                <input
+                  type="text"
+                  value={addTitle}
+                  onChange={(e) => {
+                    setAddTitle(e.target.value);
+                    setAddError("");
+                  }}
+                  placeholder="e.g. Gmail password"
+                  className="w-full rounded-xl px-3 py-2.5 text-sm bg-transparent border outline-none transition-colors text-white placeholder:text-[#555]"
+                  style={{ borderColor: "rgba(72,72,71,0.3)" }}
+                  onFocus={(e) => (e.target.style.borderColor = "rgba(114,239,245,0.5)")}
+                  onBlur={(e) => (e.target.style.borderColor = "rgba(72,72,71,0.3)")}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "#777" }}>
+                  Secret value
+                </label>
+                <textarea
+                  value={addContent}
+                  onChange={(e) => {
+                    setAddContent(e.target.value);
+                    setAddError("");
+                  }}
+                  rows={3}
+                  placeholder="Password, key, card number, etc."
+                  className="w-full rounded-xl px-3 py-2.5 text-sm bg-transparent border outline-none transition-colors text-white placeholder:text-[#555] font-mono resize-none"
+                  style={{ borderColor: "rgba(72,72,71,0.3)" }}
+                  onFocus={(e) => (e.target.style.borderColor = "rgba(114,239,245,0.5)")}
+                  onBlur={(e) => (e.target.style.borderColor = "rgba(72,72,71,0.3)")}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "#777" }}>
+                  Tags (comma separated)
+                </label>
+                <input
+                  type="text"
+                  value={addTags}
+                  onChange={(e) => setAddTags(e.target.value)}
+                  placeholder="work, banking, 2fa"
+                  className="w-full rounded-xl px-3 py-2.5 text-sm bg-transparent border outline-none transition-colors text-white placeholder:text-[#555]"
+                  style={{ borderColor: "rgba(72,72,71,0.3)" }}
+                  onFocus={(e) => (e.target.style.borderColor = "rgba(114,239,245,0.5)")}
+                  onBlur={(e) => (e.target.style.borderColor = "rgba(72,72,71,0.3)")}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "#777" }}>
+                    Extra fields
+                  </label>
+                  <button
+                    onClick={() => setAddMetaRows((p) => [...p, { key: "", value: "" }])}
+                    className="text-[11px] font-medium"
+                    style={{ color: "#72eff5" }}
+                  >
+                    + Add field
+                  </button>
+                </div>
+                {addMetaRows.map((row, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={row.key}
+                      onChange={(e) =>
+                        setAddMetaRows((p) =>
+                          p.map((r, idx) => (idx === i ? { ...r, key: e.target.value } : r)),
+                        )
+                      }
+                      placeholder="username"
+                      className="flex-1 min-w-0 rounded-xl px-2.5 py-2 text-xs bg-transparent border outline-none text-white placeholder:text-[#555]"
+                      style={{ borderColor: "rgba(72,72,71,0.3)" }}
+                    />
+                    <input
+                      type="text"
+                      value={row.value}
+                      onChange={(e) =>
+                        setAddMetaRows((p) =>
+                          p.map((r, idx) => (idx === i ? { ...r, value: e.target.value } : r)),
+                        )
+                      }
+                      placeholder="value"
+                      className="flex-1 min-w-0 rounded-xl px-2.5 py-2 text-xs bg-transparent border outline-none text-white placeholder:text-[#555]"
+                      style={{ borderColor: "rgba(72,72,71,0.3)" }}
+                    />
+                    <button
+                      onClick={() =>
+                        setAddMetaRows((p) => p.filter((_, idx) => idx !== i))
+                      }
+                      className="shrink-0 text-sm"
+                      style={{ color: "#ff6e84" }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {addError && (
+                <p className="text-xs" style={{ color: "#ff6e84" }}>
+                  {addError}
+                </p>
+              )}
+            </div>
+
+            <div
+              className="p-3 flex items-center gap-2 border-t"
+              style={{ borderColor: "rgba(72,72,71,0.2)" }}
+            >
+              <button
+                onClick={() => !addBusy && setShowAddSecret(false)}
+                className="flex-1 rounded-xl py-2.5 text-sm font-medium border transition-colors hover:bg-white/5"
+                style={{ color: "#aaa", borderColor: "rgba(72,72,71,0.3)" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddSecret}
+                disabled={addBusy || !addTitle.trim() || !addContent.trim()}
+                className="flex-1 rounded-xl py-2.5 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
+                style={{
+                  background: "linear-gradient(135deg, #72eff5, #1fb1b7)",
+                  color: "#0a0a0a",
+                }}
+              >
+                {addBusy ? "Encrypting..." : "🔒 Save secret"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
