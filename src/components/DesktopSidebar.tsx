@@ -138,7 +138,7 @@ export default function DesktopSidebar({
             className="gradient-text font-bold tracking-tight text-xl"
             style={{ fontFamily: "'Manrope', sans-serif" }}
           >
-            OpenBrain
+            Evermind
           </h1>
           <p className="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant/60 mt-0.5">
             Neural Interface
