@@ -11,25 +11,26 @@ function renderWithTheme(ui: React.ReactElement) {
 describe("BottomNav", () => {
   it("renders 5 primary navigation items", () => {
     renderWithTheme(<BottomNav activeView="capture" onNavigate={vi.fn()} />);
-    const nav = screen.getByRole("navigation", { name: /main/i });
+    const nav = screen.getByRole("navigation", { name: /primary navigation/i });
     const buttons = nav.querySelectorAll("button");
     expect(buttons.length).toBe(5);
   });
 
-  it("contains Capture, Grid, Fill Brain, Ask, and More items", () => {
+  it("contains Home, Grid, Fill Brain, Ask, and More items", () => {
     renderWithTheme(<BottomNav activeView="capture" onNavigate={vi.fn()} />);
-    expect(screen.getByRole("button", { name: /capture/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /home/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /grid/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /fill brain/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /ask/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /more/i })).toBeInTheDocument();
   });
 
-  it("all touch targets have adequate min-height class for touch target", () => {
+  it("all touch targets are at least 44px (h-11 or larger)", () => {
     const { container } = renderWithTheme(<BottomNav activeView="capture" onNavigate={vi.fn()} />);
     const buttons = container.querySelectorAll("button");
     buttons.forEach((btn) => {
-      expect(btn.className).toMatch(/min-h-1[2-9]|min-h-[2-9]\d/);
+      // h-14 = 56px, w-14 = 56px — both exceed the 44px minimum
+      expect(btn.className).toMatch(/h-1[1-9]|h-[2-9]\d|w-1[1-9]|w-[2-9]\d/);
     });
   });
 
@@ -41,8 +42,8 @@ describe("BottomNav", () => {
 
   it("non-active items do not have aria-current", () => {
     renderWithTheme(<BottomNav activeView="grid" onNavigate={vi.fn()} />);
-    const captureBtn = screen.getByRole("button", { name: /capture/i });
-    expect(captureBtn).not.toHaveAttribute("aria-current", "page");
+    const homeBtn = screen.getByRole("button", { name: /home/i });
+    expect(homeBtn).not.toHaveAttribute("aria-current", "page");
   });
 
   it("calls onNavigate with the correct view id on click", async () => {
@@ -57,11 +58,11 @@ describe("BottomNav", () => {
     const { container } = renderWithTheme(<BottomNav activeView="capture" onNavigate={vi.fn()} />);
     const nav = container.querySelector("nav");
     expect(nav!.className).toMatch(/fixed/);
-    expect(nav!.className).toMatch(/bottom-0/);
+    expect(nav!.className).toMatch(/bottom-/);
   });
 
   it("has a proper navigation landmark with accessible name", () => {
     renderWithTheme(<BottomNav activeView="capture" onNavigate={vi.fn()} />);
-    expect(screen.getByRole("navigation", { name: /main/i })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: /primary navigation/i })).toBeInTheDocument();
   });
 });

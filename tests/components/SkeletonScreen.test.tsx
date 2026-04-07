@@ -30,10 +30,9 @@ describe("SkeletonCard", () => {
     expect(skeletons.length).toBe(4);
   });
 
-  it("has animated shimmer effect via Tailwind animate class", () => {
+  it("has shimmer animation class on skeleton lines", () => {
     const { container } = renderWithTheme(<SkeletonCard />);
     const line = container.querySelector("[data-testid='skeleton-line']") as HTMLElement;
-    // Animation is now applied via Tailwind class (animate-pulse or similar) instead of inline style
-    expect(line.className).toMatch(/animate-|pulse/);
+    expect(line.className).toMatch(/skeleton-shimmer|animate-/);
   });
 });

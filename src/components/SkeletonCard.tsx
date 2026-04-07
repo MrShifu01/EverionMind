@@ -24,13 +24,13 @@ function SingleSkeleton() {
       </div>
       {/* Content lines */}
       <div className="space-y-2 mb-4">
-        <div className="h-3 w-full rounded-full skeleton-shimmer" />
-        <div className="h-3 w-5/6 rounded-full skeleton-shimmer" />
+        <div data-testid="skeleton-line" className="h-3 w-full rounded-full skeleton-shimmer" />
+        <div data-testid="skeleton-line" className="h-3 w-5/6 rounded-full skeleton-shimmer" />
       </div>
       {/* Tags */}
       <div className="flex gap-2">
-        <div className="h-5 w-14 rounded-full skeleton-shimmer" />
-        <div className="h-5 w-18 rounded-full skeleton-shimmer" />
+        <div data-testid="skeleton-line" className="h-5 w-14 rounded-full skeleton-shimmer" />
+        <div data-testid="skeleton-line" className="h-5 w-18 rounded-full skeleton-shimmer" />
       </div>
     </div>
   );

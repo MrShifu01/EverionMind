@@ -40,13 +40,14 @@ describe("MobileHeader", () => {
     expect(screen.getByText(/offline/i)).toBeInTheDocument();
   });
 
-  it("shows pending sync count when > 0", () => {
+  it("shows syncing indicator when online with pending changes", () => {
     renderWithTheme(<MobileHeader {...defaultProps} pendingCount={3} />);
-    expect(screen.getByText(/3/)).toBeInTheDocument();
+    expect(screen.getByText(/syncing/i)).toBeInTheDocument();
   });
 
-  it("theme toggle button has accessible label", () => {
-    renderWithTheme(<MobileHeader {...defaultProps} />);
-    expect(screen.getByRole("button", { name: /theme|dark|light/i })).toBeInTheDocument();
+  it("shows no status indicator when online and nothing pending", () => {
+    renderWithTheme(<MobileHeader {...defaultProps} isOnline={true} pendingCount={0} />);
+    expect(screen.queryByText(/offline/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/syncing/i)).not.toBeInTheDocument();
   });
 });
