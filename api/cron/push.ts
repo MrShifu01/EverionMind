@@ -1,6 +1,8 @@
 import type { ApiRequest, ApiResponse } from "../_lib/types";
 import { sendToUser } from "../_lib/sendPush.js";
 import { applySecurityHeaders } from "../_lib/securityHeaders.js";
+import { verifyAuth } from "../_lib/verifyAuth.js";
+import crypto from "crypto";
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -10,6 +12,12 @@ const hdrs = (): Record<string, string> => ({
   apikey: SB_KEY!,
   Authorization: `Bearer ${SB_KEY}`,
 });
+
+export function verifyCronHmac(header: string, secret: string): boolean {
+  const date = new Date().toISOString().slice(0, 10);
+  const expected = crypto.createHmac("sha256", secret).update(date).digest("hex");
+  return header === `HMAC ${expected}`;
+}
 
 const DAYS = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
 const EXPIRY_KEYWORDS = ["expir", "valid until", "renew", "passport", "licence", "insurance", "policy"];
@@ -28,12 +36,20 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     }
   }
 
-  // SEC-16 TODO: Upgrade to HMAC-signed request
-  if (req.headers["authorization"] !== `Bearer ${process.env.CRON_SECRET}`) {
+  const action = req.query.action as string | undefined;
+
+  // Test action uses user auth instead of cron auth
+  if (action === "test") return handleTest(req, res);
+
+  // SEC-16: Accept HMAC signature OR plain Bearer (backward compat for dev)
+  const authHeader = (req.headers["authorization"] as string) || "";
+  const cronSecret = process.env.CRON_SECRET || "";
+  const isHmac = verifyCronHmac(authHeader, cronSecret);
+  const isBearer = authHeader === `Bearer ${cronSecret}`;
+  if (!isHmac && !isBearer) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  const action = req.query.action as string | undefined;
   if (action === "daily") return handleDaily(req, res);
   if (action === "nudge") return handleNudge(req, res);
   if (action === "expiry") return handleExpiry(req, res);
@@ -227,4 +243,19 @@ async function handleExpiry(_req: ApiRequest, res: ApiResponse): Promise<void> {
   }
 
   return res.status(200).json({ ok: true, sent });
+}
+
+// ── Test push action — sends one push to the authenticated user ──
+async function handleTest(req: ApiRequest, res: ApiResponse): Promise<void> {
+  const user: any = await verifyAuth(req);
+  if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+  await sendToUser(user.id, {
+    title: "OpenBrain",
+    body: "Test notification — your push notifications are working!",
+    url: "/",
+    icon: "/icons/icon-192.png",
+  });
+
+  return res.status(200).json({ sent: true });
 }
