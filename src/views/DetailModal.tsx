@@ -286,7 +286,7 @@ export default function DetailModal({
       onClick={editing ? undefined : onClose}
     >
       <div
-        className="relative w-full max-w-lg rounded-t-2xl lg:rounded-2xl border overflow-y-auto max-h-[90vh] p-5 pb-8"
+        className="relative w-full max-w-lg rounded-t-2xl lg:rounded-2xl border flex flex-col max-h-[90vh]"
         style={{
           background: "#1a1919",
           borderColor: "rgba(72,72,71,0.2)",
@@ -295,8 +295,8 @@ export default function DetailModal({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-start justify-between mb-4">
+        {/* Header — always visible, never scrolls away */}
+        <div className="flex items-start justify-between flex-shrink-0 px-5 pt-5 pb-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1.5">
               <span className="text-lg">{cfg.i}</span>
@@ -357,6 +357,7 @@ export default function DetailModal({
               <span className="text-xs text-on-surface-variant/60">🔒 View only</span>
             )}
             <button
+              aria-label="Close"
               className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all press-scale"
               onClick={editing ? () => setEditing(false) : onClose}
             >
@@ -364,6 +365,9 @@ export default function DetailModal({
             </button>
           </div>
         </div>
+
+        {/* Scrollable body */}
+        <div data-testid="detail-scroll-body" className="flex-1 overflow-y-auto px-5 pb-8">
 
         {/* Edit form */}
         {editing ? (
@@ -608,6 +612,8 @@ export default function DetailModal({
             )}
           </div>
         )}
+
+        </div>{/* end scrollable body */}
       </div>
     </div>
   );

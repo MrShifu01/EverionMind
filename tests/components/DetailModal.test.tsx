@@ -24,6 +24,20 @@ function renderModal() {
   );
 }
 
+describe("DetailModal — header always visible", () => {
+  it("header is outside the scrollable body (close button is not a descendant of the scroll container)", () => {
+    const { container } = renderModal();
+    // The scrollable body must NOT contain the close/edit buttons — they live in
+    // a non-scrolling header sibling so they stay visible on long entries.
+    const scrollBody = container.querySelector("[data-testid='detail-scroll-body']") as HTMLElement;
+    expect(scrollBody).not.toBeNull();
+    // Close button must NOT be inside the scroll body
+    const closeBtn = container.querySelector("button[aria-label='Close']") as HTMLElement;
+    expect(closeBtn).not.toBeNull();
+    expect(scrollBody.contains(closeBtn)).toBe(false);
+  });
+});
+
 describe("DetailModal — bottom nav clearance", () => {
   it("overlay paddingBottom clears the bottom nav (>= 96px + safe area)", () => {
     const { container } = renderModal();
