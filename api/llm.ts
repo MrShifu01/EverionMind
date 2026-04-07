@@ -1,6 +1,7 @@
 import type { ApiRequest, ApiResponse } from "./_lib/types";
 import { verifyAuth } from "./_lib/verifyAuth.js";
 import { rateLimit } from "./_lib/rateLimit.js";
+import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 
 // SEC-17: API Key Rotation Policy
 // Rotate ANTHROPIC_API_KEY every 90 days. Last rotation: 2026-04-03
@@ -36,6 +37,7 @@ interface LlmParams {
 //   /api/anthropic, /api/openai, /api/openrouter → /api/llm?provider=X
 //   /api/transcribe → /api/llm?action=transcribe
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
+  applySecurityHeaders(res);
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const action = (req.query.action as string) || "";

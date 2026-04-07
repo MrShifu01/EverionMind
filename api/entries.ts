@@ -2,6 +2,7 @@ import type { ApiRequest, ApiResponse } from "./_lib/types";
 import { verifyAuth } from "./_lib/verifyAuth.js";
 import { rateLimit } from "./_lib/rateLimit.js";
 import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
+import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -11,6 +12,7 @@ const sbHdrsJson = (extra: Record<string, string> = {}): Record<string, string> 
 
 // Dispatched via rewrites: /api/delete-entry, /api/update-entry → /api/entries
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
+  applySecurityHeaders(res);
   if (req.method === "GET") return handleGet(req, res);
   if (req.method === "DELETE") return handleDelete(req, res);
   if (req.method === "PATCH") return handlePatch(req, res);

@@ -1,5 +1,6 @@
 import type { ApiRequest, ApiResponse } from "./_lib/types";
 import { verifyAuth } from "./_lib/verifyAuth.js";
+import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -18,6 +19,7 @@ const ALLOWED_FIELDS = [
 
 // Dispatched via rewrites: /api/notification-prefs, /api/push-subscribe → /api/push?resource=X
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
+  applySecurityHeaders(res);
   const resource = req.query.resource as string | undefined;
   if (resource === "subscribe") return handleSubscribe(req, res);
   // Default: notification prefs

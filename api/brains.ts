@@ -3,6 +3,7 @@ import { verifyAuth } from "./_lib/verifyAuth.js";
 import { rateLimit } from "./_lib/rateLimit.js";
 import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
 import { randomBytes } from "crypto";
+import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -15,6 +16,7 @@ const hdrs = (extra: Record<string, string> = {}): Record<string, string> => ({
 });
 
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
+  applySecurityHeaders(res);
   if (!(await rateLimit(req, 60))) return res.status(429).json({ error: "Too many requests" });
 
   const user: any = await verifyAuth(req);

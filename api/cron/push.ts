@@ -1,5 +1,6 @@
 import type { ApiRequest, ApiResponse } from "../_lib/types";
 import { sendToUser } from "../_lib/sendPush.js";
+import { applySecurityHeaders } from "../_lib/securityHeaders.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -18,6 +19,7 @@ const EXPIRY_KEYWORDS = ["expir", "valid until", "renew", "passport", "licence",
 //   /api/cron/push?action=nudge
 //   /api/cron/push?action=expiry
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
+  applySecurityHeaders(res);
   // In production, only allow requests from Vercel cron runner
   if (process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production') {
     const isVercelCron = req.headers['x-vercel-cron'] === '1';

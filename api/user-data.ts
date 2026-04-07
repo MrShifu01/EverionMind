@@ -1,6 +1,7 @@
 import type { ApiRequest, ApiResponse } from "./_lib/types";
 import { verifyAuth } from "./_lib/verifyAuth.js";
 import { rateLimit } from "./_lib/rateLimit.js";
+import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -10,6 +11,7 @@ const MAX_CHARS = 8000;
 
 // Dispatched via rewrites: /api/memory, /api/activity, /api/health, /api/vault → /api/user-data?resource=X
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
+  applySecurityHeaders(res);
   const resource = req.query.resource as string | undefined;
   if (resource === "activity") return handleActivity(req, res);
   if (resource === "health") return handleHealth(req, res);

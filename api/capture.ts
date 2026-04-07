@@ -3,6 +3,7 @@ import { verifyAuth } from "./_lib/verifyAuth.js";
 import { rateLimit } from "./_lib/rateLimit.js";
 import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
 import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
+import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 
@@ -15,6 +16,7 @@ const ALLOWED_RELS = ['related', 'mentions', 'links-to', 'contradicts'];
 
 // Dispatched via rewrite: /api/save-links → /api/capture?action=links
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
+  applySecurityHeaders(res);
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   if (req.query.action === "links") return handleSaveLinks(req, res);

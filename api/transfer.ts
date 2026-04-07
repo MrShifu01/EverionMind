@@ -2,6 +2,7 @@ import type { ApiRequest, ApiResponse } from "./_lib/types";
 import { verifyAuth } from "./_lib/verifyAuth.js";
 import { rateLimit } from "./_lib/rateLimit.js";
 import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
+import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -11,6 +12,7 @@ const MAX_ENTRIES = 500;
 
 // Dispatched via rewrites: /api/export, /api/import → /api/transfer
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
+  applySecurityHeaders(res);
   if (req.method === "GET") return handleExport(req, res);
   if (req.method === "POST") return handleImport(req, res);
   return res.status(405).json({ error: "Method not allowed" });
