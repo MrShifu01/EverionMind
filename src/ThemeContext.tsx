@@ -39,7 +39,7 @@ export const DARK: ThemeColors = {
   textSoft: "#ffffff",
   textMid: "#adaaaa",
   textMuted: "#adaaaa",
-  textDim: "#777575",
+  textDim: "#838383",   // lightened from #777575 — meets 4.5:1 AA on bg and surface
   textFaint: "#777575",
   // Cyan — primary (actions)
   accent: "#72eff5",
@@ -69,8 +69,8 @@ export const LIGHT: ThemeColors = {
   textSoft: "#1a1a1a",
   textMid: "#4a4a4a",
   textMuted: "#6b7280",
-  textDim: "#9ca3af",
-  textFaint: "#9ca3af",
+  textDim: "#6b7280",   // darkened from #9ca3af — meets 4.5:1 AA on light bg
+  textFaint: "#6b7280", // darkened from #9ca3af — meets 3:1 for non-text
   accent: "#0891b2",
   accentLight: "rgba(8,145,178,0.08)",
   accentBorder: "rgba(8,145,178,0.25)",
