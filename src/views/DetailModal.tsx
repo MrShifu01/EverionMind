@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { TC } from "../data/constants";
 import { resolveIcon, pickDefaultIcon } from "../lib/typeIcons";
 import { extractPhone, toWaUrl } from "../lib/phone";
@@ -69,6 +69,13 @@ export default function DetailModal({
     return () => {
       if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
     };
+  }, []);
+
+  // Lock body scroll while modal is open (prevents background page scrolling on mobile)
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
   }, []);
 
   // UX-5: Escape key closes modal
@@ -296,14 +303,18 @@ export default function DetailModal({
       onClick={editing ? undefined : onClose}
     >
       <div
-        className="relative w-full max-w-lg rounded-t-2xl lg:rounded-2xl border flex flex-col max-h-[90vh]"
+        className="relative w-full max-w-lg rounded-t-2xl lg:rounded-2xl border flex flex-col"
         style={{
           background: "#1a1919",
           borderColor: "rgba(72,72,71,0.2)",
           boxShadow: "0 20px 40px rgba(0,0,0,0.5), 0 0 20px rgba(114,239,245,0.05)",
           animation: "zoom-in-95 0.2s ease-out",
+          // Cap height to the actual available space so the header is never pushed above viewport.
+          // 96px = nav bar clearance; subtract safe-area so the header stays fully in view.
+          maxHeight: "calc(100vh - 96px - env(safe-area-inset-bottom) - env(safe-area-inset-top))",
         }}
         onClick={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
       >
         {/* Header — always visible, never scrolls away */}
         <div className="flex items-start justify-between flex-shrink-0 px-5 pt-5 pb-4">
@@ -377,7 +388,11 @@ export default function DetailModal({
         </div>
 
         {/* Scrollable body */}
-        <div data-testid="detail-scroll-body" className="flex-1 overflow-y-auto px-5 pb-8">
+        <div
+          data-testid="detail-scroll-body"
+          className="flex-1 overflow-y-auto px-5 pb-8"
+          style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" } as React.CSSProperties}
+        >
 
         {/* Edit form */}
         {editing ? (
