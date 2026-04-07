@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { TC } from "../data/constants";
+import { resolveIcon, pickDefaultIcon } from "../lib/typeIcons";
 import { extractPhone, toWaUrl } from "../lib/phone";
 import type { Entry, Brain, EntryType } from "../types";
 
@@ -21,6 +22,8 @@ interface DetailModalProps {
   canWrite?: boolean;
   brains?: Brain[];
   vaultUnlocked?: boolean;
+  typeIcons?: Record<string, string>;
+  onTypeIconChange?: (type: string, icon: string) => void;
 }
 
 export default function DetailModal({
@@ -34,6 +37,8 @@ export default function DetailModal({
   canWrite = true,
   brains = [],
   vaultUnlocked = false,
+  typeIcons = {},
+  onTypeIconChange,
 }: DetailModalProps) {
   if (!entry) return null;
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -49,7 +54,7 @@ export default function DetailModal({
   const [shareMsg, setShareMsg] = useState<string | null>(null);
   const [secretRevealed, setSecretRevealed] = useState(false);
   const isSecret = entry.type === "secret";
-  const cfg = TC[editType as EntryType] || TC.note;
+  const cfg = { ...(TC[editType as EntryType] || TC.note), i: resolveIcon(editType, typeIcons) };
   const related = links
     .filter((l) => l.from === entry.id || l.to === entry.id)
     .map((l) => ({
@@ -91,6 +96,11 @@ export default function DetailModal({
       tags,
     };
     if (editBrainId && editBrainId !== entry.brain_id) changes.brain_id = editBrainId;
+    // If the type changed, ensure the new type has an icon registered
+    if (editType !== entry.type) {
+      const icon = pickDefaultIcon(editType);
+      onTypeIconChange?.(editType, icon);
+    }
     await onUpdate?.(entry.id, changes);
     setSaving(false);
     setEditing(false);
@@ -586,7 +596,7 @@ export default function DetailModal({
                         className="flex items-center gap-2 px-3 py-2 rounded-lg mb-1.5 text-xs"
                         style={{ background: "#262626" }}
                       >
-                        <span>{TC[r.other.type]?.i}</span>
+                        <span>{resolveIcon(r.other.type, typeIcons)}</span>
                         <span className="text-on-surface-variant/50">{r.dir}</span>
                         <span className="text-on-surface flex-1">{r.other.title}</span>
                         <span className="text-[10px] uppercase tracking-widest text-on-surface-variant/50">{r.rel}</span>

@@ -17,6 +17,7 @@ import {
 import { encryptEntry, decryptEntry, unlockVault, decryptVaultKeyFromRecovery } from "./lib/crypto";
 import { PROMPTS } from "./config/prompts";
 import { TC, fmtD, MODEL, INITIAL_ENTRIES, LINKS } from "./data/constants";
+import { getTypeIcons, registerTypeIcon, pickDefaultIcon, resolveIcon } from "./lib/typeIcons";
 import { useBrain as useBrainHook } from "./hooks/useBrain";
 import { useRole } from "./hooks/useRole";
 import { useOfflineSync } from "./hooks/useOfflineSync";
@@ -174,8 +175,8 @@ const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
   default:  { bg: "rgba(114,239,245,0.10)", text: "#72eff5" },
 };
 
-const EntryCard = memo(function EntryCard({ entry: e, onSelect }) {
-  const cfg = TC[e.type] || TC.note;
+const EntryCard = memo(function EntryCard({ entry: e, onSelect, typeIcons = {} }) {
+  const cfg = { ...(TC[e.type] || TC.note), i: resolveIcon(e.type, typeIcons) };
   const imp = { 1: "Important", 2: "Critical" }[e.importance];
   const colors = TYPE_COLORS[e.type] || TYPE_COLORS.default;
   return (
@@ -244,7 +245,7 @@ const EntryCard = memo(function EntryCard({ entry: e, onSelect }) {
 /* ═══════════════════════════════════════════════════════════════
    VIRTUALISED GRID
    ═══════════════════════════════════════════════════════════════ */
-function VirtualGrid({ filtered, setSelected }) {
+function VirtualGrid({ filtered, setSelected, typeIcons = {} }) {
   const COLS = typeof window !== "undefined"
     ? window.innerWidth >= 1280 ? 3 : window.innerWidth >= 640 ? 2 : 1
     : 1;
@@ -282,7 +283,7 @@ function VirtualGrid({ filtered, setSelected }) {
             }}
           >
             {rows[vRow.index].map((e) => (
-              <EntryCard key={e.id} entry={e} onSelect={setSelected} />
+              <EntryCard key={e.id} entry={e} onSelect={setSelected} typeIcons={typeIcons} />
             ))}
           </div>
         ))}
@@ -294,7 +295,7 @@ function VirtualGrid({ filtered, setSelected }) {
 /* ═══════════════════════════════════════════════════════════════
    VIRTUALISED TIMELINE
    ═══════════════════════════════════════════════════════════════ */
-function VirtualTimeline({ sorted, setSelected }) {
+function VirtualTimeline({ sorted, setSelected, typeIcons = {} }) {
   const listRef = useRef(null);
   const virtualizer = useWindowVirtualizer({
     count: sorted.length,
@@ -308,7 +309,7 @@ function VirtualTimeline({ sorted, setSelected }) {
       <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
         {virtualizer.getVirtualItems().map((vItem) => {
           const e = sorted[vItem.index];
-          const cfg = TC[e.type] || TC.note;
+          const cfg = { ...(TC[e.type] || TC.note), i: resolveIcon(e.type, typeIcons) };
           return (
             <div
               key={e.id}
@@ -433,6 +434,11 @@ export default function OpenBrain() {
   const [selected, setSelected] = useState(null);
   const [links, setLinks] = useState(LINKS);
   const addLinks = (newLinks) => setLinks((prev) => [...prev, ...newLinks]);
+  const [typeIcons, setTypeIcons] = useState<Record<string, string>>({});
+  // Reload typeIcons whenever the active brain changes
+  const refreshTypeIcons = useCallback(() => {
+    if (activeBrain?.id) setTypeIcons(getTypeIcons(activeBrain.id));
+  }, [activeBrain?.id]);
   const { canWrite, canInvite, canManageMembers, role: myRole } = useRole(activeBrain);
   const { isDark, toggleTheme } = useTheme();
   const [showOnboarding, setShowOnboarding] = useState(
@@ -491,6 +497,10 @@ export default function OpenBrain() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMsgs]);
+
+  useEffect(() => {
+    if (activeBrain?.id) setTypeIcons(getTypeIcons(activeBrain.id));
+  }, [activeBrain?.id]);
 
   useEffect(() => {
     if (!activeBrain?.id) return;
@@ -1256,7 +1266,7 @@ export default function OpenBrain() {
                     <SkeletonCard count={6} />
                   </div>
                 ) : filtered.length > 0 ? (
-                  <VirtualGrid filtered={filtered} setSelected={setSelected} />
+                  <VirtualGrid filtered={filtered} setSelected={setSelected} typeIcons={typeIcons} />
                 ) : (
                   <div className="flex flex-col items-center justify-center py-20 gap-3">
                     <div className="text-4xl opacity-40">🔍</div>
@@ -1293,11 +1303,11 @@ export default function OpenBrain() {
             )}
             {view === "todos" && (
               <Suspense fallback={<Loader />}>
-                <TodoView entries={entries} />
+                <TodoView entries={entries} typeIcons={typeIcons} />
               </Suspense>
             )}
             {view === "timeline" && (
-              <VirtualTimeline sorted={sortedTimeline} setSelected={setSelected} />
+              <VirtualTimeline sorted={sortedTimeline} setSelected={setSelected} typeIcons={typeIcons} />
             )}
             {view === "vault" && (
               <Suspense fallback={<Loader />}>
@@ -1456,12 +1466,16 @@ export default function OpenBrain() {
               onClose={() => setSelected(null)}
               onDelete={handleDelete}
               onUpdate={handleUpdate}
-
               entries={entries}
               links={links}
               canWrite={canWrite}
               brains={brains}
               vaultUnlocked={!!cryptoKey}
+              typeIcons={typeIcons}
+              onTypeIconChange={(type, icon) => {
+                registerTypeIcon(activeBrain?.id, type, icon);
+                refreshTypeIcons();
+              }}
             />
           </Suspense>
 
