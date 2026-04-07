@@ -189,4 +189,40 @@ describe("api/entries — soft delete", () => {
     const body = JSON.parse(restoreCall![1].body);
     expect(body.deleted_at).toBeNull();
   });
+
+  it("DELETE with ?permanent=true hard-deletes the entry (must accept id in request body)", async () => {
+    // First fetch: look up entry's brain_id
+    fetchSpy
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue([{ brain_id: BRAIN_ID }]),
+      })
+      // Second fetch: the hard-delete
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({}),
+      })
+      // Audit log
+      .mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue({}) });
+
+    const req = {
+      method: "DELETE",
+      query: { permanent: "true" },
+      headers: {},
+      body: { id: ENTRY_ID },
+    };
+    const res = makeRes();
+    await handler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+
+    // The hard-delete should use DELETE method (not PATCH)
+    const deleteCall = fetchSpy.mock.calls.find(
+      ([url, opts]) =>
+        opts?.method === "DELETE" &&
+        url.includes("entries") &&
+        url.includes(ENTRY_ID)
+    );
+    expect(deleteCall).toBeDefined();
+  });
 });

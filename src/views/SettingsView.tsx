@@ -640,81 +640,126 @@ export default function SettingsView() {
     setTimeout(() => setTestStatus(null), 3000);
   };
 
+  const [activeTab, setActiveTab] = useState<"account" | "ai" | "providers" | "brain" | "notifications" | "storage" | "danger">("account");
+
+  const tabs = [
+    { id: "account", label: "Account", icon: "👤" },
+    { id: "ai", label: "AI Settings", icon: "🧠" },
+    { id: "providers", label: "Providers", icon: "⚙️" },
+    { id: "brain", label: "Brain", icon: "🎯" },
+    { id: "notifications", label: "Notifications", icon: "🔔" },
+    { id: "storage", label: "Storage", icon: "💾" },
+    ...(activeBrain?.myRole === "owner" ? [{ id: "danger", label: "Danger", icon: "⚠️" }] : []),
+  ] as const;
+
   return (
-    <div className="px-4 py-4 space-y-4" style={{ background: "#0e0e0e", fontFamily: "'Manrope', sans-serif" }}>
+    <div className="min-h-screen" style={{ background: "#0e0e0e", fontFamily: "'Manrope', sans-serif" }}>
       {/* Header */}
-      <div>
-        <h2 className="text-xl font-bold text-white">Settings</h2>
+      <div className="px-4 pt-4 pb-2 border-b" style={{ borderColor: "rgba(72,72,71,0.2)" }}>
+        <h2 className="text-2xl font-bold text-white mb-1">Settings</h2>
         <p className="text-sm" style={{ color: "#777" }}>Manage your account and preferences</p>
       </div>
 
-      {/* ── Account ── */}
-      <div className="rounded-2xl border p-4" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold text-white">Account</p>
-            <p className="text-xs" style={{ color: "#aaa" }}>{email}</p>
-          </div>
-          <button
-            onClick={() => supabase.auth.signOut()}
-            className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors hover:bg-white/5"
-            style={{ color: "#ff6e84", borderColor: "rgba(255,110,132,0.3)" }}
-          >
-            Sign out
-          </button>
+      {/* Tab Navigation */}
+      <div className="px-4 pt-2 pb-0 overflow-x-auto scrollbar-hide" style={{ WebkitOverflowScrolling: "touch" }}>
+        <div className="flex gap-2 pb-0 min-w-max md:min-w-full md:flex-wrap">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className="px-4 py-3 text-sm font-medium whitespace-nowrap transition-all relative group"
+              style={{
+                color: activeTab === tab.id ? "#fff" : "#777",
+                borderBottom: activeTab === tab.id ? "2px solid #72eff5" : "2px solid transparent",
+              }}
+            >
+              <span className="mr-1">{tab.icon}</span>
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* ── Connection Status ── */}
-      <div className="rounded-2xl border p-4 space-y-3" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold text-white">AI Status</p>
-            <p className="text-xs" style={{ color: "#777" }}>Claude AI (Haiku)</p>
+      <div className="px-4 py-4 space-y-4">
+
+      {/* Account Tab */}
+      {activeTab === "account" && (
+        <>
+          <div className="rounded-2xl border p-4" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-white">Account</p>
+                <p className="text-xs" style={{ color: "#aaa" }}>{email}</p>
+              </div>
+              <button
+                onClick={() => supabase.auth.signOut()}
+                className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors hover:bg-white/5"
+                style={{ color: "#ff6e84", borderColor: "rgba(255,110,132,0.3)" }}
+              >
+                Sign out
+              </button>
+            </div>
           </div>
-          <button
-            onClick={testAI}
-            className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors hover:bg-white/5"
-            style={{ color: "#aaa", borderColor: "rgba(72,72,71,0.3)" }}
-          >
-            {testStatus === "testing-ai"
-              ? "Testing…"
-              : testStatus === "ai-success"
-                ? "✓ Connected"
-                : testStatus === "ai-fail"
-                  ? "✗ Failed"
-                  : "Test"}
-          </button>
-        </div>
-        <div className="border-t" style={{ borderColor: "rgba(72,72,71,0.2)" }} />
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold text-white">Database</p>
-            <p className="text-xs" style={{ color: "#777" }}>Supabase</p>
+        </>
+      )}
+
+      {/* AI Settings Tab */}
+      {activeTab === "ai" && (
+        <>
+          <div className="rounded-2xl border p-4 space-y-3" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-white">AI Status</p>
+                <p className="text-xs" style={{ color: "#777" }}>Claude AI (Haiku)</p>
+              </div>
+              <button
+                onClick={testAI}
+                className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors hover:bg-white/5"
+                style={{ color: "#aaa", borderColor: "rgba(72,72,71,0.3)" }}
+              >
+                {testStatus === "testing-ai"
+                  ? "Testing…"
+                  : testStatus === "ai-success"
+                    ? "✓ Connected"
+                    : testStatus === "ai-fail"
+                      ? "✗ Failed"
+                      : "Test"}
+              </button>
+            </div>
+            <div className="border-t" style={{ borderColor: "rgba(72,72,71,0.2)" }} />
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-white">Database</p>
+                <p className="text-xs" style={{ color: "#777" }}>Supabase</p>
+              </div>
+              <button
+                onClick={testDB}
+                className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors hover:bg-white/5"
+                style={{ color: "#aaa", borderColor: "rgba(72,72,71,0.3)" }}
+              >
+                {testStatus === "testing"
+                  ? "Testing…"
+                  : testStatus === "success"
+                    ? "✓ Connected"
+                    : testStatus === "fail"
+                      ? "✗ Failed"
+                      : "Test"}
+              </button>
+            </div>
           </div>
-          <button
-            onClick={testDB}
-            className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors hover:bg-white/5"
-            style={{ color: "#aaa", borderColor: "rgba(72,72,71,0.3)" }}
-          >
-            {testStatus === "testing"
-              ? "Testing…"
-              : testStatus === "success"
-                ? "✓ Connected"
-                : testStatus === "fail"
-                  ? "✗ Failed"
-                  : "Test"}
-          </button>
+        </>
+      )}
+
+      {/* Notifications Tab */}
+      {activeTab === "notifications" && (
+        <div className="rounded-2xl border p-4" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
+          <NotificationSettings />
         </div>
-      </div>
+      )}
 
-      {/* Security PIN section removed */}
-
-      {/* ── Notifications ── */}
-      <div className="rounded-2xl border p-4" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
-        <NotificationSettings />
-      </div>
-
+      {/* Brain Tab */}
+      {activeTab === "brain" && (
+        <>
       {/* ── Export / Import ── */}
       {activeBrain && <ExportImportPanel activeBrain={activeBrain} />}
 
@@ -846,6 +891,8 @@ export default function SettingsView() {
       )}
 
       {/* ── Invite to OpenBrain platform ── */}
+      {activeTab === "brain" && (
+      <>
       <div className="rounded-2xl border p-4 space-y-3" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
         <div>
           <p className="text-sm font-semibold text-white">Invite to OpenBrain</p>
@@ -882,22 +929,17 @@ export default function SettingsView() {
         </div>
       </div>
 
-      {/* ── Advanced toggle ── */}
-      <button
-        onClick={() => setShowAdvanced((s) => !s)}
-        className="w-full rounded-2xl border p-4 flex items-center justify-between transition-colors hover:bg-white/5"
-        style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}
-      >
-        <div className="text-left">
-          <p className="text-sm font-semibold text-white">Advanced</p>
-          <p className="text-xs" style={{ color: "#777" }}>
-            AI provider, embeddings, voice, Telegram
-          </p>
-        </div>
-        <span style={{ color: "#555" }}>{showAdvanced ? "▾" : "▸"}</span>
-      </button>
+      {/* Telegram */}
+      {activeBrain && <TelegramPanel activeBrain={activeBrain} />}
 
-      {showAdvanced && <>
+      {/* AI Memory Guide */}
+      <MemoryEditor activeBrain={activeBrain} />
+        </>
+      )}
+
+      {/* Providers Tab */}
+      {activeTab === "providers" && (
+      <>
       {/* AI Provider / BYO Key */}
       <div className="rounded-2xl border p-4 space-y-3" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
         <p className="text-sm font-semibold text-white">AI Provider</p>
@@ -1313,13 +1355,12 @@ export default function SettingsView() {
           </p>
         </div>
       </div>
+      </>
+      )}
 
-      {/* Telegram */}
-      {activeBrain && <TelegramPanel activeBrain={activeBrain} />}
-
-      {/* AI Memory Guide */}
-      <MemoryEditor activeBrain={activeBrain} />
-      </>}
+      {/* Storage Tab */}
+      {activeTab === "storage" && (
+      <>
 
       {/* ─── Usage Tracking ─── */}
       <UsagePanel />
@@ -1355,9 +1396,12 @@ export default function SettingsView() {
           Restart Onboarding
         </button>
       </div>
+      </>
+      )}
 
-      {/* ─── Danger Zone ─── */}
-      {activeBrain && activeBrain.myRole === "owner" && (
+      {/* Danger Tab */}
+      {activeTab === "danger" && activeBrain && activeBrain.myRole === "owner" && (
+        <>
         <div className="rounded-2xl border p-4 space-y-3" style={{ background: "rgba(220,38,38,0.05)", borderColor: "rgba(220,38,38,0.2)" }}>
           <div>
             <p className="text-sm font-semibold" style={{ color: "#ef4444" }}>Danger Zone</p>
@@ -1400,6 +1444,7 @@ export default function SettingsView() {
             </button>
           </div>
         </div>
+        </>
       )}
 
     </div>

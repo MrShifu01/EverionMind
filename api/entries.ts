@@ -196,7 +196,7 @@ async function handleGet(req: ApiRequest, res: ApiResponse): Promise<void> {
   res.status(response.status).json({ entries: results, nextCursor, hasMore });
 }
 
-// ── DELETE /api/entries (was /api/delete-entry) — soft delete ──
+// ── DELETE /api/entries (was /api/delete-entry) — soft delete or hard delete ──
 async function handleDelete(req: ApiRequest, res: ApiResponse): Promise<void> {
   if (!(await rateLimit(req, 30))) return res.status(429).json({ error: "Too many requests" });
 
@@ -208,6 +208,8 @@ async function handleDelete(req: ApiRequest, res: ApiResponse): Promise<void> {
     return res.status(400).json({ error: "Missing or invalid id" });
   }
 
+  const permanent = req.query.permanent === "true";
+
   // SEC-1: Verify the requesting user is a member or owner of this entry's brain
   const entryRes = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&select=brain_id`, {
     headers: sbHdrs(),
@@ -218,6 +220,33 @@ async function handleDelete(req: ApiRequest, res: ApiResponse): Promise<void> {
 
   const access = await checkBrainAccess(user.id, entry.brain_id);
   if (!access) return res.status(403).json({ error: "Forbidden" });
+
+  if (permanent) {
+    // Hard delete: permanently remove the entry (no recovery)
+    const response = await fetch(
+      `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`,
+      {
+        method: "DELETE",
+        headers: sbHdrsJson({ "Prefer": "return=minimal" }),
+      }
+    );
+
+    console.log(`[audit] HARD_DELETE entry id=${id} user=${user.id} ok=${response.ok}`);
+
+    // SEC-14: Fire-and-forget audit log write to Supabase
+    fetch(`${SB_URL}/rest/v1/audit_log`, {
+      method: 'POST',
+      headers: sbHdrsJson({ 'Prefer': 'return=minimal' }),
+      body: JSON.stringify({
+        user_id: user.id,
+        action: 'entry_permanent_delete',
+        resource_id: id,
+        timestamp: new Date().toISOString(),
+      }),
+    }).catch(() => {}); // best-effort, never blocks
+
+    return res.status(response.ok ? 200 : 502).json({ ok: response.ok });
+  }
 
   // Soft delete: set deleted_at instead of hard deleting (recoverable within 30 days)
   const response = await fetch(

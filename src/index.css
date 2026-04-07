@@ -250,3 +250,37 @@ input[type="checkbox"],
 input[type="radio"] {
   min-height: 44px;
 }
+
+/* ── Select dropdown styling fix ── */
+select {
+  color-scheme: dark;
+  background-color: transparent;
+  color: #ffffff;
+}
+
+select option {
+  background-color: #1a1a1a;
+  color: #ffffff;
+  padding: 4px 8px;
+}
+
+select option:checked {
+  background: linear-gradient(#1fb1b7, #1fb1b7);
+  background-color: #1fb1b7 !important;
+  color: #ffffff;
+}
+
+select option:hover {
+  background-color: #262626;
+  color: #72eff5;
+}
+
+/* Scrollbar hide utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

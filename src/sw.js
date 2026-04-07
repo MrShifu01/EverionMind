@@ -14,7 +14,7 @@ precacheAndRoute(self.__WB_MANIFEST);
 self.addEventListener('push', event => {
   const data = event.data?.json() ?? {};
   const {
-    title = 'OpenBrain',
+    title = 'Everion',
     body  = '',
     url   = '/',
     icon  = '/icons/icon-192.png',

@@ -1,7 +1,7 @@
 {
-  "name": "OpenBrain",
-  "short_name": "OpenBrain",
-  "description": "Chris's personal memory & knowledge OS",
+  "name": "Everion",
+  "short_name": "Everion",
+  "description": "Your personal memory & knowledge OS",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

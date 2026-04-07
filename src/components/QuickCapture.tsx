@@ -936,7 +936,7 @@ export default function QuickCapture({
                 ? "Processing..."
                 : "Quick capture — just type anything..."
           }
-          className="flex-1 min-w-0 bg-transparent text-white text-sm outline-none placeholder:text-[#555]"
+          className="flex-1 min-w-0 bg-transparent text-white text-base outline-none placeholder:text-[#555] px-4 py-3"
           style={{ fontFamily: "'Inter', sans-serif" }}
         />
 

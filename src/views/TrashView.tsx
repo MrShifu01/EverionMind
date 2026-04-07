@@ -34,10 +34,10 @@ export default function TrashView({ brainId, onRestore }: TrashViewProps) {
 
   const restore = async (entry: Entry) => {
     setBusy(entry.id);
-    const res = await authFetch(`/api/entries?id=${entry.id}&action=restore`, {
+    const res = await authFetch(`/api/entries?action=restore`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ id: entry.id }),
     }).catch(() => null);
     if (res?.ok) {
       setEntries(prev => prev.filter(e => e.id !== entry.id));
@@ -49,8 +49,10 @@ export default function TrashView({ brainId, onRestore }: TrashViewProps) {
   const deletePermanently = async (entry: Entry) => {
     if (!confirm(`Permanently delete "${entry.title}"? This cannot be undone.`)) return;
     setBusy(entry.id);
-    const res = await authFetch(`/api/entries?id=${entry.id}&permanent=true`, {
+    const res = await authFetch(`/api/entries?permanent=true`, {
       method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: entry.id }),
     }).catch(() => null);
     if (res?.ok) setEntries(prev => prev.filter(e => e.id !== entry.id));
     setBusy(null);
