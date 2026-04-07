@@ -28,60 +28,59 @@ export interface ThemeColors {
 }
 
 export const DARK: ThemeColors = {
-  bg: "#0e0e0e",
-  surface: "#1a1919",
-  surface2: "#131313",
-  surfaceHigh: "#201f1f",
-  surfaceHighest: "#262626",
-  border: "rgba(72,72,71,0.15)",
-  borderStrong: "rgba(72,72,71,0.30)",
-  text: "#ffffff",
-  textSoft: "#ffffff",
-  textMid: "#adaaaa",
-  textMuted: "#adaaaa",
-  textDim: "#838383",   // lightened from #777575 — meets 4.5:1 AA on bg and surface
-  textFaint: "#777575",
-  // Cyan — primary (actions)
-  accent: "#72eff5",
-  accentLight: "rgba(114,239,245,0.08)",
-  accentBorder: "rgba(114,239,245,0.25)",
-  accentContainer: "#1fb1b7",
-  // Violet — secondary (AI/intelligence)
-  secondary: "#8b5cf6",
-  secondaryLight: "rgba(139,92,246,0.10)",
-  secondaryBorder: "rgba(139,92,246,0.25)",
-  // Rose — tertiary (security)
-  tertiary: "#ff9ac3",
-  tertiaryLight: "rgba(255,154,195,0.10)",
-  error: "#ff6e84",
-  success: "#51cf66",
+  bg: "oklch(12% 0.009 60)",
+  surface: "oklch(15% 0.009 60)",
+  surface2: "oklch(9% 0.009 60)",
+  surfaceHigh: "oklch(23% 0.009 60)",
+  surfaceHighest: "oklch(27% 0.009 60)",
+  border: "oklch(24% 0.009 60 / 0.6)",
+  borderStrong: "oklch(38% 0.006 60 / 0.8)",
+  text: "oklch(93% 0.006 60)",
+  textSoft: "oklch(93% 0.006 60)",
+  textMid: "oklch(75% 0.006 60)",
+  textMuted: "oklch(65% 0.006 60)",
+  textDim: "oklch(58% 0.006 60)",
+  textFaint: "oklch(48% 0.006 60)",
+  accent: "oklch(72% 0.14 75)",
+  accentLight: "oklch(26% 0.07 75)",
+  accentBorder: "oklch(26% 0.07 75)",
+  accentContainer: "oklch(72% 0.14 75)",
+  secondary: "oklch(62% 0.08 150)",
+  secondaryLight: "oklch(22% 0.04 150)",
+  secondaryBorder: "oklch(22% 0.04 150)",
+  tertiary: "oklch(62% 0.08 150)",
+  tertiaryLight: "oklch(22% 0.04 150)",
+  error: "oklch(62% 0.18 25)",
+  success: "oklch(62% 0.14 145)",
 };
 
+// Warm light mode — editorial off-white with amber accent
 export const LIGHT: ThemeColors = {
-  bg: "#fafafa",
-  surface: "#ffffff",
-  surface2: "#f5f5f5",
-  surfaceHigh: "#efefef",
-  surfaceHighest: "#e8e8e8",
-  border: "rgba(0,0,0,0.08)",
-  borderStrong: "rgba(0,0,0,0.15)",
-  text: "#1a1a1a",
-  textSoft: "#1a1a1a",
-  textMid: "#4a4a4a",
-  textMuted: "#6b7280",
-  textDim: "#6b7280",   // darkened from #9ca3af — meets 4.5:1 AA on light bg
-  textFaint: "#6b7280", // darkened from #9ca3af — meets 3:1 for non-text
-  accent: "#0891b2",
-  accentLight: "rgba(8,145,178,0.08)",
-  accentBorder: "rgba(8,145,178,0.25)",
-  accentContainer: "#0e7490",
-  secondary: "#7c3aed",
-  secondaryLight: "rgba(124,58,237,0.08)",
-  secondaryBorder: "rgba(124,58,237,0.20)",
-  tertiary: "#db2777",
-  tertiaryLight: "rgba(219,39,119,0.08)",
-  error: "#ef4444",
-  success: "#22c55e",
+  bg: "oklch(97% 0.004 75)",
+  surface: "oklch(99% 0.002 80)",
+  surface2: "oklch(95% 0.005 75)",
+  surfaceHigh: "oklch(91% 0.007 75)",
+  surfaceHighest: "oklch(87% 0.009 75)",
+  border: "oklch(86% 0.008 75 / 0.8)",
+  borderStrong: "oklch(72% 0.010 75 / 0.9)",
+  text: "oklch(15% 0.010 60)",
+  textSoft: "oklch(15% 0.010 60)",
+  textMid: "oklch(34% 0.008 60)",
+  textMuted: "oklch(42% 0.007 60)",
+  textDim: "oklch(48% 0.007 60)",
+  textFaint: "oklch(55% 0.007 60)",
+  // Dark amber — sufficient contrast on warm off-white (WCAG AA)
+  accent: "oklch(50% 0.14 75)",
+  accentLight: "oklch(93% 0.06 75)",
+  accentBorder: "oklch(82% 0.09 75)",
+  accentContainer: "oklch(45% 0.14 75)",
+  secondary: "oklch(42% 0.08 150)",
+  secondaryLight: "oklch(93% 0.04 150)",
+  secondaryBorder: "oklch(82% 0.06 150)",
+  tertiary: "oklch(50% 0.12 20)",
+  tertiaryLight: "oklch(93% 0.04 20)",
+  error: "oklch(50% 0.18 25)",
+  success: "oklch(45% 0.14 145)",
 };
 
 interface ThemeContextValue {
@@ -97,18 +96,32 @@ const ThemeCtx = createContext<ThemeContextValue>({
 });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  // App is dark-mode only — inline styles use hardcoded dark colors
-  const [isDark] = useState(true);
+  const [isDark, setIsDark] = useState(() => {
+    try {
+      const saved = localStorage.getItem("openbrain_theme");
+      return saved !== "light"; // default to dark
+    } catch {
+      return true;
+    }
+  });
 
   useEffect(() => {
     const root = document.documentElement;
-    root.setAttribute("data-theme", "dark");
-    root.classList.add("dark");
-    root.classList.remove("light");
-    localStorage.setItem("openbrain_theme", "dark");
-  }, []);
+    if (isDark) {
+      root.classList.add("dark");
+      root.classList.remove("light");
+      root.style.colorScheme = "dark";
+    } else {
+      root.classList.remove("dark");
+      root.classList.add("light");
+      root.style.colorScheme = "light";
+    }
+    try {
+      localStorage.setItem("openbrain_theme", isDark ? "dark" : "light");
+    } catch {}
+  }, [isDark]);
 
-  const toggleTheme = () => {}; // no-op — dark mode only
+  const toggleTheme = () => setIsDark((prev) => !prev);
   const t = isDark ? DARK : LIGHT;
 
   return <ThemeCtx.Provider value={{ t, isDark, toggleTheme }}>{children}</ThemeCtx.Provider>;

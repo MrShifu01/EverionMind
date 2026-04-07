@@ -35,35 +35,35 @@ function PreviewModal({ preview, entries, onSave, onUpdate, onCancel }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
+      style={{ background: "rgba(0,0,0,0.65)" }}
       onClick={onCancel}
     >
       <div
         className="w-full max-w-md rounded-2xl border p-5"
-        style={{ background: "#1a1919", borderColor: "rgba(72,72,71,0.2)" }}
+        style={{ background: "var(--color-surface-container-low)", borderColor: "var(--color-outline-variant)" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <span className="text-sm font-semibold text-white">Preview before saving</span>
-          <button onClick={onCancel} className="text-[#777] hover:text-white text-lg">✕</button>
+          <span className="text-sm font-semibold text-on-surface">Preview before saving</span>
+          <button onClick={onCancel} className="text-on-surface-variant hover:text-on-surface text-lg transition-colors">✕</button>
         </div>
         <div className="space-y-3">
           <div>
-            <label className="block text-[10px] font-semibold uppercase tracking-widest text-[#aaa] mb-1.5">Title</label>
+            <label className="block text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant mb-1.5">Title</label>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full rounded-xl border px-3 py-2.5 text-sm text-white bg-transparent outline-none focus:border-[rgba(114,239,245,0.5)] transition-colors"
-              style={{ borderColor: "rgba(72,72,71,0.3)", fontFamily: "'Inter', sans-serif" }}
+              className="w-full rounded-xl border px-3 py-2.5 text-sm text-on-surface bg-transparent outline-none focus:border-[var(--color-primary)] transition-colors"
+              style={{ borderColor: "var(--color-outline-variant)" }}
             />
           </div>
           <div>
-            <label className="block text-[10px] font-semibold uppercase tracking-widest text-[#aaa] mb-1.5">Type</label>
+            <label className="block text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant mb-1.5">Type</label>
             <select
               value={type}
               onChange={(e) => setType(e.target.value)}
-              className="w-full rounded-xl border px-3 py-2.5 text-sm text-white outline-none appearance-none cursor-pointer focus:border-[rgba(114,239,245,0.5)] transition-colors"
-              style={{ borderColor: "rgba(72,72,71,0.3)", background: "rgba(38,38,38,0.6)" }}
+              className="w-full rounded-xl border px-3 py-2.5 text-sm text-on-surface outline-none appearance-none cursor-pointer focus:border-[var(--color-primary)] transition-colors"
+              style={{ borderColor: "var(--color-outline-variant)", background: "var(--color-surface-container)" }}
             >
               {Object.keys(TC).map((t) => (
                 <option key={t} value={t}>
@@ -73,24 +73,24 @@ function PreviewModal({ preview, entries, onSave, onUpdate, onCancel }) {
             </select>
           </div>
           <div>
-            <label className="block text-[10px] font-semibold uppercase tracking-widest text-[#aaa] mb-1.5">
-              Tags <span className="normal-case tracking-normal text-[#555]">(comma separated)</span>
+            <label className="block text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant mb-1.5">
+              Tags <span className="normal-case tracking-normal text-on-surface-variant/40">(comma separated)</span>
             </label>
             <input
               value={tags}
               onChange={(e) => setTags(e.target.value)}
               placeholder="tag1, tag2"
-              className="w-full rounded-xl border px-3 py-2.5 text-sm text-white bg-transparent outline-none placeholder:text-[#555] focus:border-[rgba(114,239,245,0.5)] transition-colors"
-              style={{ borderColor: "rgba(72,72,71,0.3)", fontFamily: "'Inter', sans-serif" }}
+              className="w-full rounded-xl border px-3 py-2.5 text-sm text-on-surface bg-transparent outline-none placeholder:text-on-surface-variant/40 focus:border-[var(--color-primary)] transition-colors"
+              style={{ borderColor: "var(--color-outline-variant)" }}
             />
           </div>
         </div>
         {dupes.length > 0 && (
-          <div className="mt-4 p-3 rounded-xl border" style={{ borderColor: "rgba(255,180,0,0.2)", background: "rgba(255,180,0,0.05)" }}>
-            <p className="text-xs text-[#ffb400] font-semibold mb-2">⚠ Similar entries found — update one instead?</p>
+          <div className="mt-4 p-3 rounded-xl border" style={{ borderColor: "var(--color-primary-container)", background: "color-mix(in oklch, var(--color-primary) 6%, transparent)" }}>
+            <p className="text-xs font-semibold mb-2 text-primary">⚠ Similar entries found — update one instead?</p>
             {dupes.map((d) => (
               <div key={d.id} className="flex items-center justify-between gap-2 py-1.5">
-                <span className="text-xs text-[#aaa] truncate">• {d.title}</span>
+                <span className="text-xs text-on-surface-variant truncate">• {d.title}</span>
                 <button
                   onClick={() => {
                     onUpdate(d.id, {
@@ -103,7 +103,7 @@ function PreviewModal({ preview, entries, onSave, onUpdate, onCancel }) {
                     onCancel();
                   }}
                   className="text-[10px] font-semibold px-2.5 py-1 rounded-lg flex-shrink-0"
-                  style={{ color: "#72eff5", background: "rgba(114,239,245,0.1)" }}
+                  style={{ color: "var(--color-primary)", background: "var(--color-primary-container)" }}
                 >
                   Update this
                 </button>
@@ -114,8 +114,8 @@ function PreviewModal({ preview, entries, onSave, onUpdate, onCancel }) {
         <div className="flex gap-3 mt-5">
           <button
             onClick={onCancel}
-            className="flex-1 py-2.5 rounded-xl border text-sm text-[#aaa] transition-colors hover:bg-white/5"
-            style={{ borderColor: "rgba(72,72,71,0.3)", background: "transparent" }}
+            className="flex-1 py-2.5 rounded-xl border text-sm text-on-surface-variant transition-colors hover:bg-surface-container"
+            style={{ borderColor: "var(--color-outline-variant)", background: "transparent" }}
           >
             Cancel
           </button>
@@ -129,10 +129,10 @@ function PreviewModal({ preview, entries, onSave, onUpdate, onCancel }) {
               })
             }
             disabled={!title.trim()}
-            className="flex-[2] py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-40"
-            style={{ background: "linear-gradient(135deg, #72eff5, #1fb1b7)", color: "#0a0a0a" }}
+            className="flex-[2] py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-40 press-scale"
+            style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
           >
-            Save to OpenBrain
+            Save to Everion
           </button>
         </div>
       </div>
@@ -880,10 +880,10 @@ export default function QuickCapture({
       <div className="px-4 pt-3 pb-2">
         <div
           className="flex items-center gap-2 rounded-2xl px-4 py-3 border"
-          style={{ background: "rgba(38,38,38,0.4)", borderColor: "rgba(72,72,71,0.15)" }}
+          style={{ background: "var(--color-surface-container-low)", borderColor: "var(--color-outline-variant)" }}
         >
           <span>🔒</span>
-          <span className="text-sm text-[#777]">You have view-only access to this brain</span>
+          <span className="text-sm text-on-surface-variant">You have view-only access to this brain</span>
         </div>
       </div>
     );
@@ -893,12 +893,10 @@ export default function QuickCapture({
     <div className="px-4 pt-3 pb-2">
       {/* Capture input bar */}
       <div
-        className="flex items-center gap-2 rounded-2xl px-4 py-3.5 border transition-colors focus-within:border-[rgba(114,239,245,0.5)]"
+        className="flex items-center gap-2 rounded-2xl px-4 py-3.5 border transition-colors focus-within:border-[var(--color-primary)]"
         style={{
-          background: "rgba(38,38,38,0.6)",
-          backdropFilter: "blur(16px)",
-          WebkitBackdropFilter: "blur(16px)",
-          borderColor: "rgba(72,72,71,0.2)",
+          background: "var(--color-surface-container)",
+          borderColor: "var(--color-outline-variant)",
         }}
       >
         {/* Hidden file inputs */}
@@ -936,8 +934,7 @@ export default function QuickCapture({
                 ? "Processing..."
                 : "Quick capture — just type anything..."
           }
-          className="flex-1 min-w-0 bg-transparent text-white text-base outline-none placeholder:text-[#555] px-4 py-3"
-          style={{ fontFamily: "'Inter', sans-serif" }}
+          className="flex-1 min-w-0 bg-transparent text-on-surface text-base outline-none placeholder:text-on-surface-variant/40 px-4 py-3"
         />
 
         {/* Action buttons */}
@@ -947,7 +944,7 @@ export default function QuickCapture({
             disabled={loading}
             title="Voice capture"
             className="w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors hover:bg-white/10 disabled:opacity-40"
-            style={listening ? { background: "rgba(255,110,132,0.2)" } : undefined}
+            style={listening ? { background: "color-mix(in oklch, var(--color-error) 12%, transparent)" } : undefined}
           >
             🎤
           </button>
@@ -981,8 +978,8 @@ export default function QuickCapture({
             title={`Save to ${(BRAIN_META_QC[brains[0]?.type] || BRAIN_META_QC.personal).emoji} ${brains[0]?.name || "brain"}`}
             className="w-8 h-8 flex items-center justify-center rounded-xl text-lg font-bold transition-all disabled:opacity-30"
             style={{
-              background: text.trim() ? "linear-gradient(135deg, #72eff5, #1fb1b7)" : "rgba(72,72,71,0.3)",
-              color: text.trim() ? "#0a0a0a" : "#555",
+              background: text.trim() ? "var(--color-primary)" : "var(--color-surface-container-highest)",
+              color: text.trim() ? "var(--color-on-primary)" : "var(--color-on-surface-variant)",
             }}
           >
             +
@@ -993,7 +990,7 @@ export default function QuickCapture({
       {/* Status message */}
       {status && (
         <div className="mt-2 px-1">
-          <p className="text-xs" style={{ color: status === "error" || status.includes("large") || status.includes("unsupported") ? "#ff6e84" : "#72eff5" }}>
+          <p className="text-xs" style={{ color: status === "error" || status.includes("large") || status.includes("unsupported") ? "var(--color-error)" : "var(--color-primary)" }}>
             {statusMsg[status]}
           </p>
           {status === "vault-needed" && onNavigate && (
@@ -1003,7 +1000,7 @@ export default function QuickCapture({
                 setStatus(null);
               }}
               className="text-xs font-semibold mt-1 px-3 py-1 rounded-lg transition-colors"
-              style={{ color: "#72eff5", background: "rgba(114,239,245,0.1)" }}
+              style={{ color: "var(--color-primary)", background: "var(--color-primary-container)" }}
             >
               Open Vault
             </button>
@@ -1058,16 +1055,16 @@ export default function QuickCapture({
         >
           <div
             className="w-full max-w-lg flex flex-col rounded-2xl border"
-            style={{ background: "#1a1919", borderColor: "rgba(72,72,71,0.2)", maxHeight: "100%" }}
+            style={{ background: "#1a1919", borderColor: "var(--color-outline-variant)", maxHeight: "100%" }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Fixed header */}
             <div className="px-5 pt-5 pb-3 flex-shrink-0">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm font-semibold text-white">✂️ {multiPreview.length} entries found in file</span>
-                <button onClick={() => setMultiPreview(null)} className="text-[#777] hover:text-white text-lg">✕</button>
+                <button onClick={() => setMultiPreview(null)} className="text-on-surface-variant hover:text-white text-lg">✕</button>
               </div>
-              <p className="text-xs text-[#777]">
+              <p className="text-xs text-on-surface-variant">
                 Review the entries extracted from your file. Remove any you don't want, then save all.
               </p>
             </div>
@@ -1077,21 +1074,21 @@ export default function QuickCapture({
                 <div
                   key={i}
                   className="relative rounded-xl border p-3"
-                  style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}
+                  style={{ background: "rgba(38,38,38,0.6)", borderColor: "var(--color-outline-variant)" }}
                 >
                   <button
                     onClick={() => setMultiPreview((prev) => prev.filter((_, j) => j !== i))}
                     title="Remove"
-                    className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full text-xs text-[#777] hover:text-white hover:bg-white/10"
+                    className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full text-xs text-on-surface-variant hover:text-white hover:bg-white/10"
                   >
                     ✕
                   </button>
                   <div className="flex items-center gap-2 mb-1">
                     <span>{getTypeConfig(entry.type).i}</span>
                     <span className="text-sm font-semibold text-white truncate">{entry.title}</span>
-                    <span className="text-[10px] uppercase tracking-wider text-[#777] ml-auto mr-6">{entry.type}</span>
+                    <span className="text-[10px] uppercase tracking-wider text-on-surface-variant ml-auto mr-6">{entry.type}</span>
                   </div>
-                  <p className="text-xs text-[#777] leading-relaxed">
+                  <p className="text-xs text-on-surface-variant leading-relaxed">
                     {(entry.content || "").slice(0, 150)}
                     {(entry.content || "").length > 150 ? "…" : ""}
                   </p>
@@ -1101,7 +1098,7 @@ export default function QuickCapture({
                         <span
                           key={tag}
                           className="text-[10px] px-2 py-0.5 rounded-full"
-                          style={{ color: "#72eff5", background: "rgba(114,239,245,0.1)" }}
+                          style={{ color: "var(--color-primary)", background: "var(--color-primary-container)" }}
                         >
                           {tag}
                         </span>
@@ -1112,11 +1109,11 @@ export default function QuickCapture({
               ))}
             </div>
             {/* Fixed action buttons — always visible above bottom nav */}
-            <div className="flex gap-3 px-5 py-4 flex-shrink-0 border-t" style={{ borderColor: "rgba(72,72,71,0.2)" }}>
+            <div className="flex gap-3 px-5 py-4 flex-shrink-0 border-t" style={{ borderColor: "var(--color-outline-variant)" }}>
               <button
                 onClick={() => setMultiPreview(null)}
-                className="flex-1 py-2.5 rounded-xl border text-sm text-[#aaa] transition-colors hover:bg-white/5"
-                style={{ borderColor: "rgba(72,72,71,0.3)", background: "transparent" }}
+                className="flex-1 py-2.5 rounded-xl border text-sm text-on-surface-variant transition-colors hover:bg-white/5"
+                style={{ borderColor: "var(--color-outline-variant)", background: "transparent" }}
               >
                 Cancel
               </button>
@@ -1124,7 +1121,7 @@ export default function QuickCapture({
                 onClick={() => saveMultiEntries(multiPreview)}
                 disabled={multiPreview.length === 0}
                 className="flex-[2] py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-40"
-                style={{ background: "linear-gradient(135deg, #72eff5, #1fb1b7)", color: "#0a0a0a" }}
+                style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
               >
                 Save {multiPreview.length} entries
               </button>

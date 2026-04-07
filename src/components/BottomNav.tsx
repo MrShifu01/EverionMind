@@ -20,8 +20,8 @@ const NAV_ITEMS = [
     ),
   },
   {
-    id: "suggest",
-    label: "Fill",
+    id: "_capture_fab",
+    label: "New",
     isFAB: true,
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
@@ -54,18 +54,20 @@ const MORE_IDS = new Set(["refine", "todos", "timeline", "vault", "settings"]);
 interface BottomNavProps {
   activeView: string;
   onNavigate: (id: string) => void;
+  onCapture: () => void;
 }
 
-export default function BottomNav({ activeView, onNavigate }: BottomNavProps) {
+export default function BottomNav({ activeView, onNavigate, onCapture }: BottomNavProps) {
   const isMoreActive = MORE_IDS.has(activeView);
 
   return (
     <nav
       aria-label="Primary navigation"
-      className="lg:hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center justify-around px-3 py-2 w-[92vw] max-w-sm rounded-full glass-panel-dark border"
+      className="lg:hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center justify-around px-3 py-2 w-[92vw] max-w-sm rounded-full border"
       style={{
-        borderColor: "rgba(255,255,255,0.08)",
-        boxShadow: "0 0 0 0.5px rgba(255,255,255,0.06), 0 20px 40px rgba(0,0,0,0.4)",
+        background: "var(--color-surface-container-low)",
+        borderColor: "var(--color-outline-variant)",
+        boxShadow: "var(--shadow-lg)",
       }}
     >
       {NAV_ITEMS.map((item) => {
@@ -78,13 +80,10 @@ export default function BottomNav({ activeView, onNavigate }: BottomNavProps) {
           return (
             <button
               key={item.id}
-              onClick={() => onNavigate(item.id)}
-              aria-label="Fill Brain"
-              className="flex flex-col items-center justify-center w-14 h-14 rounded-2xl press-scale text-on-primary-container"
-              style={{
-                background: "linear-gradient(135deg, #72eff5, #1fb1b7)",
-                boxShadow: "0 4px 24px rgba(114,239,245,0.30)",
-              }}
+              onClick={onCapture}
+              aria-label="New entry"
+              className="flex flex-col items-center justify-center w-14 h-14 rounded-2xl press-scale transition-colors duration-150"
+              style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
             >
               {item.icon}
             </button>
@@ -100,10 +99,10 @@ export default function BottomNav({ activeView, onNavigate }: BottomNavProps) {
             className={cn(
               "flex flex-col items-center justify-center w-14 h-14 rounded-xl transition-all duration-200 gap-0.5 press-scale",
               isActive
-                ? "text-secondary"
+                ? "text-primary"
                 : "text-on-surface-variant"
             )}
-            style={isActive ? { background: "rgba(213,117,255,0.10)" } : undefined}
+            style={isActive ? { background: "var(--color-primary-container)" } : undefined}
           >
             {item.icon}
             <span className="text-[9px] uppercase tracking-widest font-semibold">{item.label}</span>

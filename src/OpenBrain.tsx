@@ -34,6 +34,7 @@ import QuickCapture from "./components/QuickCapture";
 
 import BottomNav from "./components/BottomNav";
 import MobileHeader from "./components/MobileHeader";
+import CaptureSheet from "./components/CaptureSheet";
 import DesktopSidebar from "./components/DesktopSidebar";
 import LoadingScreen from "./components/LoadingScreen";
 import SkeletonCard from "./components/SkeletonCard";
@@ -78,18 +79,16 @@ function UndoToast({ action, onUndo, onDismiss }) {
       role="alert"
       className="fixed bottom-24 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 w-[90vw] max-w-sm overflow-hidden rounded-2xl border"
       style={{
-        background: "rgba(26,25,25,0.95)",
-        backdropFilter: "blur(24px)",
-        WebkitBackdropFilter: "blur(24px)",
-        borderColor: isDelete ? "rgba(255,110,132,0.20)" : "rgba(114,239,245,0.15)",
-        boxShadow: "0 20px 40px rgba(0,0,0,0.4)",
+        background: "var(--color-surface-container-high)",
+        borderColor: isDelete ? "color-mix(in oklch, var(--color-error) 20%, transparent)" : "var(--color-primary-container)",
+        boxShadow: "var(--shadow-lg)",
         animation: "slide-up 0.25s ease-out",
       }}
     >
       <div className="flex items-center gap-3 px-4 py-3">
         <div
           className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-sm"
-          style={{ background: isDelete ? "rgba(255,110,132,0.1)" : "rgba(114,239,245,0.1)" }}
+          style={{ background: isDelete ? "color-mix(in oklch, var(--color-error) 12%, transparent)" : "var(--color-primary-container)" }}
         >
           {isDelete ? "🗑" : "✓"}
         </div>
@@ -109,12 +108,12 @@ function UndoToast({ action, onUndo, onDismiss }) {
         </button>
       </div>
       {/* Progress bar */}
-      <div className="h-0.5 w-full" style={{ background: "rgba(72,72,71,0.2)" }}>
+      <div className="h-0.5 w-full" style={{ background: "var(--color-outline-variant)" }}>
         <div
           className="h-full transition-none rounded-full"
           style={{
             width: `${pct}%`,
-            background: isDelete ? "#ff6e84" : "#72eff5",
+            background: isDelete ? "var(--color-error)" : "var(--color-primary)",
           }}
         />
       </div>
@@ -131,13 +130,13 @@ function NudgeBanner({ nudge, onDismiss }) {
     <div
       className="flex items-start gap-3 p-4 rounded-2xl mb-4 border"
       style={{
-        background: "rgba(213,117,255,0.06)",
-        borderColor: "rgba(213,117,255,0.15)",
+        background: "var(--color-secondary-container)",
+        borderColor: "var(--color-secondary-container)",
       }}
     >
       <div
         className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-base"
-        style={{ background: "rgba(213,117,255,0.12)" }}
+        style={{ background: "var(--color-secondary-container)" }}
       >
         💡
       </div>
@@ -167,46 +166,49 @@ function containsSensitiveContent(text) {
    ENTRY CARD
    ═══════════════════════════════════════════════════════════════ */
 const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
-  note:     { bg: "rgba(114,239,245,0.10)", text: "#72eff5" },
-  person:   { bg: "rgba(114,239,245,0.10)", text: "#72eff5" },
-  document: { bg: "rgba(213,117,255,0.10)", text: "#d575ff" },
-  secret:   { bg: "rgba(255,154,195,0.10)", text: "#ff9ac3" },
-  reminder: { bg: "rgba(255,110,132,0.10)", text: "#ff6e84" },
-  supplier: { bg: "rgba(213,117,255,0.10)", text: "#d575ff" },
-  default:  { bg: "rgba(114,239,245,0.10)", text: "#72eff5" },
+  note:     { bg: "var(--color-primary-container)", text: "var(--color-primary)" },
+  person:   { bg: "var(--color-primary-container)", text: "var(--color-primary)" },
+  document: { bg: "var(--color-secondary-container)", text: "var(--color-secondary)" },
+  secret:   { bg: "var(--color-secondary-container)", text: "var(--color-secondary)" },
+  reminder: { bg: "color-mix(in oklch, var(--color-error) 12%, transparent)", text: "var(--color-error)" },
+  supplier: { bg: "var(--color-secondary-container)", text: "var(--color-secondary)" },
+  default:  { bg: "var(--color-primary-container)", text: "var(--color-primary)" },
 };
 
 const EntryCard = memo(function EntryCard({ entry: e, onSelect, typeIcons = {} }) {
   const cfg = { ...(TC[e.type] || TC.note), i: resolveIcon(e.type, typeIcons) };
   const imp = { 1: "Important", 2: "Critical" }[e.importance];
   const colors = TYPE_COLORS[e.type] || TYPE_COLORS.default;
+  const dateStr = e.created_at ? new Date(e.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : null;
+
   return (
     <article
       onClick={() => onSelect(e)}
       className="group cursor-pointer rounded-3xl p-5 border transition-all duration-300 hover:-translate-y-0.5 press-scale"
       style={{
-        background: "#1a1919",
-        borderColor: "rgba(72,72,71,0.05)",
+        background: "var(--color-surface-container-low)",
+        borderColor: "var(--color-outline-variant)",
       }}
-      onMouseEnter={(el) => { (el.currentTarget as HTMLElement).style.borderColor = "rgba(114,239,245,0.15)"; (el.currentTarget as HTMLElement).style.background = "#1e1d1d"; }}
-      onMouseLeave={(el) => { (el.currentTarget as HTMLElement).style.borderColor = "rgba(72,72,71,0.05)"; (el.currentTarget as HTMLElement).style.background = "#1a1919"; }}
+      onMouseEnter={(el) => { (el.currentTarget as HTMLElement).style.borderColor = "var(--color-primary-container)"; (el.currentTarget as HTMLElement).style.background = "var(--color-surface-container)"; }}
+      onMouseLeave={(el) => { (el.currentTarget as HTMLElement).style.borderColor = "var(--color-outline-variant)"; (el.currentTarget as HTMLElement).style.background = "var(--color-surface-container-low)"; }}
     >
-      {/* Header */}
+      {/* Header — icon + type (demoted) + importance badge */}
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0" style={{ background: colors.bg }}>
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs flex-shrink-0" style={{ background: colors.bg }}>
             <span style={{ color: colors.text }}>{cfg.i}</span>
           </div>
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant/60">{e.type}</p>
-          </div>
+          <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant/50">{e.type}</p>
         </div>
         <div className="flex items-center gap-1.5">
-          {e.pinned && <span style={{ color: "#72eff5", fontSize: 12 }}>📌</span>}
+          {e.pinned && <span style={{ color: "var(--color-primary)", fontSize: 11 }}>📌</span>}
           {imp && (
             <span
               className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
-              style={{ background: imp === "Critical" ? "rgba(255,110,132,0.12)" : "rgba(255,154,195,0.10)", color: imp === "Critical" ? "#ff6e84" : "#ff9ac3" }}
+              style={{
+                background: imp === "Critical" ? "color-mix(in oklch, var(--color-error) 12%, transparent)" : "var(--color-primary-container)",
+                color: imp === "Critical" ? "var(--color-error)" : "var(--color-primary)",
+              }}
             >
               {imp}
             </span>
@@ -214,31 +216,43 @@ const EntryCard = memo(function EntryCard({ entry: e, onSelect, typeIcons = {} }
         </div>
       </div>
 
-      {/* Title */}
-      <h3 className="font-bold text-on-surface leading-tight tracking-tight line-clamp-2 mb-2 text-base" style={{ fontFamily: "'Manrope', sans-serif" }}>
+      {/* Title — hero element */}
+      <h3
+        className="font-semibold text-on-surface leading-snug tracking-tight line-clamp-2 mb-2"
+        style={{ fontFamily: "'Lora', Georgia, serif", fontSize: "1.0625rem" }}
+      >
         {e.title}
       </h3>
 
       {/* Content */}
       {e.type === "secret" ? (
-        <p className="text-sm text-on-surface-variant/60 italic mb-3">🔒 Encrypted — tap to reveal</p>
+        <p className="text-sm text-on-surface-variant/50 italic mb-3">🔒 Encrypted — tap to reveal</p>
       ) : e.content ? (
-        <p className="text-sm text-on-surface-variant line-clamp-2 mb-3 leading-relaxed">{e.content}</p>
+        <p className="text-sm text-on-surface-variant/80 line-clamp-2 mb-3 leading-relaxed">{e.content}</p>
       ) : null}
 
-      {/* Tags */}
-      {e.tags?.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mt-auto">
-          {e.tags.slice(0, 3).map((tag) => (
-            <span key={tag} className="text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full" style={{ background: "#262626", color: "#d575ff", border: "1px solid rgba(213,117,255,0.12)" }}>
-              #{tag}
-            </span>
-          ))}
-          {e.tags.length > 3 && (
-            <span className="text-[10px] text-on-surface-variant/50 px-1">+{e.tags.length - 3}</span>
-          )}
-        </div>
-      )}
+      {/* Footer — tags + date */}
+      <div className="flex items-end justify-between gap-2 mt-auto">
+        {e.tags?.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {e.tags.slice(0, 3).map((tag) => (
+              <span
+                key={tag}
+                className="text-[9px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full"
+                style={{ background: "var(--color-primary-container)", color: "var(--color-primary)" }}
+              >
+                {tag}
+              </span>
+            ))}
+            {e.tags.length > 3 && (
+              <span className="text-[9px] text-on-surface-variant/40 px-1">+{e.tags.length - 3}</span>
+            )}
+          </div>
+        ) : <div />}
+        {dateStr && (
+          <span className="text-[10px] text-on-surface-variant/40 flex-shrink-0">{dateStr}</span>
+        )}
+      </div>
     </article>
   );
 });
@@ -306,7 +320,7 @@ function VirtualTimeline({ sorted, setSelected, typeIcons = {} }) {
   });
   return (
     <div ref={listRef} className="relative">
-      <div className="absolute left-6 top-0 bottom-0 w-px" style={{ background: "rgba(72,72,71,0.15)" }} />
+      <div className="absolute left-6 top-0 bottom-0 w-px" style={{ background: "var(--color-outline-variant)" }} />
       <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
         {virtualizer.getVirtualItems().map((vItem) => {
           const e = sorted[vItem.index];
@@ -318,8 +332,8 @@ function VirtualTimeline({ sorted, setSelected, typeIcons = {} }) {
               className="flex items-center gap-4 pl-4 pr-4 py-2.5 cursor-pointer group"
               onClick={() => setSelected(e)}
             >
-              <div className="w-4 h-4 rounded-full flex-shrink-0 flex items-center justify-center z-10" style={{ background: "#1a1919", border: "2px solid rgba(114,239,245,0.3)" }}>
-                <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#72eff5" }} />
+              <div className="w-4 h-4 rounded-full flex-shrink-0 flex items-center justify-center z-10" style={{ background: "#1a1919", border: "2px solid var(--color-primary)" }}>
+                <div className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--color-primary)" }} />
               </div>
               <p className="text-[10px] uppercase tracking-widest text-on-surface-variant/50 font-semibold flex-shrink-0 w-20">{fmtD(e.created_at)}</p>
               <div className="flex items-center gap-2 flex-1 min-w-0 px-3 py-2 rounded-xl transition-colors group-hover:bg-surface-container">
@@ -432,6 +446,7 @@ export default function OpenBrain() {
   );
   const [view, setView] = useState("capture");
   const [navOpen, setNavOpen] = useState(false);
+  const [captureSheetOpen, setCaptureSheetOpen] = useState(false);
   const [selected, setSelected] = useState(null);
   const [links, setLinks] = useState(LINKS);
   const addLinks = (newLinks) => setLinks((prev) => [...prev, ...newLinks]);
@@ -1071,7 +1086,7 @@ export default function OpenBrain() {
         <>
           {/* Desktop sidebar — fixed, outside overflow container */}
           <DesktopSidebar
-            activeBrainName={activeBrain?.name || "OpenBrain"}
+            activeBrainName={activeBrain?.name || "Everion"}
             view={view}
             onNavigate={(id) => { setView(id); setNavOpen(false); }}
             isDark={isDark}
@@ -1168,25 +1183,25 @@ export default function OpenBrain() {
           {navOpen && (
             <div
               className="fixed inset-0 z-50 transition-opacity"
-              style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
+              style={{ background: "rgba(0,0,0,0.5)" }}
               onClick={() => setNavOpen(false)}
             >
               <div
                 className="absolute right-0 top-0 h-full w-72 flex flex-col border-l overflow-y-auto"
                 style={{
-                  background: "#141414",
-                  borderColor: "rgba(72,72,71,0.15)",
+                  background: "var(--color-surface-dim)",
+                  borderColor: "var(--color-outline-variant)",
                   paddingTop: "max(16px, env(safe-area-inset-top))",
                   paddingBottom: "max(16px, env(safe-area-inset-bottom))",
                 }}
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Header */}
-                <div className="flex items-center justify-between px-5 pb-4 mb-2 border-b" style={{ borderColor: "rgba(72,72,71,0.15)" }}>
-                  <span className="text-sm font-bold text-white" style={{ fontFamily: "'Manrope', sans-serif" }}>Navigation</span>
+                <div className="flex items-center justify-between px-5 pb-4 mb-2 border-b" style={{ borderColor: "var(--color-outline-variant)" }}>
+                  <span className="text-sm font-bold text-white" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>Navigation</span>
                   <button
                     onClick={() => setNavOpen(false)}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg text-[#777] hover:text-white hover:bg-white/10 transition-colors"
+                    className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-white hover:bg-white/10 transition-colors"
                   >
                     ×
                   </button>
@@ -1205,8 +1220,8 @@ export default function OpenBrain() {
                         }}
                         className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors"
                         style={{
-                          background: isActive ? "rgba(114,239,245,0.08)" : "transparent",
-                          color: isActive ? "#72eff5" : "#aaa",
+                          background: isActive ? "var(--color-primary-container)" : "transparent",
+                          color: isActive ? "var(--color-primary)" : "var(--color-on-surface-variant)",
                         }}
                       >
                         <span className="w-6 text-center text-base">{v.ic}</span>
@@ -1217,14 +1232,14 @@ export default function OpenBrain() {
                 </div>
 
                 {/* Add Brain button */}
-                <div className="px-3 pt-3 mt-2 border-t" style={{ borderColor: "rgba(72,72,71,0.15)" }}>
+                <div className="px-3 pt-3 mt-2 border-t" style={{ borderColor: "var(--color-outline-variant)" }}>
                   <button
                     onClick={() => {
                       setNavOpen(false);
                       setShowCreateBrain(true);
                     }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors hover:bg-white/5"
-                    style={{ color: "#d575ff" }}
+                    style={{ color: "var(--color-secondary)" }}
                   >
                     <span className="w-6 text-center text-base">+</span>
                     <span className="text-sm font-medium">Add Brain</span>
@@ -1232,8 +1247,8 @@ export default function OpenBrain() {
                 </div>
 
                 {/* Footer stats */}
-                <div className="px-5 pt-3 pb-2 mt-2 border-t" style={{ borderColor: "rgba(72,72,71,0.15)" }}>
-                  <p className="text-[11px] text-[#555]">
+                <div className="px-5 pt-3 pb-2 mt-2 border-t" style={{ borderColor: "var(--color-outline-variant)" }}>
+                  <p className="text-[11px] text-on-surface-variant/50">
                     {entries.length} memories ·{" "}
                     {pendingCount > 0 ? `${pendingCount} pending sync` : "synced"}
                   </p>
@@ -1261,17 +1276,17 @@ export default function OpenBrain() {
                 <button
                   onClick={() => setView("suggest")}
                   className="w-full flex items-center gap-4 p-5 rounded-3xl border press-scale transition-all group"
-                  style={{ background: "rgba(213,117,255,0.06)", borderColor: "rgba(213,117,255,0.15)" }}
-                  onMouseEnter={(el) => { (el.currentTarget as HTMLElement).style.borderColor = "rgba(213,117,255,0.30)"; }}
-                  onMouseLeave={(el) => { (el.currentTarget as HTMLElement).style.borderColor = "rgba(213,117,255,0.15)"; }}
+                  style={{ background: "var(--color-secondary-container)", borderColor: "var(--color-secondary-container)" }}
+                  onMouseEnter={(el) => { (el.currentTarget as HTMLElement).style.borderColor = "var(--color-secondary)"; }}
+                  onMouseLeave={(el) => { (el.currentTarget as HTMLElement).style.borderColor = "var(--color-secondary-container)"; }}
                 >
-                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(135deg, #d575ff, #9800d0)", boxShadow: "0 4px 24px rgba(213,117,255,0.25)" }}>
+                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "var(--color-secondary-container)" }}>
                     <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
                     </svg>
                   </div>
                   <div className="flex-1 text-left">
-                    <div className="font-bold text-on-surface mb-0.5" style={{ fontFamily: "'Manrope', sans-serif" }}>Fill Your Brain</div>
+                    <div className="font-bold text-on-surface mb-0.5" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>Fill Your Brain</div>
                     <div className="text-sm text-on-surface-variant">Answer guided questions to build your memory</div>
                   </div>
                   <svg className="w-5 h-5 text-on-surface-variant group-hover:text-secondary transition-colors" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -1282,22 +1297,22 @@ export default function OpenBrain() {
                 {/* Quick actions grid */}
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { id: "grid",     l: "Memory Grid",  ic: "▦", desc: "Browse all entries",   color: "#72eff5" },
-                    { id: "chat",     l: "Ask Brain",    ic: "◈", desc: "Chat with your data",   color: "#d575ff" },
-                    { id: "todos",    l: "Todos",        ic: "✓", desc: "Deadlines & events",    color: "#72eff5" },
-                    { id: "vault",    l: "Vault",        ic: "🔐", desc: "Encrypted secrets",    color: "#ff9ac3" },
+                    { id: "grid",     l: "Memory Grid",  ic: "▦", desc: "Browse all entries",   color: "var(--color-primary)" },
+                    { id: "chat",     l: "Ask Brain",    ic: "◈", desc: "Chat with your data",   color: "var(--color-secondary)" },
+                    { id: "todos",    l: "Todos",        ic: "✓", desc: "Deadlines & events",    color: "var(--color-primary)" },
+                    { id: "vault",    l: "Vault",        ic: "🔐", desc: "Encrypted secrets",    color: "var(--color-secondary)" },
                   ].map((v) => (
                     <button
                       key={v.id}
                       onClick={() => setView(v.id)}
                       className="flex flex-col items-start gap-2 p-4 rounded-2xl border transition-all press-scale text-left"
-                      style={{ background: "#1a1919", borderColor: "rgba(72,72,71,0.08)" }}
-                      onMouseEnter={(el) => { (el.currentTarget as HTMLElement).style.borderColor = `${v.color}30`; }}
-                      onMouseLeave={(el) => { (el.currentTarget as HTMLElement).style.borderColor = "rgba(72,72,71,0.08)"; }}
+                      style={{ background: "var(--color-surface-container-low)", borderColor: "var(--color-outline-variant)" }}
+                      onMouseEnter={(el) => { (el.currentTarget as HTMLElement).style.borderColor = "var(--color-primary-container)"; (el.currentTarget as HTMLElement).style.background = "var(--color-surface-container)"; }}
+                      onMouseLeave={(el) => { (el.currentTarget as HTMLElement).style.borderColor = "var(--color-outline-variant)"; (el.currentTarget as HTMLElement).style.background = "var(--color-surface-container-low)"; }}
                     >
                       <div className="text-xl">{v.ic}</div>
                       <div>
-                        <div className="text-sm font-bold text-on-surface" style={{ fontFamily: "'Manrope', sans-serif" }}>{v.l}</div>
+                        <div className="text-sm font-bold text-on-surface" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>{v.l}</div>
                         <div className="text-xs text-on-surface-variant/60 mt-0.5">{v.desc}</div>
                       </div>
                     </button>
@@ -1332,7 +1347,7 @@ export default function OpenBrain() {
                 ) : (
                   <div className="flex flex-col items-center justify-center py-20 gap-3">
                     <div className="text-4xl opacity-40">🔍</div>
-                    <p className="font-bold text-on-surface" style={{ fontFamily: "'Manrope', sans-serif" }}>No memories match</p>
+                    <p className="font-bold text-on-surface" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>No memories match</p>
                     <p className="text-sm text-on-surface-variant">Try a different search or filter</p>
                   </div>
                 )}
@@ -1390,13 +1405,13 @@ export default function OpenBrain() {
                 <div className="flex-1 overflow-y-auto space-y-4 pb-4">
                   {chatMsgs.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
-                      <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, #d575ff, #9800d0)", boxShadow: "0 4px 30px rgba(213,117,255,0.25)" }}>
+                      <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: "var(--color-secondary-container)" }}>
                         <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
                         </svg>
                       </div>
                       <div>
-                        <p className="font-bold text-on-surface text-lg mb-1" style={{ fontFamily: "'Manrope', sans-serif" }}>Ask your brain anything</p>
+                        <p className="font-bold text-on-surface text-lg mb-1" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>Ask your brain anything</p>
                         <p className="text-sm text-on-surface-variant max-w-xs">Questions, summaries, connections — your knowledge at your fingertips.</p>
                       </div>
                     </div>
@@ -1404,7 +1419,7 @@ export default function OpenBrain() {
                   {chatMsgs.map((m, i) => (
                     <div key={i} className={m.role === "user" ? "flex justify-end" : "flex gap-3 items-start"}>
                       {m.role === "assistant" && (
-                        <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center mt-1" style={{ background: "linear-gradient(135deg, #d575ff, #9800d0)", boxShadow: "0 2px 12px rgba(213,117,255,0.25)" }}>
+                        <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center mt-1" style={{ background: "var(--color-secondary-container)" }}>
                           <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09z" />
                           </svg>
@@ -1413,8 +1428,8 @@ export default function OpenBrain() {
                       <div
                         className="max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed"
                         style={m.role === "user"
-                          ? { background: "rgba(114,239,245,0.12)", border: "1px solid rgba(114,239,245,0.18)", color: "#ffffff", borderRadius: "1rem 1rem 2px 1rem" }
-                          : { background: "#1a1919", border: "1px solid rgba(72,72,71,0.08)", color: "#adaaaa", borderRadius: "2px 1rem 1rem 1rem" }
+                          ? { background: "var(--color-primary-container)", border: "1px solid var(--color-primary-container)", color: "#ffffff", borderRadius: "1rem 1rem 2px 1rem" }
+                          : { background: "#1a1919", border: "1px solid rgba(72,72,71,0.08)", color: "var(--color-on-surface-variant)", borderRadius: "2px 1rem 1rem 1rem" }
                         }
                       >
                         {m.role === "assistant"
@@ -1427,22 +1442,22 @@ export default function OpenBrain() {
                   ))}
                   {chatLoading && (
                     <div className="flex gap-3 items-center">
-                      <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center animate-pulse" style={{ background: "linear-gradient(135deg, #d575ff, #9800d0)" }}>
+                      <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center" style={{ background: "var(--color-secondary-container)" }}>
                         <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09z" />
                         </svg>
                       </div>
-                      <div className="flex items-center gap-1.5 px-4 py-3 rounded-2xl" style={{ background: "#1a1919" }}>
-                        <span className="w-2 h-2 rounded-full bg-secondary animate-bounce" style={{ animationDelay: "0ms" }} />
-                        <span className="w-2 h-2 rounded-full bg-secondary animate-bounce" style={{ animationDelay: "150ms" }} />
-                        <span className="w-2 h-2 rounded-full bg-secondary animate-bounce" style={{ animationDelay: "300ms" }} />
+                      <div className="flex items-center gap-1.5 px-4 py-3 rounded-2xl" style={{ background: "var(--color-surface-container)" }}>
+                        <span className="w-1.5 h-1.5 rounded-full bg-on-surface-variant" style={{ animation: "typing-dot 1.2s ease-in-out infinite", animationDelay: "0ms" }} />
+                        <span className="w-1.5 h-1.5 rounded-full bg-on-surface-variant" style={{ animation: "typing-dot 1.2s ease-in-out infinite", animationDelay: "200ms" }} />
+                        <span className="w-1.5 h-1.5 rounded-full bg-on-surface-variant" style={{ animation: "typing-dot 1.2s ease-in-out infinite", animationDelay: "400ms" }} />
                       </div>
                     </div>
                   )}
                   {vaultUnlockModal && (
-                    <div className="p-4 rounded-2xl border" style={{ background: "rgba(255,154,195,0.06)", borderColor: "rgba(255,154,195,0.18)" }}>
+                    <div className="p-4 rounded-2xl border" style={{ background: "var(--color-secondary-container)", borderColor: "var(--color-secondary-container)" }}>
                       <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-bold text-tertiary flex items-center gap-2" style={{ fontFamily: "'Manrope', sans-serif" }}>🔐 Unlock Vault</span>
+                        <span className="text-sm font-bold text-tertiary flex items-center gap-2" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>🔐 Unlock Vault</span>
                         <button onClick={() => setVaultUnlockModal(null)} className="text-on-surface-variant hover:text-on-surface press-scale">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
@@ -1451,7 +1466,7 @@ export default function OpenBrain() {
                         {["passphrase", "recovery"].map((mode) => (
                           <button key={mode} onClick={() => { setVaultModalMode(mode); setVaultModalInput(""); setVaultModalError(""); }}
                             className="text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
-                            style={{ background: vaultModalMode === mode ? "rgba(255,154,195,0.15)" : "#262626", color: vaultModalMode === mode ? "#ff9ac3" : "#adaaaa", border: `1px solid ${vaultModalMode === mode ? "rgba(255,154,195,0.25)" : "rgba(72,72,71,0.15)"}` }}
+                            style={{ background: vaultModalMode === mode ? "var(--color-secondary-container)" : "var(--color-surface-container-highest)", color: vaultModalMode === mode ? "var(--color-secondary)" : "var(--color-on-surface-variant)", border: `1px solid ${vaultModalMode === mode ? "var(--color-secondary-container)" : "var(--color-outline-variant)"}` }}
                           >{mode === "passphrase" ? "Passphrase" : "Recovery Key"}</button>
                         ))}
                       </div>
@@ -1461,12 +1476,12 @@ export default function OpenBrain() {
                         placeholder={vaultModalMode === "passphrase" ? "Enter vault passphrase..." : "XXXXX-XXXXX-XXXXX-XXXXX-XXXXX"}
                         autoFocus
                         className="w-full px-4 py-2.5 rounded-xl text-sm text-on-surface placeholder:text-on-surface-variant/40 focus:outline-none mb-3 min-h-[44px]"
-                        style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.2)" }}
+                        style={{ background: "var(--color-surface-container-highest)", border: "1px solid var(--color-outline-variant)" }}
                       />
                       {vaultModalError && <p className="text-xs text-error mb-2">{vaultModalError}</p>}
                       <button onClick={handleVaultModalUnlock} disabled={vaultModalBusy || !vaultModalInput.trim()}
                         className="w-full py-2.5 rounded-xl text-sm font-bold press-scale disabled:opacity-40"
-                        style={{ background: "linear-gradient(135deg, #ff9ac3, #ec77aa)", color: "#6b0c40" }}
+                        style={{ background: "var(--color-secondary)", color: "var(--color-on-primary)" }}
                       >{vaultModalBusy ? "Unlocking…" : "Unlock & Answer"}</button>
                     </div>
                   )}
@@ -1490,7 +1505,7 @@ export default function OpenBrain() {
                         onClick={() => setSearchAllBrains(true)}
                         className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all"
                         style={searchAllBrains
-                          ? { background: "rgba(213,117,255,0.15)", color: "#d575ff" }
+                          ? { background: "var(--color-secondary-container)", color: "var(--color-secondary)" }
                           : { color: "#555" }}
                       >
                         All brains
@@ -1502,13 +1517,13 @@ export default function OpenBrain() {
                       onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleChat()}
                       placeholder={searchAllBrains ? "Ask across all your brains…" : "Ask about your memories…"}
                       className="flex-1 px-4 py-3 rounded-xl text-sm text-on-surface placeholder:text-on-surface-variant/40 focus:outline-none min-h-[44px] transition-all"
-                      style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.20)", fontFamily: "'Inter', sans-serif" }}
-                      onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(114,239,245,0.4)"; }}
-                      onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(72,72,71,0.20)"; }}
+                      style={{ background: "var(--color-surface-container-highest)", border: "1px solid var(--color-outline-variant)", fontFamily: "'Inter', sans-serif" }}
+                      onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-primary)"; }}
+                      onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-outline-variant)"; }}
                     />
                     <button onClick={handleChat} disabled={chatLoading}
                       className="w-11 h-11 rounded-xl flex-shrink-0 flex items-center justify-center press-scale disabled:opacity-40"
-                      style={{ background: "linear-gradient(135deg, #72eff5, #1fb1b7)", boxShadow: "0 4px 24px rgba(114,239,245,0.20)", color: "#002829" }}
+                      style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
@@ -1553,7 +1568,7 @@ export default function OpenBrain() {
           )}
 
           {saveError && (
-            <div className="fixed top-4 right-4 z-[100] flex items-center gap-3 px-4 py-3 rounded-2xl border max-w-sm" style={{ background: "rgba(26,25,25,0.95)", backdropFilter: "blur(24px)", borderColor: "rgba(255,110,132,0.20)", boxShadow: "0 20px 40px rgba(0,0,0,0.4)" }}>
+            <div className="fixed top-4 right-4 z-[100] flex items-center gap-3 px-4 py-3 rounded-2xl border max-w-sm" style={{ background: "rgba(26,25,25,0.95)", backdropFilter: "blur(24px)", borderColor: "color-mix(in oklch, var(--color-error) 20%, transparent)", boxShadow: "0 20px 40px rgba(0,0,0,0.4)" }}>
               <svg className="w-4 h-4 text-error flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
               <span className="flex-1 text-sm text-on-surface">{saveError}</span>
               <button onClick={() => setSaveError(null)} className="text-on-surface-variant hover:text-on-surface press-scale">
@@ -1670,6 +1685,19 @@ export default function OpenBrain() {
                 setNavOpen(false);
               }
             }}
+            onCapture={() => setCaptureSheetOpen(true)}
+          />
+
+          <CaptureSheet
+            isOpen={captureSheetOpen}
+            onClose={() => setCaptureSheetOpen(false)}
+            onCreated={(entry) => {
+              setEntries((prev) => [entry, ...prev]);
+              handleCreated(entry);
+            }}
+            brainId={activeBrain?.id}
+            cryptoKey={cryptoKey}
+            isOnline={isOnline}
           />
 
           </div>{/* /main content wrapper */}

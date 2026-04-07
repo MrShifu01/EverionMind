@@ -30,28 +30,27 @@ export default function BrainTipCard({ brain, onDismiss, onFill }: BrainTipCardP
     <div
       className="relative rounded-2xl border p-4 space-y-3"
       style={{
-        background: "rgba(38,38,38,0.6)",
-        borderColor: "rgba(72,72,71,0.2)",
-        fontFamily: "'Manrope', sans-serif",
+        background: "var(--color-surface-container)",
+        borderColor: "var(--color-outline-variant)",
       }}
     >
       <button
         onClick={onDismiss}
         className="absolute top-3 right-3 text-sm rounded-full w-6 h-6 flex items-center justify-center"
-        style={{ color: "#777", background: "rgba(72,72,71,0.3)" }}
+        style={{ color: "var(--color-on-surface-variant)", background: "var(--color-outline-variant)" }}
       >
         ×
       </button>
 
       <div className="flex items-center gap-2">
         <span className="text-xl">{emoji}</span>
-        <span className="text-sm font-semibold text-white">{brain.name} is ready — start here</span>
+        <span className="text-sm font-semibold text-on-surface">{brain.name} is ready — start here</span>
       </div>
 
       <div className="space-y-2">
         {tips.map((tip) => (
-          <div key={tip} className="flex items-start gap-2 text-sm" style={{ color: "#aaa" }}>
-            <span style={{ color: "#72eff5" }}>✦</span>
+          <div key={tip} className="flex items-start gap-2 text-sm text-on-surface-variant">
+            <span className="text-primary">✦</span>
             {tip}
           </div>
         ))}
@@ -59,10 +58,10 @@ export default function BrainTipCard({ brain, onDismiss, onFill }: BrainTipCardP
 
       <button
         onClick={onFill}
-        className="w-full rounded-xl py-2 text-sm font-semibold transition-opacity hover:opacity-90"
+        className="w-full rounded-xl py-2 text-sm font-semibold transition-opacity hover:opacity-90 press-scale"
         style={{
-          background: "linear-gradient(135deg, #72eff5, #1fb1b7)",
-          color: "#0a0a0a",
+          background: "var(--color-primary)",
+          color: "var(--color-on-primary)",
         }}
       >
         Start filling →
