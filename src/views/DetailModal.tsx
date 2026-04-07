@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from "react";
-import { TC, getTypeConfig } from "../data/constants";
+import React, { useState, useEffect, useRef } from "react";
+import { TC } from "../data/constants";
+import { resolveIcon, pickDefaultIcon } from "../lib/typeIcons";
 import { extractPhone, toWaUrl } from "../lib/phone";
 import type { Entry, Brain, EntryType } from "../types";
 
@@ -21,6 +22,8 @@ interface DetailModalProps {
   canWrite?: boolean;
   brains?: Brain[];
   vaultUnlocked?: boolean;
+  typeIcons?: Record<string, string>;
+  onTypeIconChange?: (type: string, icon: string) => void;
 }
 
 export default function DetailModal({
@@ -34,6 +37,8 @@ export default function DetailModal({
   canWrite = true,
   brains = [],
   vaultUnlocked = false,
+  typeIcons = {},
+  onTypeIconChange,
 }: DetailModalProps) {
   if (!entry) return null;
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -46,10 +51,14 @@ export default function DetailModal({
   const [editType, setEditType] = useState<string>(entry.type);
   const [editTags, setEditTags] = useState((entry.tags || []).join(", "));
   const [editBrainId, setEditBrainId] = useState(entry.brain_id || "");
+  // Extra brains: brains the entry is shared into via entry_brains junction (beyond primary)
+  const [extraBrainIds, setExtraBrainIds] = useState<string[]>([]); // server state (loaded on edit open)
+  const [editExtraBrainIds, setEditExtraBrainIds] = useState<string[]>([]); // in-progress edits
+  const [extraBrainsLoaded, setExtraBrainsLoaded] = useState(false);
   const [shareMsg, setShareMsg] = useState<string | null>(null);
   const [secretRevealed, setSecretRevealed] = useState(false);
   const isSecret = entry.type === "secret";
-  const cfg = getTypeConfig(editType);
+  const cfg = { ...(TC[editType as EntryType] || TC.note), i: resolveIcon(editType, typeIcons) };
   const related = links
     .filter((l) => l.from === entry.id || l.to === entry.id)
     .map((l) => ({
@@ -66,6 +75,13 @@ export default function DetailModal({
     };
   }, []);
 
+  // Lock body scroll while modal is open (prevents background page scrolling on mobile)
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
   // UX-5: Escape key closes modal
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -77,6 +93,22 @@ export default function DetailModal({
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [editing, onClose]);
+
+  // Fetch extra brain assignments when edit mode opens
+  useEffect(() => {
+    if (!editing || extraBrainsLoaded || !entry.id) return;
+    fetch(`/api/entry-brains?entry_id=${encodeURIComponent(entry.id)}`, {
+      credentials: "include",
+    })
+      .then((r) => r.json())
+      .then((ids: string[]) => {
+        const clean = Array.isArray(ids) ? ids : [];
+        setExtraBrainIds(clean);
+        setEditExtraBrainIds(clean);
+        setExtraBrainsLoaded(true);
+      })
+      .catch(() => setExtraBrainsLoaded(true));
+  }, [editing, entry.id, extraBrainsLoaded]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -91,7 +123,39 @@ export default function DetailModal({
       tags,
     };
     if (editBrainId && editBrainId !== entry.brain_id) changes.brain_id = editBrainId;
+    // If the type changed, ensure the new type has an icon registered
+    if (editType !== entry.type) {
+      const icon = pickDefaultIcon(editType);
+      onTypeIconChange?.(editType, icon);
+    }
     await onUpdate?.(entry.id, changes);
+
+    // Sync extra brain assignments (entry_brains junction)
+    if (extraBrainsLoaded) {
+      const prevSet = new Set(extraBrainIds);
+      const nextSet = new Set(editExtraBrainIds);
+      const toAdd = [...nextSet].filter((id) => !prevSet.has(id));
+      const toRemove = [...prevSet].filter((id) => !nextSet.has(id));
+      await Promise.all([
+        ...toAdd.map((brain_id) =>
+          fetch("/api/entry-brains", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ entry_id: entry.id, brain_id }),
+          }).catch(() => {}),
+        ),
+        ...toRemove.map((brain_id) =>
+          fetch(`/api/entry-brains?entry_id=${encodeURIComponent(entry.id)}&brain_id=${encodeURIComponent(brain_id)}`, {
+            method: "DELETE",
+            credentials: "include",
+          }).catch(() => {}),
+        ),
+      ]);
+      // Update local snapshot so subsequent saves diff correctly
+      setExtraBrainIds([...nextSet]);
+    }
+
     setSaving(false);
     setEditing(false);
   };
@@ -282,21 +346,25 @@ export default function DetailModal({
       aria-modal="true"
       aria-labelledby="detail-modal-title"
       className="fixed inset-0 z-50 flex items-end lg:items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", paddingBottom: "calc(56px + env(safe-area-inset-bottom))" }}
+      style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", paddingBottom: "calc(96px + env(safe-area-inset-bottom))" }}
       onClick={editing ? undefined : onClose}
     >
       <div
-        className="relative w-full max-w-lg rounded-t-2xl lg:rounded-2xl border overflow-y-auto max-h-[90vh] p-5 pb-8"
+        className="relative w-full max-w-lg rounded-t-2xl lg:rounded-2xl border flex flex-col"
         style={{
           background: "#1a1919",
           borderColor: "rgba(72,72,71,0.2)",
           boxShadow: "0 20px 40px rgba(0,0,0,0.5), 0 0 20px rgba(114,239,245,0.05)",
           animation: "zoom-in-95 0.2s ease-out",
+          // Cap height to the actual available space so the header is never pushed above viewport.
+          // 96px = nav bar clearance; subtract safe-area so the header stays fully in view.
+          maxHeight: "calc(100vh - 96px - env(safe-area-inset-bottom) - env(safe-area-inset-top))",
         }}
         onClick={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-start justify-between mb-4">
+        {/* Header — always visible, never scrolls away */}
+        <div className="flex items-start justify-between flex-shrink-0 px-5 pt-5 pb-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1.5">
               <span className="text-lg">{cfg.i}</span>
@@ -357,6 +425,7 @@ export default function DetailModal({
               <span className="text-xs text-on-surface-variant/60">🔒 View only</span>
             )}
             <button
+              aria-label="Close"
               className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all press-scale"
               onClick={editing ? () => setEditing(false) : onClose}
             >
@@ -364,6 +433,13 @@ export default function DetailModal({
             </button>
           </div>
         </div>
+
+        {/* Scrollable body */}
+        <div
+          data-testid="detail-scroll-body"
+          className="flex-1 overflow-y-auto px-5 pb-8"
+          style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" } as React.CSSProperties}
+        >
 
         {/* Edit form */}
         {editing ? (
@@ -450,28 +526,56 @@ export default function DetailModal({
             {brains.length > 1 && (
               <div>
                 <label className="block text-[10px] uppercase tracking-widest font-semibold mb-1.5" style={{ color: "#777" }}>
-                  Brain
+                  Brains <span className="normal-case tracking-normal text-on-surface-variant/50">(tap to add/remove)</span>
                 </label>
                 <div className="flex flex-wrap gap-2">
                   {brains.map((b) => {
                     const emoji = b.type === "family" ? "🏠" : b.type === "business" ? "🏪" : "🧠";
-                    const active = editBrainId === b.id;
+                    const isPrimary = editBrainId === b.id;
+                    const isExtra = editExtraBrainIds.includes(b.id);
+                    const isActive = isPrimary || isExtra;
                     return (
                       <button
                         key={b.id}
-                        className="px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale"
+                        aria-label={`${isActive ? "Remove from" : "Add to"} ${b.name}`}
+                        aria-pressed={isActive}
+                        className="px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale flex items-center gap-1.5"
                         style={{
-                          background: active ? "rgba(114,239,245,0.1)" : "#262626",
-                          border: active ? "1px solid rgba(114,239,245,0.4)" : "1px solid rgba(72,72,71,0.2)",
-                          color: active ? "#72eff5" : "#adaaaa",
+                          background: isPrimary
+                            ? "rgba(114,239,245,0.12)"
+                            : isExtra
+                              ? "rgba(213,117,255,0.10)"
+                              : "#262626",
+                          border: isPrimary
+                            ? "1px solid rgba(114,239,245,0.45)"
+                            : isExtra
+                              ? "1px solid rgba(213,117,255,0.35)"
+                              : "1px solid rgba(72,72,71,0.2)",
+                          color: isPrimary ? "#72eff5" : isExtra ? "#d575ff" : "#adaaaa",
                         }}
-                        onClick={() => setEditBrainId(b.id)}
+                        onClick={() => {
+                          if (isPrimary) {
+                            // Can't deselect primary — switch primary to another already-selected brain
+                            // or do nothing (always need a primary)
+                            return;
+                          }
+                          if (isExtra) {
+                            setEditExtraBrainIds((prev) => prev.filter((id) => id !== b.id));
+                          } else {
+                            setEditExtraBrainIds((prev) => [...prev, b.id]);
+                          }
+                        }}
                       >
                         {emoji} {b.name}
+                        {isPrimary && <span className="text-[9px] opacity-60">primary</span>}
+                        {isExtra && <span className="text-[9px] opacity-60">✓</span>}
                       </button>
                     );
                   })}
                 </div>
+                {!extraBrainsLoaded && editing && (
+                  <p className="text-[10px] mt-1.5" style={{ color: "#555" }}>Loading brain assignments…</p>
+                )}
               </div>
             )}
             <div className="flex gap-3 pt-2">
@@ -582,7 +686,7 @@ export default function DetailModal({
                         className="flex items-center gap-2 px-3 py-2 rounded-lg mb-1.5 text-xs"
                         style={{ background: "#262626" }}
                       >
-                        <span>{getTypeConfig(r.other.type).i}</span>
+                        <span>{resolveIcon(r.other.type, typeIcons)}</span>
                         <span className="text-on-surface-variant/50">{r.dir}</span>
                         <span className="text-on-surface flex-1">{r.other.title}</span>
                         <span className="text-[10px] uppercase tracking-widest text-on-surface-variant/50">{r.rel}</span>
@@ -608,6 +712,8 @@ export default function DetailModal({
             )}
           </div>
         )}
+
+        </div>{/* end scrollable body */}
       </div>
     </div>
   );

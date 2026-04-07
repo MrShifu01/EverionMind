@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { TC, getTypeConfig, fmtD } from "../data/constants";
+import { TC, fmtD } from "../data/constants";
+import { resolveIcon } from "../lib/typeIcons";
 import { useEntries } from "../context/EntriesContext";
 import type { Entry } from "../types";
 
@@ -183,9 +184,10 @@ function MiniCalendar({
 /* ─── Main TodoView ─── */
 interface TodoViewProps {
   entries?: Entry[];
+  typeIcons?: Record<string, string>;
 }
 
-export default function TodoView({ entries: propEntries }: TodoViewProps) {
+export default function TodoView({ entries: propEntries, typeIcons = {} }: TodoViewProps) {
   const ctx = useEntries();
   const entries = propEntries || ctx?.entries || [];
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
@@ -269,14 +271,15 @@ export default function TodoView({ entries: propEntries }: TodoViewProps) {
   const total = today.length + tomorrow.length + thisWeek.length + overdue.length;
 
   function renderItem({ entry, dateStr }: TodoItem, showDate: boolean) {
-    const tc = getTypeConfig(entry.type);
+    const tc = TC[entry.type] || TC.note;
+    const icon = resolveIcon(entry.type, typeIcons);
     return (
       <div
         key={`${entry.id}-${dateStr}`}
         className="flex items-start gap-3 rounded-2xl border px-4 py-3 mb-2"
         style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}
       >
-        <span className="text-lg mt-0.5">{tc.i}</span>
+        <span className="text-lg mt-0.5">{icon}</span>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-white truncate">{entry.title}</p>
           {entry.content && entry.content !== entry.title && (
@@ -356,7 +359,8 @@ export default function TodoView({ entries: propEntries }: TodoViewProps) {
               : `Nothing on ${selectedDay}`}
           </p>
           {selEntries.map((e) => {
-            const cfg = getTypeConfig(e.type);
+            const cfg = TC[e.type] || TC.note;
+            const eIcon = resolveIcon(e.type, typeIcons);
             return (
               <div
                 key={e.id}
@@ -364,7 +368,7 @@ export default function TodoView({ entries: propEntries }: TodoViewProps) {
                 style={{ background: "rgba(14,14,14,0.5)", borderColor: "rgba(72,72,71,0.15)" }}
               >
                 <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
-                  <span className="text-base">{cfg.i}</span>
+                  <span className="text-base">{eIcon}</span>
                   <span
                     className="text-[10px] rounded-full px-2 py-0.5 font-medium capitalize"
                     style={{ background: `${cfg.c}18`, color: cfg.c }}

@@ -65,13 +65,28 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   const genKey = ((req.headers["x-user-api-key"] as string) || "").trim();
   if (!genKey) return res.status(400).json({ error: "X-User-Api-Key header required" });
 
-  const { message, brain_id, history = [], provider = "anthropic", model, secrets = [], fallback_entries = [] } = req.body || {};
+  const { message, brain_id, brain_ids, history = [], provider = "anthropic", model, secrets = [], fallback_entries = [] } = req.body || {};
   if (!message || typeof message !== "string" || !message.trim()) return res.status(400).json({ error: "message required" });
-  if (!brain_id || typeof brain_id !== "string") return res.status(400).json({ error: "brain_id required" });
 
-  // Verify brain membership or ownership
-  const access = await checkBrainAccess(user.id, brain_id);
-  if (!access) return res.status(403).json({ error: "Forbidden" });
+  // Determine which brains to search
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  let brainList: string[];
+  if (Array.isArray(brain_ids) && brain_ids.length > 0) {
+    // Cross-brain mode: array of brain IDs
+    const safe = (brain_ids as any[]).filter((id) => typeof id === "string" && uuidRe.test(id)).slice(0, 10);
+    if (!safe.length) return res.status(400).json({ error: "No valid brain_ids" });
+    brainList = safe;
+  } else if (brain_id && typeof brain_id === "string" && uuidRe.test(brain_id)) {
+    brainList = [brain_id];
+  } else {
+    return res.status(400).json({ error: "brain_id or brain_ids required" });
+  }
+
+  // Verify membership in every requested brain
+  for (const bId of brainList) {
+    const access = await checkBrainAccess(user.id, bId);
+    if (!access) return res.status(403).json({ error: `Forbidden: not a member of brain ${bId}` });
+  }
 
   // 1. Embed the question
   let queryEmbedding: number[];
@@ -82,29 +97,52 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     return res.status(502).json({ error: `Embedding failed: ${e.message}` });
   }
 
-  // 2. Retrieve top-20 relevant entries
-  const rpcRes = await fetch(`${SB_URL}/rest/v1/rpc/match_entries`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...SB_HEADERS },
-    body: JSON.stringify({
-      query_embedding: `[${queryEmbedding.join(",")}]`,
-      p_brain_id: brain_id,
-      match_count: 20,
-    }),
-  });
+  // 2. Retrieve top-20 relevant entries per brain, then merge by similarity
+  const allSemanticResults: any[] = [];
+  for (const bId of brainList) {
+    const rpcRes = await fetch(`${SB_URL}/rest/v1/rpc/match_entries`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...SB_HEADERS },
+      body: JSON.stringify({
+        query_embedding: `[${queryEmbedding.join(",")}]`,
+        p_brain_id: bId,
+        match_count: 20,
+      }),
+    });
+    if (rpcRes.ok) {
+      const results: any[] = await rpcRes.json();
+      allSemanticResults.push(...results.map((r) => ({ ...r, brain_id: bId })));
+    }
+  }
+  // Sort by similarity descending, take top 20
+  allSemanticResults.sort((a, b) => (b.similarity ?? 0) - (a.similarity ?? 0));
+  let retrievedEntries: any[] = allSemanticResults.slice(0, 20);
 
-  let retrievedEntries: any[] = rpcRes.ok ? await rpcRes.json() : [];
-
-  // If vector search found nothing (entries not embedded yet), fall back to
-  // keyword-scored entries sent by the client
-  const usedFallback = retrievedEntries.length === 0 && Array.isArray(fallback_entries) && fallback_entries.length > 0;
-  if (usedFallback) {
-    retrievedEntries = (fallback_entries as any[])
-      .slice(0, 40)
-      .map((e: any) => ({ id: e.id, title: e.title, type: e.type, tags: e.tags, content: e.content }));
+  // If vector search found nothing, fall back:
+  // - Single brain: use keyword-scored entries sent by the client
+  // - Multi brain: fetch recent entries from each brain server-side
+  const noSemanticResults = retrievedEntries.length === 0;
+  if (noSemanticResults) {
+    if (brainList.length === 1 && Array.isArray(fallback_entries) && fallback_entries.length > 0) {
+      retrievedEntries = (fallback_entries as any[])
+        .slice(0, 40)
+        .map((e: any) => ({ id: e.id, title: e.title, type: e.type, tags: e.tags, content: e.content }));
+    } else {
+      // Multi-brain fallback: fetch recent entries from each brain
+      for (const bId of brainList) {
+        const recentRes = await fetch(
+          `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(bId)}&order=created_at.desc&limit=20&select=id,title,type,tags,content`,
+          { headers: SB_HEADERS },
+        );
+        if (recentRes.ok) {
+          const recent: any[] = await recentRes.json();
+          retrievedEntries.push(...recent.map((e) => ({ ...e, brain_id: bId })));
+        }
+      }
+    }
   }
 
-  const sourceIds: string[] = usedFallback ? [] : retrievedEntries.map((e: any) => e.id);
+  const sourceIds: string[] = noSemanticResults ? [] : retrievedEntries.map((e: any) => e.id);
 
   // 3. Fetch links for those entries only
   let relevantLinks: any[] = [];

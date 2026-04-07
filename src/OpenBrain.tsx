@@ -16,7 +16,8 @@ import {
 } from "./lib/aiSettings";
 import { encryptEntry, decryptEntry, unlockVault, decryptVaultKeyFromRecovery } from "./lib/crypto";
 import { PROMPTS } from "./config/prompts";
-import { TC, getTypeConfig, fmtD, MODEL, INITIAL_ENTRIES, LINKS } from "./data/constants";
+import { TC, fmtD, MODEL, INITIAL_ENTRIES, LINKS } from "./data/constants";
+import { getTypeIcons, registerTypeIcon, pickDefaultIcon, resolveIcon } from "./lib/typeIcons";
 import { useBrain as useBrainHook } from "./hooks/useBrain";
 import { useRole } from "./hooks/useRole";
 import { useOfflineSync } from "./hooks/useOfflineSync";
@@ -174,8 +175,8 @@ const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
   default:  { bg: "rgba(114,239,245,0.10)", text: "#72eff5" },
 };
 
-const EntryCard = memo(function EntryCard({ entry: e, onSelect }) {
-  const cfg = getTypeConfig(e.type);
+const EntryCard = memo(function EntryCard({ entry: e, onSelect, typeIcons = {} }) {
+  const cfg = { ...(TC[e.type] || TC.note), i: resolveIcon(e.type, typeIcons) };
   const imp = { 1: "Important", 2: "Critical" }[e.importance];
   const colors = TYPE_COLORS[e.type] || TYPE_COLORS.default;
   return (
@@ -244,7 +245,7 @@ const EntryCard = memo(function EntryCard({ entry: e, onSelect }) {
 /* ═══════════════════════════════════════════════════════════════
    VIRTUALISED GRID
    ═══════════════════════════════════════════════════════════════ */
-function VirtualGrid({ filtered, setSelected }) {
+function VirtualGrid({ filtered, setSelected, typeIcons = {} }) {
   const COLS = typeof window !== "undefined"
     ? window.innerWidth >= 1280 ? 3 : window.innerWidth >= 640 ? 2 : 1
     : 1;
@@ -282,7 +283,7 @@ function VirtualGrid({ filtered, setSelected }) {
             }}
           >
             {rows[vRow.index].map((e) => (
-              <EntryCard key={e.id} entry={e} onSelect={setSelected} />
+              <EntryCard key={e.id} entry={e} onSelect={setSelected} typeIcons={typeIcons} />
             ))}
           </div>
         ))}
@@ -294,7 +295,7 @@ function VirtualGrid({ filtered, setSelected }) {
 /* ═══════════════════════════════════════════════════════════════
    VIRTUALISED TIMELINE
    ═══════════════════════════════════════════════════════════════ */
-function VirtualTimeline({ sorted, setSelected }) {
+function VirtualTimeline({ sorted, setSelected, typeIcons = {} }) {
   const listRef = useRef(null);
   const virtualizer = useWindowVirtualizer({
     count: sorted.length,
@@ -308,7 +309,7 @@ function VirtualTimeline({ sorted, setSelected }) {
       <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
         {virtualizer.getVirtualItems().map((vItem) => {
           const e = sorted[vItem.index];
-          const cfg = getTypeConfig(e.type);
+          const cfg = { ...(TC[e.type] || TC.note), i: resolveIcon(e.type, typeIcons) };
           return (
             <div
               key={e.id}
@@ -339,12 +340,6 @@ function VirtualTimeline({ sorted, setSelected }) {
 // PERF-9: Module-level constant so regex is compiled once, not on every render.
 const PHONE_REGEX = /(\+27[0-9]{9}|0[6-8][0-9]{8})/;
 
-const CHAT_CHIPS = [
-  { label: "Who supplies...", text: "Who supplies " },
-  { label: "Who do I call for...", text: "Who do I call for " },
-  { label: "When does... expire?", text: "When does " },
-  { label: "What's the number for...", text: "What's the number for " },
-];
 
 export default function OpenBrain() {
   // PERF-8: Initial state uses synchronous localStorage read (fast, no flicker).
@@ -439,6 +434,11 @@ export default function OpenBrain() {
   const [selected, setSelected] = useState(null);
   const [links, setLinks] = useState(LINKS);
   const addLinks = (newLinks) => setLinks((prev) => [...prev, ...newLinks]);
+  const [typeIcons, setTypeIcons] = useState<Record<string, string>>({});
+  // Reload typeIcons whenever the active brain changes
+  const refreshTypeIcons = useCallback(() => {
+    if (activeBrain?.id) setTypeIcons(getTypeIcons(activeBrain.id));
+  }, [activeBrain?.id]);
   const { canWrite, canInvite, canManageMembers, role: myRole } = useRole(activeBrain);
   const { isDark, toggleTheme } = useTheme();
   const [showOnboarding, setShowOnboarding] = useState(
@@ -459,6 +459,7 @@ export default function OpenBrain() {
   const [showBrainTip, setShowBrainTip] = useState(null);
   const [showCreateBrain, setShowCreateBrain] = useState(false);
   const [chatInput, setChatInput] = useState("");
+  const [searchAllBrains, setSearchAllBrains] = useState(false);
   const [chatMsgs, setChatMsgs] = useState([
     {
       role: "assistant",
@@ -501,6 +502,10 @@ export default function OpenBrain() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMsgs]);
+
+  useEffect(() => {
+    if (activeBrain?.id) setTypeIcons(getTypeIcons(activeBrain.id));
+  }, [activeBrain?.id]);
 
   useEffect(() => {
     if (!activeBrain?.id) return;
@@ -814,18 +819,25 @@ export default function OpenBrain() {
           const genKey = provider === "openrouter" ? getOpenRouterKey() : getUserApiKey();
           const model = provider === "openrouter" ? getOpenRouterModel() : getUserModel();
           const history = chatMsgs.slice(-10);
-          // Also send keyword-scored entries as a fallback for when no
-          // vector matches exist (i.e. entries haven't been embedded yet)
-          const keywordFallback = scoreEntriesForQuery(
-            entries.map((e) => ({
-              id: e.id,
-              title: e.title,
-              type: e.type,
-              tags: e.tags || [],
-              content: e.content ? e.content.slice(0, 200) : undefined,
-            })),
-            msg,
-          ).slice(0, 40);
+          const isAllBrains = searchAllBrains && brains.length > 1;
+          // In single-brain mode, send keyword-scored entries as a fallback for
+          // when no vector matches exist (i.e. entries haven't been embedded yet).
+          // In all-brains mode the server fetches recent entries itself.
+          const keywordFallback = isAllBrains
+            ? []
+            : scoreEntriesForQuery(
+                entries.map((e) => ({
+                  id: e.id,
+                  title: e.title,
+                  type: e.type,
+                  tags: e.tags || [],
+                  content: e.content ? e.content.slice(0, 200) : undefined,
+                })),
+                msg,
+              ).slice(0, 40);
+          const brainParam = isAllBrains
+            ? { brain_ids: brains.map((b) => b.id) }
+            : { brain_id: activeBrain.id };
           const res = await authFetch("/api/chat", {
             method: "POST",
             headers: {
@@ -835,12 +847,12 @@ export default function OpenBrain() {
             },
             body: JSON.stringify({
               message: msg,
-              brain_id: activeBrain.id,
+              ...brainParam,
               history,
               provider,
               model,
               secrets,
-              fallback_entries: keywordFallback,
+              ...(isAllBrains ? {} : { fallback_entries: keywordFallback }),
             }),
           });
           data = await res.json();
@@ -885,7 +897,7 @@ export default function OpenBrain() {
       }
       setChatLoading(false);
     },
-    [cryptoKey, entries, links, chatMsgs, activeBrain],
+    [cryptoKey, entries, links, chatMsgs, activeBrain, searchAllBrains, brains],
   );
 
   const handleChat = async () => {
@@ -1261,7 +1273,7 @@ export default function OpenBrain() {
                     <SkeletonCard count={6} />
                   </div>
                 ) : filtered.length > 0 ? (
-                  <VirtualGrid filtered={filtered} setSelected={setSelected} />
+                  <VirtualGrid filtered={filtered} setSelected={setSelected} typeIcons={typeIcons} />
                 ) : (
                   <div className="flex flex-col items-center justify-center py-20 gap-3">
                     <div className="text-4xl opacity-40">🔍</div>
@@ -1298,11 +1310,11 @@ export default function OpenBrain() {
             )}
             {view === "todos" && (
               <Suspense fallback={<Loader />}>
-                <TodoView entries={entries} />
+                <TodoView entries={entries} typeIcons={typeIcons} />
               </Suspense>
             )}
             {view === "timeline" && (
-              <VirtualTimeline sorted={sortedTimeline} setSelected={setSelected} />
+              <VirtualTimeline sorted={sortedTimeline} setSelected={setSelected} typeIcons={typeIcons} />
             )}
             {view === "vault" && (
               <Suspense fallback={<Loader />}>
@@ -1408,20 +1420,32 @@ export default function OpenBrain() {
 
                 {/* Input area */}
                 <div className="pt-3 border-t" style={{ borderColor: "rgba(72,72,71,0.10)" }}>
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {CHAT_CHIPS.map((chip) => (
-                      <button key={chip.label} onClick={() => setChatInput(chip.text)}
-                        className="text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5 rounded-full transition-all press-scale"
-                        style={{ background: "#1a1919", color: "#adaaaa", border: "1px solid rgba(72,72,71,0.15)" }}
-                        onMouseEnter={(el) => { (el.currentTarget as HTMLElement).style.color = "#d575ff"; (el.currentTarget as HTMLElement).style.borderColor = "rgba(213,117,255,0.20)"; }}
-                        onMouseLeave={(el) => { (el.currentTarget as HTMLElement).style.color = "#adaaaa"; (el.currentTarget as HTMLElement).style.borderColor = "rgba(72,72,71,0.15)"; }}
-                      >{chip.label}</button>
-                    ))}
-                  </div>
+                  {brains.length > 1 && (
+                    <div className="flex mb-2 p-1 rounded-xl gap-1" style={{ background: "#1a1919" }}>
+                      <button
+                        onClick={() => setSearchAllBrains(false)}
+                        className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                        style={!searchAllBrains
+                          ? { background: "#303030", color: "#ffffff" }
+                          : { color: "#555" }}
+                      >
+                        This brain
+                      </button>
+                      <button
+                        onClick={() => setSearchAllBrains(true)}
+                        className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                        style={searchAllBrains
+                          ? { background: "rgba(213,117,255,0.15)", color: "#d575ff" }
+                          : { color: "#555" }}
+                      >
+                        All brains
+                      </button>
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <input value={chatInput} onChange={(e) => setChatInput(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleChat()}
-                      placeholder="Ask about your memories…"
+                      placeholder={searchAllBrains ? "Ask across all your brains…" : "Ask about your memories…"}
                       className="flex-1 px-4 py-3 rounded-xl text-sm text-on-surface placeholder:text-on-surface-variant/40 focus:outline-none min-h-[44px] transition-all"
                       style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.20)", fontFamily: "'Inter', sans-serif" }}
                       onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(114,239,245,0.4)"; }}
@@ -1449,12 +1473,16 @@ export default function OpenBrain() {
               onClose={() => setSelected(null)}
               onDelete={handleDelete}
               onUpdate={handleUpdate}
-
               entries={entries}
               links={links}
               canWrite={canWrite}
               brains={brains}
               vaultUnlocked={!!cryptoKey}
+              typeIcons={typeIcons}
+              onTypeIconChange={(type, icon) => {
+                registerTypeIcon(activeBrain?.id, type, icon);
+                refreshTypeIcons();
+              }}
             />
           </Suspense>
 

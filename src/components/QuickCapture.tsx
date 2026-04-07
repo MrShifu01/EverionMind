@@ -13,6 +13,7 @@ import { findConnections, scoreTitle } from "../lib/connectionFinder";
 import { recordDecision } from "../lib/learningEngine";
 import { TC, getTypeConfig } from "../data/constants";
 import { PROMPTS } from "../config/prompts";
+import { registerTypeIcon, pickDefaultIcon } from "../lib/typeIcons";
 import { isSupportedFile, isTextFile, readTextFile, readFileAsBase64 } from "../lib/fileParser";
 import { shouldSplitContent, buildSplitPrompt, parseAISplitResponse } from "../lib/fileSplitter";
 
@@ -384,9 +385,13 @@ export default function QuickCapture({
               }).catch(() => {});
             }
           }
+          const multiType = parsed.type || "note";
+          const multiIcon = parsed.icon || pickDefaultIcon(multiType);
+          registerTypeIcon(primaryBrainId, multiType, multiIcon);
           const newEntry = {
             id: result?.id || Date.now().toString() + savedCount,
             ...parsed,
+            type: multiType,
             pinned: false,
             importance: 0,
             tags: parsed.tags || [],
@@ -663,11 +668,14 @@ export default function QuickCapture({
                   }).catch(() => {});
                 }
               }
+              const savedType = parsed.type || "note";
+              const savedIcon = parsed.icon || pickDefaultIcon(savedType);
+              registerTypeIcon(primaryBrainId, savedType, savedIcon);
               const newEntry = {
                 id: result?.id || Date.now().toString(),
                 title: parsed.title,
                 content: parsed.content || "",
-                type: parsed.type || "note",
+                type: savedType,
                 metadata: parsed.metadata || {},
                 pinned: false,
                 importance: 0,
