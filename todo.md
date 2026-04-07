@@ -1,7 +1,7 @@
 # OpenBrain — Consolidated TODO
 
 > Unresolved items only. Completed work removed.  
-> Last updated: 2026-04-06  
+> Last updated: 2026-04-07  
 > Consolidated from: GAPS.md · AI-models.md · audit-sprint.md · todo.md
 
 ---
@@ -10,6 +10,8 @@
 
 - **Revoke leaked Telegram Bot Token** — flagged by GitGuardian on commit `d811ad2`. Go to @BotFather → `/revoke`, generate new token, update `BOT_TOKEN` / `TELEGRAM_BOT_TOKEN` in Supabase env vars.
 - **Update Supabase email template** — Auth → Email Templates → Magic Link, add `{{ .Token }}` so the OTP code is visible for PWA sign-in.
+- **Run migration 013 in Supabase SQL editor** — file is at `supabase/migrations/013_flexible_entry_types.sql`. Drops any hardcoded `entries_type_check` constraint and replaces the `capture` RPC to accept any AI-generated type string (not just the old whitelist). Not auto-applied — must be run manually.
+- **Add `RESEND_API_KEY` to Vercel env vars** — required for brain invite emails to be delivered. Get a free key at resend.com (100 emails/day free). Add in Vercel → Settings → Environment Variables. Also add `APP_URL=https://open-brain-ib4e.vercel.app` so invite accept links point to the correct domain.
 
 ---
 
