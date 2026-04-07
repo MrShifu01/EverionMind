@@ -15,7 +15,7 @@ export function scoreEntriesForQuery<T extends {
   id: string;
   title: string;
   type: string;
-  tags: string[];
+  tags?: string[];
   content?: string;
 }>(entries: T[], query: string): T[] {
   if (!query.trim()) return [...entries];

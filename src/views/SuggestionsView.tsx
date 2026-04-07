@@ -4,8 +4,7 @@ import { callAI } from "../lib/ai";
 import { SUGGESTIONS } from "../data/personalSuggestions";
 import { FAMILY_SUGGESTIONS } from "../data/familySuggestions";
 import { BUSINESS_SUGGESTIONS } from "../data/businessSuggestions";
-import { TC, PC, MODEL } from "../data/constants";
-import { useTheme } from "../ThemeContext";
+import { PC } from "../data/constants";
 import { PROMPTS } from "../config/prompts";
 import { aiFetch } from "../lib/aiFetch";
 import { getUserModel, getEmbedHeaders, getGroqKey, getUserApiKey } from "../lib/aiSettings";
@@ -104,7 +103,7 @@ export default function SuggestionsView({
   const [showInput, setShowInput] = useState(false);
   const [saved, setSaved] = useState<SavedItem[]>([]);
   const [filterCat, setFilterCat] = useState("all");
-  const [anim, setAnim] = useState("");
+  const [, setAnim] = useState("");
   const [saving, setSaving] = useState(false);
   const [imgLoading, setImgLoading] = useState(false);
   const [imgError, setImgError] = useState<string | null>(null);
@@ -148,16 +147,6 @@ export default function SuggestionsView({
   });
 
   const position = answered + skipped;
-  const cats = useMemo(() => {
-    const c: Record<string, number> = {};
-    questionSet.forEach((s: Suggestion) => {
-      c[s.cat] = (c[s.cat] || 0) + 1;
-    });
-    onboardingSkipped.forEach((s: Suggestion) => {
-      c[s.cat] = (c[s.cat] || 0) + 1;
-    });
-    return Object.entries(c).sort((a, b) => b[1] - a[1]);
-  }, [questionSet, onboardingSkipped]);
 
   const view = useMemo((): Suggestion[] => {
     // Skipped onboarding questions come first (if not yet answered and matching category filter)

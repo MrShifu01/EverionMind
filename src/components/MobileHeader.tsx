@@ -11,9 +11,9 @@ interface MobileHeaderProps {
 }
 
 export default function MobileHeader({
-  brainName,
-  onToggleTheme,
-  isDark,
+  brainName: _brainName,
+  onToggleTheme: _onToggleTheme,
+  isDark: _isDark,
   isOnline,
   pendingCount,
   children,

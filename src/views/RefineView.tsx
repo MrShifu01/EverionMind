@@ -1,11 +1,10 @@
 import { useState, useCallback } from "react";
 import { authFetch } from "../lib/authFetch";
 import { callAI } from "../lib/ai";
-import { TC, MODEL } from "../data/constants";
-import { useTheme } from "../ThemeContext";
+import { TC } from "../data/constants";
 import { PROMPTS } from "../config/prompts";
 import { recordDecision, getDecisionCount } from "../lib/learningEngine";
-import type { Entry, Brain, Link } from "../types";
+import type { Entry, Brain } from "../types";
 
 interface EntrySuggestion {
   type: string;
@@ -70,7 +69,6 @@ export default function RefineView({
   brains,
   onSwitchBrain,
 }: RefineViewProps) {
-  const { t } = useTheme();
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<RefineSuggestion[] | null>(null); // null = never run
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());

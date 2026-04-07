@@ -248,7 +248,7 @@ export default function TodoView({ entries: propEntries, typeIcons = {} }: TodoV
     const thisWeek: TodoItem[] = [];
     const overdue: TodoItem[] = [];
 
-    entries.forEach((entry) => {
+    entries.forEach((entry: Entry) => {
       if (entry.type === "reminder" && (entry.metadata as any)?.status === "done") return;
       const dates = extractDates(entry);
       dates.forEach((dateStr) => {

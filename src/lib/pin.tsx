@@ -118,7 +118,7 @@ async function storePin(pin: string): Promise<void> {
 }
 
 export function PinGate({ onSuccess, onCancel, isSetup = false }: PinGateProps) {
-  const { isDark } = useTheme();
+  useTheme();
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [shake, setShake] = useState(false);

@@ -109,7 +109,7 @@ function NavItem({ id, label, isActive, onClick, badge }: NavItemProps) {
 }
 
 export default function DesktopSidebar({
-  activeBrainName,
+  activeBrainName: _activeBrainName,
   view,
   onNavigate,
   isDark,

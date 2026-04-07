@@ -1,4 +1,4 @@
-import type { EntryType, TypeConfig, Priority, PriorityConfig, Entry, Link } from "../types";
+import type { TypeConfig, Priority, PriorityConfig, Entry, Link } from "../types";
 
 // Well-known type icons — unknown types fall back to TC.note at the call site.
 export const TC: Record<string, TypeConfig> = {

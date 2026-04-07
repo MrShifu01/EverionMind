@@ -16,6 +16,7 @@ import { PROMPTS } from "../config/prompts";
 import { registerTypeIcon, pickDefaultIcon } from "../lib/typeIcons";
 import { isSupportedFile, isTextFile, readTextFile, readFileAsBase64 } from "../lib/fileParser";
 import { shouldSplitContent, buildSplitPrompt, parseAISplitResponse } from "../lib/fileSplitter";
+import BulkUploadModal from "./BulkUploadModal";
 
 const BRAIN_META_QC = {
   personal: { emoji: "🧠" },
@@ -164,6 +165,8 @@ export default function QuickCapture({
   const [multiPreview, setMultiPreview] = useState(null); // array of parsed entries from file split
   const imgRef = useRef(null);
   const fileRef = useRef(null);
+  const bulkFileRef = useRef(null);
+  const [bulkFiles, setBulkFiles] = useState(null); // File[] | null
   const recognitionRef = useRef(null);
   const connectionsTimerRef = useRef(null);
   const lastConnectionsLengthRef = useRef(entries ? entries.length : 0);
@@ -912,6 +915,18 @@ export default function QuickCapture({
           onChange={handleFileUpload}
           className="hidden"
         />
+        <input
+          type="file"
+          accept=".txt,.md,.csv,.pdf,.docx,text/plain,text/markdown,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          multiple
+          ref={bulkFileRef}
+          onChange={(e) => {
+            const files = e.target.files ? Array.from(e.target.files) : [];
+            e.target.value = "";
+            if (files.length > 0) setBulkFiles(files);
+          }}
+          className="hidden"
+        />
 
         {/* Text input */}
         <input
@@ -958,6 +973,14 @@ export default function QuickCapture({
             📄
           </button>
           <button
+            onClick={() => bulkFileRef.current?.click()}
+            disabled={loading}
+            title="Bulk upload multiple files"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors hover:bg-white/10 disabled:opacity-40"
+          >
+            📁
+          </button>
+          <button
             onClick={capture}
             disabled={loading || !text.trim()}
             title={`Save to ${(BRAIN_META_QC[brains[0]?.type] || BRAIN_META_QC.personal).emoji} ${brains[0]?.name || "brain"}`}
@@ -1001,6 +1024,27 @@ export default function QuickCapture({
           onSave={doSave}
           onUpdate={onUpdate}
           onCancel={() => setPreview(null)}
+        />
+      )}
+
+      {/* Bulk upload modal */}
+      {bulkFiles && (
+        <BulkUploadModal
+          files={bulkFiles}
+          brainId={primaryBrainId}
+          brains={brains}
+          onCreated={(entry) => {
+            setEntries((prev) => [entry, ...prev]);
+            onCreated?.(entry);
+          }}
+          onDone={(totalSaved) => {
+            setBulkFiles(null);
+            if (totalSaved > 0) {
+              setStatus("saved-db");
+              setTimeout(() => setStatus(null), 3000);
+            }
+          }}
+          onCancel={() => setBulkFiles(null)}
         />
       )}
 

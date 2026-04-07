@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { TC, getTypeConfig } from "../data/constants";
+import { getTypeConfig } from "../data/constants";
 import { authFetch } from "../lib/authFetch";
 import {
   setupVault,
@@ -33,7 +33,7 @@ interface VaultViewProps {
 export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock, brainId, onEntryCreated }: VaultViewProps) {
   const [status, setStatus] = useState("loading");
   const [passphrase, setPassphrase] = useState("");
-  const [confirm, setConfirm] = useState("");
+  const [confirmPhrase, setConfirmPhrase] = useState("");
   const [recoveryInput, setRecoveryInput] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -103,7 +103,7 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
       setError("Passphrase must be at least 8 characters");
       return;
     }
-    if (passphrase !== confirm) {
+    if (passphrase !== confirmPhrase) {
       setError("Passphrases don't match");
       return;
     }
@@ -134,7 +134,7 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
       setError(e.message);
     }
     setBusy(false);
-  }, [passphrase, confirm, onVaultUnlock]);
+  }, [passphrase, confirmPhrase, onVaultUnlock]);
 
   // ── Unlock with passphrase ──
   const handleUnlock = useCallback(async () => {
@@ -320,9 +320,9 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
             </label>
             <input
               type="password"
-              value={confirm}
+              value={confirmPhrase}
               onChange={(e) => {
-                setConfirm(e.target.value);
+                setConfirmPhrase(e.target.value);
                 setError("");
               }}
               onKeyDown={(e) => e.key === "Enter" && handleSetup()}

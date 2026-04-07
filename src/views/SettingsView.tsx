@@ -1,7 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useTheme } from "../ThemeContext";
 import { authFetch } from "../lib/authFetch";
-import { aiFetch } from "../lib/aiFetch";
 import {
   getUserApiKey,
   getUserModel,
@@ -27,10 +25,9 @@ import {
 import { callAI } from "../lib/ai";
 import { supabase } from "../lib/supabase";
 import NotificationSettings from "../components/NotificationSettings";
-import { PinGate, getStoredPinHash, removePin } from "../lib/pin";
 import { MODELS } from "../config/models";
 import { useBrain } from "../context/BrainContext";
-import type { Brain, Entry } from "../types";
+import type { Brain } from "../types";
 import TrashView from "./TrashView";
 
 function priceTier(pricing?: { prompt?: string }): { label: string; color: string } {
@@ -130,7 +127,7 @@ function TelegramPanel({ activeBrain }: { activeBrain: Brain }) {
 }
 
 /* ─── Memory Editor ─── */
-function MemoryEditor({ activeBrain }: { activeBrain?: any }) {
+function MemoryEditor({ activeBrain: _activeBrain }: { activeBrain?: any }) {
   const [content, setContent] = useState("");
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -323,8 +320,6 @@ export default function SettingsView() {
   const [orModels, setOrModels] = useState<ORModel[]>([]);
   const [showKey, setShowKey] = useState(false);
   const [byoTestStatus, setByoTestStatus] = useState<string | null>(null);
-  const [pinSet, setPinSet] = useState(() => !!getStoredPinHash());
-  const [showPinModal, setShowPinModal] = useState(false);
   // Groq (voice transcription)
   const [groqKeyVal, setGroqKeyVal] = useState(() => getGroqKey() || "");
   const [showGroqKey, setShowGroqKey] = useState(false);
@@ -337,7 +332,7 @@ export default function SettingsView() {
   // Advanced section toggle
   const [showAdvanced, setShowAdvanced] = useState(false);
   // Embed mismatch warning
-  const [embedMismatchCount, setEmbedMismatchCount] = useState(0);
+  const [, setEmbedMismatchCount] = useState(0);
   const [pendingEmbedProvider, setPendingEmbedProvider] = useState<string | null>(null);
   // Per-task model overrides
   const [taskModels, setTaskModels] = useState<Record<string, string | null>>(() => {

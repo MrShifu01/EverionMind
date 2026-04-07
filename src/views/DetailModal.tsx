@@ -51,7 +51,7 @@ export default function DetailModal({
   const [editContent, setEditContent] = useState(entry.content);
   const [editType, setEditType] = useState<string>(entry.type);
   const [editTags, setEditTags] = useState((entry.tags || []).join(", "));
-  const [editBrainId, setEditBrainId] = useState(entry.brain_id || "");
+  const editBrainId = entry.brain_id || "";
   // Extra brains: brains the entry is shared into via entry_brains junction (beyond primary)
   const [extraBrainIds, setExtraBrainIds] = useState<string[]>([]); // server state (loaded on edit open)
   const [editExtraBrainIds, setEditExtraBrainIds] = useState<string[]>([]); // in-progress edits

@@ -106,7 +106,7 @@ export default function BrainSwitcher({
             </p>
           )}
           {personalBrains.map((b) => (
-            <BrainItem key={b.id} brain={b} active={activeBrain?.id === b.id} onSelect={select} emoji={BRAIN_EMOJI[b.type] ?? "🧠"} />
+            <BrainItem key={b.id} brain={b} active={activeBrain?.id === b.id} onSelect={select} emoji={BRAIN_EMOJI[b.type ?? ""] ?? "🧠"} />
           ))}
 
           {sharedBrains.length > 0 && (
@@ -117,7 +117,7 @@ export default function BrainSwitcher({
           {sharedBrains.map((b) => (
             <BrainItem
               key={b.id} brain={b} active={activeBrain?.id === b.id} onSelect={select}
-              emoji={BRAIN_EMOJI[b.type] ?? "🧠"} role={b.myRole}
+              emoji={BRAIN_EMOJI[b.type ?? ""] ?? "🧠"} role={b.myRole}
             />
           ))}
 
