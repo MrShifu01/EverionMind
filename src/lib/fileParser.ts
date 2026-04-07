@@ -1,6 +1,6 @@
 /**
  * File parsing utilities for OpenBrain file upload.
- * Supports: .txt, .md, .csv (text), .pdf, .docx (binary → base64 for AI extraction)
+ * Supports: .txt, .md, .csv (text), .pdf (base64 → Anthropic document API), .docx (mammoth → text)
  */
 
 export const SUPPORTED_EXTENSIONS = [".txt", ".md", ".csv", ".pdf", ".docx"] as const;
@@ -41,6 +41,21 @@ export function readFileAsBase64(file: File): Promise<{ base64: string; mimeType
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+export function isDocxFile(file: File): boolean {
+  return getFileExtension(file.name) === ".docx";
+}
+
+/**
+ * Extract plain text from a .docx file using mammoth.
+ * Returns the extracted text, or empty string on failure.
+ */
+export async function readDocxFile(file: File): Promise<string> {
+  const mammoth = await import("mammoth");
+  const arrayBuffer = await file.arrayBuffer();
+  const result = await mammoth.extractRawText({ arrayBuffer });
+  return result.value.trim();
 }
 
 export function isCsvFile(file: File): boolean {

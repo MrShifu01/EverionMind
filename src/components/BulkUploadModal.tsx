@@ -4,7 +4,7 @@ import { aiFetch } from "../lib/aiFetch";
 import { callAI } from "../lib/ai";
 import { authFetch } from "../lib/authFetch";
 import { getUserModel, getEmbedHeaders } from "../lib/aiSettings";
-import { isSupportedFile, isTextFile, readTextFile, readFileAsBase64 } from "../lib/fileParser";
+import { isSupportedFile, isTextFile, isDocxFile, readTextFile, readDocxFile, readFileAsBase64 } from "../lib/fileParser";
 import { shouldSplitContent, buildSplitPrompt, parseAISplitResponse } from "../lib/fileSplitter";
 import { getTypeConfig } from "../data/constants";
 import { registerTypeIcon, pickDefaultIcon } from "../lib/typeIcons";
@@ -90,13 +90,12 @@ export default function BulkUploadModal({
 
           if (isTextFile(file)) {
             extractedText = await readTextFile(file);
+          } else if (isDocxFile(file)) {
+            // DOCX: extract text client-side with mammoth (Anthropic API doesn't support docx)
+            extractedText = await readDocxFile(file);
           } else {
-            const { base64, mimeType } = await readFileAsBase64(file);
-            const isPdf = file.name.toLowerCase().endsWith(".pdf");
-            const contentBlock = isPdf
-              ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } }
-              : { type: "image", source: { type: "base64", media_type: mimeType, data: base64 } };
-
+            // PDF: send to Anthropic document API for text extraction
+            const { base64 } = await readFileAsBase64(file);
             const apiRes = await aiFetch("/api/anthropic", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -107,7 +106,7 @@ export default function BulkUploadModal({
                   {
                     role: "user",
                     content: [
-                      contentBlock,
+                      { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } },
                       { type: "text", text: "Extract ALL text from this document. Preserve structure. Output just the content, no commentary." },
                     ],
                   },

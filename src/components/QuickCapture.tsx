@@ -14,7 +14,7 @@ import { recordDecision } from "../lib/learningEngine";
 import { TC, getTypeConfig } from "../data/constants";
 import { PROMPTS } from "../config/prompts";
 import { registerTypeIcon, pickDefaultIcon } from "../lib/typeIcons";
-import { isSupportedFile, isTextFile, readTextFile, readFileAsBase64 } from "../lib/fileParser";
+import { isSupportedFile, isTextFile, isDocxFile, readTextFile, readDocxFile, readFileAsBase64 } from "../lib/fileParser";
 import { shouldSplitContent, buildSplitPrompt, parseAISplitResponse } from "../lib/fileSplitter";
 import BulkUploadModal from "./BulkUploadModal";
 
@@ -269,17 +269,12 @@ export default function QuickCapture({
       if (isTextFile(file)) {
         // Text files: read directly
         extractedText = await readTextFile(file);
+      } else if (isDocxFile(file)) {
+        // DOCX: extract client-side with mammoth (Anthropic API doesn't support docx)
+        extractedText = await readDocxFile(file);
       } else {
-        // PDF/DOCX: send to AI for text extraction
-        const { base64, mimeType } = await readFileAsBase64(file);
-        const isPdf = file.name.toLowerCase().endsWith(".pdf");
-        const contentBlock = isPdf
-          ? {
-              type: "document",
-              source: { type: "base64", media_type: "application/pdf", data: base64 },
-            }
-          : { type: "image", source: { type: "base64", media_type: mimeType, data: base64 } };
-
+        // PDF: send to Anthropic document API for text extraction
+        const { base64 } = await readFileAsBase64(file);
         const apiRes = await aiFetch("/api/anthropic", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -290,7 +285,7 @@ export default function QuickCapture({
               {
                 role: "user",
                 content: [
-                  contentBlock,
+                  { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } },
                   {
                     type: "text",
                     text: "Extract ALL text from this document. Preserve structure, headings, lists. Output just the extracted content, clean and readable. No commentary.",
