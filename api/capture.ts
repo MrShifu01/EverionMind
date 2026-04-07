@@ -31,10 +31,6 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
   if (!p_title || typeof p_title !== "string" || p_title.trim().length === 0) {
     return res.status(400).json({ error: "Missing or invalid title" });
   }
-  if (p_type !== undefined && !ALLOWED_TYPES.includes(p_type)) {
-    return res.status(400).json({ error: "Invalid type" });
-  }
-
   if (p_extra_brain_ids !== undefined && p_extra_brain_ids !== null) {
     if (!Array.isArray(p_extra_brain_ids)) {
       return res.status(400).json({ error: "p_extra_brain_ids must be an array" });
