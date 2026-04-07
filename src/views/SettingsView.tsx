@@ -891,9 +891,6 @@ export default function SettingsView() {
       </>
       )}
 
-      {/* Remaining Brain Content */}
-      {activeTab === "brain" && (
-        <>
       {/* ── Invite to OpenBrain platform ── */}
       <div className="rounded-2xl border p-4 space-y-3" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
         <div>
@@ -936,8 +933,6 @@ export default function SettingsView() {
 
       {/* AI Memory Guide */}
       <MemoryEditor activeBrain={activeBrain} />
-        </>
-      )}
 
       {/* Providers Tab */}
       {activeTab === "providers" && (
