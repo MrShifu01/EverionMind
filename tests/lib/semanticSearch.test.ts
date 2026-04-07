@@ -1,5 +1,5 @@
 /**
- * Tests for semanticSearch() in src/lib/searchIndex.ts
+ * Tests for semanticSearch() in src/lib/semanticSearch.ts
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Entry } from "../../src/types";
@@ -29,14 +29,14 @@ const sampleEntries: Entry[] = [
 
 describe("semanticSearch", () => {
   it("when isOnline=false returns keyword-scored entries", async () => {
-    const { semanticSearch } = await import("../../src/lib/searchIndex");
+    const { semanticSearch } = await import("../../src/lib/semanticSearch");
     const result = await semanticSearch("burger", "brain-1", sampleEntries, false, null);
     expect(mockFetch).not.toHaveBeenCalled();
     expect(result).toEqual(sampleEntries);
   });
 
   it("when isOnline=true and no embedHeaders returns keyword-scored results", async () => {
-    const { semanticSearch } = await import("../../src/lib/searchIndex");
+    const { semanticSearch } = await import("../../src/lib/semanticSearch");
     const result = await semanticSearch("burger", "brain-1", sampleEntries, true, null);
     expect(mockFetch).not.toHaveBeenCalled();
     expect(result).toEqual(sampleEntries);
@@ -53,7 +53,7 @@ describe("semanticSearch", () => {
         ],
       }),
     });
-    const { semanticSearch } = await import("../../src/lib/searchIndex");
+    const { semanticSearch } = await import("../../src/lib/semanticSearch");
     const headers = { "x-embed-key": "sk-test", "x-embed-provider": "openai" };
     const result = await semanticSearch("burger", "brain-1", sampleEntries, true, headers);
 
@@ -72,7 +72,7 @@ describe("semanticSearch", () => {
       ok: true,
       json: async () => ({ fallback: true }),
     });
-    const { semanticSearch } = await import("../../src/lib/searchIndex");
+    const { semanticSearch } = await import("../../src/lib/semanticSearch");
     const headers = { "x-embed-key": "sk-test", "x-embed-provider": "openai" };
     const result = await semanticSearch("burger", "brain-1", sampleEntries, true, headers);
     expect(result).toEqual(sampleEntries);
@@ -80,14 +80,14 @@ describe("semanticSearch", () => {
 
   it("when fetch throws falls back to keyword scoring", async () => {
     mockFetch.mockRejectedValueOnce(new Error("Network error"));
-    const { semanticSearch } = await import("../../src/lib/searchIndex");
+    const { semanticSearch } = await import("../../src/lib/semanticSearch");
     const headers = { "x-embed-key": "sk-test", "x-embed-provider": "openai" };
     const result = await semanticSearch("burger", "brain-1", sampleEntries, true, headers);
     expect(result).toEqual(sampleEntries);
   });
 
   it("returns all entries unchanged when query is empty", async () => {
-    const { semanticSearch } = await import("../../src/lib/searchIndex");
+    const { semanticSearch } = await import("../../src/lib/semanticSearch");
     const result = await semanticSearch("", "brain-1", sampleEntries, true, {
       "x-embed-key": "sk-test",
     });

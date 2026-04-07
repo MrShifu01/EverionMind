@@ -1,5 +1,4 @@
 import type { Entry } from "../types";
-import { scoreEntriesForQuery } from "./chatContext";
 
 const index = new Map<string, Set<string>>();
 
@@ -28,52 +27,4 @@ function tokenize(text: string): string[] {
     .replace(/[^a-z0-9\s]/g, " ")
     .split(/\s+/)
     .filter((t) => t.length > 2);
-}
-
-/**
- * Semantic search with graceful keyword fallback.
- *
- * When online and embed headers are available, calls /api/search for
- * pgvector cosine similarity. Falls back to keyword scoring when:
- *   - offline
- *   - no embed key provided
- *   - API returns { fallback: true }
- *   - network/fetch error
- */
-export async function semanticSearch(
-  query: string,
-  brainId: string,
-  entries: Entry[],
-  isOnline = navigator.onLine,
-  embedHeaders?: Record<string, string> | null,
-): Promise<Entry[]> {
-  if (!query.trim()) return entries;
-
-  // Lazy import to avoid loading browser-only supabase/auth at module init time
-  const { getEmbedHeaders } = await import("./aiSettings");
-  const headers = embedHeaders ?? getEmbedHeaders();
-
-  if (isOnline && (headers?.["X-Embed-Key"] || headers?.["x-embed-key"])) {
-    try {
-      const res = await fetch("/api/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...headers },
-        body: JSON.stringify({ query, brain_id: brainId, limit: 20 }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (!data.fallback && Array.isArray(data.results)) {
-          const byId = new Map(entries.map((e) => [e.id, e]));
-          const semantic = data.results
-            .map((r: any) => byId.get(r.id) ?? r)
-            .filter(Boolean);
-          return semantic;
-        }
-      }
-    } catch {
-      // fall through to keyword
-    }
-  }
-
-  return scoreEntriesForQuery(entries, query);
 }
