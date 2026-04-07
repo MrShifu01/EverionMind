@@ -2,6 +2,7 @@ import type { ApiRequest, ApiResponse } from "./_lib/types";
 import { verifyAuth } from "./_lib/verifyAuth.js";
 import { rateLimit } from "./_lib/rateLimit.js";
 import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
+import { randomBytes } from "crypto";
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -139,25 +140,34 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     const brains: any[] = await brainRes.json();
     if (!brains.length) return res.status(403).json({ error: "Not the brain owner" });
 
-    // Upsert invite record
-    const inviteRes = await fetch(`${SB_URL}/rest/v1/brain_invites`, {
-      method: "POST",
-      headers: hdrs({ "Prefer": "return=representation,resolution=merge-duplicates" }),
-      body: JSON.stringify({
-        brain_id,
-        email: email.trim().toLowerCase(),
-        role,
-        invited_by: user.id,
-      }),
-    });
+    // Generate token server-side — avoids relying on pgcrypto DB extension
+    const token = randomBytes(32).toString("hex");
+
+    // Upsert invite record (on_conflict handles re-inviting same email)
+    const inviteRes = await fetch(
+      `${SB_URL}/rest/v1/brain_invites?on_conflict=brain_id,email`,
+      {
+        method: "POST",
+        headers: hdrs({ "Prefer": "return=representation,resolution=merge-duplicates" }),
+        body: JSON.stringify({
+          brain_id,
+          email: email.trim().toLowerCase(),
+          role,
+          invited_by: user.id,
+          token,
+          accepted: false,
+        }),
+      }
+    );
 
     if (!inviteRes.ok) {
       const detail = await inviteRes.text().catch(() => "");
-      console.error("[brains:invite] Failed:", detail);
-      return res.status(502).json({ error: "Failed to create invite" });
+      console.error("[brains:invite] Failed:", inviteRes.status, detail);
+      return res.status(502).json({ error: "Failed to create invite", detail });
     }
 
-    const [invite]: any[] = await inviteRes.json();
+    const inviteData = await inviteRes.json().catch(() => []);
+    const invite = Array.isArray(inviteData) ? inviteData[0] : inviteData;
     console.log(`[audit] INVITE brain=${brain_id} email=${email} by=${user.id}`);
     return res.status(200).json({ ok: true, invite });
   }
