@@ -358,6 +358,7 @@ export default function SettingsView() {
   const [inviteRole, setInviteRole] = useState("member");
   const [inviteStatus, setInviteStatus] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
   const [platformInviteEmail, setPlatformInviteEmail] = useState("");
   const [platformInviteStatus, setPlatformInviteStatus] = useState<string | null>(null);
   useEffect(() => {
@@ -812,11 +813,30 @@ export default function SettingsView() {
                         onFocus={(e) => e.currentTarget.select()}
                       />
                       <button
-                        onClick={() => { navigator.clipboard.writeText(inviteLink); }}
+                        onClick={() => {
+                          const copy = (text: string) => {
+                            if (navigator.clipboard?.writeText) {
+                              navigator.clipboard.writeText(text).catch(() => {});
+                            } else {
+                              const ta = document.createElement("textarea");
+                              ta.value = text;
+                              ta.style.position = "fixed";
+                              ta.style.opacity = "0";
+                              document.body.appendChild(ta);
+                              ta.focus();
+                              ta.select();
+                              document.execCommand("copy");
+                              document.body.removeChild(ta);
+                            }
+                            setInviteLinkCopied(true);
+                            setTimeout(() => setInviteLinkCopied(false), 2000);
+                          };
+                          copy(inviteLink);
+                        }}
                         className="px-3 py-2 rounded-xl text-[11px] font-semibold whitespace-nowrap"
-                        style={{ background: "rgba(114,239,245,0.12)", color: "#72eff5", border: "1px solid rgba(114,239,245,0.2)" }}
+                        style={{ background: inviteLinkCopied ? "rgba(114,239,245,0.25)" : "rgba(114,239,245,0.12)", color: "#72eff5", border: "1px solid rgba(114,239,245,0.2)" }}
                       >
-                        Copy
+                        {inviteLinkCopied ? "Copied!" : "Copy"}
                       </button>
                     </div>
                   </div>
