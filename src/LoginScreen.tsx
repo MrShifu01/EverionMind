@@ -4,7 +4,6 @@ import { Brain, Cpu, Network, Shield, ArrowRight, RefreshCw, Mail } from "lucide
 
 interface Feature {
   Icon: React.ElementType;
-  color: string;
   label: string;
   desc: string;
 }
@@ -12,29 +11,42 @@ interface Feature {
 const FEATURES: Feature[] = [
   {
     Icon: Brain,
-    color: "#72eff5",
     label: "Personal brain",
     desc: "Identity, health, finances, documents — always findable",
   },
   {
     Icon: Network,
-    color: "#8b5cf6",
     label: "Family brain",
     desc: "Household info, kids' schools, emergency contacts — shared with the people that matter",
   },
   {
     Icon: Cpu,
-    color: "#ff9ac3",
     label: "Business brain",
     desc: "Suppliers, staff, SOPs, licences — your whole operation in one place",
   },
   {
     Icon: Shield,
-    color: "#72eff5",
-    label: "AI that thinks for you",
+    label: "Private by design",
     desc: "Classify, connect, remind, surface — not just store",
   },
 ];
+
+const C = {
+  bg:          "oklch(12% 0.009 60)",
+  surface:     "oklch(15% 0.009 60)",
+  container:   "oklch(19% 0.009 60)",
+  highest:     "oklch(27% 0.009 60)",
+  border:      "oklch(24% 0.009 60)",
+  borderFaint: "oklch(20% 0.009 60)",
+  text:        "oklch(93% 0.006 60)",
+  textMuted:   "oklch(58% 0.006 60)",
+  textFaint:   "oklch(40% 0.006 60)",
+  primary:     "oklch(72% 0.14 75)",
+  primaryDim:  "oklch(64% 0.14 75)",
+  primaryBg:   "oklch(26% 0.07 75)",
+  primaryText: "oklch(13% 0.06 75)",
+  error:       "oklch(62% 0.18 25)",
+};
 
 function toFriendlyError(msg: string): string {
   if (msg.toLowerCase().includes("database error saving new user")) {
@@ -99,27 +111,15 @@ export default function LoginScreen(): JSX.Element {
       style={{
         minHeight: "100vh",
         width: "100%",
-        background: "#0e0e0e",
-        color: "#ffffff",
-        fontFamily: "'Inter', system-ui, sans-serif",
+        background: C.bg,
+        color: C.text,
+        fontFamily: "'DM Sans', system-ui, sans-serif",
         display: "flex",
         flexDirection: "column",
         position: "relative",
         overflowX: "hidden",
       }}
     >
-      {/* Atmospheric background */}
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 0,
-          pointerEvents: "none",
-          backgroundImage:
-            "radial-gradient(circle at 20% 25%, rgba(114,239,245,0.09) 0%, transparent 50%), radial-gradient(circle at 80% 70%, rgba(139,92,246,0.09) 0%, transparent 50%)",
-        }}
-      />
-
       {/* ── DESKTOP: two-column layout ── */}
       <div
         className="login-two-col"
@@ -127,8 +127,6 @@ export default function LoginScreen(): JSX.Element {
           flex: 1,
           display: "flex",
           alignItems: "stretch",
-          position: "relative",
-          zIndex: 1,
           minHeight: "100vh",
         }}
       >
@@ -140,146 +138,104 @@ export default function LoginScreen(): JSX.Element {
             flexDirection: "column",
             justifyContent: "center",
             padding: "clamp(40px, 6vw, 80px) clamp(32px, 5vw, 72px)",
-            borderRight: "1px solid rgba(72,72,71,0.15)",
+            borderRight: `1px solid ${C.border}`,
           }}
         >
           {/* Logo + Brand */}
-          <div style={{ marginBottom: 40 }}>
-            <div style={{ position: "relative", display: "inline-flex", marginBottom: 28 }}>
-              <div
-                style={{
-                  position: "absolute",
-                  inset: -24,
-                  borderRadius: "50%",
-                  background: "radial-gradient(circle, rgba(114,239,245,0.12) 0%, rgba(139,92,246,0.06) 50%, transparent 70%)",
-                  filter: "blur(16px)",
-                }}
-              />
-              <div
-                style={{
-                  position: "relative",
-                  width: 88,
-                  height: 88,
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  background: "rgba(38,38,38,0.7)",
-                  backdropFilter: "blur(24px)",
-                  WebkitBackdropFilter: "blur(24px)",
-                  border: "1px solid rgba(114,239,245,0.25)",
-                  boxShadow: "0 0 32px rgba(114,239,245,0.08)",
-                }}
-              >
-                <Brain size={44} style={{ color: "#72eff5", filter: "drop-shadow(0 0 10px rgba(114,239,245,0.5))" }} />
-                <div
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    borderRadius: "50%",
-                    border: "1px solid rgba(114,239,245,0.12)",
-                    transform: "scale(1.18)",
-                    animation: "pulse 2.5s ease-in-out infinite",
-                  }}
-                />
-              </div>
+          <div style={{ marginBottom: 48 }}>
+            <div
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 12,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: C.primaryBg,
+                border: `1px solid ${C.border}`,
+                marginBottom: 24,
+              }}
+            >
+              <Brain size={24} style={{ color: C.primary }} />
             </div>
 
             <h1
               style={{
-                fontFamily: "'Manrope', sans-serif",
-                fontSize: "clamp(2.5rem, 4vw, 3.5rem)",
-                fontWeight: 800,
-                letterSpacing: "-0.03em",
+                fontFamily: "'Lora', Georgia, serif",
+                fontSize: "clamp(2rem, 3.5vw, 3rem)",
+                fontWeight: 700,
+                letterSpacing: "-0.02em",
                 margin: "0 0 12px",
                 lineHeight: 1.1,
+                color: C.text,
               }}
             >
-              Open
-              <span
-                style={{
-                  background: "linear-gradient(135deg, #72eff5 0%, #8b5cf6 50%, #ff9ac3 100%)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                }}
-              >
-                Brain
-              </span>
+              Everion
             </h1>
 
-            <p style={{ fontSize: 17, fontWeight: 600, color: "#72eff5", margin: "0 0 8px" }}>
+            <p style={{ fontSize: 16, fontWeight: 500, color: C.primary, margin: "0 0 8px" }}>
               Your second brain — for you, your family, your business.
             </p>
-            <p style={{ fontSize: 14, lineHeight: 1.65, color: "#777575", margin: 0, maxWidth: 460 }}>
+            <p style={{ fontSize: 14, lineHeight: 1.7, color: C.textMuted, margin: 0, maxWidth: 440 }}>
               Capture everything. Connect the dots. Ask anything.
-              One AI-powered memory OS that grows with your life.
+              One AI-powered memory system that grows with your life.
             </p>
           </div>
 
-          {/* Feature grid */}
+          {/* Feature list */}
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-              gap: 12,
-              maxWidth: 540,
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+              maxWidth: 480,
             }}
           >
             {FEATURES.map((f) => (
               <div
                 key={f.label}
                 style={{
-                  borderRadius: 16,
-                  padding: "18px 16px",
-                  background: "rgba(38,38,38,0.6)",
-                  backdropFilter: "blur(24px)",
-                  WebkitBackdropFilter: "blur(24px)",
-                  border: "1px solid rgba(72,72,71,0.18)",
-                  transition: "border-color 0.2s, transform 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLDivElement).style.borderColor = f.color + "40";
-                  (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(72,72,71,0.18)";
-                  (e.currentTarget as HTMLDivElement).style.transform = "none";
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 14,
                 }}
               >
                 <div
                   style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 10,
+                    width: 32,
+                    height: 32,
+                    borderRadius: 8,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    background: f.color + "18",
-                    border: `1px solid ${f.color}30`,
-                    marginBottom: 10,
+                    background: C.primaryBg,
+                    border: `1px solid ${C.border}`,
+                    flexShrink: 0,
+                    marginTop: 2,
                   }}
                 >
-                  <f.Icon size={18} style={{ color: f.color }} />
+                  <f.Icon size={15} style={{ color: C.primary }} />
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#ffffff", fontFamily: "'Manrope', sans-serif", marginBottom: 4 }}>
-                  {f.label}
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 2 }}>
+                    {f.label}
+                  </div>
+                  <div style={{ fontSize: 13, lineHeight: 1.55, color: C.textMuted }}>{f.desc}</div>
                 </div>
-                <div style={{ fontSize: 12, lineHeight: 1.5, color: "#777575" }}>{f.desc}</div>
               </div>
             ))}
           </div>
 
           {/* Privacy note */}
-          <p style={{ marginTop: 20, fontSize: 12, color: "#484847", maxWidth: 460 }}>
-            <span style={{ color: "#777575" }}>Your data is yours.</span> Export everything, delete everything. No lock-in. Built on Supabase + Claude AI.
+          <p style={{ marginTop: 32, fontSize: 12, color: C.textFaint, maxWidth: 440 }}>
+            Your data is yours. Export everything, delete everything. No lock-in.
           </p>
         </div>
 
         {/* RIGHT PANEL — login form */}
         <div
           style={{
-            width: "clamp(340px, 40vw, 520px)",
+            width: "clamp(340px, 40vw, 500px)",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
@@ -287,40 +243,40 @@ export default function LoginScreen(): JSX.Element {
             padding: "clamp(40px, 5vw, 64px) clamp(32px, 4vw, 56px)",
           }}
         >
-          <div style={{ width: "100%", maxWidth: 380 }}>
+          <div style={{ width: "100%", maxWidth: 360 }}>
 
             {/* Form header */}
             {!sent && (
-              <div style={{ marginBottom: 32, textAlign: "center" }}>
+              <div style={{ marginBottom: 28 }}>
                 <div
                   style={{
-                    width: 52,
-                    height: 52,
-                    borderRadius: 16,
+                    width: 44,
+                    height: 44,
+                    borderRadius: 10,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    background: "rgba(139,92,246,0.12)",
-                    border: "1px solid rgba(139,92,246,0.25)",
-                    margin: "0 auto 16px",
+                    background: C.container,
+                    border: `1px solid ${C.border}`,
+                    marginBottom: 20,
                   }}
                 >
-                  <Mail size={24} style={{ color: "#8b5cf6" }} />
+                  <Mail size={20} style={{ color: C.textMuted }} />
                 </div>
                 <h2
                   style={{
-                    fontFamily: "'Manrope', sans-serif",
+                    fontFamily: "'Lora', Georgia, serif",
                     fontSize: 22,
                     fontWeight: 700,
                     letterSpacing: "-0.02em",
                     margin: "0 0 6px",
-                    color: "#ffffff",
+                    color: C.text,
                   }}
                 >
-                  {showForm ? "Enter your email" : "Sign in to OpenBrain"}
+                  {showForm ? "Sign in" : "Welcome to Everion"}
                 </h2>
-                <p style={{ fontSize: 13, color: "#777575", margin: 0 }}>
-                  {showForm ? "We'll send you a magic link to sign in" : "No password needed"}
+                <p style={{ fontSize: 13, color: C.textMuted, margin: 0 }}>
+                  {showForm ? "Enter your email and we'll send a sign-in link" : "No password needed"}
                 </p>
               </div>
             )}
@@ -330,49 +286,45 @@ export default function LoginScreen(): JSX.Element {
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <button
                   onClick={() => setShowForm(true)}
-                  className="group"
                   style={{
-                    position: "relative",
                     width: "100%",
-                    height: 52,
-                    borderRadius: 14,
+                    height: 48,
+                    borderRadius: 10,
                     border: "none",
-                    background: "linear-gradient(135deg, #8b5cf6, #7c3aed)",
-                    color: "#ffffff",
+                    background: C.primary,
+                    color: C.primaryText,
                     fontSize: 15,
-                    fontWeight: 700,
-                    fontFamily: "'Manrope', sans-serif",
+                    fontWeight: 600,
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     gap: 8,
-                    boxShadow: "0 0 32px rgba(139,92,246,0.25), 0 4px 16px rgba(0,0,0,0.3)",
-                    transition: "transform 0.15s, box-shadow 0.15s",
-                    overflow: "hidden",
+                    transition: "background 0.15s",
                   }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
-                    (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 0 40px rgba(139,92,246,0.35), 0 8px 24px rgba(0,0,0,0.3)";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.transform = "none";
-                    (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 0 32px rgba(139,92,246,0.25), 0 4px 16px rgba(0,0,0,0.3)";
-                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = C.primaryDim; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = C.primary; }}
                 >
-                  Start free
-                  <ArrowRight size={18} />
+                  Get started
+                  <ArrowRight size={16} />
                 </button>
 
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ flex: 1, height: 1, background: "rgba(72,72,71,0.3)" }} />
-                  <span style={{ fontSize: 12, color: "#484847" }}>or</span>
-                  <div style={{ flex: 1, height: 1, background: "rgba(72,72,71,0.3)" }} />
-                </div>
-
-                <p style={{ textAlign: "center", fontSize: 12, color: "#484847", margin: 0 }}>
-                  No password needed — sign in with email
-                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowForm(true)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: C.primary,
+                    fontSize: 13,
+                    cursor: "pointer",
+                    textAlign: "center",
+                    padding: "4px 0",
+                    fontFamily: "'DM Sans', system-ui, sans-serif",
+                  }}
+                >
+                  Already have an account? Sign in
+                </button>
               </div>
             )}
 
@@ -381,50 +333,44 @@ export default function LoginScreen(): JSX.Element {
               <form onSubmit={handleSend} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div>
                   <label
+                    htmlFor="login-email"
                     style={{
                       display: "block",
-                      fontSize: 10,
-                      fontWeight: 600,
-                      letterSpacing: "0.2em",
-                      textTransform: "uppercase",
-                      color: "#adaaaa",
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: C.textMuted,
                       marginBottom: 6,
                     }}
                   >
-                    Email Node
+                    Email address
                   </label>
                   <input
+                    id="login-email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="neural@email.com"
+                    placeholder="you@example.com"
                     required
                     autoFocus
                     style={{
                       width: "100%",
-                      borderRadius: 12,
-                      border: "1px solid rgba(72,72,71,0.3)",
-                      background: "#1a1919",
-                      color: "#ffffff",
+                      borderRadius: 8,
+                      border: `1px solid ${C.border}`,
+                      background: C.container,
+                      color: C.text,
                       fontSize: 15,
-                      padding: "13px 16px",
+                      padding: "11px 14px",
                       outline: "none",
                       boxSizing: "border-box",
-                      fontFamily: "'Inter', sans-serif",
-                      transition: "border-color 0.2s, box-shadow 0.2s",
+                      fontFamily: "'DM Sans', system-ui, sans-serif",
+                      transition: "border-color 0.15s",
                     }}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = "rgba(114,239,245,0.6)";
-                      e.currentTarget.style.boxShadow = "0 0 0 3px rgba(114,239,245,0.08)";
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = "rgba(72,72,71,0.3)";
-                      e.currentTarget.style.boxShadow = "none";
-                    }}
+                    onFocus={(e) => { e.currentTarget.style.borderColor = C.primary; }}
+                    onBlur={(e) => { e.currentTarget.style.borderColor = C.border; }}
                   />
                 </div>
 
-                {error && <p style={{ color: "#ff6e84", fontSize: 13, margin: 0 }}>{error}</p>}
+                {error && <p style={{ color: C.error, fontSize: 13, margin: 0 }}>{error}</p>}
 
                 <div style={{ display: "flex", gap: 8 }}>
                   <button
@@ -432,14 +378,15 @@ export default function LoginScreen(): JSX.Element {
                     onClick={() => setShowForm(false)}
                     style={{
                       flex: 1,
-                      borderRadius: 12,
-                      border: "1px solid rgba(72,72,71,0.3)",
-                      background: "#1a1919",
-                      color: "#adaaaa",
+                      height: 44,
+                      borderRadius: 8,
+                      border: `1px solid ${C.border}`,
+                      background: "transparent",
+                      color: C.textMuted,
                       fontSize: 14,
-                      padding: "12px",
                       cursor: "pointer",
-                      fontFamily: "'Inter', sans-serif",
+                      fontFamily: "'DM Sans', system-ui, sans-serif",
+                      transition: "color 0.15s",
                     }}
                   >
                     Back
@@ -449,20 +396,19 @@ export default function LoginScreen(): JSX.Element {
                     disabled={isDisabled}
                     style={{
                       flex: 2,
-                      borderRadius: 12,
+                      height: 44,
+                      borderRadius: 8,
                       border: "none",
-                      background: isDisabled ? "#262626" : "linear-gradient(135deg, #72eff5, #1fb1b7)",
-                      color: isDisabled ? "#777575" : "#0a0a0a",
+                      background: isDisabled ? C.highest : C.primary,
+                      color: isDisabled ? C.textFaint : C.primaryText,
                       fontSize: 14,
-                      fontWeight: 700,
-                      padding: "12px",
+                      fontWeight: 600,
                       cursor: isDisabled ? "default" : "pointer",
-                      opacity: isDisabled ? 0.5 : 1,
-                      fontFamily: "'Manrope', sans-serif",
-                      transition: "opacity 0.2s",
+                      fontFamily: "'DM Sans', system-ui, sans-serif",
+                      transition: "background 0.15s",
                     }}
                   >
-                    {loading ? "Sending…" : "Send access code"}
+                    {loading ? "Sending…" : "Send sign-in link"}
                   </button>
                 </div>
               </form>
@@ -470,55 +416,54 @@ export default function LoginScreen(): JSX.Element {
 
             {/* ── OTP verification ── */}
             {sent && (
-              <div style={{ textAlign: "center" }}>
+              <div>
                 <div
                   style={{
-                    width: 64,
-                    height: 64,
-                    borderRadius: 18,
+                    width: 48,
+                    height: 48,
+                    borderRadius: 10,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    background: "rgba(114,239,245,0.1)",
-                    border: "1px solid rgba(114,239,245,0.2)",
-                    margin: "0 auto 20px",
+                    background: C.primaryBg,
+                    border: `1px solid ${C.border}`,
+                    marginBottom: 20,
                   }}
                 >
-                  <RefreshCw size={28} style={{ color: "#72eff5" }} />
+                  <RefreshCw size={22} style={{ color: C.primary }} />
                 </div>
                 <h2
                   style={{
-                    fontFamily: "'Manrope', sans-serif",
+                    fontFamily: "'Lora', Georgia, serif",
                     fontSize: 20,
                     fontWeight: 700,
-                    color: "#72eff5",
+                    color: C.text,
                     margin: "0 0 8px",
                   }}
                 >
                   Check your email
                 </h2>
-                <p style={{ fontSize: 13, color: "#adaaaa", lineHeight: 1.6, margin: "0 0 24px" }}>
-                  Sent to <strong style={{ color: "#ffffff" }}>{email}</strong>.<br />
-                  Enter the code or tap the magic link.
+                <p style={{ fontSize: 13, color: C.textMuted, lineHeight: 1.6, margin: "0 0 24px" }}>
+                  Sent to <strong style={{ color: C.text }}>{email}</strong>.<br />
+                  Enter the code or tap the sign-in link.
                 </p>
 
                 <form onSubmit={handleVerifyOtp} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   <div>
                     <label
+                      htmlFor="otp-code"
                       style={{
                         display: "block",
-                        fontSize: 10,
-                        fontWeight: 600,
-                        letterSpacing: "0.2em",
-                        textTransform: "uppercase",
-                        color: "#adaaaa",
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: C.textMuted,
                         marginBottom: 6,
-                        textAlign: "left",
                       }}
                     >
-                      Access Key
+                      6-digit code
                     </label>
                     <input
+                      id="otp-code"
                       type="text"
                       inputMode="numeric"
                       autoComplete="one-time-code"
@@ -528,45 +473,46 @@ export default function LoginScreen(): JSX.Element {
                       autoFocus
                       style={{
                         width: "100%",
-                        borderRadius: 12,
-                        border: "1px solid rgba(72,72,71,0.3)",
-                        background: "#1a1919",
-                        color: "#ffffff",
+                        borderRadius: 8,
+                        border: `1px solid ${C.border}`,
+                        background: C.container,
+                        color: C.text,
                         fontSize: 28,
                         fontWeight: 700,
-                        padding: "14px 16px",
+                        padding: "12px 14px",
                         outline: "none",
                         textAlign: "center",
                         letterSpacing: 8,
-                        fontFamily: "monospace",
+                        fontFamily: "'DM Sans', system-ui, sans-serif",
+                        fontVariantNumeric: "tabular-nums",
                         boxSizing: "border-box",
-                        transition: "border-color 0.2s",
+                        transition: "border-color 0.15s",
                       }}
-                      onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(114,239,245,0.6)"; }}
-                      onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(72,72,71,0.3)"; }}
+                      onFocus={(e) => { e.currentTarget.style.borderColor = C.primary; }}
+                      onBlur={(e) => { e.currentTarget.style.borderColor = C.border; }}
                     />
                   </div>
 
-                  {error && <p style={{ color: "#ff6e84", fontSize: 13, margin: 0 }}>{error}</p>}
+                  {error && <p style={{ color: C.error, fontSize: 13, margin: 0 }}>{error}</p>}
 
                   <button
                     type="submit"
                     disabled={isOtpDisabled}
                     style={{
                       width: "100%",
-                      borderRadius: 12,
+                      height: 48,
+                      borderRadius: 8,
                       border: "none",
-                      background: isOtpDisabled ? "#262626" : "linear-gradient(135deg, #72eff5, #1fb1b7)",
-                      color: isOtpDisabled ? "#777575" : "#0a0a0a",
+                      background: isOtpDisabled ? C.highest : C.primary,
+                      color: isOtpDisabled ? C.textFaint : C.primaryText,
                       fontSize: 14,
-                      fontWeight: 700,
-                      padding: "13px",
+                      fontWeight: 600,
                       cursor: isOtpDisabled ? "default" : "pointer",
-                      opacity: isOtpDisabled ? 0.5 : 1,
-                      fontFamily: "'Manrope', sans-serif",
+                      fontFamily: "'DM Sans', system-ui, sans-serif",
+                      transition: "background 0.15s",
                     }}
                   >
-                    {verifying ? "Verifying…" : "Sync to Neural Network"}
+                    {verifying ? "Signing in…" : "Sign in"}
                   </button>
                 </form>
 
@@ -577,10 +523,11 @@ export default function LoginScreen(): JSX.Element {
                     style={{
                       background: "none",
                       border: "none",
-                      color: "#72eff5",
+                      color: C.primary,
                       fontSize: 13,
                       cursor: "pointer",
-                      padding: "4px 8px",
+                      padding: "10px 12px",
+                      minHeight: 44,
                     }}
                   >
                     {loading ? "Sending…" : "Resend code"}
@@ -590,10 +537,11 @@ export default function LoginScreen(): JSX.Element {
                     style={{
                       background: "none",
                       border: "none",
-                      color: "#777575",
+                      color: C.textMuted,
                       fontSize: 13,
                       cursor: "pointer",
-                      padding: "4px 8px",
+                      padding: "10px 12px",
+                      minHeight: 44,
                     }}
                   >
                     Use different email
@@ -602,7 +550,7 @@ export default function LoginScreen(): JSX.Element {
               </div>
             )}
 
-            {/* Security badges */}
+            {/* Trust line */}
             {!sent && (
               <div
                 style={{
@@ -611,11 +559,11 @@ export default function LoginScreen(): JSX.Element {
                   gap: 20,
                   marginTop: 28,
                   paddingTop: 20,
-                  borderTop: "1px solid rgba(72,72,71,0.15)",
+                  borderTop: `1px solid ${C.borderFaint}`,
                 }}
               >
-                {["PROTOCOL", "ENCRYPTED", "NO LOCK-IN"].map((badge) => (
-                  <span key={badge} style={{ fontSize: 10, fontWeight: 600, color: "#484847", letterSpacing: "0.1em" }}>
+                {["End-to-end encrypted", "No lock-in", "Export anytime"].map((badge) => (
+                  <span key={badge} style={{ fontSize: 11, color: C.textFaint }}>
                     {badge}
                   </span>
                 ))}
@@ -626,10 +574,6 @@ export default function LoginScreen(): JSX.Element {
       </div>
 
       <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 0.6; }
-          50% { opacity: 1; }
-        }
         @media (max-width: 768px) {
           .login-two-col {
             flex-direction: column !important;
@@ -637,11 +581,12 @@ export default function LoginScreen(): JSX.Element {
           }
           .login-two-col > div:first-child {
             border-right: none !important;
-            border-bottom: 1px solid rgba(72,72,71,0.15) !important;
+            border-bottom: 1px solid oklch(24% 0.009 60) !important;
+            padding: 40px 24px !important;
           }
           .login-two-col > div:last-child {
             width: 100% !important;
-            padding: 40px 24px !important;
+            padding: 36px 24px !important;
           }
         }
       `}</style>

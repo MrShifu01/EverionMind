@@ -79,9 +79,9 @@ export default function App(): JSX.Element {
             <div
               style={{
                 position: "fixed", top: 0, left: 0, right: 0, zIndex: 9999,
-                background: "#1a1919", borderBottom: "1px solid rgba(114,239,245,0.2)",
-                color: "#72eff5", textAlign: "center", padding: "14px 16px",
-                fontSize: "14px", fontFamily: "sans-serif",
+                background: "var(--color-surface)", borderBottom: "1px solid var(--color-primary-container)",
+                color: "var(--color-primary)", textAlign: "center", padding: "14px 16px",
+                fontSize: "14px", fontFamily: "'DM Sans', system-ui, sans-serif",
               }}
             >
               {inviteMsg}

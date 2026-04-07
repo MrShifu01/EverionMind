@@ -67,15 +67,15 @@ export default function TrashView({ brainId, onRestore }: TrashViewProps) {
     for (const entry of entries) await deletePermanently(entry);
   };
 
-  if (loading) return <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#aaa" }}>Loading trash...</div>;
+  if (loading) return <div className="flex items-center justify-center h-40 text-sm" style={{ color: "var(--color-on-surface-variant)" }}>Loading trash...</div>;
 
   return (
-    <div className="space-y-4 p-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-white">Trash ({entries.length})</p>
+    <div className="p-4">
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-sm font-semibold text-white">Trash</p>
         {entries.length > 0 && (
           <div className="flex gap-2">
-            <button onClick={restoreAll} className="rounded-lg px-3 text-xs" style={{ background: "rgba(114,239,245,0.15)", color: "#72eff5", minHeight: 36 }}>
+            <button onClick={restoreAll} className="rounded-lg px-3 text-xs" style={{ background: "var(--color-primary-container)", color: "var(--color-primary)", minHeight: 36 }}>
               Restore all
             </button>
             <button onClick={emptyTrash} className="rounded-lg px-3 text-xs" style={{ background: "rgba(255,71,87,0.15)", color: "#FF4757", minHeight: 36 }}>
@@ -84,28 +84,27 @@ export default function TrashView({ brainId, onRestore }: TrashViewProps) {
           </div>
         )}
       </div>
-      <p className="text-xs" style={{ color: "#555" }}>Entries deleted more than 30 days ago are gone forever.</p>
+      <p className="text-xs mb-6" style={{ color: "var(--color-on-surface-variant)" }}>Entries deleted more than 30 days ago are gone forever.</p>
       {entries.length === 0 && (
-        <p className="text-center text-sm py-12" style={{ color: "#555" }}>Trash is empty</p>
+        <p className="text-center text-sm py-12" style={{ color: "var(--color-on-surface-variant)" }}>Trash is empty</p>
       )}
-      <div className="space-y-2">
+      <div className="divide-y" style={{ borderColor: "rgba(72,72,71,0.12)" }}>
         {entries.map(entry => {
           const tc = getTypeConfig(entry.type);
           const deleted = (entry as any).deleted_at;
           return (
-            <div key={entry.id} className="rounded-xl border p-3 flex items-center gap-3"
-              style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
-              <span className="text-xl">{tc.i}</span>
+            <div key={entry.id} className="py-3 flex items-center gap-3">
+              <span className="text-lg">{tc.i}</span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-white truncate">{entry.title}</p>
-                <p className="text-xs" style={{ color: "#555" }}>
+                <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
                   Deleted {deleted ? `${daysAgo(deleted)} day${daysAgo(deleted) !== 1 ? "s" : ""} ago` : "recently"}
                 </p>
               </div>
               <div className="flex gap-2">
                 <button onClick={() => restore(entry)} disabled={busy === entry.id}
                   className="rounded-lg px-3 text-xs disabled:opacity-40"
-                  style={{ background: "rgba(114,239,245,0.15)", color: "#72eff5", minHeight: 36 }}>
+                  style={{ background: "var(--color-primary-container)", color: "var(--color-primary)", minHeight: 36 }}>
                   Restore
                 </button>
                 <button onClick={() => deletePermanently(entry)} disabled={busy === entry.id}

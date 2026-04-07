@@ -588,15 +588,15 @@ export default function SuggestionsView({
                     onClick={() => toggleBrain(b.id)}
                     className="flex items-center gap-1.5 rounded-full px-3 py-1.5 border text-xs font-medium transition-colors"
                     style={{
-                      background: active ? "rgba(114,239,245,0.1)" : "rgba(38,38,38,0.5)",
-                      borderColor: active ? "rgba(114,239,245,0.3)" : "rgba(72,72,71,0.2)",
-                      color: active ? "#72eff5" : "#aaa",
+                      background: active ? "var(--color-primary-container)" : "rgba(38,38,38,0.5)",
+                      borderColor: active ? "var(--color-primary)" : "rgba(72,72,71,0.2)",
+                      color: active ? "var(--color-primary)" : "var(--color-on-surface-variant)",
                     }}
                   >
                     <span>{bmt.emoji}</span>
                     <span>{b.name}</span>
                     {active && selectedBrainIds.length > 1 && selectedBrainIds[0] === b.id && (
-                      <span className="text-[10px] text-[#72eff5] ml-1">✓ saves here</span>
+                      <span className="text-[10px] ml-1" style={{ color: "var(--color-primary)" }}>✓ saves here</span>
                     )}
                   </button>
                 );
@@ -630,9 +630,9 @@ export default function SuggestionsView({
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { l: "Answered", v: answered, color: "#72eff5" },
-          { l: "Skipped", v: skipped, color: "#777" },
-          { l: "Remaining", v: Math.max(0, total - (idx % Math.max(total, 1))), color: "#d575ff" },
+          { l: "Answered", v: answered, color: "var(--color-primary)" },
+          { l: "Skipped", v: skipped, color: "var(--color-on-surface-variant)" },
+          { l: "Remaining", v: Math.max(0, total - (idx % Math.max(total, 1))), color: "var(--color-secondary)" },
         ].map((s) => (
           <div
             key={s.l}
@@ -651,7 +651,7 @@ export default function SuggestionsView({
           className="h-full rounded-full transition-all duration-500"
           style={{
             width: `${Math.min(total > 0 ? ((answered + skipped) / total) * 100 : 0, 100)}%`,
-            background: "linear-gradient(90deg, #72eff5, #d575ff)",
+            background: "var(--color-primary)",
           }}
         />
       </div>
@@ -662,9 +662,9 @@ export default function SuggestionsView({
       {poolEmpty && (
         <div
           className="rounded-2xl border px-4 py-3 text-center"
-          style={{ background: "rgba(114,239,245,0.05)", borderColor: "rgba(114,239,245,0.15)" }}
+          style={{ background: "var(--color-primary-container)", borderColor: "var(--color-primary)" }}
         >
-          <span className="text-xs text-[#72eff5]">
+          <span className="text-xs" style={{ color: "var(--color-primary)" }}>
             ✨ All {answeredQs.size} static questions answered — AI is now driving
           </span>
         </div>
@@ -674,10 +674,10 @@ export default function SuggestionsView({
       {isAiSlot && aiLoading && (
         <div
           className="rounded-2xl border px-4 py-6 text-center"
-          style={{ background: "rgba(213,117,255,0.05)", borderColor: "rgba(213,117,255,0.15)" }}
+          style={{ background: "var(--color-secondary-container)", borderColor: "var(--color-secondary)" }}
         >
           <div className="text-2xl mb-2">✨</div>
-          <p className="text-sm text-[#d575ff]">AI is generating a personalised question…</p>
+          <p className="text-sm" style={{ color: "var(--color-secondary)" }}>AI is generating a personalised question…</p>
         </div>
       )}
 
@@ -690,20 +690,20 @@ export default function SuggestionsView({
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <span
               className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
-              style={{ color: pc.l === "High" ? "#ff6e84" : pc.l === "Medium" ? "#ffb400" : "#72eff5", background: pc.l === "High" ? "rgba(255,110,132,0.1)" : pc.l === "Medium" ? "rgba(255,180,0,0.1)" : "rgba(114,239,245,0.1)" }}
+              style={{ color: pc.l === "High" ? "var(--color-error)" : pc.l === "Medium" ? "#ffb400" : "var(--color-primary)", background: pc.l === "High" ? "color-mix(in oklch, var(--color-error) 12%, transparent)" : pc.l === "Medium" ? "rgba(255,180,0,0.1)" : "var(--color-primary-container)" }}
             >
               {pc.l}
             </span>
             <span
               className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-              style={{ color: "#d575ff", background: "rgba(213,117,255,0.1)" }}
+              style={{ color: "var(--color-secondary)", background: "var(--color-secondary-container)" }}
             >
               {current.cat}
             </span>
             {isAiSlot && (
               <span
                 className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                style={{ color: "#72eff5", background: "rgba(114,239,245,0.1)" }}
+                style={{ color: "var(--color-primary)", background: "var(--color-primary-container)" }}
               >
                 ✨ AI
               </span>
@@ -742,7 +742,7 @@ export default function SuggestionsView({
             onClick={() => setShowInput(true)}
             disabled={!current || aiLoading}
             className="flex-[2] py-3 rounded-xl text-sm font-bold transition-colors disabled:opacity-40"
-            style={{ background: "linear-gradient(135deg, #72eff5, #1fb1b7)", color: "#0a0a0a" }}
+            style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
           >
             Answer this
           </button>
@@ -778,7 +778,7 @@ export default function SuggestionsView({
             placeholder={listening ? "Listening..." : "Type your answer..."}
             autoFocus
             rows={3}
-            className="w-full rounded-xl border px-3 py-3 text-sm text-white bg-transparent outline-none resize-none placeholder:text-[#555] focus:border-[rgba(114,239,245,0.5)] transition-colors"
+            className="w-full rounded-xl border px-3 py-3 text-sm text-white bg-transparent outline-none resize-none placeholder:text-[#555] focus:border-[var(--color-primary)] transition-colors"
             style={{ borderColor: "rgba(72,72,71,0.3)", fontFamily: "'Inter', sans-serif" }}
           />
           <div className="flex items-center gap-2">
@@ -845,7 +845,7 @@ export default function SuggestionsView({
             onClick={handleSave}
             disabled={!answer.trim() || saving || imgLoading}
             className="w-full py-3 rounded-xl text-sm font-bold transition-colors disabled:opacity-40"
-            style={{ background: "linear-gradient(135deg, #72eff5, #1fb1b7)", color: "#0a0a0a" }}
+            style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
           >
             {saving
               ? "Saving..."
@@ -880,7 +880,7 @@ export default function SuggestionsView({
             <button
               onClick={copyAll}
               className="text-[10px] font-semibold px-2.5 py-1 rounded-lg transition-colors hover:bg-white/5"
-              style={{ color: "#72eff5" }}
+              style={{ color: "var(--color-primary)" }}
             >
               📋 Copy All
             </button>
@@ -895,7 +895,7 @@ export default function SuggestionsView({
                 <div className="flex items-center gap-2 mb-1">
                   <span
                     className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                    style={{ color: "#d575ff", background: "rgba(213,117,255,0.1)" }}
+                    style={{ color: "var(--color-secondary)", background: "var(--color-secondary-container)" }}
                   >
                     {s.cat}
                   </span>
@@ -908,7 +908,7 @@ export default function SuggestionsView({
                   {s.db && (
                     <span
                       className="text-[10px] font-semibold px-2 py-0.5 rounded-full ml-auto"
-                      style={{ color: "#72eff5", background: "rgba(114,239,245,0.1)" }}
+                      style={{ color: "var(--color-primary)", background: "var(--color-primary-container)" }}
                     >
                       Saved
                     </span>

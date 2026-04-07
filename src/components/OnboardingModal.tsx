@@ -1,6 +1,8 @@
-// @ts-nocheck
 import { useState } from "react";
-import PropTypes from "prop-types";
+
+interface OnboardingModalProps {
+  onComplete: (selected: string[], answered: never[], skipped: { q: string; cat: string; p: string }[]) => void;
+}
 
 /* ─── 30 essential starter questions ─── */
 export const ONBOARDING_QUESTIONS = [
@@ -199,7 +201,7 @@ const USE_CASES = [
   },
 ];
 
-export default function OnboardingModal({ onComplete }) {
+export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
   const [step, setStep] = useState(0);
   const [selected, setSelected] = useState(["personal"]);
 
@@ -232,7 +234,7 @@ export default function OnboardingModal({ onComplete }) {
     >
       <div
         className="relative w-full max-w-md rounded-2xl border p-6"
-        style={{ background: "#1a1919", borderColor: "rgba(72,72,71,0.2)" }}
+        style={{ background: "var(--color-surface)", borderColor: "var(--color-outline-variant)" }}
       >
         {/* Progress dots */}
         <div className="mb-6 flex items-center justify-center gap-2" role="tablist" aria-label="Onboarding progress">
@@ -243,10 +245,10 @@ export default function OnboardingModal({ onComplete }) {
               style={{
                 width: i === step ? "2rem" : "0.5rem",
                 background: i === step
-                  ? "linear-gradient(135deg, #72eff5, #1fb1b7)"
+                  ? "var(--color-primary)"
                   : i < step
-                    ? "#72eff5"
-                    : "rgba(72,72,71,0.4)",
+                    ? "var(--color-primary)"
+                    : "var(--color-outline-variant)",
               }}
               aria-label={`Step ${i + 1} of ${STEPS.length}`}
               role="tab"
@@ -259,11 +261,11 @@ export default function OnboardingModal({ onComplete }) {
           <div className="mb-3 text-4xl">{step === START_STEP ? "🚀" : "🧠"}</div>
           <h2
             className="mb-1 text-xl font-semibold text-white"
-            style={{ fontFamily: "'Manrope', sans-serif" }}
+            style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}
           >
             {STEPS[step].title}
           </h2>
-          <p className="text-sm" style={{ color: "#aaa" }}>
+          <p className="text-sm" style={{ color: "var(--color-on-surface-variant)" }}>
             {STEPS[step].subtitle}
           </p>
         </div>
@@ -278,8 +280,8 @@ export default function OnboardingModal({ onComplete }) {
                   key={uc.id}
                   className="flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors duration-200"
                   style={{
-                    background: active ? "rgba(114,239,245,0.06)" : "transparent",
-                    borderColor: active ? "rgba(114,239,245,0.4)" : "rgba(72,72,71,0.3)",
+                    background: active ? "var(--color-primary-container)" : "transparent",
+                    borderColor: active ? "var(--color-primary)" : "var(--color-outline-variant)",
                   }}
                   onClick={() => toggleUseCase(uc.id)}
                   role="checkbox"
@@ -288,14 +290,14 @@ export default function OnboardingModal({ onComplete }) {
                   <span className="text-2xl">{uc.emoji}</span>
                   <div className="flex-1">
                     <div className="text-sm font-medium text-white">{uc.label}</div>
-                    <div className="text-xs" style={{ color: "#777" }}>{uc.desc}</div>
+                    <div className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>{uc.desc}</div>
                   </div>
                   <div
                     className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-xs font-bold"
                     style={{
-                      borderColor: active ? "#72eff5" : "rgba(72,72,71,0.4)",
-                      background: active ? "#72eff5" : "transparent",
-                      color: active ? "#0a0a0a" : "transparent",
+                      borderColor: active ? "var(--color-primary)" : "var(--color-outline-variant)",
+                      background: active ? "var(--color-primary)" : "transparent",
+                      color: active ? "var(--color-on-primary)" : "transparent",
                     }}
                   >
                     {active && "✓"}
@@ -303,7 +305,7 @@ export default function OnboardingModal({ onComplete }) {
                 </button>
               );
             })}
-            <p className="mt-1 text-center text-xs" style={{ color: "#777" }}>
+            <p className="mt-1 text-center text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
               Select all that apply
             </p>
           </div>
@@ -319,14 +321,14 @@ export default function OnboardingModal({ onComplete }) {
                   key={id}
                   className="flex items-center gap-3 rounded-xl border px-4 py-3"
                   style={{
-                    background: "rgba(114,239,245,0.04)",
-                    borderColor: "rgba(72,72,71,0.2)",
+                    background: "var(--color-primary-container)",
+                    borderColor: "var(--color-outline-variant)",
                   }}
                 >
                   <span className="text-2xl">{uc.emoji}</span>
                   <div className="flex-1">
                     <div className="text-sm font-medium text-white">{uc.label} brain</div>
-                    <div className="text-xs" style={{ color: "#777" }}>
+                    <div className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
                       {id === "personal" &&
                         "Fill Brain will show personal questions (identity, health, finance…)"}
                       {id === "family" && "Your family brain is ready for household & family data"}
@@ -334,18 +336,18 @@ export default function OnboardingModal({ onComplete }) {
                         "Your business brain will show supplier, staff & SOP questions"}
                     </div>
                   </div>
-                  <span className="text-sm font-bold" style={{ color: "#72eff5" }}>✓</span>
+                  <span className="text-sm font-bold" style={{ color: "var(--color-primary)" }}>✓</span>
                 </div>
               );
             })}
             <div
               className="mt-2 rounded-xl border px-4 py-3"
               style={{
-                background: "rgba(213,117,255,0.06)",
-                borderColor: "rgba(213,117,255,0.15)",
+                background: "var(--color-secondary-container)",
+                borderColor: "var(--color-secondary-container)",
               }}
             >
-              <p className="text-xs" style={{ color: "#aaa" }}>
+              <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
                 💡 <strong className="text-white">Tip:</strong> Use the brain switcher
                 (top-right) to switch between brains at any time. You can always create more brains
                 later.
@@ -360,11 +362,11 @@ export default function OnboardingModal({ onComplete }) {
             <div
               className="mb-4 rounded-xl border px-4 py-3"
               style={{
-                background: "rgba(114,239,245,0.06)",
-                borderColor: "rgba(114,239,245,0.12)",
+                background: "var(--color-primary-container)",
+                borderColor: "var(--color-primary-container)",
               }}
             >
-              <p className="text-sm" style={{ color: "#aaa" }}>
+              <p className="text-sm" style={{ color: "var(--color-on-surface-variant)" }}>
                 <strong className="text-white">{skippedQs.length} guided questions</strong> are
                 waiting in Fill Brain to help you build your memory.
               </p>
@@ -387,17 +389,17 @@ export default function OnboardingModal({ onComplete }) {
                 <div
                   key={f.label}
                   className="flex items-center gap-3 rounded-lg px-3 py-2"
-                  style={{ background: "rgba(72,72,71,0.1)" }}
+                  style={{ background: "var(--color-surface-container)" }}
                 >
                   <span
                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold"
-                    style={{ background: "rgba(114,239,245,0.1)", color: "#72eff5" }}
+                    style={{ background: "var(--color-primary-container)", color: "var(--color-primary)" }}
                   >
                     {f.ic}
                   </span>
                   <div>
                     <div className="text-sm font-medium text-white">{f.label}</div>
-                    <div className="text-xs" style={{ color: "#777" }}>{f.desc}</div>
+                    <div className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>{f.desc}</div>
                   </div>
                 </div>
               ))}
@@ -406,11 +408,11 @@ export default function OnboardingModal({ onComplete }) {
               <div
                 className="mt-4 rounded-xl border px-4 py-3"
                 style={{
-                  background: "rgba(213,117,255,0.06)",
-                  borderColor: "rgba(213,117,255,0.15)",
+                  background: "var(--color-secondary-container)",
+                  borderColor: "var(--color-secondary-container)",
                 }}
               >
-                <p className="text-xs" style={{ color: "#aaa" }}>
+                <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
                   📱 <strong className="text-white">iPhone tip:</strong> Tap Share → "Add to
                   Home Screen" to enable push notifications.
                 </p>
@@ -425,8 +427,8 @@ export default function OnboardingModal({ onComplete }) {
             <button
               className="rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors duration-200"
               style={{
-                borderColor: "rgba(72,72,71,0.3)",
-                color: "#aaa",
+                borderColor: "var(--color-outline-variant)",
+                color: "var(--color-on-surface-variant)",
                 background: "transparent",
               }}
               onClick={() => setStep((s) => s - 1)}
@@ -438,8 +440,8 @@ export default function OnboardingModal({ onComplete }) {
             <button
               className="ml-auto rounded-xl px-5 py-2.5 text-sm font-semibold transition-opacity duration-200 hover:opacity-90"
               style={{
-                background: "linear-gradient(135deg, #72eff5, #1fb1b7)",
-                color: "#0a0a0a",
+                background: "var(--color-primary)",
+                color: "var(--color-on-primary)",
               }}
               onClick={() => setStep(1)}
             >
@@ -450,8 +452,8 @@ export default function OnboardingModal({ onComplete }) {
             <button
               className="ml-auto rounded-xl px-5 py-2.5 text-sm font-semibold transition-opacity duration-200 hover:opacity-90"
               style={{
-                background: "linear-gradient(135deg, #72eff5, #1fb1b7)",
-                color: "#0a0a0a",
+                background: "var(--color-primary)",
+                color: "var(--color-on-primary)",
               }}
               onClick={() => setStep(START_STEP)}
             >
@@ -462,8 +464,8 @@ export default function OnboardingModal({ onComplete }) {
             <button
               className="ml-auto rounded-xl px-5 py-2.5 text-sm font-semibold transition-opacity duration-200 hover:opacity-90"
               style={{
-                background: "linear-gradient(135deg, #72eff5, #1fb1b7)",
-                color: "#0a0a0a",
+                background: "var(--color-primary)",
+                color: "var(--color-on-primary)",
               }}
               onClick={handleComplete}
             >
@@ -475,7 +477,3 @@ export default function OnboardingModal({ onComplete }) {
     </div>
   );
 }
-
-OnboardingModal.propTypes = {
-  onComplete: PropTypes.func.isRequired,
-};

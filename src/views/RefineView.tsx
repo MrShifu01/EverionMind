@@ -46,19 +46,27 @@ interface RefineViewProps {
 }
 
 /* ─── Suggestion type metadata ─── */
+// variant: "primary" = warm amber accent | "neutral" = muted on-surface
 const LABELS = {
-  TYPE_MISMATCH: { label: "Wrong type", icon: "🔄", color: "#A29BFE" },
-  PHONE_FOUND: { label: "Phone number", icon: "📞", color: "#45B7D1" },
-  EMAIL_FOUND: { label: "Email address", icon: "✉️", color: "#4ECDC4" },
-  URL_FOUND: { label: "URL / link", icon: "🔗", color: "#FFEAA7" },
-  DATE_FOUND: { label: "Date / deadline", icon: "📅", color: "#FF6B35" },
-  TITLE_POOR: { label: "Better title", icon: "✏️", color: "#DDA0DD" },
-  SPLIT_SUGGESTED: { label: "Split entry", icon: "✂️", color: "#E17055" },
-  MERGE_SUGGESTED: { label: "Merge entries", icon: "🔀", color: "#74B9FF" },
-  CONTENT_WEAK: { label: "Needs content", icon: "📝", color: "#FDCB6E" },
-  TAG_SUGGESTED: { label: "Add tags", icon: "🏷️", color: "#00CEC9" },
-  LINK_SUGGESTED: { label: "Relationship", icon: "⟷", color: "#96CEB4" },
+  TYPE_MISMATCH: { label: "Wrong type", icon: "🔄", variant: "neutral" },
+  PHONE_FOUND: { label: "Phone number", icon: "📞", variant: "primary" },
+  EMAIL_FOUND: { label: "Email address", icon: "✉️", variant: "primary" },
+  URL_FOUND: { label: "URL / link", icon: "🔗", variant: "neutral" },
+  DATE_FOUND: { label: "Date / deadline", icon: "📅", variant: "primary" },
+  TITLE_POOR: { label: "Better title", icon: "✏️", variant: "neutral" },
+  SPLIT_SUGGESTED: { label: "Split entry", icon: "✂️", variant: "neutral" },
+  MERGE_SUGGESTED: { label: "Merge entries", icon: "🔀", variant: "neutral" },
+  CONTENT_WEAK: { label: "Needs content", icon: "📝", variant: "neutral" },
+  TAG_SUGGESTED: { label: "Add tags", icon: "🏷️", variant: "neutral" },
+  LINK_SUGGESTED: { label: "Relationship", icon: "⟷", variant: "primary" },
 };
+
+function labelColors(variant: string) {
+  if (variant === "primary") {
+    return { bg: "var(--color-primary-container)", text: "var(--color-primary)" };
+  }
+  return { bg: "var(--color-surface-container-high)", text: "var(--color-on-surface-variant)" };
+}
 
 export default function RefineView({
   entries,
@@ -430,16 +438,16 @@ export default function RefineView({
 
   if (isSharedBrain && !isOwner) {
     return (
-      <div className="px-4 py-4 space-y-4" style={{ background: "#0e0e0e", minHeight: "100%" }}>
+      <div className="px-4 py-4 space-y-4" style={{ background: "var(--color-background)", minHeight: "100%" }}>
         <div
           className="rounded-2xl p-8 text-center space-y-3"
-          style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)", border: "1px solid rgba(72,72,71,0.2)" }}
+          style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)" }}
         >
           <div className="text-4xl">{brainEmoji}</div>
-          <h2 className="text-xl font-semibold text-white" style={{ fontFamily: "'Manrope', sans-serif" }}>
+          <h2 className="text-xl font-semibold text-white" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
             Refine — Owner Only
           </h2>
-          <p style={{ color: "#aaa" }} className="text-sm leading-relaxed">
+          <p style={{ color: "var(--color-on-surface-variant)" }} className="text-sm leading-relaxed">
             Only the owner of <strong className="text-white">{activeBrain.name}</strong> can
             run the Refine analysis.
             <br />
@@ -447,7 +455,7 @@ export default function RefineView({
           </p>
           <div
             className="rounded-xl px-4 py-2 text-xs inline-block mt-2"
-            style={{ background: "rgba(114,239,245,0.08)", color: "#72eff5" }}
+            style={{ background: "var(--color-primary-container)", color: "var(--color-primary)" }}
           >
             Ask the brain owner to run Refine and review the suggestions.
           </div>
@@ -460,23 +468,23 @@ export default function RefineView({
   const isOwnerMultiBrain = isOwner && brains.length > 1;
 
   return (
-    <div className="px-4 py-4 space-y-4" style={{ background: "#0e0e0e", minHeight: "100%" }}>
+    <div className="px-4 py-4 space-y-4" style={{ background: "var(--color-background)", minHeight: "100%" }}>
       {/* Header */}
       <div className="space-y-3">
         <h2
           className="text-xl font-semibold text-white"
-          style={{ fontFamily: "'Manrope', sans-serif" }}
+          style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}
         >
           Refine{isSharedBrain ? ` — ${activeBrain.name}` : ""}
         </h2>
-        <p className="text-sm" style={{ color: "#aaa" }}>
+        <p className="text-sm" style={{ color: "var(--color-on-surface-variant)" }}>
           AI skeptically audits every entry — and discovers missing relationships between them.
         </p>
         {activeBrain?.id && getDecisionCount(activeBrain.id) > 0 && (
-          <div className="flex items-center gap-2 text-xs" style={{ color: "#72eff5" }}>
+          <div className="flex items-center gap-2 text-xs" style={{ color: "var(--color-primary)" }}>
             <span
               className="inline-block w-2 h-2 rounded-full"
-              style={{ background: "#72eff5" }}
+              style={{ background: "var(--color-primary)" }}
             />
             Learning from {getDecisionCount(activeBrain.id)} past decisions
           </div>
@@ -492,9 +500,9 @@ export default function RefineView({
                   onClick={() => onSwitchBrain(b)}
                   className="rounded-full px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 transition-all"
                   style={{
-                    background: active ? "rgba(114,239,245,0.12)" : "rgba(38,38,38,0.6)",
-                    border: active ? "1px solid rgba(114,239,245,0.5)" : "1px solid rgba(72,72,71,0.2)",
-                    color: active ? "#72eff5" : "#aaa",
+                    background: active ? "var(--color-primary-container)" : "var(--color-surface-container)",
+                    border: active ? "1px solid var(--color-primary)" : "1px solid var(--color-outline-variant)",
+                    color: active ? "var(--color-primary)" : "var(--color-on-surface-variant)",
                   }}
                 >
                   <span>{BRAIN_EMOJI[b.type || "personal"] || "🧠"}</span>
@@ -507,7 +515,7 @@ export default function RefineView({
         {!isOwnerMultiBrain && activeBrain && (
           <span
             className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs"
-            style={{ background: "rgba(38,38,38,0.6)", border: "1px solid rgba(72,72,71,0.2)", color: "#aaa" }}
+            style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)", color: "var(--color-on-surface-variant)" }}
           >
             {BRAIN_EMOJI[activeBrain.type || "personal"] || "🧠"} {activeBrain.name}
           </span>
@@ -520,12 +528,12 @@ export default function RefineView({
         disabled={loading}
         className="w-full rounded-xl py-3 text-sm font-semibold tracking-wide transition-all"
         style={{
-          background: loading ? "rgba(38,38,38,0.6)" : "linear-gradient(135deg, #72eff5, #1fb1b7)",
-          color: loading ? "#555" : "#0a0a0a",
+          background: loading ? "var(--color-surface-container-high)" : "var(--color-primary)",
+          color: loading ? "var(--color-on-surface-variant)" : "var(--color-on-primary)",
           opacity: loading ? 0.6 : 1,
           border: "none",
           cursor: loading ? "not-allowed" : "pointer",
-          fontFamily: "'Manrope', sans-serif",
+          fontFamily: "'DM Sans', system-ui, sans-serif",
         }}
       >
         {loading ? "Analyzing…" : suggestions === null ? "✦ Analyze my brain" : "✦ Re-analyze"}
@@ -535,13 +543,13 @@ export default function RefineView({
       {loading && (
         <div
           className="rounded-2xl p-8 text-center space-y-3"
-          style={{ background: "rgba(38,38,38,0.6)", border: "1px solid rgba(72,72,71,0.2)" }}
+          style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)" }}
         >
-          <div className="text-3xl animate-pulse" style={{ color: "#72eff5" }}>✦</div>
-          <p className="text-sm font-medium animate-pulse text-white">
+          <div className="text-3xl" style={{ color: "var(--color-primary)", animation: "typing-dot 2s ease-in-out infinite" }}>✦</div>
+          <p className="text-sm font-medium text-on-surface-variant">
             Auditing {entries.length} entries + mapping relationships…
           </p>
-          <p className="text-xs" style={{ color: "#555" }}>
+          <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
             Running entry quality + link discovery in parallel
           </p>
         </div>
@@ -549,27 +557,22 @@ export default function RefineView({
 
       {/* Stats */}
       {suggestions !== null && !loading && (
-        <div className="grid grid-cols-4 gap-3">
+        <div className="flex items-start gap-6 py-3 border-b" style={{ borderColor: "var(--color-outline-variant)" }}>
           {[
-            { l: "Entries", v: entries.length, c: "#72eff5" },
+            { l: "Entries", v: entries.length },
             {
               l: "Fixes",
               v:
                 visible.filter((s) => s.type !== "LINK_SUGGESTED").length +
                 dismissed.size -
                 linkCount,
-              c: "#d575ff",
             },
-            { l: "Links", v: linkCount, c: "#96CEB4" },
-            { l: "Remaining", v: visible.length, c: "#FFEAA7" },
+            { l: "Links", v: linkCount },
+            { l: "Remaining", v: visible.length },
           ].map((s) => (
-            <div
-              key={s.l}
-              className="rounded-2xl p-3 text-center"
-              style={{ background: "rgba(38,38,38,0.6)", border: "1px solid rgba(72,72,71,0.2)" }}
-            >
-              <div className="text-2xl font-bold" style={{ color: s.c, fontFamily: "'Manrope', sans-serif" }}>{s.v}</div>
-              <div className="text-xs mt-1" style={{ color: "#777" }}>{s.l}</div>
+            <div key={s.l} className="flex flex-col gap-0.5">
+              <span className="text-xl font-semibold text-white" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>{s.v}</span>
+              <span className="text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--color-on-surface-variant)" }}>{s.l}</span>
             </div>
           ))}
         </div>
@@ -579,11 +582,11 @@ export default function RefineView({
       {noneFound && !loading && (
         <div
           className="rounded-2xl p-8 text-center space-y-2"
-          style={{ background: "rgba(38,38,38,0.6)", border: "1px solid rgba(72,72,71,0.2)" }}
+          style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)" }}
         >
-          <div className="text-3xl" style={{ color: "#72eff5" }}>✓</div>
+          <div className="text-3xl" style={{ color: "var(--color-primary)" }}>✓</div>
           <p className="text-sm font-medium text-white">Everything looks clean</p>
-          <p className="text-xs" style={{ color: "#777" }}>
+          <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
             No high-confidence improvements or missing links found
           </p>
         </div>
@@ -593,17 +596,17 @@ export default function RefineView({
       {allDone && !loading && (
         <div
           className="rounded-2xl p-8 text-center space-y-2"
-          style={{ background: "rgba(38,38,38,0.6)", border: "1px solid rgba(72,72,71,0.2)" }}
+          style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)" }}
         >
-          <div className="text-3xl" style={{ color: "#d575ff" }}>✦</div>
+          <div className="text-3xl" style={{ color: "var(--color-secondary)" }}>✦</div>
           <p className="text-sm font-medium text-white">All suggestions resolved</p>
-          <p className="text-xs" style={{ color: "#777" }}>Re-analyze to check again</p>
+          <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>Re-analyze to check again</p>
         </div>
       )}
 
       {/* Section labels */}
       {!loading && entryCount > 0 && (
-        <p className="text-[10px] uppercase tracking-widest font-semibold pt-2" style={{ color: "#555" }}>
+        <p className="text-[10px] uppercase tracking-widest font-semibold pt-2" style={{ color: "var(--color-on-surface-variant)" }}>
           Entry fixes ({entryCount})
         </p>
       )}
@@ -611,9 +614,10 @@ export default function RefineView({
       {/* Suggestion cards */}
       {visible.map((s) => {
         const key = keyOf(s);
-        const meta = (LABELS as Record<string, { label: string; icon: string; color: string }>)[
+        const meta = (LABELS as Record<string, { label: string; icon: string; variant: string }>)[
           s.type
-        ] || { label: s.type, icon: "•", color: "#888" };
+        ] || { label: s.type, icon: "•", variant: "neutral" };
+        const { bg: metaBg, text: metaText } = labelColors(meta.variant);
         const busy = applying.has(key);
         const isEdit = editingKey === key;
         const isLink = s.type === "LINK_SUGGESTED";
@@ -628,14 +632,14 @@ export default function RefineView({
         return (
           <div key={key}>
             {showDivider && (
-              <p className="text-[10px] uppercase tracking-widest font-semibold pt-4 pb-1" style={{ color: "#555" }}>
+              <p className="text-[10px] uppercase tracking-widest font-semibold pt-4 pb-1" style={{ color: "var(--color-on-surface-variant)" }}>
                 Missing relationships ({linkCount})
               </p>
             )}
 
             <div
               className="rounded-2xl p-4 space-y-3"
-              style={{ background: "rgba(38,38,38,0.6)", border: "1px solid rgba(72,72,71,0.2)" }}
+              style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)" }}
             >
               {isLink ? (
                 /* ── Link card ── */
@@ -643,7 +647,7 @@ export default function RefineView({
                   <div className="flex items-center justify-end">
                     <span
                       className="rounded-full px-2.5 py-0.5 text-[11px] font-medium"
-                      style={{ background: `${meta.color}18`, color: meta.color }}
+                      style={{ background: metaBg, color: metaText }}
                     >
                       {meta.icon} {meta.label}
                     </span>
@@ -652,7 +656,7 @@ export default function RefineView({
                   <div className="flex items-center gap-3">
                     {/* From entry */}
                     <div className="flex-1 min-w-0">
-                      <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: "#555" }}>From</div>
+                      <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: "var(--color-on-surface-variant)" }}>From</div>
                       <div className="text-sm text-white truncate">
                         {(TC as Record<string, any>)[
                           entries.find((e) => e.id === ls.fromId)?.type || "note"
@@ -677,13 +681,13 @@ export default function RefineView({
                           maxLength={50}
                           className="w-32 rounded-lg px-2 py-1 text-xs text-center outline-none"
                           style={{
-                            background: "rgba(20,20,20,0.8)",
-                            border: "1px solid rgba(114,239,245,0.4)",
-                            color: "#fff",
+                            background: "var(--color-surface)",
+                            border: "1px solid var(--color-primary)",
+                            color: "var(--color-on-surface)",
                           }}
                         />
                       ) : (
-                        <span className="text-xs font-medium" style={{ color: "#72eff5" }}>
+                        <span className="text-xs font-medium" style={{ color: "var(--color-primary)" }}>
                           ⟶ {ls.rel} ⟶
                         </span>
                       )}
@@ -691,7 +695,7 @@ export default function RefineView({
 
                     {/* To entry */}
                     <div className="flex-1 min-w-0 text-right">
-                      <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: "#555" }}>To</div>
+                      <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: "var(--color-on-surface-variant)" }}>To</div>
                       <div className="text-sm text-white truncate">
                         {(TC as Record<string, any>)[
                           entries.find((e) => e.id === ls.toId)?.type || "note"
@@ -701,7 +705,7 @@ export default function RefineView({
                     </div>
                   </div>
 
-                  <p className="text-xs leading-relaxed" style={{ color: "#777" }}>{ls.reason}</p>
+                  <p className="text-xs leading-relaxed" style={{ color: "var(--color-on-surface-variant)" }}>{ls.reason}</p>
 
                   <div className="flex items-center gap-2 pt-1">
                     {isEdit ? (
@@ -709,7 +713,7 @@ export default function RefineView({
                         <button
                           onClick={() => setEditingKey(null)}
                           className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
-                          style={{ background: "transparent", border: "1px solid rgba(72,72,71,0.3)", color: "#777" }}
+                          style={{ background: "transparent", border: "1px solid var(--color-outline-variant)", color: "var(--color-on-surface-variant)" }}
                         >
                           Cancel
                         </button>
@@ -718,8 +722,8 @@ export default function RefineView({
                           disabled={!editValue.trim() || busy}
                           className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
                           style={{
-                            background: !editValue.trim() || busy ? "rgba(38,38,38,0.6)" : "linear-gradient(135deg, #72eff5, #1fb1b7)",
-                            color: !editValue.trim() || busy ? "#555" : "#0a0a0a",
+                            background: !editValue.trim() || busy ? "var(--color-surface-container-highest)" : "var(--color-primary)",
+                            color: !editValue.trim() || busy ? "var(--color-on-surface-variant)" : "var(--color-on-primary)",
                             border: "none",
                             opacity: !editValue.trim() || busy ? 0.5 : 1,
                           }}
@@ -733,7 +737,7 @@ export default function RefineView({
                           onClick={() => reject(key, s)}
                           disabled={busy}
                           className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
-                          style={{ background: "transparent", border: "1px solid rgba(72,72,71,0.3)", color: "#ff6e84", opacity: busy ? 0.5 : 1 }}
+                          style={{ background: "transparent", border: "1px solid var(--color-outline-variant)", color: "var(--color-error)", opacity: busy ? 0.5 : 1 }}
                         >
                           ✗ Reject
                         </button>
@@ -744,7 +748,7 @@ export default function RefineView({
                           }}
                           disabled={busy}
                           className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
-                          style={{ background: "transparent", border: "1px solid rgba(72,72,71,0.3)", color: "#aaa", opacity: busy ? 0.5 : 1 }}
+                          style={{ background: "transparent", border: "1px solid var(--color-outline-variant)", color: "var(--color-on-surface-variant)", opacity: busy ? 0.5 : 1 }}
                         >
                           ✎ Edit
                         </button>
@@ -753,8 +757,8 @@ export default function RefineView({
                           disabled={busy}
                           className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
                           style={{
-                            background: busy ? "rgba(38,38,38,0.6)" : "linear-gradient(135deg, #72eff5, #1fb1b7)",
-                            color: busy ? "#555" : "#0a0a0a",
+                            background: busy ? "var(--color-surface-container-highest)" : "var(--color-primary)",
+                            color: busy ? "var(--color-on-surface-variant)" : "var(--color-on-primary)",
                             border: "none",
                             opacity: busy ? 0.5 : 1,
                           }}
@@ -789,27 +793,27 @@ export default function RefineView({
 
                   <div className="flex items-start gap-3">
                     <div className="flex-1 min-w-0">
-                      <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: "#555" }}>Current</div>
+                      <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: "var(--color-on-surface-variant)" }}>Current</div>
                       <div
                         className="text-xs rounded-lg px-2.5 py-1.5 break-words"
-                        style={{ background: "rgba(20,20,20,0.5)", color: "#777" }}
+                        style={{ background: "var(--color-surface-container)", color: "var(--color-on-surface-variant)" }}
                       >
-                        {es.currentValue || <em style={{ color: "#555" }}>empty</em>}
+                        {es.currentValue || <em style={{ color: "var(--color-on-surface-variant)" }}>empty</em>}
                       </div>
                     </div>
-                    <span className="text-sm mt-5 flex-shrink-0" style={{ color: "#555" }}>→</span>
+                    <span className="text-sm mt-5 flex-shrink-0" style={{ color: "var(--color-on-surface-variant)" }}>→</span>
                     <div className="flex-1 min-w-0">
-                      <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: "#555" }}>Suggested</div>
+                      <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: "var(--color-on-surface-variant)" }}>Suggested</div>
                       <div
                         className="text-xs rounded-lg px-2.5 py-1.5 break-words"
-                        style={{ background: "rgba(114,239,245,0.06)", color: "#72eff5" }}
+                        style={{ background: "var(--color-primary-container)", color: "var(--color-primary)" }}
                       >
                         {es.suggestedValue}
                       </div>
                     </div>
                   </div>
 
-                  <p className="text-xs leading-relaxed" style={{ color: "#777" }}>{es.reason}</p>
+                  <p className="text-xs leading-relaxed" style={{ color: "var(--color-on-surface-variant)" }}>{es.reason}</p>
 
                   {isEdit && (
                     <input
@@ -823,9 +827,9 @@ export default function RefineView({
                       maxLength={50}
                       className="w-full rounded-lg px-3 py-2 text-sm outline-none"
                       style={{
-                        background: "rgba(20,20,20,0.8)",
-                        border: "1px solid rgba(114,239,245,0.4)",
-                        color: "#fff",
+                        background: "var(--color-surface)",
+                        border: "1px solid var(--color-primary)",
+                        color: "var(--color-on-surface)",
                       }}
                     />
                   )}
@@ -836,7 +840,7 @@ export default function RefineView({
                         <button
                           onClick={() => setEditingKey(null)}
                           className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
-                          style={{ background: "transparent", border: "1px solid rgba(72,72,71,0.3)", color: "#777" }}
+                          style={{ background: "transparent", border: "1px solid var(--color-outline-variant)", color: "var(--color-on-surface-variant)" }}
                         >
                           Cancel
                         </button>
@@ -845,8 +849,8 @@ export default function RefineView({
                           disabled={!editValue.trim() || busy}
                           className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
                           style={{
-                            background: !editValue.trim() || busy ? "rgba(38,38,38,0.6)" : "linear-gradient(135deg, #72eff5, #1fb1b7)",
-                            color: !editValue.trim() || busy ? "#555" : "#0a0a0a",
+                            background: !editValue.trim() || busy ? "var(--color-surface-container-highest)" : "var(--color-primary)",
+                            color: !editValue.trim() || busy ? "var(--color-on-surface-variant)" : "var(--color-on-primary)",
                             border: "none",
                             opacity: !editValue.trim() || busy ? 0.5 : 1,
                           }}
@@ -860,7 +864,7 @@ export default function RefineView({
                           onClick={() => reject(key, s)}
                           disabled={busy}
                           className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
-                          style={{ background: "transparent", border: "1px solid rgba(72,72,71,0.3)", color: "#ff6e84", opacity: busy ? 0.5 : 1 }}
+                          style={{ background: "transparent", border: "1px solid var(--color-outline-variant)", color: "var(--color-error)", opacity: busy ? 0.5 : 1 }}
                         >
                           ✗ Reject
                         </button>
@@ -871,7 +875,7 @@ export default function RefineView({
                           }}
                           disabled={busy}
                           className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
-                          style={{ background: "transparent", border: "1px solid rgba(72,72,71,0.3)", color: "#aaa", opacity: busy ? 0.5 : 1 }}
+                          style={{ background: "transparent", border: "1px solid var(--color-outline-variant)", color: "var(--color-on-surface-variant)", opacity: busy ? 0.5 : 1 }}
                         >
                           ✎ Edit
                         </button>
@@ -880,8 +884,8 @@ export default function RefineView({
                           disabled={busy}
                           className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
                           style={{
-                            background: busy ? "rgba(38,38,38,0.6)" : "linear-gradient(135deg, #72eff5, #1fb1b7)",
-                            color: busy ? "#555" : "#0a0a0a",
+                            background: busy ? "var(--color-surface-container-highest)" : "var(--color-primary)",
+                            color: busy ? "var(--color-on-surface-variant)" : "var(--color-on-primary)",
                             border: "none",
                             opacity: busy ? 0.5 : 1,
                           }}

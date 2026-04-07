@@ -57,7 +57,7 @@ const NAV_ICONS: Record<string, ReactNode> = {
   ),
 };
 
-const CAPTURE_NAV: NavView = { id: "capture", l: "Neural Hub", ic: "⌂" };
+const CAPTURE_NAV: NavView = { id: "capture", l: "Home", ic: "⌂" };
 
 interface DesktopSidebarProps {
   activeBrainName: string;
@@ -92,7 +92,7 @@ function NavItem({ id, label, isActive, onClick, badge }: NavItemProps) {
         isActive
           ? "text-primary font-semibold border-primary"
           : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container border-transparent",
-        isActive && "bg-gradient-to-r from-[rgba(114,239,245,0.1)] to-transparent"
+        isActive && "bg-surface-container"
       )}
     >
       <span className={cn("transition-colors", isActive ? "text-primary" : "text-inherit group-hover:text-on-surface")}>
@@ -127,27 +127,27 @@ export default function DesktopSidebar({
     <aside
       className="hidden lg:flex fixed left-0 top-0 h-dvh z-40 flex-col w-72 px-4 py-6 border-r"
       style={{
-        background: "#0e0e0e",
-        borderColor: "rgba(72,72,71,0.15)",
+        background: "var(--color-surface)",
+        borderColor: "var(--color-outline-variant)",
       }}
     >
       {/* ── Brand row ── */}
       <div className="flex items-center justify-between mb-6 px-2">
         <div>
           <h1
-            className="gradient-text font-bold tracking-tight text-xl"
-            style={{ fontFamily: "'Manrope', sans-serif" }}
+            className="font-bold tracking-tight text-2xl text-primary"
+            style={{ fontFamily: "'Lora', Georgia, serif" }}
           >
             Everion
           </h1>
           <p className="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant/60 mt-0.5">
-            Neural Interface
+            Second brain
           </p>
         </div>
         <button
           onClick={onToggleTheme}
           aria-label="Toggle theme"
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all press-scale"
+          className="w-11 h-11 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all press-scale"
         >
           {isDark ? (
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -171,12 +171,7 @@ export default function DesktopSidebar({
       {/* ── New Entry CTA ── */}
       <button
         onClick={() => onNavigate("capture")}
-        className="mx-2 mb-6 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-headline font-bold text-sm press-scale text-on-primary-container"
-        style={{
-          background: "linear-gradient(135deg, #72eff5, #1fb1b7)",
-          boxShadow: "0 4px 24px rgba(114,239,245,0.20)",
-          fontFamily: "'Manrope', sans-serif",
-        }}
+        className="mx-2 mt-1 mb-8 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-semibold text-sm press-scale text-on-primary bg-primary hover:bg-primary-dim transition-colors duration-150"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -200,7 +195,7 @@ export default function DesktopSidebar({
       {/* ── Footer ── */}
       <div
         className="pt-4 mt-4 space-y-1"
-        style={{ borderTop: "1px solid rgba(72,72,71,0.12)" }}
+        style={{ borderTop: "1px solid var(--color-outline-variant)" }}
       >
         <NavItem
           id="settings"
@@ -214,7 +209,7 @@ export default function DesktopSidebar({
           <div className="flex items-center gap-2">
             <div
               className="w-1.5 h-1.5 rounded-full"
-              style={{ background: isOnline ? "#72eff5" : "#ff6e84" }}
+              style={{ background: isOnline ? "var(--color-secondary)" : "var(--color-error)" }}
             />
             <span className="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant/50">
               {isOnline ? (pendingCount > 0 ? `${pendingCount} syncing` : `${entryCount} memories`) : "Offline"}
@@ -222,7 +217,7 @@ export default function DesktopSidebar({
           </div>
           <button
             onClick={onShowCreateBrain}
-            className="text-[10px] uppercase tracking-widest text-primary hover:text-primary-dim transition-colors press-scale font-semibold"
+            className="text-[10px] uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors press-scale font-semibold min-h-0"
           >
             + Brain
           </button>

@@ -289,7 +289,7 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
         <div className="text-center space-y-2">
           <div className="text-4xl">🔐</div>
           <h2 className="text-xl font-bold text-white" style={{ fontFamily: "'Manrope', sans-serif" }}>Set up your Vault</h2>
-          <p className="text-sm max-w-xs mx-auto" style={{ color: "#aaa" }}>
+          <p className="text-sm max-w-xs mx-auto" style={{ color: "var(--color-on-surface-variant)" }}>
             Choose a passphrase to protect your passwords, credit cards, and sensitive data.
           </p>
         </div>
@@ -310,7 +310,7 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
               placeholder="At least 8 characters"
               className="w-full rounded-xl px-3 py-2.5 text-sm bg-transparent border outline-none transition-colors text-white placeholder:text-[#555]"
               style={{ borderColor: "rgba(72,72,71,0.3)" }}
-              onFocus={(e) => (e.target.style.borderColor = "rgba(114,239,245,0.5)")}
+              onFocus={(e) => (e.target.style.borderColor = "var(--color-primary)")}
               onBlur={(e) => (e.target.style.borderColor = "rgba(72,72,71,0.3)")}
             />
           </div>
@@ -329,21 +329,21 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
               placeholder="Enter again to confirm"
               className="w-full rounded-xl px-3 py-2.5 text-sm bg-transparent border outline-none transition-colors text-white placeholder:text-[#555]"
               style={{ borderColor: "rgba(72,72,71,0.3)" }}
-              onFocus={(e) => (e.target.style.borderColor = "rgba(114,239,245,0.5)")}
+              onFocus={(e) => (e.target.style.borderColor = "var(--color-primary)")}
               onBlur={(e) => (e.target.style.borderColor = "rgba(72,72,71,0.3)")}
             />
           </div>
         </div>
 
-        {error && <p className="text-sm text-center" style={{ color: "#ff6e84" }}>{error}</p>}
+        {error && <p className="text-sm text-center" style={{ color: "var(--color-error)" }}>{error}</p>}
 
         <button
           onClick={handleSetup}
           disabled={busy || passphrase.length < 8}
           className="w-full max-w-sm rounded-xl py-2.5 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
           style={{
-            background: "linear-gradient(135deg, #72eff5, #1fb1b7)",
-            color: "#0a0a0a",
+            background: "var(--color-primary)",
+            color: "var(--color-on-primary)",
           }}
         >
           {busy ? "Setting up..." : "Create Vault"}
@@ -359,7 +359,7 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
         <div className="text-center space-y-2">
           <div className="text-4xl">🗝</div>
           <h2 className="text-xl font-bold text-white" style={{ fontFamily: "'Manrope', sans-serif" }}>Your Recovery Key</h2>
-          <p className="text-sm max-w-xs mx-auto" style={{ color: "#aaa" }}>
+          <p className="text-sm max-w-xs mx-auto" style={{ color: "var(--color-on-surface-variant)" }}>
             If you ever forget your passphrase, this key is the{" "}
             <strong className="text-white">only way</strong> to recover your secrets. Write it
             down and store it somewhere safe.
@@ -371,7 +371,7 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
           className="w-full max-w-sm rounded-2xl border p-4 text-center"
           style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}
         >
-          <p className="text-base font-mono font-bold tracking-widest" style={{ color: "#d575ff" }}>{generatedRecoveryKey}</p>
+          <p className="text-base font-mono font-bold tracking-widest" style={{ color: "var(--color-primary)" }}>{generatedRecoveryKey}</p>
         </div>
 
         <button
@@ -380,16 +380,16 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
             setRecoveryCopied(true);
           }}
           className="w-full max-w-sm rounded-xl py-2.5 text-sm font-semibold border transition-colors hover:bg-white/5"
-          style={{ color: "#aaa", borderColor: "rgba(72,72,71,0.3)" }}
+          style={{ color: "var(--color-on-surface-variant)", borderColor: "rgba(72,72,71,0.3)" }}
         >
           {recoveryCopied ? "Copied!" : "📋 Copy recovery key"}
         </button>
 
         <div
           className="w-full max-w-sm rounded-2xl border p-3"
-          style={{ background: "rgba(255,110,132,0.08)", borderColor: "rgba(255,110,132,0.2)" }}
+          style={{ background: "color-mix(in oklch, var(--color-error) 12%, transparent)", borderColor: "color-mix(in oklch, var(--color-error) 20%, transparent)" }}
         >
-          <p className="text-xs" style={{ color: "#ff6e84" }}>
+          <p className="text-xs" style={{ color: "var(--color-error)" }}>
             <strong>Write this down now.</strong> This key will not be shown again. Without your
             passphrase or this recovery key, encrypted entries are permanently lost.
           </p>
@@ -402,8 +402,8 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
           }}
           className="w-full max-w-sm rounded-xl py-2.5 text-sm font-semibold transition-opacity hover:opacity-90"
           style={{
-            background: "linear-gradient(135deg, #72eff5, #1fb1b7)",
-            color: "#0a0a0a",
+            background: "var(--color-primary)",
+            color: "var(--color-on-primary)",
           }}
         >
           I've saved my recovery key
@@ -419,7 +419,7 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
         <div className="text-center space-y-2">
           <div className="text-4xl">🔒</div>
           <h2 className="text-xl font-bold text-white" style={{ fontFamily: "'Manrope', sans-serif" }}>Unlock Vault</h2>
-          <p className="text-sm" style={{ color: "#aaa" }}>
+          <p className="text-sm" style={{ color: "var(--color-on-surface-variant)" }}>
             Enter your vault passphrase to view secrets
           </p>
         </div>
@@ -436,19 +436,19 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
           placeholder="Vault passphrase"
           className="w-full max-w-sm rounded-xl px-3 py-2.5 text-sm bg-transparent border outline-none transition-colors text-white placeholder:text-[#555]"
           style={{ borderColor: "rgba(72,72,71,0.3)" }}
-          onFocus={(e) => (e.target.style.borderColor = "rgba(114,239,245,0.5)")}
+          onFocus={(e) => (e.target.style.borderColor = "var(--color-primary)")}
           onBlur={(e) => (e.target.style.borderColor = "rgba(72,72,71,0.3)")}
         />
 
-        {error && <p className="text-sm" style={{ color: "#ff6e84" }}>{error}</p>}
+        {error && <p className="text-sm" style={{ color: "var(--color-error)" }}>{error}</p>}
 
         <button
           onClick={handleUnlock}
           disabled={busy || !passphrase.trim()}
           className="w-full max-w-sm rounded-xl py-2.5 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
           style={{
-            background: "linear-gradient(135deg, #72eff5, #1fb1b7)",
-            color: "#0a0a0a",
+            background: "var(--color-primary)",
+            color: "var(--color-on-primary)",
           }}
         >
           {busy ? "Unlocking..." : "Unlock"}
@@ -482,7 +482,7 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
         <div className="text-center space-y-2">
           <div className="text-4xl">🗝</div>
           <h2 className="text-xl font-bold text-white" style={{ fontFamily: "'Manrope', sans-serif" }}>Recovery Key</h2>
-          <p className="text-sm" style={{ color: "#aaa" }}>
+          <p className="text-sm" style={{ color: "var(--color-on-surface-variant)" }}>
             Enter the recovery key you saved when you set up your vault
           </p>
         </div>
@@ -499,19 +499,19 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
           placeholder="XXXX-XXXX-XXXX-XXXX-XXXX"
           className="w-full max-w-sm rounded-xl px-3 py-2.5 text-sm bg-transparent border outline-none transition-colors text-white font-mono tracking-wider text-center placeholder:text-[#555]"
           style={{ borderColor: "rgba(72,72,71,0.3)" }}
-          onFocus={(e) => (e.target.style.borderColor = "rgba(114,239,245,0.5)")}
+          onFocus={(e) => (e.target.style.borderColor = "var(--color-primary)")}
           onBlur={(e) => (e.target.style.borderColor = "rgba(72,72,71,0.3)")}
         />
 
-        {error && <p className="text-sm" style={{ color: "#ff6e84" }}>{error}</p>}
+        {error && <p className="text-sm" style={{ color: "var(--color-error)" }}>{error}</p>}
 
         <button
           onClick={handleRecoveryUnlock}
           disabled={busy || !recoveryInput.trim()}
           className="w-full max-w-sm rounded-xl py-2.5 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
           style={{
-            background: "linear-gradient(135deg, #72eff5, #1fb1b7)",
-            color: "#0a0a0a",
+            background: "var(--color-primary)",
+            color: "var(--color-on-primary)",
           }}
         >
           {busy ? "Recovering..." : "Unlock with recovery key"}
@@ -564,8 +564,8 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
             }}
             className="rounded-xl px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-90"
             style={{
-              background: "linear-gradient(135deg, #72eff5, #1fb1b7)",
-              color: "#0a0a0a",
+              background: "var(--color-primary)",
+              color: "var(--color-on-primary)",
             }}
           >
             ➕ Add Secret
@@ -573,7 +573,7 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
           <button
             onClick={() => { setBulkMode(b => !b); setSelectedIds(new Set()); }}
             className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors hover:bg-white/5"
-            style={{ color: bulkMode ? "#72eff5" : "#aaa", borderColor: bulkMode ? "rgba(114,239,245,0.3)" : "rgba(72,72,71,0.3)", minHeight: 44 }}
+            style={{ color: bulkMode ? "var(--color-primary)" : "var(--color-on-surface-variant)", borderColor: bulkMode ? "var(--color-primary)" : "rgba(72,72,71,0.3)", minHeight: 44 }}
           >
             {bulkMode ? "Cancel" : "Select"}
           </button>
@@ -588,7 +588,7 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
               onVaultUnlock(null);
             }}
             className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors hover:bg-white/5"
-            style={{ color: "#aaa", borderColor: "rgba(72,72,71,0.3)" }}
+            style={{ color: "var(--color-on-surface-variant)", borderColor: "rgba(72,72,71,0.3)" }}
           >
             🔒 Lock
           </button>
@@ -598,7 +598,7 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
       {copyMsg && (
         <div
           className="rounded-xl px-3 py-2 text-xs text-center font-medium"
-          style={{ color: "#72eff5", background: "rgba(114,239,245,0.1)" }}
+          style={{ color: "var(--color-primary)", background: "var(--color-primary-container)" }}
         >
           {copyMsg}
         </div>
@@ -646,7 +646,7 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
                     <button
                       onClick={() => toggleReveal(e.id)}
                       className="rounded-xl px-3 py-1 text-xs font-medium border shrink-0 transition-colors hover:bg-white/5"
-                      style={{ color: "#72eff5", borderColor: "rgba(114,239,245,0.2)" }}
+                      style={{ color: "var(--color-primary)", borderColor: "var(--color-primary-container)" }}
                     >
                       {revealed ? "Hide" : "Reveal"}
                     </button>
@@ -683,14 +683,14 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
                       <button
                         onClick={() => copyToClipboard(e.content || "", "Content copied")}
                         className="rounded-xl px-3 py-1 text-xs border transition-colors hover:bg-white/5"
-                        style={{ color: "#aaa", borderColor: "rgba(72,72,71,0.3)" }}
+                        style={{ color: "var(--color-on-surface-variant)", borderColor: "rgba(72,72,71,0.3)" }}
                       >
                         📋 Copy content
                       </button>
                       <button
                         onClick={() => onSelect(e)}
                         className="rounded-xl px-3 py-1 text-xs border transition-colors hover:bg-white/5"
-                        style={{ color: "#aaa", borderColor: "rgba(72,72,71,0.3)" }}
+                        style={{ color: "var(--color-on-surface-variant)", borderColor: "rgba(72,72,71,0.3)" }}
                       >
                         Edit
                       </button>
@@ -778,7 +778,7 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
                   placeholder="e.g. Gmail password"
                   className="w-full rounded-xl px-3 py-2.5 text-sm bg-transparent border outline-none transition-colors text-white placeholder:text-[#555]"
                   style={{ borderColor: "rgba(72,72,71,0.3)" }}
-                  onFocus={(e) => (e.target.style.borderColor = "rgba(114,239,245,0.5)")}
+                  onFocus={(e) => (e.target.style.borderColor = "var(--color-primary)")}
                   onBlur={(e) => (e.target.style.borderColor = "rgba(72,72,71,0.3)")}
                 />
               </div>
@@ -797,7 +797,7 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
                   placeholder="Password, key, card number, etc."
                   className="w-full rounded-xl px-3 py-2.5 text-sm bg-transparent border outline-none transition-colors text-white placeholder:text-[#555] font-mono resize-none"
                   style={{ borderColor: "rgba(72,72,71,0.3)" }}
-                  onFocus={(e) => (e.target.style.borderColor = "rgba(114,239,245,0.5)")}
+                  onFocus={(e) => (e.target.style.borderColor = "var(--color-primary)")}
                   onBlur={(e) => (e.target.style.borderColor = "rgba(72,72,71,0.3)")}
                 />
               </div>
@@ -813,7 +813,7 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
                   placeholder="work, banking, 2fa"
                   className="w-full rounded-xl px-3 py-2.5 text-sm bg-transparent border outline-none transition-colors text-white placeholder:text-[#555]"
                   style={{ borderColor: "rgba(72,72,71,0.3)" }}
-                  onFocus={(e) => (e.target.style.borderColor = "rgba(114,239,245,0.5)")}
+                  onFocus={(e) => (e.target.style.borderColor = "var(--color-primary)")}
                   onBlur={(e) => (e.target.style.borderColor = "rgba(72,72,71,0.3)")}
                 />
               </div>
@@ -826,7 +826,7 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
                   <button
                     onClick={() => setAddMetaRows((p) => [...p, { key: "", value: "" }])}
                     className="text-[11px] font-medium"
-                    style={{ color: "#72eff5" }}
+                    style={{ color: "var(--color-primary)" }}
                   >
                     + Add field
                   </button>
@@ -862,7 +862,7 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
                         setAddMetaRows((p) => p.filter((_, idx) => idx !== i))
                       }
                       className="shrink-0 text-sm"
-                      style={{ color: "#ff6e84" }}
+                      style={{ color: "var(--color-error)" }}
                     >
                       ✕
                     </button>
@@ -871,7 +871,7 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
               </div>
 
               {addError && (
-                <p className="text-xs" style={{ color: "#ff6e84" }}>
+                <p className="text-xs" style={{ color: "var(--color-error)" }}>
                   {addError}
                 </p>
               )}
@@ -884,7 +884,7 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
               <button
                 onClick={() => !addBusy && setShowAddSecret(false)}
                 className="flex-1 rounded-xl py-2.5 text-sm font-medium border transition-colors hover:bg-white/5"
-                style={{ color: "#aaa", borderColor: "rgba(72,72,71,0.3)" }}
+                style={{ color: "var(--color-on-surface-variant)", borderColor: "rgba(72,72,71,0.3)" }}
               >
                 Cancel
               </button>
@@ -893,8 +893,8 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
                 disabled={addBusy || !addTitle.trim() || !addContent.trim()}
                 className="flex-1 rounded-xl py-2.5 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
                 style={{
-                  background: "linear-gradient(135deg, #72eff5, #1fb1b7)",
-                  color: "#0a0a0a",
+                  background: "var(--color-primary)",
+                  color: "var(--color-on-primary)",
                 }}
               >
                 {addBusy ? "Encrypting..." : "🔒 Save secret"}

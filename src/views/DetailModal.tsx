@@ -192,19 +192,19 @@ export default function DetailModal({
   if (isSupplier || entry.type === "contact" || entry.type === "person") {
     if (phone) {
       quickActions.push(
-        <a key="call" href={`tel:${phone}`} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale" style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.2)", color: "#adaaaa" }}>
+        <a key="call" href={`tel:${phone}`} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale" style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)", color: "var(--color-on-surface-variant)" }}>
           📞 Call
         </a>,
       );
       quickActions.push(
-        <a key="wa" href={toWaUrl(phone)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale" style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.2)", color: "#adaaaa" }}>
+        <a key="wa" href={toWaUrl(phone)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale" style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)", color: "var(--color-on-surface-variant)" }}>
           💬 WhatsApp
         </a>,
       );
     }
     if (isSupplier && onReorder) {
       quickActions.push(
-        <button key="reorder" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale" style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.2)", color: "#adaaaa" }} onClick={() => onReorder(entry)}>
+        <button key="reorder" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale" style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)", color: "var(--color-on-surface-variant)" }} onClick={() => onReorder(entry)}>
           🔁 Reorder
         </button>,
       );
@@ -217,7 +217,7 @@ export default function DetailModal({
         <button
           key="done"
           className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all press-scale"
-          style={{ background: "linear-gradient(135deg, #72eff5, #1fb1b7)", color: "#002829" }}
+          style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
           onClick={() =>
             onUpdate?.(entry.id, { metadata: { ...entry.metadata, status: "done" }, importance: 0 })
           }
@@ -230,7 +230,7 @@ export default function DetailModal({
       <button
         key="snooze1w"
         className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale"
-        style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.2)", color: "#adaaaa" }}
+        style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)", color: "var(--color-on-surface-variant)" }}
         onClick={() => {
           const d = new Date(entry.metadata?.due_date || Date.now());
           d.setDate(d.getDate() + 7);
@@ -246,7 +246,7 @@ export default function DetailModal({
       <button
         key="snooze1m"
         className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale"
-        style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.2)", color: "#adaaaa" }}
+        style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)", color: "var(--color-on-surface-variant)" }}
         onClick={() => {
           const d = new Date(entry.metadata?.due_date || Date.now());
           d.setMonth(d.getMonth() + 1);
@@ -266,7 +266,7 @@ export default function DetailModal({
         <button
           key="start"
           className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all press-scale"
-          style={{ background: "linear-gradient(135deg, #72eff5, #1fb1b7)", color: "#002829" }}
+          style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
           onClick={() =>
             onUpdate?.(entry.id, { metadata: { ...entry.metadata, status: "in_progress" } })
           }
@@ -280,7 +280,7 @@ export default function DetailModal({
         <button
           key="archive"
           className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale"
-          style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.2)", color: "#adaaaa" }}
+          style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)", color: "var(--color-on-surface-variant)" }}
           onClick={() =>
             onUpdate?.(entry.id, { metadata: { ...entry.metadata, status: "archived" } })
           }
@@ -296,7 +296,7 @@ export default function DetailModal({
       <button
         key="renewal"
         className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale"
-        style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.2)", color: "#adaaaa" }}
+        style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)", color: "var(--color-on-surface-variant)" }}
         onClick={() => onReorder({ ...entry, _renewalMode: true })}
       >
         🔔 Set renewal reminder
@@ -310,7 +310,7 @@ export default function DetailModal({
         <button
           key="copy-secret"
           className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale"
-          style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.2)", color: "#adaaaa" }}
+          style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)", color: "var(--color-on-surface-variant)" }}
           onClick={() => {
             navigator.clipboard.writeText(entry.content || "").then(() => {
               setShareMsg("Copied to clipboard");
@@ -322,7 +322,7 @@ export default function DetailModal({
         </button>,
       );
       quickActions.push(
-        <button key="hide-secret" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale" style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.2)", color: "#adaaaa" }} onClick={() => setSecretRevealed(false)}>
+        <button key="hide-secret" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale" style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)", color: "var(--color-on-surface-variant)" }} onClick={() => setSecretRevealed(false)}>
           👁 Hide
         </button>,
       );
@@ -332,7 +332,7 @@ export default function DetailModal({
   // Share always available (but not for secret entries)
   if (!isSecret)
     quickActions.push(
-      <button key="share" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale" style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.2)", color: "#adaaaa" }} onClick={handleShare}>
+      <button key="share" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale" style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)", color: "var(--color-on-surface-variant)" }} onClick={handleShare}>
         📤 Share
       </button>,
     );
@@ -349,10 +349,10 @@ export default function DetailModal({
       <div
         className="relative w-full max-w-lg rounded-t-2xl lg:rounded-2xl border flex flex-col"
         style={{
-          background: "#1a1919",
-          borderColor: "rgba(72,72,71,0.2)",
-          boxShadow: "0 20px 40px rgba(0,0,0,0.5), 0 0 20px rgba(114,239,245,0.05)",
-          animation: "zoom-in-95 0.2s ease-out",
+          background: "var(--color-surface-container-low)",
+          borderColor: "var(--color-outline-variant)",
+          boxShadow: "var(--shadow-lg)",
+          animation: "zoom-in-95 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
           // Cap height to the actual available space so the header is never pushed above viewport.
           // 96px = nav bar clearance; subtract safe-area so the header stays fully in view.
           maxHeight: "calc(100vh - 96px - env(safe-area-inset-bottom) - env(safe-area-inset-top))",
@@ -367,7 +367,7 @@ export default function DetailModal({
               <span className="text-lg">{cfg.i}</span>
               <span
                 className="text-[10px] uppercase tracking-widest font-semibold px-2.5 py-0.5 rounded-full"
-                style={{ background: "rgba(114,239,245,0.1)", color: "#72eff5" }}
+                style={{ background: "var(--color-primary-container)", color: "var(--color-primary)" }}
               >
                 {editType}
               </span>
@@ -376,7 +376,7 @@ export default function DetailModal({
               <h2
                 id="detail-modal-title"
                 className="text-lg font-bold text-on-surface truncate"
-                style={{ fontFamily: "'Manrope', sans-serif" }}
+                style={{ fontFamily: "'Lora', Georgia, serif" }}
               >
                 {editTitle}
               </h2>
@@ -387,9 +387,9 @@ export default function DetailModal({
               <button
                 className="px-3 py-1.5 rounded-xl text-xs font-semibold transition-all press-scale"
                 style={{
-                  background: confirmingDelete ? "rgba(220,38,38,0.15)" : "rgba(220,38,38,0.08)",
-                  color: confirmingDelete ? "#fca5a5" : "#ef4444",
-                  border: "1px solid rgba(220,38,38,0.2)",
+                  background: confirmingDelete ? "var(--color-error-container)" : "color-mix(in oklch, var(--color-error) 8%, transparent)",
+                  color: confirmingDelete ? "var(--color-on-error-container)" : "var(--color-error)",
+                  border: "1px solid color-mix(in oklch, var(--color-error) 20%, transparent)",
                 }}
                 onClick={async () => {
                   if (!confirmingDelete) {
@@ -410,8 +410,8 @@ export default function DetailModal({
               <button
                 className="px-3 py-1.5 rounded-xl text-xs font-semibold transition-all press-scale"
                 style={{
-                  border: "1px solid rgba(72,72,71,0.2)",
-                  color: "#adaaaa",
+                  border: "1px solid var(--color-outline-variant)",
+                  color: "var(--color-on-surface-variant)",
                 }}
                 onClick={() => setEditing(true)}
               >
@@ -442,7 +442,7 @@ export default function DetailModal({
         {editing ? (
           <div className="space-y-4 mt-2">
             <div>
-              <label className="block text-[10px] uppercase tracking-widest font-semibold mb-1.5" style={{ color: "#777" }}>
+              <label className="block text-[10px] uppercase tracking-widest font-semibold mb-1.5" style={{ color: "var(--color-on-surface-variant)" }}>
                 Title
               </label>
               <input
@@ -451,15 +451,15 @@ export default function DetailModal({
                 onChange={(e) => setEditTitle(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl text-on-surface text-sm min-h-[44px] transition-all focus:outline-none"
                 style={{
-                  background: "#262626",
-                  border: "1px solid rgba(72,72,71,0.20)",
+                  background: "var(--color-surface-container)",
+                  border: "1px solid var(--color-outline-variant)",
                 }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(114,239,245,0.6)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(114,239,245,0.08)"; }}
-                onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(72,72,71,0.20)"; e.currentTarget.style.boxShadow = "none"; }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-primary)"; e.currentTarget.style.boxShadow = "0 0 0 3px var(--color-primary-container)"; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-outline-variant)"; e.currentTarget.style.boxShadow = "none"; }}
               />
             </div>
             <div>
-              <label className="block text-[10px] uppercase tracking-widest font-semibold mb-1.5" style={{ color: "#777" }}>
+              <label className="block text-[10px] uppercase tracking-widest font-semibold mb-1.5" style={{ color: "var(--color-on-surface-variant)" }}>
                 Type
               </label>
               {/* Free-form type input — AI can use any label; datalist shows known types */}
@@ -478,15 +478,15 @@ export default function DetailModal({
                 placeholder="e.g. recipe, supplier, director…"
                 className="w-full px-4 py-3 rounded-xl text-on-surface text-sm min-h-[44px] transition-all focus:outline-none"
                 style={{
-                  background: "#262626",
-                  border: "1px solid rgba(72,72,71,0.20)",
+                  background: "var(--color-surface-container)",
+                  border: "1px solid var(--color-outline-variant)",
                 }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(114,239,245,0.6)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(114,239,245,0.08)"; }}
-                onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(72,72,71,0.20)"; e.currentTarget.style.boxShadow = "none"; }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-primary)"; e.currentTarget.style.boxShadow = "0 0 0 3px var(--color-primary-container)"; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-outline-variant)"; e.currentTarget.style.boxShadow = "none"; }}
               />
             </div>
             <div>
-              <label className="block text-[10px] uppercase tracking-widest font-semibold mb-1.5" style={{ color: "#777" }}>
+              <label className="block text-[10px] uppercase tracking-widest font-semibold mb-1.5" style={{ color: "var(--color-on-surface-variant)" }}>
                 Content
               </label>
               <textarea
@@ -495,15 +495,15 @@ export default function DetailModal({
                 rows={4}
                 className="w-full px-4 py-3 rounded-xl text-on-surface text-sm transition-all focus:outline-none resize-y"
                 style={{
-                  background: "#262626",
-                  border: "1px solid rgba(72,72,71,0.20)",
+                  background: "var(--color-surface-container)",
+                  border: "1px solid var(--color-outline-variant)",
                 }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(114,239,245,0.6)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(114,239,245,0.08)"; }}
-                onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(72,72,71,0.20)"; e.currentTarget.style.boxShadow = "none"; }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-primary)"; e.currentTarget.style.boxShadow = "0 0 0 3px var(--color-primary-container)"; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-outline-variant)"; e.currentTarget.style.boxShadow = "none"; }}
               />
             </div>
             <div>
-              <label className="block text-[10px] uppercase tracking-widest font-semibold mb-1.5" style={{ color: "#777" }}>
+              <label className="block text-[10px] uppercase tracking-widest font-semibold mb-1.5" style={{ color: "var(--color-on-surface-variant)" }}>
                 Tags{" "}
                 <span className="normal-case text-on-surface-variant/50">(comma separated)</span>
               </label>
@@ -513,16 +513,16 @@ export default function DetailModal({
                 placeholder="tag1, tag2, tag3"
                 className="w-full px-4 py-3 rounded-xl text-on-surface placeholder:text-on-surface-variant/40 text-sm min-h-[44px] transition-all focus:outline-none"
                 style={{
-                  background: "#262626",
-                  border: "1px solid rgba(72,72,71,0.20)",
+                  background: "var(--color-surface-container)",
+                  border: "1px solid var(--color-outline-variant)",
                 }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(114,239,245,0.6)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(114,239,245,0.08)"; }}
-                onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(72,72,71,0.20)"; e.currentTarget.style.boxShadow = "none"; }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-primary)"; e.currentTarget.style.boxShadow = "0 0 0 3px var(--color-primary-container)"; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-outline-variant)"; e.currentTarget.style.boxShadow = "none"; }}
               />
             </div>
             {brains.length > 1 && (
               <div>
-                <label className="block text-[10px] uppercase tracking-widest font-semibold mb-1.5" style={{ color: "#777" }}>
+                <label className="block text-[10px] uppercase tracking-widest font-semibold mb-1.5" style={{ color: "var(--color-on-surface-variant)" }}>
                   Brains <span className="normal-case tracking-normal text-on-surface-variant/50">(tap to add/remove)</span>
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -539,16 +539,16 @@ export default function DetailModal({
                         className="px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale flex items-center gap-1.5"
                         style={{
                           background: isPrimary
-                            ? "rgba(114,239,245,0.12)"
+                            ? "var(--color-primary-container)"
                             : isExtra
-                              ? "rgba(213,117,255,0.10)"
-                              : "#262626",
+                              ? "var(--color-secondary-container)"
+                              : "var(--color-surface-container)",
                           border: isPrimary
-                            ? "1px solid rgba(114,239,245,0.45)"
+                            ? "1px solid var(--color-primary)"
                             : isExtra
-                              ? "1px solid rgba(213,117,255,0.35)"
-                              : "1px solid rgba(72,72,71,0.2)",
-                          color: isPrimary ? "#72eff5" : isExtra ? "#d575ff" : "#adaaaa",
+                              ? "1px solid var(--color-secondary)"
+                              : "1px solid var(--color-outline-variant)",
+                          color: isPrimary ? "var(--color-primary)" : isExtra ? "var(--color-secondary)" : "var(--color-on-surface-variant)",
                         }}
                         onClick={() => {
                           if (isPrimary) {
@@ -571,14 +571,14 @@ export default function DetailModal({
                   })}
                 </div>
                 {!extraBrainsLoaded && editing && (
-                  <p className="text-[10px] mt-1.5" style={{ color: "#555" }}>Loading brain assignments…</p>
+                  <p className="text-[10px] mt-1.5" style={{ color: "var(--color-outline)" }}>Loading brain assignments…</p>
                 )}
               </div>
             )}
             <div className="flex gap-3 pt-2">
               <button
                 className="flex-1 py-3 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface transition-all press-scale"
-                style={{ border: "1px solid rgba(72,72,71,0.20)" }}
+                style={{ border: "1px solid var(--color-outline-variant)" }}
                 onClick={() => setEditing(false)}
               >
                 Cancel
@@ -586,10 +586,9 @@ export default function DetailModal({
               <button
                 className="flex-[2] py-3 rounded-xl text-sm font-bold press-scale transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{
-                  background: saving || !editTitle.trim() ? "#262626" : "linear-gradient(135deg, #72eff5, #1fb1b7)",
-                  color: saving || !editTitle.trim() ? "#777575" : "#002829",
-                  fontFamily: "'Manrope', sans-serif",
-                  boxShadow: !saving && editTitle.trim() ? "0 4px 24px rgba(114,239,245,0.20)" : "none",
+                  background: saving || !editTitle.trim() ? "var(--color-surface-container-highest)" : "var(--color-primary)",
+                  color: saving || !editTitle.trim() ? "var(--color-on-surface-variant)" : "var(--color-on-primary)",
+                  fontFamily: "'DM Sans', system-ui, sans-serif",
                 }}
                 onClick={handleSave}
                 disabled={saving || !editTitle.trim()}
@@ -612,9 +611,8 @@ export default function DetailModal({
                   <button
                     className="mt-2 px-5 py-2.5 rounded-xl text-sm font-bold press-scale transition-all"
                     style={{
-                      background: "linear-gradient(135deg, #72eff5, #1fb1b7)",
-                      color: "#002829",
-                      boxShadow: "0 4px 24px rgba(114,239,245,0.20)",
+                      background: "var(--color-primary)",
+                      color: "var(--color-on-primary)",
                     }}
                     onClick={() => setSecretRevealed(true)}
                   >
@@ -632,11 +630,11 @@ export default function DetailModal({
                 {meta.length > 0 && (
                   <div
                     className="rounded-xl p-3 space-y-2"
-                    style={{ background: "#262626" }}
+                    style={{ background: "var(--color-surface-container)" }}
                   >
                     {meta.map(([k, v]) => (
                       <div key={k} className="flex items-baseline gap-2 text-xs">
-                        <span className="text-[10px] uppercase tracking-widest font-semibold flex-shrink-0" style={{ color: "#777" }}>
+                        <span className="text-[10px] uppercase tracking-widest font-semibold flex-shrink-0" style={{ color: "var(--color-on-surface-variant)" }}>
                           {k.replace(/_/g, " ")}:{" "}
                         </span>
                         <span className="text-on-surface/80">
@@ -662,7 +660,7 @@ export default function DetailModal({
                       <span
                         key={tag}
                         className="rounded-full px-2.5 py-0.5 text-[11px] font-medium"
-                        style={{ background: "rgba(114,239,245,0.08)", color: "#72eff5" }}
+                        style={{ background: "var(--color-primary-container)", color: "var(--color-primary)" }}
                       >
                         {tag}
                       </span>
@@ -672,7 +670,7 @@ export default function DetailModal({
             )}
             {related.length > 0 && (
               <div className="pt-1">
-                <p className="text-[10px] uppercase tracking-widest font-semibold mb-2" style={{ color: "#777" }}>
+                <p className="text-[10px] uppercase tracking-widest font-semibold mb-2" style={{ color: "var(--color-on-surface-variant)" }}>
                   Connections
                 </p>
                 {related.map(
@@ -681,7 +679,7 @@ export default function DetailModal({
                       <div
                         key={i}
                         className="flex items-center gap-2 px-3 py-2 rounded-lg mb-1.5 text-xs"
-                        style={{ background: "#262626" }}
+                        style={{ background: "var(--color-surface-container)" }}
                       >
                         <span>{resolveIcon(r.other.type, typeIcons)}</span>
                         <span className="text-on-surface-variant/50">{r.dir}</span>
@@ -699,11 +697,11 @@ export default function DetailModal({
         {!editing && quickActions.length > 0 && (
           <div
             className="mt-4 pt-4"
-            style={{ borderTop: "1px solid rgba(72,72,71,0.15)" }}
+            style={{ borderTop: "1px solid var(--color-outline-variant)" }}
           >
             <div className="flex flex-wrap gap-2">{quickActions}</div>
             {shareMsg && (
-              <p className="mt-2 text-xs text-center" style={{ color: "#72eff5" }}>
+              <p className="mt-2 text-xs text-center" style={{ color: "var(--color-primary)" }}>
                 {shareMsg}
               </p>
             )}

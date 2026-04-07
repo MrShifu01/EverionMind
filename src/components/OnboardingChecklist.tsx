@@ -85,69 +85,79 @@ export default function OnboardingChecklist({
       <button
         onClick={() => setExpanded((e) => !e)}
         className="w-full flex items-center gap-3 rounded-2xl px-4 py-3 border text-left transition-colors"
+        aria-expanded={expanded}
         style={{
-          background: "rgba(38,38,38,0.5)",
-          borderColor: expanded ? "rgba(114,239,245,0.2)" : "rgba(72,72,71,0.15)",
+          background: "var(--color-surface-container)",
+          borderColor: expanded ? "var(--color-primary-container)" : "var(--color-outline-variant)",
         }}
       >
         <div
           className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ background: "rgba(114,239,245,0.1)", color: "#72eff5" }}
+          style={{ background: "var(--color-primary-container)", color: "var(--color-primary)" }}
         >
           <span className="text-sm">✦</span>
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-white">{questions.length} things to capture</p>
-          <p className="text-xs text-[#777] truncate">
+          <p className="text-sm font-semibold text-on-surface">{questions.length} things to capture</p>
+          <p className="text-xs text-on-surface-variant truncate">
             {categories.slice(0, 3).map(([cat]) => cat).join(" · ")}
             {categories.length > 3 && ` +${categories.length - 3}`}
           </p>
         </div>
-        <span className="text-xs text-[#555] flex-shrink-0">{expanded ? "▲" : "▼"}</span>
+        <span className="text-xs text-on-surface-variant/50 flex-shrink-0">{expanded ? "▲" : "▼"}</span>
       </button>
 
       {/* Expanded categories */}
       {expanded && (
         <div
           className="mt-2 rounded-2xl border p-3"
-          style={{ background: "rgba(38,38,38,0.4)", borderColor: "rgba(72,72,71,0.15)" }}
+          style={{ background: "var(--color-surface-container)", borderColor: "var(--color-outline-variant)" }}
         >
           <div className="flex flex-wrap gap-2 mb-3">
             {categories.map(([cat, items]) => (
-              <div
+              <button
                 key={cat}
                 onClick={() => onNavigate("suggest")}
-                className="flex items-center gap-1.5 rounded-full px-3 py-1.5 border cursor-pointer transition-colors hover:border-[rgba(114,239,245,0.3)]"
-                style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}
+                className="flex items-center gap-1.5 rounded-full px-3 py-1.5 border transition-colors hover:border-primary text-left"
+                style={{ background: "var(--color-surface-container-high)", borderColor: "var(--color-outline-variant)" }}
               >
-                <span className="text-xs text-white">
-                  {cat} <span className="text-[#777]">({items.length})</span>
+                <span className="text-xs text-on-surface">
+                  {cat} <span className="text-on-surface-variant">({items.length})</span>
                 </span>
-                <button
+                <span
+                  role="button"
+                  tabIndex={-1}
+                  aria-label={`Dismiss ${cat}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     dismissCategory(cat);
                   }}
-                  className="text-[#555] hover:text-[#ff6e84] text-xs ml-0.5 transition-colors"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.stopPropagation();
+                      dismissCategory(cat);
+                    }
+                  }}
+                  className="text-on-surface-variant hover:text-error text-xs ml-0.5 transition-colors"
                 >
                   ×
-                </button>
-              </div>
+                </span>
+              </button>
             ))}
           </div>
 
-          <div className="flex gap-2 pt-2 border-t" style={{ borderColor: "rgba(72,72,71,0.15)" }}>
+          <div className="flex gap-2 pt-2 border-t" style={{ borderColor: "var(--color-outline-variant)" }}>
             <button
               onClick={() => onNavigate("suggest")}
               className="flex-1 py-2 rounded-xl text-xs font-bold transition-colors"
-              style={{ background: "linear-gradient(135deg, #72eff5, #1fb1b7)", color: "#0a0a0a" }}
+              style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
             >
               Fill Brain →
             </button>
             <button
               onClick={dismissAll}
-              className="py-2 px-4 rounded-xl text-xs text-[#777] border transition-colors hover:bg-white/5"
-              style={{ borderColor: "rgba(72,72,71,0.2)", background: "transparent" }}
+              className="py-2 px-4 rounded-xl text-xs text-on-surface-variant border transition-colors hover:bg-surface-container-high"
+              style={{ borderColor: "var(--color-outline-variant)", background: "transparent" }}
             >
               Dismiss
             </button>

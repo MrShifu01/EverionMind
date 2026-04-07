@@ -82,7 +82,7 @@ export default function CreateBrainModal({ onClose, onCreate }: CreateBrainModal
           backdropFilter: "blur(24px)",
           WebkitBackdropFilter: "blur(24px)",
           borderColor: "rgba(72,72,71,0.12)",
-          boxShadow: "0 20px 40px rgba(0,0,0,0.5), 0 0 20px rgba(114,239,245,0.05)",
+          boxShadow: "0 20px 40px rgba(0,0,0,0.5), 0 0 20px var(--color-primary-container)",
           animation: "zoom-in-95 0.2s ease-out",
         }}
       >
@@ -150,7 +150,7 @@ export default function CreateBrainModal({ onClose, onCreate }: CreateBrainModal
               border: "1px solid rgba(72,72,71,0.20)",
               fontFamily: "'Inter', sans-serif",
             }}
-            onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(114,239,245,0.6)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(114,239,245,0.08)"; }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-primary)"; e.currentTarget.style.boxShadow = "0 0 0 3px var(--color-primary-container)"; }}
             onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(72,72,71,0.20)"; e.currentTarget.style.boxShadow = "none"; }}
           />
         </div>
@@ -171,14 +171,14 @@ export default function CreateBrainModal({ onClose, onCreate }: CreateBrainModal
                 background: "#262626",
                 border: "1px solid rgba(72,72,71,0.20)",
               }}
-              onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(114,239,245,0.4)"; }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-primary)"; }}
               onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(72,72,71,0.20)"; }}
             />
             <select
               value={inviteRole}
               onChange={(e) => setInviteRole(e.target.value)}
               className="px-3 rounded-xl text-sm focus:outline-none cursor-pointer"
-              style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.20)", color: "#adaaaa" }}
+              style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.20)", color: "var(--color-on-surface-variant)" }}
             >
               <option value="member">Member</option>
               <option value="viewer">Viewer</option>
@@ -186,7 +186,7 @@ export default function CreateBrainModal({ onClose, onCreate }: CreateBrainModal
             <button
               onClick={addInvite}
               className="px-3 py-2.5 rounded-xl text-sm font-semibold press-scale transition-all text-on-primary-container"
-              style={{ background: "linear-gradient(135deg, #72eff5, #1fb1b7)" }}
+              style={{ background: "var(--color-primary)" }}
             >
               Add
             </button>
@@ -241,10 +241,10 @@ export default function CreateBrainModal({ onClose, onCreate }: CreateBrainModal
             disabled={loading || !name.trim()}
             className="flex-2 flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-bold press-scale disabled:opacity-40 disabled:cursor-not-allowed text-on-primary-container"
             style={{
-              background: loading || !name.trim() ? "#262626" : "linear-gradient(135deg, #72eff5, #1fb1b7)",
-              color: loading || !name.trim() ? "#777575" : "#002829",
+              background: loading || !name.trim() ? "var(--color-surface-container-highest)" : "var(--color-primary)",
+              color: loading || !name.trim() ? "#777575" : "var(--color-on-primary)",
               fontFamily: "'Manrope', sans-serif",
-              boxShadow: !loading && name.trim() ? "0 4px 24px rgba(114,239,245,0.20)" : "none",
+              boxShadow: !loading && name.trim() ? "0 4px 24px var(--color-primary-container)" : "none",
             }}
           >
             {loading ? (

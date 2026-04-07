@@ -39,11 +39,11 @@ const STATUS_LABEL: Record<FileStatus, string> = {
 
 const STATUS_COLOR: Record<FileStatus, string> = {
   pending: "#555",
-  reading: "#72eff5",
-  splitting: "#72eff5",
-  saving: "#72eff5",
+  reading: "var(--color-primary)",
+  splitting: "var(--color-primary)",
+  saving: "var(--color-primary)",
   done: "#4ade80",
-  error: "#ff6e84",
+  error: "var(--color-error)",
 };
 
 export default function BulkUploadModal({
@@ -256,7 +256,7 @@ export default function BulkUploadModal({
               className="h-full rounded-full transition-all duration-300"
               style={{
                 width: `${progress * 100}%`,
-                background: isDone ? "#4ade80" : "linear-gradient(90deg, #72eff5, #1fb1b7)",
+                background: isDone ? "#4ade80" : "var(--color-primary)",
               }}
             />
           </div>
@@ -282,7 +282,7 @@ export default function BulkUploadModal({
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-white truncate">{item.file.name}</p>
                 {item.status === "error" && item.errorMsg && (
-                  <p className="text-[11px] mt-0.5" style={{ color: "#ff6e84" }}>{item.errorMsg}</p>
+                  <p className="text-[11px] mt-0.5" style={{ color: "var(--color-error)" }}>{item.errorMsg}</p>
                 )}
                 {item.status === "done" && item.entriesCount !== undefined && (
                   <p className="text-[11px] mt-0.5" style={{ color: "#4ade80" }}>
