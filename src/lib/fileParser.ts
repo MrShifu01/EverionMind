@@ -1,11 +1,36 @@
 /**
  * File parsing utilities for OpenBrain file upload.
- * Supports: .txt, .md, .csv (text), .pdf (base64 → Anthropic document API), .docx (mammoth → text)
+ * Supports:
+ *   Text  — .txt .md .csv .tsv .json
+ *   Office — .docx (mammoth) | .xlsx .xls .ods (SheetJS)
+ *   Finance — .ofx .qfx (SGML/XML read as text)
+ *   Binary — .pdf (base64 → Anthropic document API)
  */
 
-export const SUPPORTED_EXTENSIONS = [".txt", ".md", ".csv", ".pdf", ".docx"] as const;
+export const SUPPORTED_EXTENSIONS = [
+  ".txt", ".md", ".csv", ".tsv", ".json",
+  ".pdf",
+  ".docx",
+  ".xlsx", ".xls", ".ods",
+  ".ofx", ".qfx",
+] as const;
 
-const TEXT_EXTENSIONS = new Set([".txt", ".md", ".csv"]);
+const TEXT_EXTENSIONS = new Set([".txt", ".md", ".csv", ".tsv", ".json", ".ofx", ".qfx"]);
+const EXCEL_EXTENSIONS = new Set([".xlsx", ".xls", ".ods"]);
+
+export const ACCEPT_STRING = [
+  ".txt,.md,.csv,.tsv,.json",
+  ".pdf",
+  ".docx",
+  ".xlsx,.xls,.ods",
+  ".ofx,.qfx",
+  "text/plain,text/markdown,text/csv,text/tab-separated-values,application/json",
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+  "application/vnd.oasis.opendocument.spreadsheet",
+].join(",");
 
 export function getFileExtension(filename: string): string {
   const dot = filename.lastIndexOf(".");
@@ -19,6 +44,14 @@ export function isSupportedFile(file: File): boolean {
 
 export function isTextFile(file: File): boolean {
   return TEXT_EXTENSIONS.has(getFileExtension(file.name));
+}
+
+export function isDocxFile(file: File): boolean {
+  return getFileExtension(file.name) === ".docx";
+}
+
+export function isExcelFile(file: File): boolean {
+  return EXCEL_EXTENSIONS.has(getFileExtension(file.name));
 }
 
 export function readTextFile(file: File): Promise<string> {
@@ -43,19 +76,34 @@ export function readFileAsBase64(file: File): Promise<{ base64: string; mimeType
   });
 }
 
-export function isDocxFile(file: File): boolean {
-  return getFileExtension(file.name) === ".docx";
-}
-
-/**
- * Extract plain text from a .docx file using mammoth.
- * Returns the extracted text, or empty string on failure.
- */
+/** Extract plain text from a .docx file using mammoth. */
 export async function readDocxFile(file: File): Promise<string> {
   const mammoth = await import("mammoth");
   const arrayBuffer = await file.arrayBuffer();
   const result = await mammoth.extractRawText({ arrayBuffer });
   return result.value.trim();
+}
+
+/**
+ * Convert Excel/ODS workbook to plain text using SheetJS.
+ * Each sheet becomes a section; cells are tab-separated, rows newline-separated.
+ */
+export async function readExcelFile(file: File): Promise<string> {
+  const XLSX = await import("xlsx");
+  const arrayBuffer = await file.arrayBuffer();
+  const workbook = XLSX.read(arrayBuffer, { type: "array" });
+  const parts: string[] = [];
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    const csv = XLSX.utils.sheet_to_csv(sheet, { FS: "\t" });
+    const trimmed = csv
+      .split("\n")
+      .map((r) => r.trimEnd())
+      .filter((r) => r.replace(/\t/g, "").trim()) // skip blank rows
+      .join("\n");
+    if (trimmed) parts.push(`Sheet: ${sheetName}\n${trimmed}`);
+  }
+  return parts.join("\n\n");
 }
 
 export function isCsvFile(file: File): boolean {
@@ -78,12 +126,10 @@ export function parseCsvTransactions(csvText: string): CsvTransaction[] {
   const lines = csvText.split(/\r?\n/).filter((l) => l.trim());
   if (lines.length < 2) return [];
 
-  // Try to detect header row
   const headerLine = lines[0].toLowerCase();
   const hasHeader = /date|description|amount|debit|credit|balance|transaction/i.test(headerLine);
   const dataLines = hasHeader ? lines.slice(1) : lines;
 
-  // Parse CSV respecting quoted fields
   const parseRow = (line: string): string[] => {
     const fields: string[] = [];
     let current = "";
@@ -105,7 +151,6 @@ export function parseCsvTransactions(csvText: string): CsvTransaction[] {
 
   const headerFields = hasHeader ? parseRow(lines[0]) : [];
 
-  // Try to identify column indices
   let dateCol = -1;
   let descCol = -1;
   let amountCol = -1;
@@ -121,17 +166,14 @@ export function parseCsvTransactions(csvText: string): CsvTransaction[] {
     });
   }
 
-  // Heuristic: if no header detected, guess from first data row
   if (dateCol === -1 || descCol === -1 || amountCol === -1) {
     const sample = parseRow(dataLines[0]);
     sample.forEach((val, i) => {
       if (dateCol === -1 && /^\d{1,4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,4}$/.test(val)) dateCol = i;
       if (amountCol === -1 && /^-?[\d\s,.]+$/.test(val) && val.replace(/[^\d]/g, "").length >= 2) {
-        // Could be amount — only if looks numeric
         if (dateCol !== i) amountCol = i;
       }
     });
-    // Description is typically the longest text field
     if (descCol === -1) {
       let maxLen = 0;
       sample.forEach((val, i) => {
@@ -143,7 +185,6 @@ export function parseCsvTransactions(csvText: string): CsvTransaction[] {
     }
   }
 
-  // If we still can't find columns, return empty — let the normal file split handle it
   if (dateCol === -1 && descCol === -1 && amountCol === -1) return [];
 
   const transactions: CsvTransaction[] = [];

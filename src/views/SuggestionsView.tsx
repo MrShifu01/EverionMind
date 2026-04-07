@@ -8,7 +8,7 @@ import { PC } from "../data/constants";
 import { PROMPTS } from "../config/prompts";
 import { aiFetch } from "../lib/aiFetch";
 import { getUserModel, getEmbedHeaders, getGroqKey, getUserApiKey } from "../lib/aiSettings";
-import { isSupportedFile, isTextFile, isDocxFile, readTextFile, readDocxFile, readFileAsBase64 } from "../lib/fileParser";
+import { isSupportedFile, isTextFile, isDocxFile, isExcelFile, readTextFile, readDocxFile, readExcelFile, readFileAsBase64, ACCEPT_STRING } from "../lib/fileParser";
 import BulkUploadModal from "../components/BulkUploadModal";
 import type { Entry, Brain, Suggestion, Priority } from "../types";
 
@@ -305,6 +305,8 @@ export default function SuggestionsView({
         extractedText = await readTextFile(file);
       } else if (isDocxFile(file)) {
         extractedText = await readDocxFile(file);
+      } else if (isExcelFile(file)) {
+        extractedText = await readExcelFile(file);
       } else {
         const { base64 } = await readFileAsBase64(file);
         const apiRes = await aiFetch("/api/anthropic", {
@@ -751,7 +753,7 @@ export default function SuggestionsView({
           <input type="file" accept="image/*" ref={imgRef} onChange={handleImageUpload} className="hidden" />
           <input
             type="file"
-            accept=".txt,.md,.csv,.pdf,.docx,text/plain,text/markdown,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            accept={ACCEPT_STRING}
             ref={fileRef}
             onChange={handleFileUpload}
             className="hidden"
@@ -759,7 +761,7 @@ export default function SuggestionsView({
           <input
             type="file"
             multiple
-            accept=".txt,.md,.csv,.pdf,.docx,text/plain,text/markdown,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            accept={ACCEPT_STRING}
             ref={bulkFileRef}
             onChange={(e) => {
               const files = e.target.files ? Array.from(e.target.files) : [];

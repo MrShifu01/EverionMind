@@ -14,7 +14,7 @@ import { recordDecision } from "../lib/learningEngine";
 import { TC, getTypeConfig } from "../data/constants";
 import { PROMPTS } from "../config/prompts";
 import { registerTypeIcon, pickDefaultIcon } from "../lib/typeIcons";
-import { isSupportedFile, isTextFile, isDocxFile, readTextFile, readDocxFile, readFileAsBase64 } from "../lib/fileParser";
+import { isSupportedFile, isTextFile, isDocxFile, isExcelFile, readTextFile, readDocxFile, readExcelFile, readFileAsBase64, ACCEPT_STRING } from "../lib/fileParser";
 import { shouldSplitContent, buildSplitPrompt, parseAISplitResponse } from "../lib/fileSplitter";
 import BulkUploadModal from "./BulkUploadModal";
 
@@ -267,11 +267,11 @@ export default function QuickCapture({
       let extractedText = "";
 
       if (isTextFile(file)) {
-        // Text files: read directly
         extractedText = await readTextFile(file);
       } else if (isDocxFile(file)) {
-        // DOCX: extract client-side with mammoth (Anthropic API doesn't support docx)
         extractedText = await readDocxFile(file);
+      } else if (isExcelFile(file)) {
+        extractedText = await readExcelFile(file);
       } else {
         // PDF: send to Anthropic document API for text extraction
         const { base64 } = await readFileAsBase64(file);
@@ -905,14 +905,14 @@ export default function QuickCapture({
         <input type="file" accept="image/*" ref={imgRef} onChange={handleImageUpload} className="hidden" />
         <input
           type="file"
-          accept=".txt,.md,.csv,.pdf,.docx,text/plain,text/markdown,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          accept={ACCEPT_STRING}
           ref={fileRef}
           onChange={handleFileUpload}
           className="hidden"
         />
         <input
           type="file"
-          accept=".txt,.md,.csv,.pdf,.docx,text/plain,text/markdown,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          accept={ACCEPT_STRING}
           multiple
           ref={bulkFileRef}
           onChange={(e) => {
