@@ -31,11 +31,7 @@ export interface CallAIOptions {
   brainId?: string;
 }
 
-const ENDPOINT: Record<string, string> = {
-  anthropic: "/api/anthropic",
-  openai: "/api/openai",
-  openrouter: "/api/openrouter",
-};
+const SUPPORTED_PROVIDERS = ["anthropic", "openai", "openrouter"] as const;
 
 function normalizeMessages(messages: AIMessage[], provider: string): AIMessage[] {
   if (provider === "anthropic") return messages;
@@ -65,7 +61,10 @@ export async function callAI({
   brainId,
 }: CallAIOptions = {}): Promise<Response> {
   const provider = getUserProvider();
-  const endpoint = ENDPOINT[provider] ?? ENDPOINT.anthropic;
+  const safeProvider = SUPPORTED_PROVIDERS.includes(provider as typeof SUPPORTED_PROVIDERS[number])
+    ? provider
+    : "anthropic";
+  const endpoint = `/api/llm?provider=${safeProvider}`;
 
   let model: string;
   if (provider === "openrouter") {
