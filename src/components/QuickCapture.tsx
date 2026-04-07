@@ -996,13 +996,19 @@ export default function QuickCapture({
       {/* Multi-entry preview modal */}
       {multiPreview && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
+          className="fixed inset-0 z-50 flex items-center justify-center px-4 pt-4"
+          style={{
+            background: "rgba(0,0,0,0.7)",
+            backdropFilter: "blur(4px)",
+            // Push the modal clear of the floating bottom nav (bottom-5 + ~56px tall)
+            // plus iOS safe-area inset so it never hides behind the nav on any device
+            paddingBottom: "calc(env(safe-area-inset-bottom) + 96px)",
+          }}
           onClick={() => setMultiPreview(null)}
         >
           <div
             className="w-full max-w-lg flex flex-col rounded-2xl border"
-            style={{ background: "#1a1919", borderColor: "rgba(72,72,71,0.2)", maxHeight: "calc(100dvh - 140px)" }}
+            style={{ background: "#1a1919", borderColor: "rgba(72,72,71,0.2)", maxHeight: "100%" }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Fixed header */}

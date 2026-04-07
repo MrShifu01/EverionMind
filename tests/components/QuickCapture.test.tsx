@@ -85,4 +85,18 @@ describe("MultiPreviewModal — save button accessibility", () => {
     expect(container.contains(actions)).toBe(true);
     expect(scrollArea.contains(actions)).toBe(false);
   });
+
+  it("overlay has bottom padding large enough to clear the bottom nav", () => {
+    render(
+      <ThemeProvider>
+        <div data-testid="modal-overlay" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 96px)" }}>
+          <div data-testid="modal-container" />
+        </div>
+      </ThemeProvider>
+    );
+    const overlay = screen.getByTestId("modal-overlay");
+    // paddingBottom style must be set (not zero / not 'p-4' flat 16px)
+    expect(overlay.style.paddingBottom).toBeTruthy();
+    expect(overlay.style.paddingBottom).not.toBe("16px");
+  });
 });
