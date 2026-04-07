@@ -27,11 +27,8 @@ function renderModal() {
 describe("DetailModal — header always visible", () => {
   it("header is outside the scrollable body (close button is not a descendant of the scroll container)", () => {
     const { container } = renderModal();
-    // The scrollable body must NOT contain the close/edit buttons — they live in
-    // a non-scrolling header sibling so they stay visible on long entries.
     const scrollBody = container.querySelector("[data-testid='detail-scroll-body']") as HTMLElement;
     expect(scrollBody).not.toBeNull();
-    // Close button must NOT be inside the scroll body
     const closeBtn = container.querySelector("button[aria-label='Close']") as HTMLElement;
     expect(closeBtn).not.toBeNull();
     expect(scrollBody.contains(closeBtn)).toBe(false);
@@ -41,15 +38,30 @@ describe("DetailModal — header always visible", () => {
 describe("DetailModal — bottom nav clearance", () => {
   it("overlay paddingBottom clears the bottom nav (>= 96px + safe area)", () => {
     const { container } = renderModal();
-    // The outermost fixed overlay div carries the paddingBottom style
     const overlay = container.querySelector(".fixed.inset-0") as HTMLElement;
     expect(overlay).not.toBeNull();
     const pb = overlay.style.paddingBottom;
-    // Must use at least 96px so content clears the fixed bottom nav bar
-    // (nav is bottom-5 = 20px + ~72px height = ~92px from viewport bottom)
     const match = pb.match(/(\d+)px/);
     expect(match).not.toBeNull();
     const pixels = parseInt(match![1], 10);
     expect(pixels).toBeGreaterThanOrEqual(96);
+  });
+});
+
+describe("DetailModal — modal height never exceeds available viewport", () => {
+  it("inner modal uses maxHeight style accounting for nav bar (not just max-h-[90vh])", () => {
+    const { container } = renderModal();
+    const inner = container.querySelector(".fixed.inset-0 > div") as HTMLElement;
+    expect(inner).not.toBeNull();
+    // Must subtract nav clearance so tall entries don't push the header above viewport
+    const mh = inner.style.maxHeight;
+    expect(mh).toMatch(/calc\(.*96px/);
+  });
+
+  it("scroll body has overscroll-behavior contain to prevent background page scroll", () => {
+    const { container } = renderModal();
+    const scrollBody = container.querySelector("[data-testid='detail-scroll-body']") as HTMLElement;
+    expect(scrollBody).not.toBeNull();
+    expect(scrollBody.style.overscrollBehavior).toBe("contain");
   });
 });
