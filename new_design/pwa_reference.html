@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>OpenBrain | Neural Intelligence</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-surface": "#ffffff",
+                        "secondary-container": "#9800d0",
+                        "surface-container-low": "#131313",
+                        "surface-variant": "#262626",
+                        "secondary-fixed": "#f0c1ff",
+                        "tertiary": "#ff9ac3",
+                        "on-tertiary-container": "#5c0035",
+                        "on-surface-variant": "#adaaaa",
+                        "inverse-on-surface": "#565554",
+                        "surface-container": "#1a1919",
+                        "surface-container-highest": "#262626",
+                        "on-secondary-fixed-variant": "#8300b4",
+                        "primary": "#72eff5",
+                        "surface-container-lowest": "#000000",
+                        "on-error": "#490013",
+                        "surface-bright": "#2c2c2c",
+                        "error": "#ff6e84",
+                        "outline": "#777575",
+                        "outline-variant": "#484847",
+                        "secondary-dim": "#b90afc",
+                        "secondary": "#d575ff",
+                        "on-primary": "#00585b",
+                        "inverse-primary": "#006a6e",
+                        "on-tertiary": "#6b0c40",
+                        "on-error-container": "#ffb2b9",
+                        "primary-container": "#1fb1b7",
+                        "on-secondary-container": "#fff5fc",
+                        "on-secondary-fixed": "#58007a",
+                        "error-dim": "#d73357",
+                        "surface-dim": "#0e0e0e",
+                        "inverse-surface": "#fcf8f8",
+                        "tertiary-dim": "#ec77aa",
+                        "error-container": "#a70138",
+                        "surface": "#0e0e0e",
+                        "on-primary-fixed-variant": "#006266",
+                        "surface-tint": "#72eff5",
+                        "on-background": "#ffffff",
+                        "primary-fixed": "#72eff5",
+                        "tertiary-fixed": "#ff8cbc",
+                        "primary-fixed-dim": "#63e1e7",
+                        "primary-dim": "#63e1e7",
+                        "on-secondary": "#390050",
+                        "on-primary-fixed": "#004346",
+                        "background": "#0e0e0e",
+                        "on-tertiary-fixed": "#37001e",
+                        "on-tertiary-fixed-variant": "#6f1043",
+                        "on-primary-container": "#002829",
+                        "tertiary-container": "#fc84b7",
+                        "surface-container-high": "#201f1f",
+                        "tertiary-fixed-dim": "#f37daf",
+                        "secondary-fixed-dim": "#eaaeff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .font-headline { font-family: 'Manrope', sans-serif; }
+        .glass { backdrop-filter: blur(24px); }
+        .synapse-glow { box-shadow: 0px 20px 40px rgba(0, 0, 0, 0.4), 0px 0px 20px rgba(114, 239, 245, 0.05); }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface min-h-screen pb-32">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-[#0E0E0E]/60 backdrop-blur-xl flex justify-between items-center px-6 py-4 w-full">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#72EFF5] text-3xl" style="font-variation-settings: 'FILL' 1;">psychology</span>
+<h1 class="text-2xl font-bold tracking-tighter text-white font-headline">OpenBrain</h1>
+</div>
+<div class="flex items-center gap-4">
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#262626] transition-colors duration-300">
+<span class="material-symbols-outlined text-[#ADAAAA]">light_mode</span>
+</button>
+<div class="w-10 h-10 rounded-full overflow-hidden border border-primary/20">
+<img class="w-full h-full object-cover" data-alt="Portrait of a professional man in a dark turtleneck against a clean grey background with soft studio lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCLc7o3ZNckBVhoMHqqrKHBURUQEKeJneNsY09CDisL_ZU8QaeN1zZ5AG33aS1IICTzamZcNGnXNEWy1A6v9dArgM_sJq4fXcnaQiRHPo3qWyKMKtap5yg-31xYPQ0Sgsi1C8oCRvNzW8Y55chwsGwdEL8cfY7_-MlGKAdbh4ztcgmj70I_zgXGpJk8gzviwu5AwdIIzjeDNByNoM2TTOwEIsu9AP4xG934B2NZPnzSqBnxYcQQMkzQDhev9LiaPX7k0w5sXlk4lMY"/>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="pt-24 px-6 space-y-8">
+<!-- Hero - Neural Obsidian Style -->
+<section class="relative rounded-xl overflow-hidden aspect-[16/10] synapse-glow">
+<div class="absolute inset-0 bg-gradient-to-t from-surface via-transparent to-transparent z-10"></div>
+<img class="absolute inset-0 w-full h-full object-cover" data-alt="Ethereal abstract background with flowing purple and cyan energy waves on a deep black field with subtle grain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAOM_ijVMrOQUD2leROaQmWAmBeXsywnat1hWw_Jp1nxm-5cTWj4do9Dqj1JZ6F7EYIhAhR2Ia9w4zg4QzrM2Orq8XxqgW2xsf2YDTmK3bD94edf1QsissB29HdbHDT3ormk9DLNWVJDePUyrtm1oCM1KJgpoPfo_K5xHycL-eZF55A4Vr6WYikrn1qyFGfKlY7wXDr3GQVcpI2ytz_BbyUua5tui0B4kUsV6ken_Lxbhakj2PiJxStCUbfprckRWBug5CNFtmyvxo"/>
+<div class="absolute bottom-4 left-4 z-20">
+<p class="text-[#72EFF5] font-label text-xs uppercase tracking-widest mb-1">Knowledge Feed</p>
+<h2 class="text-2xl font-headline font-bold text-white leading-tight">Quantum Computing <br/>Architectures</h2>
+</div>
+</section>
+<!-- Bento Grid: Collections -->
+<section class="space-y-4">
+<div class="flex justify-between items-end">
+<h3 class="text-xl font-headline font-semibold text-white">Your Collections</h3>
+<span class="text-primary text-sm font-medium">View all</span>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-surface-container p-4 rounded-xl space-y-3 hover:bg-surface-bright transition-all duration-300">
+<div class="w-10 h-10 rounded-lg bg-secondary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary">grid_view</span>
+</div>
+<div>
+<p class="text-white font-semibold">AI Research</p>
+<p class="text-on-surface-variant text-xs">124 items</p>
+</div>
+</div>
+<div class="bg-surface-container p-4 rounded-xl space-y-3 hover:bg-surface-bright transition-all duration-300">
+<div class="w-10 h-10 rounded-lg bg-tertiary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-tertiary">history_edu</span>
+</div>
+<div>
+<p class="text-white font-semibold">Philosophy</p>
+<p class="text-on-surface-variant text-xs">48 items</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Thumb-Friendly Ask AI Section -->
+<section class="bg-surface-container-low rounded-xl p-6 space-y-4 border border-outline-variant/10">
+<div class="flex items-center gap-3">
+<div class="bg-secondary-container w-10 h-10 rounded-full flex items-center justify-center glass">
+<span class="material-symbols-outlined text-white text-xl" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+</div>
+<div>
+<p class="text-on-surface-variant text-xs">Neural Assistant</p>
+<p class="text-white font-semibold">Ready for deep inquiry</p>
+</div>
+</div>
+<div class="bg-surface-container-highest rounded-xl p-4 flex items-center justify-between">
+<span class="text-on-surface-variant">Ask me anything...</span>
+<button class="bg-gradient-to-br from-primary to-primary-container text-on-primary w-10 h-10 rounded-lg flex items-center justify-center active:scale-90 duration-200">
+<span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</div>
+<div class="flex flex-wrap gap-2 pt-2">
+<button class="px-3 py-1.5 rounded-full border border-outline-variant/20 text-xs text-on-surface-variant hover:border-primary/50 hover:text-primary transition-all">Explain Entropy</button>
+<button class="px-3 py-1.5 rounded-full border border-outline-variant/20 text-xs text-on-surface-variant hover:border-primary/50 hover:text-primary transition-all">Market Trends</button>
+<button class="px-3 py-1.5 rounded-full border border-outline-variant/20 text-xs text-on-surface-variant hover:border-primary/50 hover:text-primary transition-all">Code Review</button>
+</div>
+</section>
+<!-- Stats / Profile Summary -->
+<section class="bg-surface-container p-6 rounded-xl synapse-glow">
+<div class="flex items-center justify-between mb-6">
+<h3 class="text-lg font-headline font-bold text-white">Neural Synchrony</h3>
+<span class="text-xs text-secondary font-label uppercase tracking-widest">Lv. 42</span>
+</div>
+<div class="space-y-4">
+<div class="space-y-1">
+<div class="flex justify-between text-xs mb-1">
+<span class="text-on-surface-variant">Knowledge Retention</span>
+<span class="text-primary">88%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-variant rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[88%]"></div>
+</div>
+</div>
+<div class="space-y-1">
+<div class="flex justify-between text-xs mb-1">
+<span class="text-on-surface-variant">Cognitive Load</span>
+<span class="text-secondary">42%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-variant rounded-full overflow-hidden">
+<div class="h-full bg-secondary w-[42%]"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- Quick Settings List -->
+<section class="space-y-4 pb-20">
+<h3 class="text-xl font-headline font-semibold text-white">Neural Interface</h3>
+<div class="bg-surface-container rounded-xl divide-y divide-outline-variant/10">
+<div class="p-4 flex items-center justify-between hover:bg-surface-bright transition-colors cursor-pointer">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#ADAAAA]">notifications</span>
+<span class="text-on-surface">Neural Alerts</span>
+</div>
+<div class="w-10 h-6 bg-primary-container rounded-full relative">
+<div class="absolute right-1 top-1 w-4 h-4 bg-white rounded-full"></div>
+</div>
+</div>
+<div class="p-4 flex items-center justify-between hover:bg-surface-bright transition-colors cursor-pointer">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#ADAAAA]">security</span>
+<span class="text-on-surface">Biometric Link</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</div>
+<div class="p-4 flex items-center justify-between hover:bg-surface-bright transition-colors cursor-pointer">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#ADAAAA]">database</span>
+<span class="text-on-surface">Local Memory Cache</span>
+</div>
+<span class="text-xs text-on-surface-variant">1.2 GB</span>
+</div>
+</div>
+</section>
+</main>
+<!-- Floating Action Button - Brain Switch -->
+<div class="fixed bottom-28 right-6 z-50">
+<button class="w-14 h-14 bg-secondary-container rounded-2xl flex items-center justify-center glass shadow-[0px_0px_30px_rgba(152,0,208,0.3)] active:scale-95 duration-200">
+<span class="material-symbols-outlined text-white text-3xl" style="font-variation-settings: 'FILL' 1;">psychology_alt</span>
+</button>
+</div>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 flex justify-around items-center px-4 pb-8 bg-[#1A1919]/60 backdrop-blur-2xl no-line luminance shift">
+<div class="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] rounded-2xl shadow-[0px_20px_40px_rgba(0,0,0,0.4),0px_0px_20px_rgba(213,117,255,0.1)] bg-[#1A1919]/60 backdrop-blur-2xl flex justify-around items-center py-2">
+<!-- Home (Active) -->
+<a class="flex flex-col items-center justify-center text-[#D575FF] bg-[#D575FF]/10 rounded-xl p-2 min-w-[64px] min-h-[48px] active:scale-90 duration-300" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="text-[10px] font-label uppercase tracking-widest mt-1">Home</span>
+</a>
+<!-- Grid -->
+<a class="flex flex-col items-center justify-center text-[#ADAAAA] p-2 min-w-[64px] min-h-[48px] hover:text-white transition-all active:scale-90 duration-300" href="#">
+<span class="material-symbols-outlined">grid_view</span>
+<span class="text-[10px] font-label uppercase tracking-widest mt-1">Grid</span>
+</a>
+<!-- Fill (Intelligence/AI) -->
+<a class="flex flex-col items-center justify-center text-[#ADAAAA] p-2 min-w-[64px] min-h-[48px] hover:text-white transition-all active:scale-90 duration-300" href="#">
+<span class="material-symbols-outlined">format_color_fill</span>
+<span class="text-[10px] font-label uppercase tracking-widest mt-1">Fill</span>
+</a>
+<!-- Ask -->
+<a class="flex flex-col items-center justify-center text-[#ADAAAA] p-2 min-w-[64px] min-h-[48px] hover:text-white transition-all active:scale-90 duration-300" href="#">
+<span class="material-symbols-outlined">chat_bubble</span>
+<span class="text-[10px] font-label uppercase tracking-widest mt-1">Ask</span>
+</a>
+<!-- More -->
+<a class="flex flex-col items-center justify-center text-[#ADAAAA] p-2 min-w-[64px] min-h-[48px] hover:text-white transition-all active:scale-90 duration-300" href="#">
+<span class="material-symbols-outlined">more_horiz</span>
+<span class="text-[10px] font-label uppercase tracking-widest mt-1">More</span>
+</a>
+</div>
+</nav>
+</body></html>

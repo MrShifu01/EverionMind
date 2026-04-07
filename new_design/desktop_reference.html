@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>OpenBrain | Design Specs Showcase</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface": "#0e0e0e",
+                        "error-container": "#a70138",
+                        "primary-fixed": "#72eff5",
+                        "primary-fixed-dim": "#63e1e7",
+                        "surface-container-highest": "#262626",
+                        "on-tertiary": "#6b0c40",
+                        "surface-container-high": "#201f1f",
+                        "outline": "#777575",
+                        "secondary-fixed-dim": "#eaaeff",
+                        "surface-container-lowest": "#000000",
+                        "primary": "#72eff5",
+                        "surface-dim": "#0e0e0e",
+                        "primary-container": "#1fb1b7",
+                        "tertiary-dim": "#ec77aa",
+                        "secondary-container": "#9800d0",
+                        "error-dim": "#d73357",
+                        "on-surface-variant": "#adaaaa",
+                        "error": "#ff6e84",
+                        "on-secondary-fixed-variant": "#8300b4",
+                        "on-primary-fixed": "#004346",
+                        "surface-bright": "#2c2c2c",
+                        "surface-tint": "#72eff5",
+                        "tertiary-container": "#fc84b7",
+                        "on-error": "#490013",
+                        "primary-dim": "#63e1e7",
+                        "on-primary-fixed-variant": "#006266",
+                        "on-primary-container": "#002829",
+                        "on-secondary-container": "#fff5fc",
+                        "on-background": "#ffffff",
+                        "on-error-container": "#ffb2b9",
+                        "surface-container-low": "#131313",
+                        "on-tertiary-fixed": "#37001e",
+                        "on-secondary-fixed": "#58007a",
+                        "tertiary": "#ff9ac3",
+                        "tertiary-fixed-dim": "#f37daf",
+                        "secondary-fixed": "#f0c1ff",
+                        "inverse-primary": "#006a6e",
+                        "on-tertiary-container": "#5c0035",
+                        "surface-variant": "#262626",
+                        "on-primary": "#00585b",
+                        "background": "#0e0e0e",
+                        "secondary-dim": "#b90afc",
+                        "outline-variant": "#484847",
+                        "on-tertiary-fixed-variant": "#6f1043",
+                        "tertiary-fixed": "#ff8cbc",
+                        "on-secondary": "#390050",
+                        "secondary": "#d575ff",
+                        "surface-container": "#1a1919",
+                        "inverse-surface": "#fcf8f8",
+                        "on-surface": "#ffffff",
+                        "inverse-on-surface": "#565554"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .font-headline { font-family: 'Manrope', sans-serif; }
+        .glass-panel {
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+        }
+        .synapse-glow {
+            box-shadow: 0px 20px 40px rgba(0, 0, 0, 0.4), 0px 0px 20px rgba(114, 239, 245, 0.05);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface transition-colors duration-500">
+<nav class="fixed top-0 w-full z-50 bg-white/60 dark:bg-[#0E0E0E]/60 backdrop-blur-xl shadow-[0_20px_40px_rgba(0,0,0,0.05)] dark:shadow-[0_20px_40px_rgba(0,0,0,0.4)]">
+<div class="flex justify-between items-center max-w-7xl mx-auto px-8 h-20">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-3xl" data-icon="hub" style="font-variation-settings: 'FILL' 1;">hub</span>
+<span class="text-2xl font-bold tracking-tighter text-[#0E0E0E] dark:text-white font-headline">OpenBrain</span>
+</div>
+<div class="hidden md:flex items-center gap-8 font-['Manrope'] font-semibold tracking-tight">
+<a class="text-[#72EFF5] border-b-2 border-[#72EFF5] pb-1 hover:text-[#D575FF] transition-colors duration-300" href="#">Research</a>
+<a class="text-slate-600 dark:text-[#ADAAAA] hover:text-[#D575FF] transition-colors duration-300" href="#">Architecture</a>
+<a class="text-slate-600 dark:text-[#ADAAAA] hover:text-[#D575FF] transition-colors duration-300" href="#">Security</a>
+<a class="text-slate-600 dark:text-[#ADAAAA] hover:text-[#D575FF] transition-colors duration-300" href="#">Intelligence</a>
+</div>
+<div class="flex items-center gap-6">
+<button class="p-2 rounded-full hover:bg-surface-container transition-colors" onclick="document.documentElement.classList.toggle('dark')">
+<span class="material-symbols-outlined text-on-surface" data-icon="dark_mode">dark_mode</span>
+</button>
+<button class="bg-gradient-to-br from-primary to-primary-container text-on-primary-container px-6 py-2.5 rounded-xl font-bold scale-95 active:scale-90 transition-transform">
+                    Get Started
+                </button>
+</div>
+</div>
+</nav>
+<main class="pt-32 pb-24 px-8 max-w-7xl mx-auto">
+<header class="mb-24 text-center md:text-left relative">
+<div class="absolute -top-24 -left-24 w-96 h-96 bg-primary/10 rounded-full blur-[120px]"></div>
+<div class="absolute top-0 -right-24 w-80 h-80 bg-secondary/10 rounded-full blur-[100px]"></div>
+<div class="relative z-10">
+<h1 class="text-6xl md:text-8xl font-headline font-extrabold tracking-tighter text-on-surface mb-6 leading-none">
+                    Neural <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">Obsidian</span>
+</h1>
+<p class="text-xl md:text-2xl text-on-surface-variant max-w-2xl font-body leading-relaxed mb-10">
+                    The ethereal synapse where high-tech precision meets atmospheric depth. A living blueprint for digital intelligence.
+                </p>
+<div class="flex flex-wrap gap-4 justify-center md:justify-start">
+<div class="px-4 py-2 bg-surface-container rounded-full border border-outline-variant/15 flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+<span class="text-sm font-label uppercase tracking-widest text-on-surface-variant">System Active</span>
+</div>
+<div class="px-4 py-2 bg-surface-container rounded-full border border-outline-variant/15 flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<span class="text-sm font-label uppercase tracking-widest text-on-surface-variant">v4.2.0-Alpha</span>
+</div>
+</div>
+</div>
+</header>
+<section class="grid grid-cols-1 md:grid-cols-12 gap-8 mb-24">
+<div class="md:col-span-12">
+<h2 class="text-3xl font-headline font-bold mb-8 flex items-center gap-3">
+<span class="material-symbols-outlined text-secondary" data-icon="gallery_thumbnail">gallery_thumbnail</span>
+                    Component Gallery
+                </h2>
+</div>
+<div class="md:col-span-3 space-y-6">
+<div class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10">
+<h3 class="text-xs font-label uppercase tracking-widest text-on-surface-variant mb-6">Side Navigation Shell</h3>
+<div class="flex flex-col gap-2">
+<div class="flex items-center gap-4 p-3 rounded-xl bg-primary-container/20 text-primary">
+<span class="material-symbols-outlined" data-icon="dashboard" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span class="font-semibold text-sm">Overview</span>
+</div>
+<div class="flex items-center gap-4 p-3 rounded-xl text-on-surface-variant hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined" data-icon="psychology">psychology</span>
+<span class="font-semibold text-sm">Neural Feed</span>
+</div>
+<div class="flex items-center gap-4 p-3 rounded-xl text-on-surface-variant hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined" data-icon="share_node">share</span>
+<span class="font-semibold text-sm">Network</span>
+</div>
+<div class="flex items-center gap-4 p-3 rounded-xl text-on-surface-variant hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-semibold text-sm">System</span>
+</div>
+</div>
+</div>
+<div class="bg-surface-container p-6 rounded-xl synapse-glow border border-primary/5">
+<div class="flex items-center justify-between mb-4">
+<span class="material-symbols-outlined text-primary" data-icon="auto_awesome">auto_awesome</span>
+<span class="text-[10px] font-label px-2 py-0.5 bg-primary/20 text-primary rounded-full uppercase tracking-tighter">AI Ready</span>
+</div>
+<p class="text-sm font-body leading-snug text-on-surface">Optimize synaptic response by 24% using Neural Alabaster.</p>
+</div>
+</div>
+<div class="md:col-span-6 space-y-8">
+<div class="bg-surface-container p-8 rounded-xl relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-8xl" data-icon="temp_preferences_custom">temp_preferences_custom</span>
+</div>
+<h3 class="text-xs font-label uppercase tracking-widest text-on-surface-variant mb-6">Ask AI Interface</h3>
+<div class="relative">
+<input class="w-full bg-surface-container-highest border-none rounded-lg py-4 pl-12 pr-4 text-on-surface placeholder-on-surface-variant focus:ring-1 focus:ring-primary focus:bg-surface-bright transition-all" placeholder="Explain the neural architecture..." type="text"/>
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-primary" data-icon="temp_preferences_custom">temp_preferences_custom</span>
+</div>
+<div class="mt-6 flex flex-wrap gap-2">
+<button class="text-[10px] uppercase tracking-widest text-on-surface-variant px-3 py-1.5 border border-outline-variant/30 rounded-full hover:border-primary transition-colors">Analyze Security</button>
+<button class="text-[10px] uppercase tracking-widest text-on-surface-variant px-3 py-1.5 border border-outline-variant/30 rounded-full hover:border-primary transition-colors">Map Nodes</button>
+<button class="text-[10px] uppercase tracking-widest text-on-surface-variant px-3 py-1.5 border border-outline-variant/30 rounded-full hover:border-primary transition-colors">Architecture</button>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-6">
+<div class="bg-surface-container-low p-6 rounded-xl hover:bg-surface-bright transition-all duration-300">
+<div class="w-12 h-12 rounded-xl bg-tertiary/10 flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-tertiary" data-icon="lock" style="font-variation-settings: 'FILL' 1;">lock</span>
+</div>
+<h4 class="font-headline font-semibold text-lg mb-2">Neural API</h4>
+<p class="text-sm text-on-surface-variant font-body">Encrypted synaptic protocols for external node integration.</p>
+</div>
+<div class="bg-surface-container-low p-6 rounded-xl hover:bg-surface-bright transition-all duration-300">
+<div class="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-secondary" data-icon="auto_graph" style="font-variation-settings: 'FILL' 1;">auto_graph</span>
+</div>
+<h4 class="font-headline font-semibold text-lg mb-2">Growth Vector</h4>
+<p class="text-sm text-on-surface-variant font-body">Real-time visualization of emergent intelligence patterns.</p>
+</div>
+</div>
+</div>
+<div class="md:col-span-3 space-y-6">
+<h3 class="text-xs font-label uppercase tracking-widest text-on-surface-variant">Member Nodes</h3>
+<div class="space-y-4">
+<div class="flex items-center gap-4 p-4 bg-surface-container rounded-xl border border-outline-variant/5">
+<div class="relative">
+<img class="w-12 h-12 rounded-full object-cover" data-alt="professional portrait of a tech lead with soft dramatic lighting and dark background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCq44MJohdTzjj2sla0joUhFdEFSMWaXUNJiQRMBCchwFLmPuKCf2KvgRPAOqliVOQMI6FzgpXPM-qqEsx2a1GifBBrNwHJmqjcNr0oQDna_a_D9aUBhsWKWbq9eZYOzp3X5a3xIPlap3WbtNfOyz2bzD_sPyA7XoL-pxASi4iaGuBSJxrWwyVei9W9-DytQTeiDQLzYLEZp0qFtVDg03Gxvc8wA1sl-6xT424WBHZHYoYsKdsFz8Zl8o8k4Myo3c8m4OGN5W45ibQ"/>
+<div class="absolute bottom-0 right-0 w-3 h-3 bg-primary border-2 border-surface rounded-full"></div>
+</div>
+<div>
+<p class="font-headline font-bold text-sm">Erik Vance</p>
+<p class="text-[10px] font-label text-on-surface-variant uppercase tracking-tighter">Lead Architect</p>
+</div>
+</div>
+<div class="flex items-center gap-4 p-4 bg-surface-container rounded-xl border border-outline-variant/5">
+<div class="relative">
+<img class="w-12 h-12 rounded-full object-cover" data-alt="close-up portrait of a female research scientist in a dark modern studio environment" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD83bK4J8MiEsWuq5b9cZYwR1-xzlwLLwyILmcjjJOvSYfxMWs0jEPdrDzP8QJRhgye0tDVoAQS9-yYJLQSiU02Qz1mhCYS7dSxqcI5GOvkGuLx-kQuCE3Zyj6xFc1nu5hhriS9_Zq3tuYF2XAFnpVkxDoqnWhVgdO34xGfU-zHqNv7yMtTHn-htTjiyhH69CN08EPZQzFEBYJIXBACRcJWx94nKssx8d07yXivIOPwLzRaU-XvuopPP5R2O4eri9lXu3HU0Jy5Ufg"/>
+<div class="absolute bottom-0 right-0 w-3 h-3 bg-primary border-2 border-surface rounded-full"></div>
+</div>
+<div>
+<p class="font-headline font-bold text-sm">Sonia Chen</p>
+<p class="text-[10px] font-label text-on-surface-variant uppercase tracking-tighter">Neuroanalyst</p>
+</div>
+</div>
+<div class="flex items-center gap-4 p-4 bg-surface-container rounded-xl border border-outline-variant/5">
+<div class="relative">
+<img class="w-12 h-12 rounded-full object-cover grayscale" data-alt="moody side profile of a man looking thoughtful in dark lighting with soft blue accents" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBRnA7foQ929nzSPbUMKguEJiKsLP6GG2b6Ftq5VD_cyCFHfdn915DthU-7iZWxBac6VKnTcdQTMcR_YbVUJh34YhBU8cbpfad_gWdELhldz4K1Lm0jhmMSwnleYIFw-F5nihydML7Cny7V_b9BizDuSX-00Ikkdp3WwGhsov_BD6bGKg4-rIW6hxSCQi97FSnln1zwptCR3P-17dcCbEfQ1SXzz8V3xmyZp1xOV5Z9KtZStRdHB0YBXsG4F1G52oaLvhwOOVuchU8"/>
+<div class="absolute bottom-0 right-0 w-3 h-3 bg-outline border-2 border-surface rounded-full"></div>
+</div>
+<div>
+<p class="font-headline font-bold text-sm">Marcus Thorne</p>
+<p class="text-[10px] font-label text-on-surface-variant uppercase tracking-tighter">Security Node</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section class="mb-24">
+<h2 class="text-3xl font-headline font-bold mb-8 flex items-center gap-3">
+<span class="material-symbols-outlined text-primary" data-icon="dynamic_feed">dynamic_feed</span>
+                Knowledge Feed
+            </h2>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+<article class="bg-surface-container rounded-xl overflow-hidden group">
+<div class="h-48 overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="abstract digital artwork showing glowing blue neural network connections on a deep black background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAErrpEl6gtMu13tZDlwVipg6VrutR5pLIoMh9VMAB19PPuC-p9U4dMWmdSppOBFhH3ubaoMvwgI9Dhs0HOUcYmmoUNF2EV_VkrCOLX_fu2f9ZuopKsLzBo8rvBwo6ub4F4Cx8A3nYg1PtbgPPOIfjq8-f205KS85yYnlzI1MBSbHXJj3Ve8MMM8sdVfzTPsLvwUFY3Ut3sE_KyevtRR-Ve5lEb8hMdB_nZvCI8p_oh1lNHmH9ZoBQtHqMd5JFaAsLDmfUy2Z70-Ec"/>
+</div>
+<div class="p-8">
+<div class="flex gap-2 mb-4">
+<span class="text-[10px] font-label px-2 py-0.5 bg-primary/10 text-primary rounded border border-primary/20">RESEARCH</span>
+<span class="text-[10px] font-label px-2 py-0.5 bg-secondary/10 text-secondary rounded border border-secondary/20">AI</span>
+</div>
+<h4 class="text-xl font-headline font-bold mb-4 group-hover:text-primary transition-colors">The Quantum Transition: Bridging Gaps in LLMs</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed">Exploring how multi-modal synapses are redefining the boundaries of machine reasoning and abstract logic.</p>
+</div>
+</article>
+<article class="bg-surface-container rounded-xl overflow-hidden group">
+<div class="h-48 overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="futuristic 3d render of iridescent crystal-like structures glowing with soft violet and blue light" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBRr--z7IL4DOCwnbUYOwTct7cz02fryOcxrOlsxGkbR0iXdjhmiFJdUpLU1oHiMqmw5xTSlTk21YvmzpQeX98hJPOL7UR3jmnILNkYL7-TlLBhGEXolpD8j7kl3vVJFOTHxAY-Vj0zkTPm26yiEUd0fBTO0JsguTl2oRBZ19FjfSRcVuYpDLZC18vk_8ncCGnt_xz-ow5IkLo287r0OD4_ApVY8aappw7qhzslHJt4reRpbXU5fm4lBUsK0BRWybGf-rjrdOMvGMM"/>
+</div>
+<div class="p-8">
+<div class="flex gap-2 mb-4">
+<span class="text-[10px] font-label px-2 py-0.5 bg-tertiary/10 text-tertiary rounded border border-tertiary/20">ETHICS</span>
+</div>
+<h4 class="text-xl font-headline font-bold mb-4 group-hover:text-primary transition-colors">Designing for Conscious Digital Stewardship</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed">A protocol for ensuring the safety of neural nodes in decentralized intelligence ecosystems.</p>
+</div>
+</article>
+<article class="bg-surface-container rounded-xl overflow-hidden group relative">
+<div class="absolute inset-0 bg-gradient-to-t from-surface to-transparent z-10"></div>
+<img class="w-full h-full object-cover absolute top-0 left-0" data-alt="satellite view of earth at night with glowing network connections and soft blue atmosphere" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB1YALp2Nz6AvIwoSef6blkoIiU4ejfYvKBScGszfirec5npF7h7oJWkk8Y4jjHE9Irq59BUbhay6LLkRvgM7J_uj-zZBgQITiISRDgikryvVa9yjwv4oxpRyW6xO1wXMn7UktXGT793d03sMR6x2A-H4wCl2QG4AZKPu-Ze-RLk1Dr46xNO8IvoPFsEjdb0mAjYPTTYdoiKPHPJ5CRIn5nnS2GcdUi1phaKe7mr-9WVCRNGVOKBtjapO3JdTXrSvWxyn8FXywN-UU"/>
+<div class="relative z-20 h-full p-8 flex flex-col justify-end">
+<h4 class="text-xl font-headline font-bold mb-4 text-white">Interactive Node Visualizer</h4>
+<p class="text-sm text-white/70 mb-6">Real-time global sync of OpenBrain instances across 42 continents.</p>
+<button class="w-fit bg-white/10 backdrop-blur-md text-white border border-white/20 px-4 py-2 rounded-lg text-sm font-bold hover:bg-white/20 transition-all">Launch Viewer</button>
+</div>
+</article>
+</div>
+</section>
+<section class="bg-surface-container-low rounded-3xl p-12 relative overflow-hidden">
+<div class="absolute top-0 right-0 w-1/3 h-full opacity-20 pointer-events-none">
+<svg fill="none" viewbox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+<path d="M400 200C400 310.457 310.457 400 200 400C89.543 400 0 310.457 0 200C0 89.543 89.543 0 200 0C310.457 0 400 89.543 400 200Z" fill="url(#paint0_linear)"></path>
+<defs>
+<lineargradient gradientunits="userSpaceOnUse" id="paint0_linear" x1="0" x2="400" y1="0" y2="400">
+<stop stop-color="#72EFF5"></stop>
+<stop offset="1" stop-color="#D575FF"></stop>
+</lineargradient>
+</defs>
+</svg>
+</div>
+<div class="relative z-10 max-w-xl">
+<h2 class="text-4xl font-headline font-extrabold mb-6 tracking-tight">Ready to integrate your neural node?</h2>
+<p class="text-lg text-on-surface-variant font-body mb-8">Join the collective intelligence and start building with the world's most sophisticated AI architecture.</p>
+<div class="flex gap-4">
+<button class="bg-gradient-to-br from-primary to-primary-container text-on-primary-container px-8 py-4 rounded-xl font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform">Get Started Free</button>
+<button class="bg-surface-container-highest text-on-surface border border-outline-variant/20 px-8 py-4 rounded-xl font-bold hover:bg-surface-bright transition-colors">Documentation</button>
+</div>
+</div>
+</section>
+</main>
+<footer class="w-full py-12 border-t border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-[#131313]">
+<div class="max-w-7xl mx-auto px-8 flex flex-col md:flex-row justify-between items-center gap-6">
+<div class="flex flex-col gap-2">
+<span class="font-['Manrope'] font-bold text-lg text-[#0E0E0E] dark:text-white">OpenBrain Intelligence</span>
+<span class="font-['Inter'] text-sm tracking-wide text-slate-500 dark:text-[#ADAAAA]">© 2024 OpenBrain Intelligence. All rights reserved.</span>
+</div>
+<div class="flex gap-8 font-['Inter'] text-sm tracking-wide">
+<a class="text-slate-500 dark:text-[#ADAAAA] hover:text-[#D575FF] transition-colors opacity-80 hover:opacity-100" href="#">Privacy Policy</a>
+<a class="text-slate-500 dark:text-[#ADAAAA] hover:text-[#D575FF] transition-colors opacity-80 hover:opacity-100" href="#">Terms of Service</a>
+<a class="text-slate-500 dark:text-[#ADAAAA] hover:text-[#D575FF] transition-colors opacity-80 hover:opacity-100" href="#">Neural API</a>
+<a class="text-slate-500 dark:text-[#ADAAAA] hover:text-[#D575FF] transition-colors opacity-80 hover:opacity-100" href="#">Contact</a>
+</div>
+</div>
+</footer>
+</body></html>

@@ -1,19 +1,235 @@
 @import "tailwindcss";
 
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+/* ── Dark mode via class on <html> ── */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ── Theme Tokens ── */
+@theme {
+  /* Surfaces — Neural Obsidian */
+  --color-background:                  #0e0e0e;
+  --color-surface:                     #0e0e0e;
+  --color-surface-dim:                 #0a0a0a;
+  --color-surface-container-lowest:    #000000;
+  --color-surface-container-low:       #131313;
+  --color-surface-container:           #1a1919;
+  --color-surface-container-high:      #201f1f;
+  --color-surface-container-highest:   #262626;
+  --color-surface-variant:             #262626;
+  --color-surface-bright:              #2c2c2c;
+
+  /* Brand Accents */
+  --color-primary:                     #72eff5;
+  --color-primary-dim:                 #63e1e7;
+  --color-primary-container:           #1fb1b7;
+  --color-secondary:                   #d575ff;
+  --color-secondary-dim:               #b90afc;
+  --color-secondary-container:         #9800d0;
+  --color-tertiary:                    #ff9ac3;
+  --color-tertiary-dim:                #ec77aa;
+  --color-error:                       #ff6e84;
+  --color-error-dim:                   #d73357;
+
+  /* On-colors */
+  --color-on-surface:                  #ffffff;
+  --color-on-surface-variant:          #adaaaa;
+  --color-on-primary:                  #00585b;
+  --color-on-primary-container:        #002829;
+  --color-on-secondary:                #390050;
+  --color-on-secondary-container:      #fff5fc;
+  --color-on-tertiary:                 #6b0c40;
+  --color-on-error:                    #490013;
+
+  /* Borders */
+  --color-outline:                     #777575;
+  --color-outline-variant:             #484847;
+
+  /* Light mode — Neural Alabaster */
+  --color-alabaster-bg:                #f5f3ef;
+  --color-alabaster-surface:           #ffffff;
+  --color-alabaster-container:         #ededeb;
+  --color-alabaster-container-high:    #e2e0dc;
+  --color-alabaster-on-surface:        #1c1c1e;
+  --color-alabaster-on-variant:        #4a4a52;
+  --color-alabaster-outline:           #c7c5c1;
+
+  /* Typography */
+  --font-family-headline: 'Manrope', sans-serif;
+  --font-family-body:     'Inter', sans-serif;
+  --font-family-label:    'Inter', sans-serif;
+
+  --font-size-10: 0.625rem;
+  --font-size-12: 0.75rem;
+  --font-size-14: 0.875rem;
+  --font-size-16: 1rem;
+  --font-size-18: 1.125rem;
+  --font-size-20: 1.25rem;
+  --font-size-24: 1.5rem;
+  --font-size-32: 2rem;
+  --font-size-40: 2.5rem;
+  --font-size-56: 3.5rem;
+
+  /* Border radius */
+  --radius:      0.25rem;
+  --radius-lg:   0.5rem;
+  --radius-xl:   0.75rem;
+  --radius-2xl:  1rem;
+  --radius-3xl:  1.5rem;
+  --radius-full: 9999px;
+
+  /* Shadows / Glows */
+  --shadow-synapse:    0 20px 40px rgba(0,0,0,0.4), 0 0 20px rgba(114,239,245,0.05);
+  --shadow-ai:         0 20px 40px rgba(0,0,0,0.4), 0 0 20px rgba(114,239,245,0.08);
+  --shadow-nav:        0 20px 40px rgba(0,0,0,0.4), 0 0 20px rgba(213,117,255,0.10);
+  --shadow-cta:        0 4px 24px rgba(114,239,245,0.20);
+  --shadow-ai-button:  0 4px 30px rgba(213,117,255,0.25);
+
+  /* Animations */
+  --animate-shimmer:    shimmer 1.5s infinite;
+  --animate-blob-drift: blob-drift 8s ease-in-out infinite;
+  --animate-pulse-glow: pulse-glow 2s ease-in-out infinite;
+  --animate-spin-slow:  spin 3s linear infinite;
+
+  /* Easing */
+  --ease-spring:    cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out-expo:  cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Prevent theme flash on load */
-html[data-theme="light"] { background: #f0f0f8; }
-html[data-theme="dark"]  { background: #0f0f23; }
+/* ── Keyframes ── */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+@keyframes blob-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(30px, -20px) scale(1.05); }
+  66%       { transform: translate(-20px, 15px) scale(0.95); }
+}
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.6; }
+  50%       { opacity: 1; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slide-up {
+  from { transform: translateY(8px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+@keyframes slide-in-from-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+@keyframes slide-in-from-bottom {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+@keyframes zoom-in-95 {
+  from { transform: scale(0.95); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+/* ── Global primitives ── */
+
+/* Glass surfaces */
+.glass-panel {
+  background: rgba(38, 38, 38, 0.60);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.glass-panel-dark {
+  background: rgba(19, 19, 19, 0.60);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #72eff5, #d575ff, #ff9ac3);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glowing text */
+.glow-text {
+  text-shadow: 0 0 20px rgba(114, 239, 245, 0.4);
+}
+
+/* Press animation (spring bounce-back) */
+.press-scale {
+  transition: transform 150ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.press-scale:active {
+  transform: scale(0.95);
+}
+
+/* Ambient synapse background */
+.synapse-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(114, 239, 245, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 80% 70%, rgba(213, 117, 255, 0.08) 0%, transparent 40%);
+}
+
+/* Skeleton shimmer */
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(38, 38, 38, 0.8) 25%,
+    rgba(44, 44, 44, 0.9) 50%,
+    rgba(38, 38, 38, 0.8) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0e0e0e; }
+::-webkit-scrollbar-thumb { background: #262626; border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: #484847; }
+
+/* Selection */
+::selection {
+  background: rgba(114, 239, 245, 0.2);
+  color: #ffffff;
+}
+
+/* Focus rings */
+:focus-visible {
+  outline: 2px solid #72eff5;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+  .synapse-bg { display: none; }
+}
+
+/* ── Base styles ── */
+html, body {
+  min-height: 100dvh;
+  background: #0e0e0e;
+  color: #ffffff;
+  overflow-x: hidden;
+  max-width: 100vw;
+}
 
 body {
-  background: #0f0f23;
-  color: #eaeaea;
-  font-family: 'Söhne', system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', sans-serif;
   -webkit-font-smoothing: antialiased;
-  transition: background 0.25s, color 0.25s;
+  -moz-osx-font-smoothing: grayscale;
 }
+
+/* App is dark-mode only — light mode removed because all component
+   inline styles use hardcoded dark colors that CSS variables can't override */

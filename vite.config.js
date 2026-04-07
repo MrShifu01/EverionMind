@@ -19,6 +19,7 @@ export default defineConfig({
         theme_color: '#0f0f23',
         background_color: '#0f0f23',
         display: 'standalone',
+        orientation: 'any',
         scope: '/',
         start_url: '/',
         icons: [
@@ -34,6 +35,6 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    setupFiles: './src/test-setup.js',
+    setupFiles: './src/test-setup.ts',
   },
 })
