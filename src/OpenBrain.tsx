@@ -220,21 +220,12 @@ export default function OpenBrain() {
             navViews={NAV_VIEWS}
           >
             {brains.length > 0 && (
-              <BrainSwitcher brains={brains} activeBrain={activeBrain} onSwitch={setActiveBrain}
-                onBrainCreated={async (brain) => { await refresh(); setActiveBrain(brain); }}
                 onBrainTip={(brain) => setShowBrainTip(brain)}
               />
             )}
           </DesktopSidebar>
 
           <div className="overflow-x-hidden w-full">
-            <div className="min-h-dvh bg-background lg:ml-72">
-              <MobileHeader brainName={activeBrain?.name || "Everion"} brainEmoji="🧠"
-                onToggleTheme={toggleTheme} isDark={isDark} isOnline={isOnline} pendingCount={pendingCount}>
-                {brains.length > 0 && (
-                  <BrainSwitcher brains={brains} activeBrain={activeBrain} onSwitch={setActiveBrain}
-                    onBrainCreated={async (brain) => { await refresh(); setActiveBrain(brain); }}
-                    onBrainTip={(brain) => setShowBrainTip(brain)}
                   />
                 )}
               </MobileHeader>
