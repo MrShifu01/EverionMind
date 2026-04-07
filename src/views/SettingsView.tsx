@@ -310,7 +310,7 @@ function ExportImportPanel({ activeBrain }: { activeBrain: Brain }) {
    SETTINGS VIEW
    ═══════════════════════════════════════════════════════════════ */
 export default function SettingsView() {
-  const { activeBrain, canInvite, canManageMembers, refresh: onRefreshBrains } = useBrain();
+  const { activeBrain, canInvite, canManageMembers, refresh: onRefreshBrains, deleteBrain } = useBrain();
   const [testStatus, setTestStatus] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [byoKey, setByoKey] = useState(() => getUserApiKey() || "");
@@ -348,6 +348,10 @@ export default function SettingsView() {
   });
   // Trash view
   const [showTrash, setShowTrash] = useState(false);
+  // Danger zone — brain deletion
+  const [confirmDeleteBrain, setConfirmDeleteBrain] = useState(false);
+  const [deletingBrain, setDeletingBrain] = useState(false);
+  const [deleteBrainError, setDeleteBrainError] = useState<string | null>(null);
   // Brain members
   const [members, setMembers] = useState<BrainMember[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -1312,6 +1316,52 @@ export default function SettingsView() {
           Restart Onboarding
         </button>
       </div>
+
+      {/* ─── Danger Zone ─── */}
+      {activeBrain && activeBrain.myRole === "owner" && (
+        <div className="rounded-2xl border p-4 space-y-3" style={{ background: "rgba(220,38,38,0.05)", borderColor: "rgba(220,38,38,0.2)" }}>
+          <div>
+            <p className="text-sm font-semibold" style={{ color: "#ef4444" }}>Danger Zone</p>
+            <p className="text-xs mt-0.5" style={{ color: "#777" }}>Irreversible actions. Proceed with care.</p>
+          </div>
+          <div className="space-y-2">
+            <p className="text-xs" style={{ color: "#aaa" }}>
+              Delete brain <strong className="text-white">{activeBrain.name}</strong> and all its entries permanently. This cannot be undone.
+            </p>
+            {deleteBrainError && (
+              <p className="text-xs" style={{ color: "#ef4444" }}>{deleteBrainError}</p>
+            )}
+            <button
+              disabled={deletingBrain}
+              onClick={async () => {
+                if (!confirmDeleteBrain) {
+                  setConfirmDeleteBrain(true);
+                  setTimeout(() => setConfirmDeleteBrain(false), 5000);
+                  return;
+                }
+                setDeletingBrain(true);
+                setDeleteBrainError(null);
+                try {
+                  await deleteBrain(activeBrain.id);
+                } catch (e: any) {
+                  setDeleteBrainError(e.message || "Failed to delete brain");
+                  setDeletingBrain(false);
+                  setConfirmDeleteBrain(false);
+                }
+              }}
+              className="rounded-xl px-4 py-2 text-xs font-bold transition-all disabled:opacity-40"
+              style={{
+                background: confirmDeleteBrain ? "rgba(220,38,38,0.25)" : "rgba(220,38,38,0.1)",
+                color: confirmDeleteBrain ? "#fca5a5" : "#ef4444",
+                border: "1px solid rgba(220,38,38,0.3)",
+                minHeight: 44,
+              }}
+            >
+              {deletingBrain ? "Deleting..." : confirmDeleteBrain ? "Tap again to confirm — this is permanent" : "Delete this Brain"}
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );

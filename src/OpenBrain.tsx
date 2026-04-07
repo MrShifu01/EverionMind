@@ -1006,8 +1006,9 @@ export default function OpenBrain() {
       refresh,
       canInvite,
       canManageMembers,
+      deleteBrain,
     }),
-    [activeBrain, brains, refresh, canInvite, canManageMembers],
+    [activeBrain, brains, refresh, canInvite, canManageMembers, deleteBrain],
   );
 
   return (
@@ -1036,7 +1037,7 @@ export default function OpenBrain() {
                   await refresh();
                   setActiveBrain(brain);
                 }}
-                onBrainDeleted={deleteBrain}
+
                 onBrainTip={(brain) => setShowBrainTip(brain)}
               />
             )}
@@ -1065,7 +1066,7 @@ export default function OpenBrain() {
                   await refresh();
                   setActiveBrain(brain);
                 }}
-                onBrainDeleted={deleteBrain}
+
                 onBrainTip={(brain) => setShowBrainTip(brain)}
               />
             )}
