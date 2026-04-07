@@ -1,14 +1,22 @@
-import { describe, it, expect } from 'vitest';
-import { TC, PC, fmtD, INITIAL_ENTRIES, LINKS } from '../../src/data/constants';
-import type { EntryType, Priority, TypeConfig, PriorityConfig } from '../../src/types';
+import { describe, it, expect } from "vitest";
+import { TC, PC, fmtD, INITIAL_ENTRIES, LINKS } from "../../src/data/constants";
+import type { EntryType, Priority, TypeConfig, PriorityConfig } from "../../src/types";
 
-describe('constants', () => {
-  it('TC has all entry types with icon and color', () => {
+describe("constants", () => {
+  it("TC has all entry types with icon and color", () => {
     const expectedTypes: EntryType[] = [
-      'reminder', 'document', 'contact', 'place', 'person',
-      'idea', 'color', 'decision', 'note', 'secret',
+      "reminder",
+      "document",
+      "contact",
+      "place",
+      "person",
+      "idea",
+      "color",
+      "decision",
+      "note",
+      "secret",
     ];
-    expectedTypes.forEach(type => {
+    expectedTypes.forEach((type) => {
       const config: TypeConfig = TC[type];
       expect(config).toBeDefined();
       expect(config.i).toBeTruthy();
@@ -16,9 +24,9 @@ describe('constants', () => {
     });
   });
 
-  it('PC has all priorities with bg, color, and label', () => {
-    const expectedPriorities: Priority[] = ['high', 'medium', 'low'];
-    expectedPriorities.forEach(p => {
+  it("PC has all priorities with bg, color, and label", () => {
+    const expectedPriorities: Priority[] = ["high", "medium", "low"];
+    expectedPriorities.forEach((p) => {
       const config: PriorityConfig = PC[p];
       expect(config).toBeDefined();
       expect(config.bg).toBeTruthy();
@@ -27,18 +35,18 @@ describe('constants', () => {
     });
   });
 
-  it('fmtD formats dates in en-ZA locale', () => {
-    const result = fmtD('2024-01-15');
-    expect(result).toContain('15');
-    expect(result).toContain('Jan');
-    expect(result).toContain('2024');
+  it("fmtD formats dates in en-ZA locale", () => {
+    const result = fmtD("2024-01-15");
+    expect(result).toContain("15");
+    expect(result).toContain("Jan");
+    expect(result).toContain("2024");
   });
 
-  it('INITIAL_ENTRIES is an empty array', () => {
+  it("INITIAL_ENTRIES is an empty array", () => {
     expect(INITIAL_ENTRIES).toEqual([]);
   });
 
-  it('LINKS is an empty array', () => {
+  it("LINKS is an empty array", () => {
     expect(LINKS).toEqual([]);
   });
 });

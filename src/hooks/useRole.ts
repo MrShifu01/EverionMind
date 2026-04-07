@@ -1,4 +1,4 @@
-import type { Brain, RolePermissions } from '../types';
+import type { Brain, RolePermissions } from "../types";
 
 export function useRole(brain: Brain | null | undefined): RolePermissions {
   const role = brain?.myRole ?? "viewer";

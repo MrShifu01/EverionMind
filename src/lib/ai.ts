@@ -7,6 +7,7 @@ import {
   getOpenRouterModel,
   getModelForTask,
 } from "./aiFetch";
+import { getLearningsContext } from "./learningEngine";
 
 interface AIMessage {
   role: string;
@@ -26,12 +27,14 @@ export interface CallAIOptions {
   max_tokens?: number;
   memoryGuide?: string;
   task?: string;
+  /** When provided, auto-injects user learnings into the system prompt */
+  brainId?: string;
 }
 
 const ENDPOINT: Record<string, string> = {
-  anthropic:   "/api/anthropic",
-  openai:      "/api/openai",
-  openrouter:  "/api/openrouter",
+  anthropic: "/api/anthropic",
+  openai: "/api/openai",
+  openrouter: "/api/openrouter",
 };
 
 function normalizeMessages(messages: AIMessage[], provider: string): AIMessage[] {
@@ -53,13 +56,23 @@ function normalizeMessages(messages: AIMessage[], provider: string): AIMessage[]
   });
 }
 
-export async function callAI({ messages = [], system, max_tokens, memoryGuide, task }: CallAIOptions = {}): Promise<Response> {
+export async function callAI({
+  messages = [],
+  system,
+  max_tokens,
+  memoryGuide,
+  task,
+  brainId,
+}: CallAIOptions = {}): Promise<Response> {
   const provider = getUserProvider();
   const endpoint = ENDPOINT[provider] ?? ENDPOINT.anthropic;
 
   let model: string;
   if (provider === "openrouter") {
-    model = (task ? getModelForTask(task) : null) || getOpenRouterModel() || "google/gemini-2.0-flash-exp:free";
+    model =
+      (task ? getModelForTask(task) : null) ||
+      getOpenRouterModel() ||
+      "google/gemini-2.0-flash-exp:free";
   } else {
     model = getUserModel();
   }
@@ -71,9 +84,17 @@ export async function callAI({ messages = [], system, max_tokens, memoryGuide, t
     userKey = getUserApiKey();
   }
 
-  const fullSystem = memoryGuide
-    ? `[Classification Guide]\n${memoryGuide}\n\n[Task]\n${system || ""}`
-    : system;
+  // Build system prompt: base → memory guide → user learnings
+  let fullSystem = system || "";
+  if (memoryGuide) {
+    fullSystem = `[Classification Guide]\n${memoryGuide}\n\n[Task]\n${fullSystem}`;
+  }
+  if (brainId) {
+    const learnings = getLearningsContext(brainId);
+    if (learnings) {
+      fullSystem = `${fullSystem}\n\n--- USER LEARNING CONTEXT ---\nThis user's past decisions reveal preferences. Adapt your output accordingly:\n${learnings}\n--- END LEARNING CONTEXT ---`;
+    }
+  }
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",

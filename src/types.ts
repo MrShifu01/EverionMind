@@ -1,12 +1,20 @@
 // ─── Core Domain Types ───
 
 export type EntryType =
-  | 'reminder' | 'document' | 'contact' | 'place'
-  | 'person' | 'idea' | 'color' | 'decision' | 'note' | 'secret';
+  | "reminder"
+  | "document"
+  | "contact"
+  | "place"
+  | "person"
+  | "idea"
+  | "color"
+  | "decision"
+  | "note"
+  | "secret";
 
-export type Priority = 'high' | 'medium' | 'low';
+export type Priority = "high" | "medium" | "low";
 
-export type Workspace = 'business' | 'personal' | 'both';
+export type Workspace = "business" | "personal" | "both";
 
 export interface EntryMetadata {
   phone?: string;
@@ -38,8 +46,8 @@ export interface Entry {
 }
 
 export interface TypeConfig {
-  i: string;  // icon emoji
-  c: string;  // color hex
+  i: string; // icon emoji
+  c: string; // color hex
 }
 
 export interface PriorityConfig {
@@ -65,7 +73,7 @@ export interface Brain {
 
 export interface ToastEvent {
   message: string;
-  type: 'info' | 'error' | 'success';
+  type: "info" | "error" | "success";
   id: number;
 }
 

@@ -1,9 +1,9 @@
-import type { Entry } from '../types';
+import type { Entry } from "../types";
 
-const DB_NAME = 'openbrain-cache';
-const STORE = 'entries_cache';
+const DB_NAME = "openbrain-cache";
+const STORE = "entries_cache";
 const DB_VERSION = 1;
-const CACHE_KEY = 'entries';
+const CACHE_KEY = "entries";
 
 interface CacheRecord {
   key: string;
@@ -15,7 +15,7 @@ function openCacheDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
-      req.result.createObjectStore(STORE, { keyPath: 'key' });
+      req.result.createObjectStore(STORE, { keyPath: "key" });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -23,18 +23,26 @@ function openCacheDB(): Promise<IDBDatabase> {
 }
 
 export async function writeEntriesCache(entries: Entry[]): Promise<void> {
-  try { localStorage.setItem('openbrain_entries', JSON.stringify(entries)); } catch { /* ignore */ }
+  try {
+    localStorage.setItem("openbrain_entries", JSON.stringify(entries));
+  } catch {
+    /* ignore */
+  }
 
   try {
     const db = await openCacheDB();
     await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).put({ key: CACHE_KEY, data: entries, ts: Date.now() } satisfies CacheRecord);
+      const tx = db.transaction(STORE, "readwrite");
+      tx.objectStore(STORE).put({
+        key: CACHE_KEY,
+        data: entries,
+        ts: Date.now(),
+      } satisfies CacheRecord);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
   } catch (e: unknown) {
-    console.warn('[entriesCache] IDB write failed:', e instanceof Error ? e.message : e);
+    console.warn("[entriesCache] IDB write failed:", e instanceof Error ? e.message : e);
   }
 }
 
@@ -42,7 +50,7 @@ export async function readEntriesCache(): Promise<Entry[] | null> {
   try {
     const db = await openCacheDB();
     const record = await new Promise<CacheRecord | null>((resolve, reject) => {
-      const tx = db.transaction(STORE, 'readonly');
+      const tx = db.transaction(STORE, "readonly");
       const req = tx.objectStore(STORE).get(CACHE_KEY);
       req.onsuccess = () => resolve((req.result as CacheRecord) ?? null);
       req.onerror = () => reject(req.error);
@@ -51,16 +59,21 @@ export async function readEntriesCache(): Promise<Entry[] | null> {
       return record.data;
     }
   } catch (e: unknown) {
-    console.warn('[entriesCache] IDB read failed, falling back to localStorage:', e instanceof Error ? e.message : e);
+    console.warn(
+      "[entriesCache] IDB read failed, falling back to localStorage:",
+      e instanceof Error ? e.message : e,
+    );
   }
 
   try {
-    const cached = localStorage.getItem('openbrain_entries');
+    const cached = localStorage.getItem("openbrain_entries");
     if (cached) {
       const parsed = JSON.parse(cached);
       if (Array.isArray(parsed) && parsed.length > 0) return parsed as Entry[];
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   return null;
 }

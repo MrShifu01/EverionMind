@@ -1,5 +1,4 @@
 import type { JSX } from "react";
-import { useTheme } from "../ThemeContext";
 import type { Brain } from "../types";
 
 const TIPS: Record<string, string[]> = {
@@ -24,39 +23,35 @@ interface BrainTipCardProps {
 }
 
 export default function BrainTipCard({ brain, onDismiss, onFill }: BrainTipCardProps): JSX.Element {
-  const { t } = useTheme();
   const tips = TIPS[brain.type || ""] || [];
   const emoji = brain.type === "business" ? "🏪" : "🏠";
 
   return (
-    <div style={{
-      margin: "0 20px 16px",
-      padding: "16px 18px",
-      background: "linear-gradient(135deg, rgba(78,205,196,0.08), rgba(69,183,209,0.06))",
-      border: "1px solid rgba(78,205,196,0.25)",
-      borderRadius: 14,
-      position: "relative",
-    }}>
+    <div
+      className="relative rounded-2xl border p-4 space-y-3"
+      style={{
+        background: "rgba(38,38,38,0.6)",
+        borderColor: "rgba(72,72,71,0.2)",
+        fontFamily: "'Manrope', sans-serif",
+      }}
+    >
       <button
         onClick={onDismiss}
-        style={{
-          position: "absolute", top: 10, right: 12,
-          background: "none", border: "none", color: t.textFaint,
-          fontSize: 16, cursor: "pointer", lineHeight: 1,
-        }}
-      >×</button>
+        className="absolute top-3 right-3 text-sm rounded-full w-6 h-6 flex items-center justify-center"
+        style={{ color: "#777", background: "rgba(72,72,71,0.3)" }}
+      >
+        ×
+      </button>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        <span style={{ fontSize: 18 }}>{emoji}</span>
-        <span style={{ fontSize: 13, fontWeight: 700, color: t.text }}>
-          {brain.name} is ready — start here
-        </span>
+      <div className="flex items-center gap-2">
+        <span className="text-xl">{emoji}</span>
+        <span className="text-sm font-semibold text-white">{brain.name} is ready — start here</span>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
-        {tips.map(tip => (
-          <div key={tip} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, color: t.textDim }}>
-            <span style={{ color: "#4ECDC4", marginTop: 1, flexShrink: 0 }}>✦</span>
+      <div className="space-y-2">
+        {tips.map((tip) => (
+          <div key={tip} className="flex items-start gap-2 text-sm" style={{ color: "#aaa" }}>
+            <span style={{ color: "#72eff5" }}>✦</span>
             {tip}
           </div>
         ))}
@@ -64,15 +59,10 @@ export default function BrainTipCard({ brain, onDismiss, onFill }: BrainTipCardP
 
       <button
         onClick={onFill}
+        className="w-full rounded-xl py-2 text-sm font-semibold transition-opacity hover:opacity-90"
         style={{
-          padding: "8px 18px",
-          background: "linear-gradient(135deg, #4ECDC4, #45B7D1)",
-          border: "none",
-          borderRadius: 8,
-          color: "#0f0f23",
-          fontSize: 12,
-          fontWeight: 700,
-          cursor: "pointer",
+          background: "linear-gradient(135deg, #72eff5, #1fb1b7)",
+          color: "#0a0a0a",
         }}
       >
         Start filling →

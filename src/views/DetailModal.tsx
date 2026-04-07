@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { TC } from "../data/constants";
 import { extractPhone, toWaUrl } from "../lib/phone";
-import { useTheme } from "../ThemeContext";
 import type { Entry, Brain, EntryType } from "../types";
 
 interface DetailLink {
@@ -24,8 +23,18 @@ interface DetailModalProps {
   vaultUnlocked?: boolean;
 }
 
-export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReorder, entries = [], links = [], canWrite = true, brains = [], vaultUnlocked = false }: DetailModalProps) {
-  const { t } = useTheme();
+export default function DetailModal({
+  entry,
+  onClose,
+  onDelete,
+  onUpdate,
+  onReorder,
+  entries = [],
+  links = [],
+  canWrite = true,
+  brains = [],
+  vaultUnlocked = false,
+}: DetailModalProps) {
   if (!entry) return null;
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -35,20 +44,21 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
   const [editTitle, setEditTitle] = useState(entry.title);
   const [editContent, setEditContent] = useState(entry.content);
   const [editType, setEditType] = useState<string>(entry.type);
-  const [editTags, setEditTags] = useState((entry.tags || []).join(', '));
-  const [editBrainId, setEditBrainId] = useState(entry.brain_id || '');
+  const [editTags, setEditTags] = useState((entry.tags || []).join(", "));
+  const [editBrainId, setEditBrainId] = useState(entry.brain_id || "");
   const [shareMsg, setShareMsg] = useState<string | null>(null);
   const [secretRevealed, setSecretRevealed] = useState(false);
-  const isSecret = entry.type === 'secret';
+  const isSecret = entry.type === "secret";
   const cfg = TC[editType as EntryType] || TC.note;
-  const related = links.filter(l => l.from === entry.id || l.to === entry.id).map(l => ({
-    ...l,
-    other: entries.find(e => e.id === (l.from === entry.id ? l.to : l.from)),
-    dir: l.from === entry.id ? '→' : '←',
-  }));
-  const skip = new Set(['category', 'status']);
+  const related = links
+    .filter((l) => l.from === entry.id || l.to === entry.id)
+    .map((l) => ({
+      ...l,
+      other: entries.find((e) => e.id === (l.from === entry.id ? l.to : l.from)),
+      dir: l.from === entry.id ? "→" : "←",
+    }));
+  const skip = new Set(["category", "status"]);
   const meta = Object.entries(entry.metadata || {}).filter(([k]) => !skip.has(k));
-  const inp: React.CSSProperties = { padding: '10px 14px', background: t.bg, border: `1px solid ${t.accentBorder}`, borderRadius: 10, color: t.textSoft, fontSize: 14, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' };
 
   useEffect(() => {
     return () => {
@@ -58,15 +68,28 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
 
   // UX-5: Escape key closes modal
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') { if (editing) setEditing(false); else onClose(); } };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (editing) setEditing(false);
+        else onClose();
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
   }, [editing, onClose]);
 
   const handleSave = async () => {
     setSaving(true);
-    const tags = editTags.split(',').map(t => t.trim()).filter(Boolean);
-    const changes: Record<string, any> = { title: editTitle, content: editContent, type: editType, tags };
+    const tags = editTags
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+    const changes: Record<string, any> = {
+      title: editTitle,
+      content: editContent,
+      type: editType,
+      tags,
+    };
     if (editBrainId && editBrainId !== entry.brain_id) changes.brain_id = editBrainId;
     await onUpdate?.(entry.id, changes);
     setSaving(false);
@@ -79,131 +102,375 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
       entry.title,
       entry.content,
       phone ? `📞 ${phone}` : null,
-      Object.entries(entry.metadata || {}).filter(([k]) => !['category', 'workspace'].includes(k)).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join('\n') || null,
-      '— from OpenBrain',
-    ].filter(Boolean).join('\n');
+      Object.entries(entry.metadata || {})
+        .filter(([k]) => !["category", "workspace"].includes(k))
+        .map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`)
+        .join("\n") || null,
+      "— from OpenBrain",
+    ]
+      .filter(Boolean)
+      .join("\n");
 
     if (navigator.share) {
-      try { await navigator.share({ title: entry.title, text }); } catch {}
+      try {
+        await navigator.share({ title: entry.title, text });
+      } catch {}
     } else {
       await navigator.clipboard.writeText(text);
-      setShareMsg('Copied to clipboard');
+      setShareMsg("Copied to clipboard");
       setTimeout(() => setShareMsg(null), 2500);
     }
   };
 
   const phone = extractPhone(entry);
-  const isSupplier = entry.tags?.includes('supplier') || entry.metadata?.category === 'supplier';
-  const abtn = (color: string): React.CSSProperties => ({ padding: '6px 14px', borderRadius: 20, border: `1px solid ${color}40`, background: `${color}15`, color, fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' });
+  const isSupplier = entry.tags?.includes("supplier") || entry.metadata?.category === "supplier";
 
   // Build quick actions for this entry type
   const quickActions = [];
 
-  if (isSupplier || entry.type === 'contact' || entry.type === 'person') {
+  if (isSupplier || entry.type === "contact" || entry.type === "person") {
     if (phone) {
-      quickActions.push(<a key="call" href={`tel:${phone}`} style={abtn(t.accent)}>📞 Call</a>);
-      quickActions.push(<a key="wa" href={toWaUrl(phone)} target="_blank" rel="noreferrer" style={abtn('#25D366')}>💬 WhatsApp</a>);
+      quickActions.push(
+        <a key="call" href={`tel:${phone}`} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale" style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.2)", color: "#adaaaa" }}>
+          📞 Call
+        </a>,
+      );
+      quickActions.push(
+        <a key="wa" href={toWaUrl(phone)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale" style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.2)", color: "#adaaaa" }}>
+          💬 WhatsApp
+        </a>,
+      );
     }
     if (isSupplier && onReorder) {
-      quickActions.push(<button key="reorder" onClick={() => onReorder(entry)} style={abtn('#FF6B35')}>🔁 Reorder</button>);
+      quickActions.push(
+        <button key="reorder" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale" style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.2)", color: "#adaaaa" }} onClick={() => onReorder(entry)}>
+          🔁 Reorder
+        </button>,
+      );
     }
   }
 
-  if (entry.type === 'reminder') {
-    if (entry.metadata?.status !== 'done') {
+  if (entry.type === "reminder") {
+    if (entry.metadata?.status !== "done") {
       quickActions.push(
-        <button key="done" onClick={() => onUpdate?.(entry.id, { metadata: { ...entry.metadata, status: 'done' }, importance: 0 })} style={abtn(t.accent)}>✅ Mark Done</button>
+        <button
+          key="done"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all press-scale"
+          style={{ background: "linear-gradient(135deg, #72eff5, #1fb1b7)", color: "#002829" }}
+          onClick={() =>
+            onUpdate?.(entry.id, { metadata: { ...entry.metadata, status: "done" }, importance: 0 })
+          }
+        >
+          ✅ Mark Done
+        </button>,
       );
     }
     quickActions.push(
-      <button key="snooze1w" onClick={() => {
-        const d = new Date(entry.metadata?.due_date || Date.now());
-        d.setDate(d.getDate() + 7);
-        onUpdate?.(entry.id, { metadata: { ...entry.metadata, due_date: d.toISOString().split('T')[0] } });
-      }} style={abtn('#A29BFE')}>⏰ +1 week</button>
+      <button
+        key="snooze1w"
+        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale"
+        style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.2)", color: "#adaaaa" }}
+        onClick={() => {
+          const d = new Date(entry.metadata?.due_date || Date.now());
+          d.setDate(d.getDate() + 7);
+          onUpdate?.(entry.id, {
+            metadata: { ...entry.metadata, due_date: d.toISOString().split("T")[0] },
+          });
+        }}
+      >
+        ⏰ +1 week
+      </button>,
     );
     quickActions.push(
-      <button key="snooze1m" onClick={() => {
-        const d = new Date(entry.metadata?.due_date || Date.now());
-        d.setMonth(d.getMonth() + 1);
-        onUpdate?.(entry.id, { metadata: { ...entry.metadata, due_date: d.toISOString().split('T')[0] } });
-      }} style={abtn('#A29BFE')}>⏰ +1 month</button>
+      <button
+        key="snooze1m"
+        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale"
+        style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.2)", color: "#adaaaa" }}
+        onClick={() => {
+          const d = new Date(entry.metadata?.due_date || Date.now());
+          d.setMonth(d.getMonth() + 1);
+          onUpdate?.(entry.id, {
+            metadata: { ...entry.metadata, due_date: d.toISOString().split("T")[0] },
+          });
+        }}
+      >
+        ⏰ +1 month
+      </button>,
     );
   }
 
-  if (entry.type === 'idea') {
-    if (entry.metadata?.status !== 'in_progress') {
+  if (entry.type === "idea") {
+    if (entry.metadata?.status !== "in_progress") {
       quickActions.push(
-        <button key="start" onClick={() => onUpdate?.(entry.id, { metadata: { ...entry.metadata, status: 'in_progress' } })} style={abtn('#FFEAA7')}>🚀 Start this</button>
+        <button
+          key="start"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all press-scale"
+          style={{ background: "linear-gradient(135deg, #72eff5, #1fb1b7)", color: "#002829" }}
+          onClick={() =>
+            onUpdate?.(entry.id, { metadata: { ...entry.metadata, status: "in_progress" } })
+          }
+        >
+          🚀 Start this
+        </button>,
       );
     }
-    if (entry.metadata?.status !== 'archived') {
+    if (entry.metadata?.status !== "archived") {
       quickActions.push(
-        <button key="archive" onClick={() => onUpdate?.(entry.id, { metadata: { ...entry.metadata, status: 'archived' } })} style={abtn('#666')}>📦 Archive</button>
+        <button
+          key="archive"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale"
+          style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.2)", color: "#adaaaa" }}
+          onClick={() =>
+            onUpdate?.(entry.id, { metadata: { ...entry.metadata, status: "archived" } })
+          }
+        >
+          📦 Archive
+        </button>,
       );
     }
   }
 
-  if (entry.type === 'document' && onReorder) {
+  if (entry.type === "document" && onReorder) {
     quickActions.push(
-      <button key="renewal" onClick={() => onReorder({ ...entry, _renewalMode: true })} style={abtn('#FF6B35')}>🔔 Set renewal reminder</button>
+      <button
+        key="renewal"
+        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale"
+        style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.2)", color: "#adaaaa" }}
+        onClick={() => onReorder({ ...entry, _renewalMode: true })}
+      >
+        🔔 Set renewal reminder
+      </button>,
     );
   }
 
   if (isSecret) {
     if (secretRevealed) {
       quickActions.push(
-        <button key="copy-secret" onClick={() => { navigator.clipboard.writeText(entry.content || '').then(() => { setShareMsg('Copied to clipboard'); setTimeout(() => setShareMsg(null), 2500); }); }} style={abtn('#FF4757')}>📋 Copy</button>
+        <button
+          key="copy-secret"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale"
+          style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.2)", color: "#adaaaa" }}
+          onClick={() => {
+            navigator.clipboard.writeText(entry.content || "").then(() => {
+              setShareMsg("Copied to clipboard");
+              setTimeout(() => setShareMsg(null), 2500);
+            });
+          }}
+        >
+          📋 Copy
+        </button>,
       );
       quickActions.push(
-        <button key="hide-secret" onClick={() => setSecretRevealed(false)} style={abtn('#666')}>👁 Hide</button>
+        <button key="hide-secret" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale" style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.2)", color: "#adaaaa" }} onClick={() => setSecretRevealed(false)}>
+          👁 Hide
+        </button>,
       );
     }
   }
 
   // Share always available (but not for secret entries)
-  if (!isSecret) quickActions.push(<button key="share" onClick={handleShare} style={abtn('#45B7D1')}>📤 Share</button>);
+  if (!isSecret)
+    quickActions.push(
+      <button key="share" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale" style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.2)", color: "#adaaaa" }} onClick={handleShare}>
+        📤 Share
+      </button>,
+    );
 
   return (
-    <div role="dialog" aria-modal="true" aria-labelledby="detail-modal-title" style={{ position: 'fixed', inset: 0, background: '#000000CC', zIndex: 1000 /* z-index scale: PinGate=9999, Onboarding=3000, DetailModal=1000 */, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }} onClick={editing ? undefined : onClose}>
-      <div style={{ background: t.surface2, borderRadius: 16, maxWidth: 600, width: '100%', maxHeight: '90vh', overflow: 'auto', border: `1px solid ${cfg.c}40` }} onClick={e => e.stopPropagation()}>
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="detail-modal-title"
+      className="fixed inset-0 z-50 flex items-end lg:items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}
+      onClick={editing ? undefined : onClose}
+    >
+      <div
+        className="relative w-full max-w-lg rounded-t-2xl lg:rounded-2xl border overflow-y-auto max-h-[90vh] p-5"
+        style={{
+          background: "#1a1919",
+          borderColor: "rgba(72,72,71,0.2)",
+          boxShadow: "0 20px 40px rgba(0,0,0,0.5), 0 0 20px rgba(114,239,245,0.05)",
+          animation: "zoom-in-95 0.2s ease-out",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div style={{ padding: '16px 16px', borderBottom: `1px solid ${t.border}`, display: 'flex', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <span style={{ fontSize: 24 }}>{cfg.i}</span>
-              <span style={{ fontSize: 11, color: cfg.c, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5 }}>{editType}</span>
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-lg">{cfg.i}</span>
+              <span
+                className="text-[10px] uppercase tracking-widest font-semibold px-2.5 py-0.5 rounded-full"
+                style={{ background: "rgba(114,239,245,0.1)", color: "#72eff5" }}
+              >
+                {editType}
+              </span>
             </div>
-            {!editing && <h2 id="detail-modal-title" style={{ margin: 0, fontSize: 22, color: t.text, fontWeight: 700 }}>{editTitle}</h2>}
+            {!editing && (
+              <h2
+                id="detail-modal-title"
+                className="text-lg font-bold text-on-surface truncate"
+                style={{ fontFamily: "'Manrope', sans-serif" }}
+              >
+                {editTitle}
+              </h2>
+            )}
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-            {!editing && canWrite && onDelete && <button onClick={async () => { if (!confirmingDelete) { setConfirmingDelete(true); confirmTimerRef.current = setTimeout(() => setConfirmingDelete(false), 3000); } else { setDeleting(true); await onDelete(entry.id); setDeleting(false); } }} disabled={deleting} style={{ padding: '6px 14px', background: deleting ? t.surface : confirmingDelete ? '#FF6B3540' : '#FF6B3520', border: '1px solid #FF6B3540', borderRadius: 8, color: deleting ? t.textFaint : '#FF6B35', fontSize: 12, fontWeight: 600, cursor: deleting ? 'default' : 'pointer' }}>{deleting ? 'Deleting...' : confirmingDelete ? 'Confirm delete?' : 'Delete'}</button>}
-            {!editing && canWrite && onUpdate && <button onClick={() => setEditing(true)} style={{ padding: '6px 14px', background: t.accentLight, border: `1px solid ${t.accentBorder}`, borderRadius: 8, color: t.accent, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Edit</button>}
-            {!canWrite && <span style={{ fontSize: 11, color: '#888', padding: '6px 8px' }}>🔒 View only</span>}
-            <button onClick={editing ? () => setEditing(false) : onClose} style={{ background: 'none', border: 'none', color: t.textDim, fontSize: 24, cursor: 'pointer' }}>✕</button>
+          <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+            {!editing && canWrite && onDelete && (
+              <button
+                className="px-3 py-1.5 rounded-xl text-xs font-semibold transition-all press-scale"
+                style={{
+                  background: confirmingDelete ? "rgba(220,38,38,0.15)" : "rgba(220,38,38,0.08)",
+                  color: confirmingDelete ? "#fca5a5" : "#ef4444",
+                  border: "1px solid rgba(220,38,38,0.2)",
+                }}
+                onClick={async () => {
+                  if (!confirmingDelete) {
+                    setConfirmingDelete(true);
+                    confirmTimerRef.current = setTimeout(() => setConfirmingDelete(false), 3000);
+                  } else {
+                    setDeleting(true);
+                    await onDelete(entry.id);
+                    setDeleting(false);
+                  }
+                }}
+                disabled={deleting}
+              >
+                {deleting ? "Deleting..." : confirmingDelete ? "Confirm delete?" : "Delete"}
+              </button>
+            )}
+            {!editing && canWrite && onUpdate && (
+              <button
+                className="px-3 py-1.5 rounded-xl text-xs font-semibold transition-all press-scale"
+                style={{
+                  border: "1px solid rgba(72,72,71,0.2)",
+                  color: "#adaaaa",
+                }}
+                onClick={() => setEditing(true)}
+              >
+                Edit
+              </button>
+            )}
+            {!canWrite && (
+              <span className="text-xs text-on-surface-variant/60">🔒 View only</span>
+            )}
+            <button
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all press-scale"
+              onClick={editing ? () => setEditing(false) : onClose}
+            >
+              ✕
+            </button>
           </div>
         </div>
 
         {/* Edit form */}
         {editing ? (
-          <div style={{ padding: '16px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div><label style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Title</label><input autoFocus value={editTitle} onChange={e => setEditTitle(e.target.value)} style={inp} /></div>
-            <div><label style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Type</label>
-              <select value={editType} onChange={e => setEditType(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
-                {['note','person','place','idea','contact','document','reminder','color','decision','secret'].map(typ => <option key={typ} value={typ}>{typ}</option>)}
+          <div className="space-y-4 mt-2">
+            <div>
+              <label className="block text-[10px] uppercase tracking-widest font-semibold mb-1.5" style={{ color: "#777" }}>
+                Title
+              </label>
+              <input
+                autoFocus
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl text-on-surface text-sm min-h-[44px] transition-all focus:outline-none"
+                style={{
+                  background: "#262626",
+                  border: "1px solid rgba(72,72,71,0.20)",
+                }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(114,239,245,0.6)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(114,239,245,0.08)"; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(72,72,71,0.20)"; e.currentTarget.style.boxShadow = "none"; }}
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] uppercase tracking-widest font-semibold mb-1.5" style={{ color: "#777" }}>
+                Type
+              </label>
+              <select
+                value={editType}
+                onChange={(e) => setEditType(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl text-on-surface text-sm min-h-[44px] transition-all focus:outline-none cursor-pointer"
+                style={{
+                  background: "#262626",
+                  border: "1px solid rgba(72,72,71,0.20)",
+                }}
+              >
+                {[
+                  "note",
+                  "person",
+                  "place",
+                  "idea",
+                  "contact",
+                  "document",
+                  "reminder",
+                  "color",
+                  "decision",
+                  "secret",
+                ].map((typ) => (
+                  <option key={typ} value={typ}>
+                    {typ}
+                  </option>
+                ))}
               </select>
             </div>
-            <div><label style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Content</label><textarea value={editContent} onChange={e => setEditContent(e.target.value)} rows={4} style={{ ...inp, resize: 'vertical', lineHeight: 1.6 }} /></div>
-            <div><label style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Tags <span style={{ color: t.textFaint, fontWeight: 400, textTransform: 'none' }}>(comma separated)</span></label><input value={editTags} onChange={e => setEditTags(e.target.value)} style={inp} placeholder="tag1, tag2, tag3" /></div>
+            <div>
+              <label className="block text-[10px] uppercase tracking-widest font-semibold mb-1.5" style={{ color: "#777" }}>
+                Content
+              </label>
+              <textarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                rows={4}
+                className="w-full px-4 py-3 rounded-xl text-on-surface text-sm transition-all focus:outline-none resize-y"
+                style={{
+                  background: "#262626",
+                  border: "1px solid rgba(72,72,71,0.20)",
+                }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(114,239,245,0.6)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(114,239,245,0.08)"; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(72,72,71,0.20)"; e.currentTarget.style.boxShadow = "none"; }}
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] uppercase tracking-widest font-semibold mb-1.5" style={{ color: "#777" }}>
+                Tags{" "}
+                <span className="normal-case text-on-surface-variant/50">(comma separated)</span>
+              </label>
+              <input
+                value={editTags}
+                onChange={(e) => setEditTags(e.target.value)}
+                placeholder="tag1, tag2, tag3"
+                className="w-full px-4 py-3 rounded-xl text-on-surface placeholder:text-on-surface-variant/40 text-sm min-h-[44px] transition-all focus:outline-none"
+                style={{
+                  background: "#262626",
+                  border: "1px solid rgba(72,72,71,0.20)",
+                }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(114,239,245,0.6)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(114,239,245,0.08)"; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(72,72,71,0.20)"; e.currentTarget.style.boxShadow = "none"; }}
+              />
+            </div>
             {brains.length > 1 && (
               <div>
-                <label style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Brain</label>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {brains.map(b => {
-                    const emoji = b.type === 'family' ? '🏠' : b.type === 'business' ? '🏪' : '🧠';
+                <label className="block text-[10px] uppercase tracking-widest font-semibold mb-1.5" style={{ color: "#777" }}>
+                  Brain
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {brains.map((b) => {
+                    const emoji = b.type === "family" ? "🏠" : b.type === "business" ? "🏪" : "🧠";
                     const active = editBrainId === b.id;
                     return (
-                      <button key={b.id} onClick={() => setEditBrainId(b.id)} style={{ padding: '6px 14px', borderRadius: 20, border: active ? '1px solid #4ECDC4' : `1px solid ${t.border}`, background: active ? '#4ECDC420' : t.surface, color: active ? '#4ECDC4' : t.textDim, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                      <button
+                        key={b.id}
+                        className="px-3 py-2 rounded-xl text-xs font-semibold transition-all press-scale"
+                        style={{
+                          background: active ? "rgba(114,239,245,0.1)" : "#262626",
+                          border: active ? "1px solid rgba(114,239,245,0.4)" : "1px solid rgba(72,72,71,0.2)",
+                          color: active ? "#72eff5" : "#adaaaa",
+                        }}
+                        onClick={() => setEditBrainId(b.id)}
+                      >
                         {emoji} {b.name}
                       </button>
                     );
@@ -211,54 +478,141 @@ export default function DetailModal({ entry, onClose, onDelete, onUpdate, onReor
                 </div>
               </div>
             )}
-            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-              <button onClick={() => setEditing(false)} style={{ flex: 1, padding: 12, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, color: t.textMuted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={handleSave} disabled={saving || !editTitle.trim()} style={{ flex: 2, padding: 12, background: editTitle.trim() ? `linear-gradient(135deg, ${t.accent}, #45B7D1)` : t.surface, border: 'none', borderRadius: 10, color: editTitle.trim() ? '#0f0f23' : t.textDim, fontSize: 13, fontWeight: 700, cursor: editTitle.trim() ? 'pointer' : 'default' }}>{saving ? 'Saving...' : 'Save changes'}</button>
+            <div className="flex gap-3 pt-2">
+              <button
+                className="flex-1 py-3 rounded-xl text-sm font-semibold text-on-surface-variant hover:text-on-surface transition-all press-scale"
+                style={{ border: "1px solid rgba(72,72,71,0.20)" }}
+                onClick={() => setEditing(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="flex-[2] py-3 rounded-xl text-sm font-bold press-scale transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{
+                  background: saving || !editTitle.trim() ? "#262626" : "linear-gradient(135deg, #72eff5, #1fb1b7)",
+                  color: saving || !editTitle.trim() ? "#777575" : "#002829",
+                  fontFamily: "'Manrope', sans-serif",
+                  boxShadow: !saving && editTitle.trim() ? "0 4px 24px rgba(114,239,245,0.20)" : "none",
+                }}
+                onClick={handleSave}
+                disabled={saving || !editTitle.trim()}
+              >
+                {saving ? "Saving..." : "Save changes"}
+              </button>
             </div>
           </div>
         ) : (
-          <div style={{ padding: '16px 16px' }}>
+          <div className="space-y-4 mt-1">
             {isSecret && !secretRevealed ? (
-              <div style={{ textAlign: 'center', padding: '24px 16px' }}>
-                <div style={{ fontSize: 32, marginBottom: 12 }}>{vaultUnlocked ? '🔐' : '🔒'}</div>
-                <p style={{ color: t.textDim, fontSize: 13, margin: '0 0 16px' }}>
-                  {vaultUnlocked ? 'This entry is end-to-end encrypted' : 'Unlock your Vault to view this secret'}
+              <div className="flex flex-col items-center text-center py-8 gap-3">
+                <div className="text-4xl">{vaultUnlocked ? "🔐" : "🔒"}</div>
+                <p className="text-sm text-on-surface-variant">
+                  {vaultUnlocked
+                    ? "This entry is end-to-end encrypted"
+                    : "Unlock your Vault to view this secret"}
                 </p>
                 {vaultUnlocked ? (
-                  <button onClick={() => setSecretRevealed(true)} style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #FF4757, #FF6B81)', border: 'none', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 44 }}>Reveal content</button>
+                  <button
+                    className="mt-2 px-5 py-2.5 rounded-xl text-sm font-bold press-scale transition-all"
+                    style={{
+                      background: "linear-gradient(135deg, #72eff5, #1fb1b7)",
+                      color: "#002829",
+                      boxShadow: "0 4px 24px rgba(114,239,245,0.20)",
+                    }}
+                    onClick={() => setSecretRevealed(true)}
+                  >
+                    Reveal content
+                  </button>
                 ) : (
-                  <p style={{ color: '#FF4757', fontSize: 12 }}>Go to the Vault tab and enter your passphrase</p>
+                  <p className="text-xs text-on-surface-variant/50 mt-1">
+                    Go to the Vault tab and enter your passphrase
+                  </p>
                 )}
               </div>
             ) : (
               <>
-                <p style={{ color: t.textMid, fontSize: 14, lineHeight: 1.7, margin: 0, ...(isSecret ? { fontFamily: 'monospace', background: '#FF475710', padding: '12px', borderRadius: 8, border: '1px solid #FF475730' } : {}) }}>{editContent}</p>
-                {meta.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px', marginTop: 12 }}>
-                  {meta.map(([k, v]) => <div key={k} style={{ fontSize: 12 }}><span style={{ color: t.textMuted, textTransform: 'capitalize' }}>{k.replace(/_/g, ' ')}: </span><span style={{ color: t.textMid, ...(isSecret ? { fontFamily: 'monospace' } : {}) }}>{Array.isArray(v) ? v.join(', ') : String(v)}</span></div>)}
-                </div>}
+                <p className="text-sm text-on-surface/90 leading-relaxed whitespace-pre-wrap">{editContent}</p>
+                {meta.length > 0 && (
+                  <div
+                    className="rounded-xl p-3 space-y-2"
+                    style={{ background: "#262626" }}
+                  >
+                    {meta.map(([k, v]) => (
+                      <div key={k} className="flex items-baseline gap-2 text-xs">
+                        <span className="text-[10px] uppercase tracking-widest font-semibold flex-shrink-0" style={{ color: "#777" }}>
+                          {k.replace(/_/g, " ")}:{" "}
+                        </span>
+                        <span className="text-on-surface/80">
+                          {Array.isArray(v) ? v.join(", ") : String(v)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </>
             )}
-            {editTags.split(',').map(tag => tag.trim()).filter(Boolean).length > 0 && <div style={{ marginTop: 16 }}><div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{editTags.split(',').map(tag => tag.trim()).filter(Boolean).map(tag => <span key={tag} style={{ fontSize: 11, color: cfg.c, background: cfg.c + '15', padding: '4px 12px', borderRadius: 20 }}>{tag}</span>)}</div></div>}
-            {related.length > 0 && <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${t.border}` }}>
-              <p style={{ fontSize: 11, color: t.textDim, fontWeight: 600, marginBottom: 10, textTransform: 'uppercase' }}>Connections</p>
-              {related.map((r, i) => r.other && <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#ffffff05', borderRadius: 8, marginBottom: 4, fontSize: 13 }}>
-                <span>{TC[r.other.type]?.i}</span><span style={{ color: t.textMuted }}>{r.dir}</span><span style={{ color: t.textMid, flex: 1 }}>{r.other.title}</span><span style={{ color: t.textDim, fontSize: 11, fontStyle: 'italic' }}>{r.rel}</span>
-              </div>)}
-            </div>}
+            {editTags
+              .split(",")
+              .map((tag) => tag.trim())
+              .filter(Boolean).length > 0 && (
+              <div className="pt-1">
+                <div className="flex flex-wrap gap-1.5">
+                  {editTags
+                    .split(",")
+                    .map((tag) => tag.trim())
+                    .filter(Boolean)
+                    .map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded-full px-2.5 py-0.5 text-[11px] font-medium"
+                        style={{ background: "rgba(114,239,245,0.08)", color: "#72eff5" }}
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                </div>
+              </div>
+            )}
+            {related.length > 0 && (
+              <div className="pt-1">
+                <p className="text-[10px] uppercase tracking-widest font-semibold mb-2" style={{ color: "#777" }}>
+                  Connections
+                </p>
+                {related.map(
+                  (r, i) =>
+                    r.other && (
+                      <div
+                        key={i}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg mb-1.5 text-xs"
+                        style={{ background: "#262626" }}
+                      >
+                        <span>{TC[r.other.type]?.i}</span>
+                        <span className="text-on-surface-variant/50">{r.dir}</span>
+                        <span className="text-on-surface flex-1">{r.other.title}</span>
+                        <span className="text-[10px] uppercase tracking-widest text-on-surface-variant/50">{r.rel}</span>
+                      </div>
+                    ),
+                )}
+              </div>
+            )}
           </div>
         )}
 
         {/* Quick Actions */}
         {!editing && quickActions.length > 0 && (
-          <div style={{ padding: '0 16px 16px', borderTop: `1px solid ${t.border}40` }}>
-            <div style={{ paddingTop: 16, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {quickActions}
-            </div>
-            {shareMsg && <p style={{ margin: '8px 0 0', fontSize: 11, color: t.accent }}>{shareMsg}</p>}
+          <div
+            className="mt-4 pt-4"
+            style={{ borderTop: "1px solid rgba(72,72,71,0.15)" }}
+          >
+            <div className="flex flex-wrap gap-2">{quickActions}</div>
+            {shareMsg && (
+              <p className="mt-2 text-xs text-center" style={{ color: "#72eff5" }}>
+                {shareMsg}
+              </p>
+            )}
           </div>
         )}
       </div>
     </div>
   );
 }
-

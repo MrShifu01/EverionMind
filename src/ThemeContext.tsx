@@ -4,7 +4,10 @@ export interface ThemeColors {
   bg: string;
   surface: string;
   surface2: string;
+  surfaceHigh: string;
+  surfaceHighest: string;
   border: string;
+  borderStrong: string;
   text: string;
   textSoft: string;
   textMid: string;
@@ -14,44 +17,71 @@ export interface ThemeColors {
   accent: string;
   accentLight: string;
   accentBorder: string;
+  accentContainer: string;
+  secondary: string;
+  secondaryLight: string;
+  secondaryBorder: string;
+  tertiary: string;
+  tertiaryLight: string;
   error: string;
   success: string;
 }
 
 export const DARK: ThemeColors = {
-  bg: "#0f0f23",
-  surface: "#1a1a2e",
-  surface2: "#16162a",
-  border: "#2a2a4a",
-  text: "#EAEAEA",
-  textSoft: "#ddd",
-  textMid: "#bbb",
-  textMuted: "#999",
-  textDim: "#777",
-  textFaint: "#555",
-  accent: "#4ECDC4",
-  accentLight: "#4ECDC415",
-  accentBorder: "#4ECDC440",
-  error: '#FF6B6B',
-  success: '#51CF66',
+  bg: "#0e0e0e",
+  surface: "#1a1919",
+  surface2: "#131313",
+  surfaceHigh: "#201f1f",
+  surfaceHighest: "#262626",
+  border: "rgba(72,72,71,0.15)",
+  borderStrong: "rgba(72,72,71,0.30)",
+  text: "#ffffff",
+  textSoft: "#ffffff",
+  textMid: "#adaaaa",
+  textMuted: "#adaaaa",
+  textDim: "#777575",
+  textFaint: "#777575",
+  // Cyan — primary (actions)
+  accent: "#72eff5",
+  accentLight: "rgba(114,239,245,0.08)",
+  accentBorder: "rgba(114,239,245,0.25)",
+  accentContainer: "#1fb1b7",
+  // Violet — secondary (AI/intelligence)
+  secondary: "#8b5cf6",
+  secondaryLight: "rgba(139,92,246,0.10)",
+  secondaryBorder: "rgba(139,92,246,0.25)",
+  // Rose — tertiary (security)
+  tertiary: "#ff9ac3",
+  tertiaryLight: "rgba(255,154,195,0.10)",
+  error: "#ff6e84",
+  success: "#51cf66",
 };
 
 export const LIGHT: ThemeColors = {
-  bg: "#f0f0f8",
+  bg: "#fafafa",
   surface: "#ffffff",
-  surface2: "#f8f7ff",
-  border: "#e0dff0",
-  text: "#1a1a2e",
-  textSoft: "#2a2a4a",
-  textMid: "#4a4a6a",
-  textMuted: "#7070a0",
-  textDim: "#8888a8",
-  textFaint: "#9a9ab8",
-  accent: "#4ECDC4",
-  accentLight: "#4ECDC415",
-  accentBorder: "#4ECDC440",
-  error: '#FF6B6B',
-  success: '#51CF66',
+  surface2: "#f5f5f5",
+  surfaceHigh: "#efefef",
+  surfaceHighest: "#e8e8e8",
+  border: "rgba(0,0,0,0.08)",
+  borderStrong: "rgba(0,0,0,0.15)",
+  text: "#1a1a1a",
+  textSoft: "#1a1a1a",
+  textMid: "#4a4a4a",
+  textMuted: "#6b7280",
+  textDim: "#9ca3af",
+  textFaint: "#9ca3af",
+  accent: "#0891b2",
+  accentLight: "rgba(8,145,178,0.08)",
+  accentBorder: "rgba(8,145,178,0.25)",
+  accentContainer: "#0e7490",
+  secondary: "#7c3aed",
+  secondaryLight: "rgba(124,58,237,0.08)",
+  secondaryBorder: "rgba(124,58,237,0.20)",
+  tertiary: "#db2777",
+  tertiaryLight: "rgba(219,39,119,0.08)",
+  error: "#ef4444",
+  success: "#22c55e",
 };
 
 interface ThemeContextValue {
@@ -60,29 +90,28 @@ interface ThemeContextValue {
   toggleTheme: () => void;
 }
 
-const ThemeCtx = createContext<ThemeContextValue>({ t: DARK, isDark: true, toggleTheme: () => {} });
+const ThemeCtx = createContext<ThemeContextValue>({
+  t: DARK,
+  isDark: true,
+  toggleTheme: () => {},
+});
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [isDark, setIsDark] = useState(() => {
-    const saved = localStorage.getItem("openbrain_theme");
-    return saved ? saved === "dark" : true;
-  });
+  // App is dark-mode only — inline styles use hardcoded dark colors
+  const [isDark] = useState(true);
 
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
-    document.body.style.background = isDark ? DARK.bg : LIGHT.bg;
-    document.body.style.color = isDark ? DARK.text : LIGHT.text;
-    localStorage.setItem("openbrain_theme", isDark ? "dark" : "light");
-  }, [isDark]);
+    const root = document.documentElement;
+    root.setAttribute("data-theme", "dark");
+    root.classList.add("dark");
+    root.classList.remove("light");
+    localStorage.setItem("openbrain_theme", "dark");
+  }, []);
 
-  const toggleTheme = () => setIsDark(d => !d);
+  const toggleTheme = () => {}; // no-op — dark mode only
   const t = isDark ? DARK : LIGHT;
 
-  return (
-    <ThemeCtx.Provider value={{ t, isDark, toggleTheme }}>
-      {children}
-    </ThemeCtx.Provider>
-  );
+  return <ThemeCtx.Provider value={{ t, isDark, toggleTheme }}>{children}</ThemeCtx.Provider>;
 }
 
 export const useTheme = () => useContext(ThemeCtx);

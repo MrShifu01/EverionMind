@@ -1,5 +1,4 @@
 import { useState, useEffect, type JSX } from "react";
-import { useTheme } from "../ThemeContext";
 import { authFetch } from "../lib/authFetch";
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -12,15 +11,18 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 }
 
 function detectTimezone(): string {
-  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; }
-  catch { return "UTC"; }
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
 }
 
 function isIOS(): boolean {
   return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
 }
 
-const DAYS_OF_WEEK = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
+const DAYS_OF_WEEK = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 const LEAD_OPTIONS = [90, 30, 7, 1];
 
 interface NotificationPrefs {
@@ -36,15 +38,34 @@ interface NotificationPrefs {
 }
 
 const DEFAULT_PREFS: NotificationPrefs = {
-  daily_enabled: false, daily_time: "20:00", daily_timezone: detectTimezone(),
-  nudge_enabled: false, nudge_day: "sunday", nudge_time: "10:00", nudge_timezone: detectTimezone(),
-  expiry_enabled: false, expiry_lead_days: [90, 30, 7, 1],
+  daily_enabled: false,
+  daily_time: "20:00",
+  daily_timezone: detectTimezone(),
+  nudge_enabled: false,
+  nudge_day: "sunday",
+  nudge_time: "10:00",
+  nudge_timezone: detectTimezone(),
+  expiry_enabled: false,
+  expiry_lead_days: [90, 30, 7, 1],
 };
 
+const cardClasses = "bg-ob-surface border border-ob-border rounded-xl px-5 py-4 mb-3";
+const labelClasses = "text-[13px] font-bold text-ob-text m-0 mb-0.5";
+const subClasses = "text-[11px] text-ob-text-dim m-0 mb-3";
+const inputClasses =
+  "py-2 px-2.5 bg-ob-bg border border-ob-border rounded-lg text-ob-text-soft text-xs outline-none";
+
+function toggleClasses(on: boolean): string {
+  return `inline-flex items-center gap-1.5 py-[7px] px-3.5 rounded-[20px] text-xs font-bold cursor-pointer border-none ${
+    on
+      ? "bg-teal/[0.12] text-teal outline outline-1 outline-teal/25"
+      : "bg-ob-surface text-ob-text-dim outline outline-1 outline-ob-border"
+  }`;
+}
+
 export default function NotificationSettings(): JSX.Element {
-  const { t } = useTheme();
   const [permission, setPermission] = useState<string>(
-    "Notification" in window ? Notification.permission : "unsupported"
+    "Notification" in window ? Notification.permission : "unsupported",
   );
   const [subscription, setSubscription] = useState<PushSubscription | null>(null);
   const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_PREFS);
@@ -57,16 +78,18 @@ export default function NotificationSettings(): JSX.Element {
 
   useEffect(() => {
     authFetch("/api/notification-prefs")
-      .then(r => r.ok ? r.json() : null)
-      .then(data => setPrefs(data ? { ...DEFAULT_PREFS, ...data } : DEFAULT_PREFS))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setPrefs(data ? { ...DEFAULT_PREFS, ...data } : DEFAULT_PREFS))
       .catch(() => setPrefs(DEFAULT_PREFS))
       .finally(() => setLoading(false));
 
     if (pushSupported) {
       navigator.serviceWorker.ready
-        .then(reg => reg.pushManager.getSubscription())
-        .then(sub => setSubscription(sub))
-        .catch(err => console.error('[NotificationSettings] Failed to get push subscription', err));
+        .then((reg) => reg.pushManager.getSubscription())
+        .then((sub) => setSubscription(sub))
+        .catch((err) =>
+          console.error("[NotificationSettings] Failed to get push subscription", err),
+        );
     }
   }, []);
 
@@ -124,7 +147,7 @@ export default function NotificationSettings(): JSX.Element {
   }
 
   async function savePref(updates: Partial<NotificationPrefs>): Promise<void> {
-    setPrefs(p => ({ ...p, ...updates }));
+    setPrefs((p) => ({ ...p, ...updates }));
     setSaving(true);
     try {
       await authFetch("/api/notification-prefs", {
@@ -140,48 +163,37 @@ export default function NotificationSettings(): JSX.Element {
   function toggleLeadDay(day: number): void {
     const current = prefs.expiry_lead_days || [];
     const next = current.includes(day)
-      ? current.filter(d => d !== day)
+      ? current.filter((d) => d !== day)
       : [...current, day].sort((a, b) => b - a);
     savePref({ expiry_lead_days: next });
   }
 
   function flash(msg: string): void {
     setStatusMsg(msg);
-    // Keep error messages visible longer
     const isError = msg.includes("Failed") || msg.includes("not configured");
     setTimeout(() => setStatusMsg(null), isError ? 8000 : 3000);
   }
 
-  const card: React.CSSProperties = {
-    background: t.surface, border: `1px solid ${t.border}`,
-    borderRadius: 12, padding: "16px 20px", marginBottom: 12,
-  };
-  const label: React.CSSProperties = { fontSize: 13, fontWeight: 700, color: t.text, margin: "0 0 2px" };
-  const sub: React.CSSProperties   = { fontSize: 11, color: t.textDim, margin: "0 0 12px" };
-  const toggle = (on: boolean): React.CSSProperties => ({
-    display: "inline-flex", alignItems: "center", gap: 6,
-    padding: "7px 14px", borderRadius: 20, fontSize: 12, fontWeight: 700,
-    cursor: "pointer", border: "none",
-    background: on ? "#4ECDC420" : `${t.surface}`,
-    color: on ? "#4ECDC4" : t.textDim,
-    outline: on ? "1px solid #4ECDC440" : `1px solid ${t.border}`,
-  });
-  const input: React.CSSProperties = {
-    padding: "8px 10px", background: t.bg, border: `1px solid ${t.border}`,
-    borderRadius: 8, color: t.textSoft, fontSize: 12, outline: "none",
-  };
+  const isStatusError =
+    statusMsg && (statusMsg.includes("Failed") || statusMsg.includes("not configured"));
 
-  if (loading) return <div style={{ padding: 24, color: t.textDim, fontSize: 13 }}>Loading…</div>;
+  if (loading) return <div className="text-ob-text-dim p-6 text-[13px]">Loading…</div>;
 
   // iOS not in standalone → show home screen instructions
   if (iosNoStandalone) {
     return (
-      <div style={card}>
-        <p style={label}>📱 Notifications on iPhone</p>
-        <p style={sub}>To receive notifications, OpenBrain must be on your Home Screen.</p>
-        <ol style={{ margin: 0, paddingLeft: 20, fontSize: 12, color: t.textMuted, lineHeight: 2 }}>
-          <li>Tap the <strong>Share button</strong> (□↑) in Safari</li>
-          <li>Tap <strong>"Add to Home Screen"</strong></li>
+      <div className={cardClasses}>
+        <p className={labelClasses}>📱 Notifications on iPhone</p>
+        <p className={subClasses}>
+          To receive notifications, OpenBrain must be on your Home Screen.
+        </p>
+        <ol className="text-ob-text-muted m-0 pl-5 text-xs leading-8">
+          <li>
+            Tap the <strong>Share button</strong> (□↑) in Safari
+          </li>
+          <li>
+            Tap <strong>"Add to Home Screen"</strong>
+          </li>
           <li>Open OpenBrain from your Home Screen</li>
           <li>Come back here to enable notifications</li>
         </ol>
@@ -192,44 +204,50 @@ export default function NotificationSettings(): JSX.Element {
   // Push not supported at all
   if (!pushSupported) {
     return (
-      <div style={card}>
-        <p style={label}>Notifications</p>
-        <p style={{ ...sub, margin: 0 }}>Push notifications are not supported in this browser.</p>
+      <div className={cardClasses}>
+        <p className={labelClasses}>Notifications</p>
+        <p className="text-ob-text-dim m-0 text-[11px]">
+          Push notifications are not supported in this browser.
+        </p>
       </div>
     );
   }
 
   return (
     <div>
-      <p style={{ fontSize: 14, fontWeight: 700, color: t.text, margin: "0 0 4px" }}>Notifications</p>
-      <p style={{ fontSize: 11, color: t.textDim, margin: "0 0 14px" }}>
-        <span style={{ color: statusMsg && (statusMsg.includes("Failed") || statusMsg.includes("not configured")) ? "#FF6B35" : undefined }}>
+      <p className="text-ob-text m-0 mb-1 text-sm font-bold">Notifications</p>
+      <p className="text-ob-text-dim m-0 mb-3.5 text-[11px]">
+        <span className={isStatusError ? "text-orange" : ""}>
           {saving ? "Saving…" : statusMsg || "Get reminders and daily prompts on any device."}
         </span>
       </p>
 
       {/* Master toggle / permission state */}
       {permission === "denied" ? (
-        <div style={{ ...card, border: "1px solid #FF6B3540", background: "#FF6B3508" }}>
-          <p style={{ margin: 0, fontSize: 12, color: "#FF6B35" }}>
+        <div className={`${cardClasses} border-orange/25 bg-orange/[0.03]`}>
+          <p className="text-orange m-0 text-xs">
             Notifications blocked — enable them in your browser settings, then reload.
           </p>
         </div>
       ) : (
-        <div style={{ ...card, marginBottom: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div className={`${cardClasses} mb-4`}>
+          <div className="flex items-center justify-between">
             <div>
-              <p style={label}>Push Notifications</p>
-              <p style={{ ...sub, margin: 0 }}>
+              <p className={labelClasses}>Push Notifications</p>
+              <p className="text-ob-text-dim m-0 text-[11px]">
                 {subscription ? "Active on this device" : "Not subscribed on this device"}
               </p>
             </div>
             {subscription ? (
-              <button onClick={handleDisable} aria-pressed={true} style={{ ...toggle(false), color: "#FF6B35", outline: "1px solid #FF6B3540" }}>
+              <button
+                onClick={handleDisable}
+                aria-pressed={true}
+                className={`${toggleClasses(false)} !text-orange !outline-orange/25`}
+              >
                 Disable
               </button>
             ) : (
-              <button onClick={handleEnable} aria-pressed={false} style={toggle(true)}>
+              <button onClick={handleEnable} aria-pressed={false} className={toggleClasses(true)}>
                 Enable
               </button>
             )}
@@ -241,30 +259,42 @@ export default function NotificationSettings(): JSX.Element {
       {subscription && permission === "granted" && (
         <>
           {/* Daily capture prompt */}
-          <div style={card}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: prefs.daily_enabled ? 12 : 0 }}>
+          <div className={cardClasses}>
+            <div
+              className={`flex items-center justify-between ${prefs.daily_enabled ? "mb-3" : ""}`}
+            >
               <div>
-                <p style={label}>Daily Capture Prompt</p>
-                <p style={{ ...sub, margin: 0 }}>A nightly nudge to capture what's worth remembering.</p>
+                <p className={labelClasses}>Daily Capture Prompt</p>
+                <p className="text-ob-text-dim m-0 text-[11px]">
+                  A nightly nudge to capture what's worth remembering.
+                </p>
               </div>
-              <button onClick={() => savePref({ daily_enabled: !prefs.daily_enabled })} aria-pressed={prefs.daily_enabled} style={toggle(prefs.daily_enabled)}>
+              <button
+                onClick={() => savePref({ daily_enabled: !prefs.daily_enabled })}
+                aria-pressed={prefs.daily_enabled}
+                className={toggleClasses(prefs.daily_enabled)}
+              >
                 {prefs.daily_enabled ? "On" : "Off"}
               </button>
             </div>
             {prefs.daily_enabled && (
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+              <div className="mt-1 flex flex-wrap gap-2">
                 <div>
-                  <div style={{ fontSize: 10, color: t.textDim, marginBottom: 4 }}>TIME</div>
+                  <div className="text-ob-text-dim mb-1 text-[10px]">TIME</div>
                   <input
-                    type="time" value={prefs.daily_time} style={input}
-                    onChange={e => savePref({ daily_time: e.target.value })}
+                    type="time"
+                    value={prefs.daily_time}
+                    className={inputClasses}
+                    onChange={(e) => savePref({ daily_time: e.target.value })}
                   />
                 </div>
-                <div style={{ flex: 1, minWidth: 160 }}>
-                  <div style={{ fontSize: 10, color: t.textDim, marginBottom: 4 }}>TIMEZONE</div>
+                <div className="min-w-40 flex-1">
+                  <div className="text-ob-text-dim mb-1 text-[10px]">TIMEZONE</div>
                   <input
-                    type="text" value={prefs.daily_timezone} style={{ ...input, width: "100%", boxSizing: "border-box" }}
-                    onChange={e => savePref({ daily_timezone: e.target.value })}
+                    type="text"
+                    value={prefs.daily_timezone}
+                    className={`${inputClasses} box-border w-full`}
+                    onChange={(e) => savePref({ daily_timezone: e.target.value })}
                   />
                 </div>
               </div>
@@ -272,36 +302,56 @@ export default function NotificationSettings(): JSX.Element {
           </div>
 
           {/* Fill Brain nudge */}
-          <div style={card}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: prefs.nudge_enabled ? 12 : 0 }}>
+          <div className={cardClasses}>
+            <div
+              className={`flex items-center justify-between ${prefs.nudge_enabled ? "mb-3" : ""}`}
+            >
               <div>
-                <p style={label}>Fill Brain Nudge</p>
-                <p style={{ ...sub, margin: 0 }}>Weekly reminder to answer questions in Fill Brain.</p>
+                <p className={labelClasses}>Fill Brain Nudge</p>
+                <p className="text-ob-text-dim m-0 text-[11px]">
+                  Weekly reminder to answer questions in Fill Brain.
+                </p>
               </div>
-              <button onClick={() => savePref({ nudge_enabled: !prefs.nudge_enabled })} aria-pressed={prefs.nudge_enabled} style={toggle(prefs.nudge_enabled)}>
+              <button
+                onClick={() => savePref({ nudge_enabled: !prefs.nudge_enabled })}
+                aria-pressed={prefs.nudge_enabled}
+                className={toggleClasses(prefs.nudge_enabled)}
+              >
                 {prefs.nudge_enabled ? "On" : "Off"}
               </button>
             </div>
             {prefs.nudge_enabled && (
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+              <div className="mt-1 flex flex-wrap gap-2">
                 <div>
-                  <div style={{ fontSize: 10, color: t.textDim, marginBottom: 4 }}>DAY</div>
-                  <select value={prefs.nudge_day} style={input} onChange={e => savePref({ nudge_day: e.target.value })}>
-                    {DAYS_OF_WEEK.map(d => <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
+                  <div className="text-ob-text-dim mb-1 text-[10px]">DAY</div>
+                  <select
+                    value={prefs.nudge_day}
+                    className={inputClasses}
+                    onChange={(e) => savePref({ nudge_day: e.target.value })}
+                  >
+                    {DAYS_OF_WEEK.map((d) => (
+                      <option key={d} value={d}>
+                        {d.charAt(0).toUpperCase() + d.slice(1)}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
-                  <div style={{ fontSize: 10, color: t.textDim, marginBottom: 4 }}>TIME</div>
+                  <div className="text-ob-text-dim mb-1 text-[10px]">TIME</div>
                   <input
-                    type="time" value={prefs.nudge_time} style={input}
-                    onChange={e => savePref({ nudge_time: e.target.value })}
+                    type="time"
+                    value={prefs.nudge_time}
+                    className={inputClasses}
+                    onChange={(e) => savePref({ nudge_time: e.target.value })}
                   />
                 </div>
-                <div style={{ flex: 1, minWidth: 160 }}>
-                  <div style={{ fontSize: 10, color: t.textDim, marginBottom: 4 }}>TIMEZONE</div>
+                <div className="min-w-40 flex-1">
+                  <div className="text-ob-text-dim mb-1 text-[10px]">TIMEZONE</div>
                   <input
-                    type="text" value={prefs.nudge_timezone} style={{ ...input, width: "100%", boxSizing: "border-box" }}
-                    onChange={e => savePref({ nudge_timezone: e.target.value })}
+                    type="text"
+                    value={prefs.nudge_timezone}
+                    className={`${inputClasses} box-border w-full`}
+                    onChange={(e) => savePref({ nudge_timezone: e.target.value })}
                   />
                 </div>
               </div>
@@ -309,34 +359,42 @@ export default function NotificationSettings(): JSX.Element {
           </div>
 
           {/* Expiry reminders */}
-          <div style={card}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: prefs.expiry_enabled ? 12 : 0 }}>
+          <div className={cardClasses}>
+            <div
+              className={`flex items-center justify-between ${prefs.expiry_enabled ? "mb-3" : ""}`}
+            >
               <div>
-                <p style={label}>Expiry Reminders</p>
-                <p style={{ ...sub, margin: 0 }}>Alerts before passport, licence, insurance expire.</p>
+                <p className={labelClasses}>Expiry Reminders</p>
+                <p className="text-ob-text-dim m-0 text-[11px]">
+                  Alerts before passport, licence, insurance expire.
+                </p>
               </div>
-              <button onClick={() => savePref({ expiry_enabled: !prefs.expiry_enabled })} aria-pressed={prefs.expiry_enabled} style={toggle(prefs.expiry_enabled)}>
+              <button
+                onClick={() => savePref({ expiry_enabled: !prefs.expiry_enabled })}
+                aria-pressed={prefs.expiry_enabled}
+                className={toggleClasses(prefs.expiry_enabled)}
+              >
                 {prefs.expiry_enabled ? "On" : "Off"}
               </button>
             </div>
             {prefs.expiry_enabled && (
               <div>
-                <div style={{ fontSize: 10, color: t.textDim, marginBottom: 8 }}>REMIND ME THIS MANY DAYS BEFORE</div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {LEAD_OPTIONS.map(day => {
+                <div className="text-ob-text-dim mb-2 text-[10px]">
+                  REMIND ME THIS MANY DAYS BEFORE
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {LEAD_OPTIONS.map((day) => {
                     const active = (prefs.expiry_lead_days || []).includes(day);
                     return (
                       <button
                         key={day}
                         onClick={() => toggleLeadDay(day)}
                         aria-pressed={active}
-                        style={{
-                          padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 700,
-                          cursor: "pointer", border: "none",
-                          background: active ? "#4ECDC420" : t.bg,
-                          color: active ? "#4ECDC4" : t.textDim,
-                          outline: active ? "1px solid #4ECDC440" : `1px solid ${t.border}`,
-                        }}
+                        className={`cursor-pointer rounded-[20px] border-none px-3.5 py-1.5 text-xs font-bold ${
+                          active
+                            ? "bg-teal/[0.12] text-teal outline-teal/25 outline outline-1"
+                            : "bg-ob-bg text-ob-text-dim outline-ob-border outline outline-1"
+                        }`}
                       >
                         {day}d
                       </button>

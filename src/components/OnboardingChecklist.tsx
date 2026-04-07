@@ -1,5 +1,4 @@
 import { useState, useMemo, type JSX } from "react";
-import { useTheme } from "../ThemeContext";
 import { SUGGESTIONS } from "../data/personalSuggestions";
 import { FAMILY_SUGGESTIONS } from "../data/familySuggestions";
 import { BUSINESS_SUGGESTIONS } from "../data/businessSuggestions";
@@ -15,11 +14,19 @@ function getSuggestions(type: string): Suggestion[] {
 }
 
 function getDismissed(): string[] {
-  try { return JSON.parse(localStorage.getItem(DISMISSED_KEY) || "[]"); } catch { return []; }
+  try {
+    return JSON.parse(localStorage.getItem(DISMISSED_KEY) || "[]");
+  } catch {
+    return [];
+  }
 }
 
 function getAnswered(): Set<string> {
-  try { return new Set<string>(JSON.parse(localStorage.getItem(ANSWERED_KEY) || "[]")); } catch { return new Set<string>(); }
+  try {
+    return new Set<string>(JSON.parse(localStorage.getItem(ANSWERED_KEY) || "[]"));
+  } catch {
+    return new Set<string>();
+  }
 }
 
 interface OnboardingChecklistProps {
@@ -27,8 +34,10 @@ interface OnboardingChecklistProps {
   onNavigate: (view: string) => void;
 }
 
-export default function OnboardingChecklist({ activeBrain, onNavigate }: OnboardingChecklistProps): JSX.Element | null {
-  const { t } = useTheme();
+export default function OnboardingChecklist({
+  activeBrain,
+  onNavigate,
+}: OnboardingChecklistProps): JSX.Element | null {
   const [dismissed, setDismissed] = useState<string[]>(getDismissed);
   const [expanded, setExpanded] = useState<boolean>(false);
 
@@ -37,121 +46,110 @@ export default function OnboardingChecklist({ activeBrain, onNavigate }: Onboard
 
   const questions = useMemo(() => {
     const all = getSuggestions(brainType);
-    return all.filter(s =>
-      s.p === "high" &&
-      !answered.has(s.q) &&
-      !dismissed.includes(s.q)
-    );
+    return all.filter((s) => s.p === "high" && !answered.has(s.q) && !dismissed.includes(s.q));
   }, [brainType, answered, dismissed]);
 
-  // Group by category
   const categories = useMemo((): [string, Suggestion[]][] => {
     const cats: Record<string, Suggestion[]> = {};
-    questions.forEach(q => {
+    questions.forEach((q) => {
       if (!cats[q.cat]) cats[q.cat] = [];
       cats[q.cat].push(q);
     });
-    return (Object.entries(cats) as [string, Suggestion[]][]).sort((a, b) => b[1].length - a[1].length);
+    return (Object.entries(cats) as [string, Suggestion[]][]).sort(
+      (a, b) => b[1].length - a[1].length,
+    );
   }, [questions]);
 
   if (questions.length === 0) return null;
 
   function dismissAll(): void {
-    const next = [...dismissed, ...questions.map(s => s.q)];
+    const next = [...dismissed, ...questions.map((s) => s.q)];
     setDismissed(next);
-    try { localStorage.setItem(DISMISSED_KEY, JSON.stringify(next)); } catch {}
+    try {
+      localStorage.setItem(DISMISSED_KEY, JSON.stringify(next));
+    } catch {}
   }
 
   function dismissCategory(cat: string): void {
-    const catQs = questions.filter(q => q.cat === cat).map(q => q.q);
+    const catQs = questions.filter((q) => q.cat === cat).map((q) => q.q);
     const next = [...dismissed, ...catQs];
     setDismissed(next);
-    try { localStorage.setItem(DISMISSED_KEY, JSON.stringify(next)); } catch {}
+    try {
+      localStorage.setItem(DISMISSED_KEY, JSON.stringify(next));
+    } catch {}
   }
 
-  const brainEmoji = brainType === "business" ? "🏪" : brainType === "family" ? "🏠" : "🧠";
-
   return (
-    <div style={{
-      background: t.surface,
-      border: `1px solid ${t.border}`,
-      borderRadius: 14,
-      overflow: "hidden",
-      marginBottom: 12,
-    }}>
-      {/* Compact header — always visible */}
-      <div
-        onClick={() => setExpanded(e => !e)}
+    <div className="mx-4 mt-3">
+      {/* Header — always visible */}
+      <button
+        onClick={() => setExpanded((e) => !e)}
+        className="w-full flex items-center gap-3 rounded-2xl px-4 py-3 border text-left transition-colors"
         style={{
-          display: "flex", alignItems: "center", gap: 10,
-          padding: "12px 14px",
-          cursor: "pointer",
+          background: "rgba(38,38,38,0.5)",
+          borderColor: expanded ? "rgba(114,239,245,0.2)" : "rgba(72,72,71,0.15)",
         }}
       >
-        <span style={{ fontSize: 14 }}>{brainEmoji}</span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: t.text }}>
-            {questions.length} things to capture
-          </p>
-          <p style={{ margin: 0, fontSize: 11, color: t.textDim }}>
+        <div
+          className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{ background: "rgba(114,239,245,0.1)", color: "#72eff5" }}
+        >
+          <span className="text-sm">✦</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-white">{questions.length} things to capture</p>
+          <p className="text-xs text-[#777] truncate">
             {categories.slice(0, 3).map(([cat]) => cat).join(" · ")}
             {categories.length > 3 && ` +${categories.length - 3}`}
           </p>
         </div>
-        <span style={{ fontSize: 10, color: t.textDim, flexShrink: 0 }}>{expanded ? "▲" : "▼"}</span>
-      </div>
+        <span className="text-xs text-[#555] flex-shrink-0">{expanded ? "▲" : "▼"}</span>
+      </button>
 
-      {/* Expanded: show categories as compact rows */}
+      {/* Expanded categories */}
       {expanded && (
-        <div style={{ borderTop: `1px solid ${t.border}`, padding: "6px 0" }}>
-          {categories.map(([cat, items]) => (
-            <div
-              key={cat}
-              onClick={() => onNavigate("suggest")}
-              style={{
-                display: "flex", alignItems: "center", gap: 8,
-                padding: "8px 14px",
-                cursor: "pointer",
-              }}
-            >
-              <span style={{ fontSize: 11, color: t.textDim, flex: 1, fontWeight: 500 }}>
-                {cat} <span style={{ color: t.textFaint }}>({items.length})</span>
-              </span>
-              <button
-                onClick={e => { e.stopPropagation(); dismissCategory(cat); }}
-                style={{ background: "none", border: "none", color: t.textFaint, fontSize: 13, cursor: "pointer", padding: "2px 4px", lineHeight: 1 }}
+        <div
+          className="mt-2 rounded-2xl border p-3"
+          style={{ background: "rgba(38,38,38,0.4)", borderColor: "rgba(72,72,71,0.15)" }}
+        >
+          <div className="flex flex-wrap gap-2 mb-3">
+            {categories.map(([cat, items]) => (
+              <div
+                key={cat}
+                onClick={() => onNavigate("suggest")}
+                className="flex items-center gap-1.5 rounded-full px-3 py-1.5 border cursor-pointer transition-colors hover:border-[rgba(114,239,245,0.3)]"
+                style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}
               >
-                ×
-              </button>
-            </div>
-          ))}
+                <span className="text-xs text-white">
+                  {cat} <span className="text-[#777]">({items.length})</span>
+                </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    dismissCategory(cat);
+                  }}
+                  className="text-[#555] hover:text-[#ff6e84] text-xs ml-0.5 transition-colors"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
 
-          <div style={{ display: "flex", gap: 8, padding: "8px 14px 10px", borderTop: `1px solid ${t.border}`, marginTop: 4 }}>
+          <div className="flex gap-2 pt-2 border-t" style={{ borderColor: "rgba(72,72,71,0.15)" }}>
             <button
               onClick={() => onNavigate("suggest")}
-              style={{
-                flex: 1, padding: "8px 12px",
-                background: "rgba(78,205,196,0.1)",
-                border: "1px solid rgba(78,205,196,0.25)",
-                borderRadius: 8,
-                color: "#4ECDC4", fontSize: 12, fontWeight: 600,
-                cursor: "pointer",
-              }}
+              className="flex-1 py-2 rounded-xl text-xs font-bold transition-colors"
+              style={{ background: "linear-gradient(135deg, #72eff5, #1fb1b7)", color: "#0a0a0a" }}
             >
               Fill Brain →
             </button>
             <button
               onClick={dismissAll}
-              style={{
-                padding: "8px 12px",
-                background: "none",
-                border: `1px solid ${t.border}`,
-                borderRadius: 8,
-                color: t.textFaint, fontSize: 12,
-                cursor: "pointer",
-              }}
+              className="py-2 px-4 rounded-xl text-xs text-[#777] border transition-colors hover:bg-white/5"
+              style={{ borderColor: "rgba(72,72,71,0.2)", background: "transparent" }}
             >
-              Dismiss all
+              Dismiss
             </button>
           </div>
         </div>

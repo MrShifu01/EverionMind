@@ -7,7 +7,11 @@ interface MemoryContextValue {
   refreshMemory: () => Promise<void>;
 }
 
-const MemoryContext = createContext<MemoryContextValue>({ memoryGuide: "", setMemoryGuide: () => {}, refreshMemory: async () => {} });
+const MemoryContext = createContext<MemoryContextValue>({
+  memoryGuide: "",
+  setMemoryGuide: () => {},
+  refreshMemory: async () => {},
+});
 
 export function MemoryProvider({ children }: { children: ReactNode }) {
   const [memoryGuide, setMemoryGuide] = useState("");
@@ -19,10 +23,14 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
         const data = await res.json();
         setMemoryGuide(data.content || "");
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, []);
 
-  useEffect(() => { refreshMemory(); }, [refreshMemory]);
+  useEffect(() => {
+    refreshMemory();
+  }, [refreshMemory]);
 
   return (
     <MemoryContext.Provider value={{ memoryGuide, setMemoryGuide, refreshMemory }}>
@@ -31,4 +39,6 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useMemory(): MemoryContextValue { return useContext(MemoryContext); }
+export function useMemory(): MemoryContextValue {
+  return useContext(MemoryContext);
+}

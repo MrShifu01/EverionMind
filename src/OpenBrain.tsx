@@ -4,7 +4,14 @@ import { useTheme } from "./ThemeContext";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { authFetch } from "./lib/authFetch";
 import { callAI } from "./lib/ai";
-import { getEmbedHeaders, getUserProvider, getUserModel, getUserApiKey, getOpenRouterKey, getOpenRouterModel } from "./lib/aiFetch";
+import {
+  getEmbedHeaders,
+  getUserProvider,
+  getUserModel,
+  getUserApiKey,
+  getOpenRouterKey,
+  getOpenRouterModel,
+} from "./lib/aiFetch";
 import { encryptEntry, decryptEntry, unlockVault, decryptVaultKeyFromRecovery } from "./lib/crypto";
 import { PROMPTS } from "./config/prompts";
 import { TC, fmtD, MODEL, INITIAL_ENTRIES, LINKS } from "./data/constants";
@@ -20,32 +27,35 @@ import BrainSwitcher from "./components/BrainSwitcher";
 import CreateBrainModal from "./components/CreateBrainModal";
 import OnboardingModal from "./components/OnboardingModal";
 import BrainTipCard from "./components/BrainTipCard";
-import OnboardingChecklist from "./components/OnboardingChecklist";
 import QuickCapture from "./components/QuickCapture";
-import SupplierPanel from "./components/SupplierPanel";
+
+import BottomNav from "./components/BottomNav";
+import MobileHeader from "./components/MobileHeader";
+import DesktopSidebar from "./components/DesktopSidebar";
+import SkeletonCard from "./components/SkeletonCard";
 import SettingsView from "./views/SettingsView";
 import { inferWorkspace } from "./lib/workspaceInfer";
 import { EntriesContext } from "./context/EntriesContext";
 import { BrainContext } from "./context/BrainContext";
 
 const SuggestionsView = lazy(() => import("./views/SuggestionsView"));
-const CalendarView    = lazy(() => import("./views/CalendarView"));
-const TodoView        = lazy(() => import("./views/TodoView"));
-const GraphView       = lazy(() => import("./views/GraphView"));
-const DetailModal     = lazy(() => import("./views/DetailModal"));
-const RefineView      = lazy(() => import("./views/RefineView"));
-const VaultView       = lazy(() => import("./views/VaultView"));
+const RefineView = lazy(() => import("./views/RefineView"));
+const TodoView = lazy(() => import("./views/TodoView"));
+const DetailModal = lazy(() => import("./views/DetailModal"));
+const VaultView = lazy(() => import("./views/VaultView"));
 
 function Loader() {
-  const { t } = useTheme();
-  return <div style={{ padding: 40, textAlign: "center", color: t.textFaint, fontSize: 13 }}>Loading…</div>;
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <SkeletonCard count={3} />
+    </div>
+  );
 }
 
 /* ═══════════════════════════════════════════════════════════════
    UNDO TOAST
    ═══════════════════════════════════════════════════════════════ */
 function UndoToast({ action, onUndo, onDismiss }) {
-  const { t } = useTheme();
   const duration = action.type === "create" ? 3000 : 5000;
   const [pct, setPct] = useState(100);
   useEffect(() => {
@@ -58,11 +68,52 @@ function UndoToast({ action, onUndo, onDismiss }) {
     return () => clearInterval(tick);
   }, []);
   const label = { delete: "Entry deleted", update: "Entry updated", create: "Entry created" }[action.type];
+  const isDelete = action.type === "delete";
   return (
-    <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: t.surface, border: "1px solid #4ECDC4", borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, zIndex: 2000, boxShadow: "0 4px 20px #0008", minWidth: 240, maxWidth: "calc(100vw - 32px)", boxSizing: "border-box" }}>
-      <span style={{ fontSize: 14, color: t.textMid }}>{label}</span>
-      <button onClick={onUndo} style={{ padding: "4px 14px", borderRadius: 8, border: "1px solid #4ECDC4", background: "none", color: "#4ECDC4", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Undo</button>
-      <div style={{ position: "absolute", bottom: 0, left: 0, height: 3, background: "#4ECDC4", borderRadius: "0 0 12px 12px", width: `${pct}%`, transition: "width 80ms linear" }} />
+    <div
+      role="alert"
+      className="fixed bottom-24 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 w-[90vw] max-w-sm overflow-hidden rounded-2xl border"
+      style={{
+        background: "rgba(26,25,25,0.95)",
+        backdropFilter: "blur(24px)",
+        WebkitBackdropFilter: "blur(24px)",
+        borderColor: isDelete ? "rgba(255,110,132,0.20)" : "rgba(114,239,245,0.15)",
+        boxShadow: "0 20px 40px rgba(0,0,0,0.4)",
+        animation: "slide-up 0.25s ease-out",
+      }}
+    >
+      <div className="flex items-center gap-3 px-4 py-3">
+        <div
+          className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-sm"
+          style={{ background: isDelete ? "rgba(255,110,132,0.1)" : "rgba(114,239,245,0.1)" }}
+        >
+          {isDelete ? "🗑" : "✓"}
+        </div>
+        <span className="flex-1 text-sm font-medium text-on-surface">{label}</span>
+        {action.type !== "create" && (
+          <button
+            onClick={onUndo}
+            className="text-primary text-xs font-bold uppercase tracking-widest hover:text-primary-dim transition-colors press-scale"
+          >
+            Undo
+          </button>
+        )}
+        <button onClick={onDismiss} className="text-on-surface-variant hover:text-on-surface transition-colors ml-1">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      {/* Progress bar */}
+      <div className="h-0.5 w-full" style={{ background: "rgba(72,72,71,0.2)" }}>
+        <div
+          className="h-full transition-none rounded-full"
+          style={{
+            width: `${pct}%`,
+            background: isDelete ? "#ff6e84" : "#72eff5",
+          }}
+        />
+      </div>
     </div>
   );
 }
@@ -71,13 +122,30 @@ function UndoToast({ action, onUndo, onDismiss }) {
    NUDGE BANNER
    ═══════════════════════════════════════════════════════════════ */
 function NudgeBanner({ nudge, onDismiss }) {
-  const { t } = useTheme();
   if (!nudge) return null;
   return (
-    <div style={{ margin: "0 12px 12px", padding: "10px 12px", background: t.surface, border: "1px solid #A29BFE40", borderRadius: 12, display: "flex", alignItems: "flex-start", gap: 10 }}>
-      <span style={{ fontSize: 16, flexShrink: 0 }}>💡</span>
-      <p style={{ margin: 0, flex: 1, fontSize: 13, color: t.textMid, lineHeight: 1.5 }}>{nudge}</p>
-      <button onClick={onDismiss} style={{ background: "none", border: "none", color: t.textFaint, fontSize: 18, cursor: "pointer", lineHeight: 1, flexShrink: 0 }}>✕</button>
+    <div
+      className="flex items-start gap-3 p-4 rounded-2xl mb-4 border"
+      style={{
+        background: "rgba(213,117,255,0.06)",
+        borderColor: "rgba(213,117,255,0.15)",
+      }}
+    >
+      <div
+        className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-base"
+        style={{ background: "rgba(213,117,255,0.12)" }}
+      >
+        💡
+      </div>
+      <p className="flex-1 text-sm text-on-surface-variant leading-relaxed">{nudge}</p>
+      <button
+        onClick={onDismiss}
+        className="text-on-surface-variant/50 hover:text-on-surface transition-colors flex-shrink-0 mt-0.5 press-scale"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
     </div>
   );
 }
@@ -85,37 +153,89 @@ function NudgeBanner({ nudge, onDismiss }) {
 /* ═══════════════════════════════════════════════════════════════
    PASSWORD FIREWALL
    ═══════════════════════════════════════════════════════════════ */
-const SENSITIVE_RE = /\b(password|passcode|passphrase|credentials|wifi\s*(key|password)|network\s*key|bank\s*(account|pin|number|detail)|id\s*number|passport\s*number|secret\s*key|secret\s*word|pin\s*number|access\s*code)\b/i;
-function containsSensitiveContent(text) { return SENSITIVE_RE.test(text); }
+const SENSITIVE_RE =
+  /\b(password|passcode|passphrase|credentials|wifi\s*(key|password)|network\s*key|bank\s*(account|pin|number|detail)|id\s*number|passport\s*number|secret\s*key|secret\s*word|pin\s*number|access\s*code)\b/i;
+function containsSensitiveContent(text) {
+  return SENSITIVE_RE.test(text);
+}
 
 /* ═══════════════════════════════════════════════════════════════
    ENTRY CARD
    ═══════════════════════════════════════════════════════════════ */
+const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
+  note:     { bg: "rgba(114,239,245,0.10)", text: "#72eff5" },
+  person:   { bg: "rgba(114,239,245,0.10)", text: "#72eff5" },
+  document: { bg: "rgba(213,117,255,0.10)", text: "#d575ff" },
+  secret:   { bg: "rgba(255,154,195,0.10)", text: "#ff9ac3" },
+  reminder: { bg: "rgba(255,110,132,0.10)", text: "#ff6e84" },
+  supplier: { bg: "rgba(213,117,255,0.10)", text: "#d575ff" },
+  default:  { bg: "rgba(114,239,245,0.10)", text: "#72eff5" },
+};
+
 const EntryCard = memo(function EntryCard({ entry: e, onSelect }) {
-  const { t, isDark } = useTheme();
   const cfg = TC[e.type] || TC.note;
   const imp = { 1: "Important", 2: "Critical" }[e.importance];
+  const colors = TYPE_COLORS[e.type] || TYPE_COLORS.default;
   return (
-    <div onClick={() => onSelect(e)} style={{ background: t.surface, border: `1px solid ${e.pinned ? cfg.c + "80" : t.border}`, borderRadius: 12, padding: "16px 20px", cursor: "pointer", position: "relative", overflow: "hidden" }}
-      onMouseEnter={ev => { ev.currentTarget.style.borderColor = cfg.c; ev.currentTarget.style.transform = "translateY(-2px)"; }}
-      onMouseLeave={ev => { ev.currentTarget.style.borderColor = e.pinned ? cfg.c + "80" : t.border; ev.currentTarget.style.transform = "none"; }}>
-      {e.pinned && <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg,${cfg.c},transparent)` }} />}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-        <span style={{ fontSize: 20 }}>{cfg.i}</span>
-        <span style={{ fontSize: 10, color: cfg.c, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5 }}>{e.type}</span>
-        {e.pinned && <span style={{ fontSize: 10 }}>📌</span>}
-        {imp && <span style={{ fontSize: 9, background: e.importance === 2 ? "#FF6B3530" : "#FFEAA720", color: e.importance === 2 ? "#FF6B35" : "#FFEAA7", padding: "2px 8px", borderRadius: 20, fontWeight: 600 }}>{imp}</span>}
+    <article
+      onClick={() => onSelect(e)}
+      className="group cursor-pointer rounded-3xl p-5 border transition-all duration-300 hover:-translate-y-0.5 press-scale"
+      style={{
+        background: "#1a1919",
+        borderColor: "rgba(72,72,71,0.05)",
+      }}
+      onMouseEnter={(el) => { (el.currentTarget as HTMLElement).style.borderColor = "rgba(114,239,245,0.15)"; (el.currentTarget as HTMLElement).style.background = "#1e1d1d"; }}
+      onMouseLeave={(el) => { (el.currentTarget as HTMLElement).style.borderColor = "rgba(72,72,71,0.05)"; (el.currentTarget as HTMLElement).style.background = "#1a1919"; }}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0" style={{ background: colors.bg }}>
+            <span style={{ color: colors.text }}>{cfg.i}</span>
+          </div>
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant/60">{e.type}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {e.pinned && <span style={{ color: "#72eff5", fontSize: 12 }}>📌</span>}
+          {imp && (
+            <span
+              className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
+              style={{ background: imp === "Critical" ? "rgba(255,110,132,0.12)" : "rgba(255,154,195,0.10)", color: imp === "Critical" ? "#ff6e84" : "#ff9ac3" }}
+            >
+              {imp}
+            </span>
+          )}
+        </div>
       </div>
-      <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: t.text, lineHeight: 1.3 }}>{e.title}</h3>
-      {e.type === "secret"
-        ? <p style={{ margin: "8px 0 0", fontSize: 13, color: "#FF4757", lineHeight: 1.5, fontStyle: "italic" }}>Encrypted — tap to reveal</p>
-        : <p style={{ margin: "8px 0 0", fontSize: 13, color: t.textMuted, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{e.content}</p>
-      }
-      {e.tags?.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 10 }}>
-        {e.tags.slice(0, 4).map(tag => <span key={tag} style={{ fontSize: 10, color: t.textDim, background: isDark ? "#ffffff08" : "#00000008", padding: "2px 8px", borderRadius: 20 }}>{tag}</span>)}
-        {e.tags.length > 4 && <span style={{ fontSize: 10, color: t.textFaint }}>+{e.tags.length - 4}</span>}
-      </div>}
-    </div>
+
+      {/* Title */}
+      <h3 className="font-bold text-on-surface leading-tight tracking-tight line-clamp-2 mb-2 text-base" style={{ fontFamily: "'Manrope', sans-serif" }}>
+        {e.title}
+      </h3>
+
+      {/* Content */}
+      {e.type === "secret" ? (
+        <p className="text-sm text-on-surface-variant/60 italic mb-3">🔒 Encrypted — tap to reveal</p>
+      ) : e.content ? (
+        <p className="text-sm text-on-surface-variant line-clamp-2 mb-3 leading-relaxed">{e.content}</p>
+      ) : null}
+
+      {/* Tags */}
+      {e.tags?.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-auto">
+          {e.tags.slice(0, 3).map((tag) => (
+            <span key={tag} className="text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full" style={{ background: "#262626", color: "#d575ff", border: "1px solid rgba(213,117,255,0.12)" }}>
+              #{tag}
+            </span>
+          ))}
+          {e.tags.length > 3 && (
+            <span className="text-[10px] text-on-surface-variant/50 px-1">+{e.tags.length - 3}</span>
+          )}
+        </div>
+      )}
+    </article>
   );
 });
 
@@ -123,16 +243,45 @@ const EntryCard = memo(function EntryCard({ entry: e, onSelect }) {
    VIRTUALISED GRID
    ═══════════════════════════════════════════════════════════════ */
 function VirtualGrid({ filtered, setSelected }) {
-  const COLS = typeof window !== "undefined" && window.innerWidth >= 640 ? 2 : 1;
-  const rows = useMemo(() => { const r = []; for (let i = 0; i < filtered.length; i += COLS) r.push(filtered.slice(i, i + COLS)); return r; }, [filtered, COLS]);
+  const COLS = typeof window !== "undefined"
+    ? window.innerWidth >= 1280 ? 3 : window.innerWidth >= 640 ? 2 : 1
+    : 1;
+  const rows = useMemo(() => {
+    const r = [];
+    for (let i = 0; i < filtered.length; i += COLS) r.push(filtered.slice(i, i + COLS));
+    return r;
+  }, [filtered, COLS]);
   const listRef = useRef(null);
-  const virtualizer = useWindowVirtualizer({ count: rows.length, estimateSize: () => 172, overscan: 4, scrollMargin: listRef.current?.offsetTop ?? 0 });
+  const ROW_GAP = 16;
+  const virtualizer = useWindowVirtualizer({
+    count: rows.length,
+    estimateSize: () => 190 + ROW_GAP,
+    overscan: 4,
+    scrollMargin: listRef.current?.offsetTop ?? 0,
+    measureElement: (el) => el.getBoundingClientRect().height,
+  });
   return (
     <div ref={listRef}>
       <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
-        {virtualizer.getVirtualItems().map(vRow => (
-          <div key={vRow.index} style={{ position: "absolute", top: vRow.start - virtualizer.options.scrollMargin, left: 0, right: 0, display: "grid", gridTemplateColumns: `repeat(${COLS}, 1fr)`, gap: 12, paddingBottom: 12 }}>
-            {rows[vRow.index].map(e => <EntryCard key={e.id} entry={e} onSelect={setSelected} />)}
+        {virtualizer.getVirtualItems().map((vRow) => (
+          <div
+            key={vRow.index}
+            data-index={vRow.index}
+            ref={virtualizer.measureElement}
+            style={{
+              position: "absolute",
+              top: vRow.start - virtualizer.options.scrollMargin,
+              left: 0,
+              right: 0,
+              display: "grid",
+              gridTemplateColumns: `repeat(${COLS}, 1fr)`,
+              gap: "16px",
+              paddingBottom: "16px",
+            }}
+          >
+            {rows[vRow.index].map((e) => (
+              <EntryCard key={e.id} entry={e} onSelect={setSelected} />
+            ))}
           </div>
         ))}
       </div>
@@ -144,20 +293,35 @@ function VirtualGrid({ filtered, setSelected }) {
    VIRTUALISED TIMELINE
    ═══════════════════════════════════════════════════════════════ */
 function VirtualTimeline({ sorted, setSelected }) {
-  const { t } = useTheme();
   const listRef = useRef(null);
-  const virtualizer = useWindowVirtualizer({ count: sorted.length, estimateSize: () => 64, overscan: 5, scrollMargin: listRef.current?.offsetTop ?? 0 });
+  const virtualizer = useWindowVirtualizer({
+    count: sorted.length,
+    estimateSize: () => 64,
+    overscan: 5,
+    scrollMargin: listRef.current?.offsetTop ?? 0,
+  });
   return (
-    <div ref={listRef} style={{ position: "relative", paddingLeft: 24 }}>
-      <div style={{ position: "absolute", left: 10, top: 0, bottom: 0, width: 2, background: "linear-gradient(180deg,#4ECDC4,#FF6B35,#A29BFE)" }} />
+    <div ref={listRef} className="relative">
+      <div className="absolute left-6 top-0 bottom-0 w-px" style={{ background: "rgba(72,72,71,0.15)" }} />
       <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
-        {virtualizer.getVirtualItems().map(vItem => {
-          const e = sorted[vItem.index]; const cfg = TC[e.type] || TC.note;
+        {virtualizer.getVirtualItems().map((vItem) => {
+          const e = sorted[vItem.index];
+          const cfg = TC[e.type] || TC.note;
           return (
-            <div key={e.id} style={{ position: "absolute", top: vItem.start - virtualizer.options.scrollMargin, left: 0, right: 0, paddingLeft: 20, paddingBottom: 16, cursor: "pointer" }} onClick={() => setSelected(e)}>
-              <div style={{ position: "absolute", left: -3, top: 6, width: 12, height: 12, borderRadius: "50%", background: cfg.c, border: `2px solid ${t.bg}` }} />
-              <p style={{ fontSize: 10, color: t.textDim, margin: "0 0 2px" }}>{fmtD(e.created_at)}</p>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 14 }}>{cfg.i}</span><span style={{ fontSize: 14, color: t.textSoft, fontWeight: 500 }}>{e.title}</span></div>
+            <div
+              key={e.id}
+              style={{ position: "absolute", top: vItem.start - virtualizer.options.scrollMargin, left: 0, right: 0 }}
+              className="flex items-center gap-4 pl-4 pr-4 py-2.5 cursor-pointer group"
+              onClick={() => setSelected(e)}
+            >
+              <div className="w-4 h-4 rounded-full flex-shrink-0 flex items-center justify-center z-10" style={{ background: "#1a1919", border: "2px solid rgba(114,239,245,0.3)" }}>
+                <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#72eff5" }} />
+              </div>
+              <p className="text-[10px] uppercase tracking-widest text-on-surface-variant/50 font-semibold flex-shrink-0 w-20">{fmtD(e.created_at)}</p>
+              <div className="flex items-center gap-2 flex-1 min-w-0 px-3 py-2 rounded-xl transition-colors group-hover:bg-surface-container">
+                <span className="text-sm flex-shrink-0">{cfg.i}</span>
+                <span className="text-sm text-on-surface truncate">{e.title}</span>
+              </div>
             </div>
           );
         })}
@@ -188,7 +352,11 @@ export default function OpenBrain() {
       const cached = localStorage.getItem("openbrain_entries");
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.every(e => e && typeof e.id === "string" && typeof e.title === "string")) return parsed;
+        if (
+          Array.isArray(parsed) &&
+          parsed.every((e) => e && typeof e.id === "string" && typeof e.title === "string")
+        )
+          return parsed;
       }
     } catch {}
     return [];
@@ -201,10 +369,11 @@ export default function OpenBrain() {
     setCryptoKey(key);
     // If key is set and we have entries, decrypt secret entries in-place
     if (key) {
-      setEntries(prev => {
+      setEntries((prev) => {
         // Trigger async decrypt, will update state when done
-        Promise.all(prev.map(e => e.type === "secret" ? decryptEntry(e, key) : e))
-          .then(decrypted => setEntries(decrypted));
+        Promise.all(prev.map((e) => (e.type === "secret" ? decryptEntry(e, key) : e))).then(
+          (decrypted) => setEntries(decrypted),
+        );
         return prev;
       });
     }
@@ -213,26 +382,36 @@ export default function OpenBrain() {
   // PERF-8: On mount, upgrade the initial state from IndexedDB (richer than localStorage).
   // Only runs once; if IDB has data and localStorage was empty/stale, this hydrates faster.
   useEffect(() => {
-    readEntriesCache().then(cached => {
-      if (cached && cached.length > 0) {
-        setEntries(prev => prev.length === 0 ? cached : prev);
-      }
-    }).catch(() => {});
+    readEntriesCache()
+      .then((cached) => {
+        if (cached && cached.length > 0) {
+          setEntries((prev) => (prev.length === 0 ? cached : prev));
+        }
+      })
+      .catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Brain context + role ───
-  const { brains, activeBrain, setActiveBrain, createBrain, deleteBrain, refresh, loading: brainsLoading } = useBrainHook(
+  const {
+    brains,
+    activeBrain,
+    setActiveBrain,
+    createBrain,
+    deleteBrain,
+    refresh,
+    loading: brainsLoading,
+  } = useBrainHook(
     useCallback(() => {
       // Reset local state when brain switches
       setEntries([]);
       setLinks([]);
       setEntriesLoaded(false);
-    }, [])
+    }, []),
   );
 
   const { isOnline, pendingCount, sync, refreshCount } = useOfflineSync({
     onEntryIdUpdate: useCallback((tempId, realId) => {
-      setEntries(prev => prev.map(e => e.id === tempId ? { ...e, id: realId } : e));
+      setEntries((prev) => prev.map((e) => (e.id === tempId ? { ...e, id: realId } : e)));
     }, []),
   });
 
@@ -243,21 +422,26 @@ export default function OpenBrain() {
 
   // Keep a ref so timer callbacks can read current isOnline without stale closure
   const isOnlineRef = useRef(isOnline);
-  useEffect(() => { isOnlineRef.current = isOnline; }, [isOnline]);
+  useEffect(() => {
+    isOnlineRef.current = isOnline;
+  }, [isOnline]);
 
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
-  const [workspace, setWorkspace] = useState(() => localStorage.getItem("openbrain_workspace") || "all");
+  const [workspace, setWorkspace] = useState(
+    () => localStorage.getItem("openbrain_workspace") || "all",
+  );
   const [view, setView] = useState("capture");
   const [navOpen, setNavOpen] = useState(false);
   const [selected, setSelected] = useState(null);
   const [links, setLinks] = useState(LINKS);
-  const [graphError, setGraphError] = useState(null);
-  const addLinks = (newLinks) => setLinks(prev => [...prev, ...newLinks]);
+  const addLinks = (newLinks) => setLinks((prev) => [...prev, ...newLinks]);
   const { canWrite, canInvite, canManageMembers, role: myRole } = useRole(activeBrain);
-  const { t, isDark, toggleTheme } = useTheme();
-  const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("openbrain_onboarded"));
+  const { isDark, toggleTheme } = useTheme();
+  const [showOnboarding, setShowOnboarding] = useState(
+    () => !localStorage.getItem("openbrain_onboarded"),
+  );
   // Skip onboarding for existing users on new browsers — if they already have brains, they're not new
   useEffect(() => {
     if (showOnboarding && brains.length > 0) {
@@ -268,7 +452,13 @@ export default function OpenBrain() {
   const [showBrainTip, setShowBrainTip] = useState(null);
   const [showCreateBrain, setShowCreateBrain] = useState(false);
   const [chatInput, setChatInput] = useState("");
-  const [chatMsgs, setChatMsgs] = useState([{ role: "assistant", content: "Hey! Ask me about your memories — \"What's my ID number?\", \"Who are my suppliers?\", etc." }]);
+  const [chatMsgs, setChatMsgs] = useState([
+    {
+      role: "assistant",
+      content:
+        'Hey! Ask me about your memories — "What\'s my ID number?", "Who are my suppliers?", etc.',
+    },
+  ]);
   const [chatLoading, setChatLoading] = useState(false);
   const [pendingSecureMsg, setPendingSecureMsg] = useState(null);
   const [showPinGate, setShowPinGate] = useState(false);
@@ -288,9 +478,12 @@ export default function OpenBrain() {
 
   // Check if user has a vault set up (for chat unlock prompts)
   useEffect(() => {
-    authFetch("/api/vault").then(r => r.ok ? r.json() : null).then(d => {
-      if (d?.exists) setVaultExists(true);
-    }).catch(() => {});
+    authFetch("/api/vault")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.exists) setVaultExists(true);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -298,77 +491,105 @@ export default function OpenBrain() {
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatMsgs]);
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMsgs]);
 
   useEffect(() => {
     if (!activeBrain?.id) return;
     setEntriesLoaded(false);
     const url = `/api/entries?brain_id=${encodeURIComponent(activeBrain.id)}`;
     authFetch(url)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
           // Secret entries stay encrypted in state until vault is unlocked
           setEntries(data);
           writeEntriesCache(data); // PERF-8: write to IDB (with localStorage fallback)
           // ARCH-5: Build search index at load time (skip secret entries — encrypted)
-          data.filter(e => e.type !== "secret").forEach(indexEntry);
+          data.filter((e) => e.type !== "secret").forEach(indexEntry);
         }
         setEntriesLoaded(true);
       })
-      .catch(err => { captureError(err, 'fetchEntries'); setEntriesLoaded(true); });
-    // Load similarity graph links from embeddings
-    setGraphError(null);
+      .catch((err) => {
+        captureError(err, "fetchEntries");
+        setEntriesLoaded(true);
+      });
+    // Load similarity links from embeddings
     authFetch(`/api/search?brain_id=${encodeURIComponent(activeBrain.id)}&threshold=0.55`)
-      .then(async r => {
-        if (!r.ok) { const err = await r.text().catch(() => r.status); setGraphError(`API ${r.status}: ${err.slice(0, 120)}`); return null; }
-        return r.json();
-      })
-      .then(data => {
+      .then(async (r) => (r.ok ? r.json() : null))
+      .then((data) => {
         if (!data) return;
         const linkArr = Array.isArray(data) ? data : data.links || [];
-        const embedded = data.embedded ?? "?";
-        if (linkArr.length > 0) { setLinks(linkArr); setGraphError(null); }
-        else setGraphError(`0 links (${embedded} embedded / ${entries.length} entries)${data.message ? " — " + data.message : ""}`);
+        if (linkArr.length > 0) setLinks(linkArr);
       })
-      .catch(e => setGraphError(e.message));
+      .catch(() => {});
   }, [activeBrain?.id]);
 
   // Proactive intelligence nudge — runs once per session after entries load
   useEffect(() => {
     if (!entriesLoaded || sessionStorage.getItem("openbrain_nudge") !== null) return;
-    const recent = entries.slice(0, 30).map(e => ({ id: e.id, title: e.title, type: e.type, tags: e.tags, metadata: e.metadata, created_at: e.created_at }));
+    const recent = entries
+      .slice(0, 30)
+      .map((e) => ({
+        id: e.id,
+        title: e.title,
+        type: e.type,
+        tags: e.tags,
+        metadata: e.metadata,
+        created_at: e.created_at,
+      }));
     callAI({
       max_tokens: 200,
       system: PROMPTS.NUDGE,
-      messages: [{ role: "user", content: `My recent memories:\n${JSON.stringify(recent)}\n\nWhat should I know right now?` }]
+      brainId: activeBrain?.id,
+      messages: [
+        {
+          role: "user",
+          content: `My recent memories:\n${JSON.stringify(recent)}\n\nWhat should I know right now?`,
+        },
+      ],
     })
-      .then(r => r.json())
-      .then(data => {
+      .then((r) => r.json())
+      .then((data) => {
         const text = data.content?.[0]?.text?.trim();
-        if (text) { setNudge(text); sessionStorage.setItem("openbrain_nudge", text); }
-        else sessionStorage.setItem("openbrain_nudge", "");
+        if (text) {
+          setNudge(text);
+          sessionStorage.setItem("openbrain_nudge", text);
+        } else sessionStorage.setItem("openbrain_nudge", "");
       })
       .catch(() => sessionStorage.setItem("openbrain_nudge", ""));
   }, [entriesLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!entriesLoaded) return;
-    const t = setTimeout(() => { writeEntriesCache(entries); }, 3000); // PERF-8: debounced IDB write
+    const t = setTimeout(() => {
+      writeEntriesCache(entries);
+    }, 3000); // PERF-8: debounced IDB write
     return () => clearTimeout(t);
   }, [entries, entriesLoaded]);
 
-  const types = useMemo(() => { const t = {}; entries.forEach(e => { t[e.type] = (t[e.type] || 0) + 1; }); return t; }, [entries]);
+  const types = useMemo(() => {
+    const t = {};
+    entries.forEach((e) => {
+      t[e.type] = (t[e.type] || 0) + 1;
+    });
+    return t;
+  }, [entries]);
 
   const filtered = useMemo(() => {
     let r = entries;
-    if (workspace !== "all") r = r.filter(e => { const ws = inferWorkspace(e); return ws === workspace || ws === "both"; });
-    if (typeFilter !== "all") r = r.filter(e => e.type === typeFilter);
+    if (workspace !== "all")
+      r = r.filter((e) => {
+        const ws = inferWorkspace(e);
+        return ws === workspace || ws === "both";
+      });
+    if (typeFilter !== "all") r = r.filter((e) => e.type === typeFilter);
     if (search) {
       // ARCH-5: Use pre-computed inverted index — O(k) lookup instead of O(n) full scan
       const matchIds = searchIndex(search);
       if (matchIds) {
-        r = r.filter(e => matchIds.has(e.id));
+        r = r.filter((e) => matchIds.has(e.id));
       } else {
         // Fallback: index returned null (empty query), no filter applied
       }
@@ -376,102 +597,170 @@ export default function OpenBrain() {
     return r;
   }, [search, typeFilter, workspace, entries]);
 
-  const sortedTimeline = useMemo(() => [...filtered].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)), [filtered]);
+  const sortedTimeline = useMemo(
+    () => [...filtered].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)),
+    [filtered],
+  );
 
   // ─── Undo system ───
   const commitPendingDelete = useCallback(() => {
     if (!pendingDeleteRef.current) return;
     const { id } = pendingDeleteRef.current;
     if (isOnlineRef.current) {
-      authFetch("/api/delete-entry", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) }).catch(err => captureError(err, 'commitPendingDelete'));
+      authFetch("/api/delete-entry", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      }).catch((err) => captureError(err, "commitPendingDelete"));
     } else {
-      enqueue({ id: crypto.randomUUID(), url: "/api/delete-entry", method: "DELETE", body: JSON.stringify({ id }), created_at: new Date().toISOString() }).then(refreshCount);
+      enqueue({
+        id: crypto.randomUUID(),
+        url: "/api/delete-entry",
+        method: "DELETE",
+        body: JSON.stringify({ id }),
+        created_at: new Date().toISOString(),
+      }).then(refreshCount);
     }
     pendingDeleteRef.current = null;
   }, [refreshCount]);
 
-  const handleDelete = useCallback((id) => {
-    const entry = entries.find(e => e.id === id);
-    if (!entry) return;
-    commitPendingDelete();
-    removeFromIndex(id); // ARCH-5: keep search index consistent
-    setEntries(prev => prev.filter(e => e.id !== id));
-    setSelected(null);
-    // Deferred commit: actual DB delete fires only when toast expires.
-    // Guard: only commit if the ref still holds this exact entry (prevents a stale
-    // timer from firing after a second delete has replaced the ref with a different id).
-    const timer = setTimeout(() => {
-      if (pendingDeleteRef.current?.id === id) {
-        commitPendingDelete();
-        setLastAction(null);
-      }
-    }, 5000);
-    pendingDeleteRef.current = { id, entry, timer };
-    setLastAction({ type: "delete", entry });
-  }, [entries, commitPendingDelete]);
+  const handleDelete = useCallback(
+    (id) => {
+      const entry = entries.find((e) => e.id === id);
+      if (!entry) return;
+      commitPendingDelete();
+      removeFromIndex(id); // ARCH-5: keep search index consistent
+      setEntries((prev) => prev.filter((e) => e.id !== id));
+      setSelected(null);
+      // Deferred commit: actual DB delete fires only when toast expires.
+      // Guard: only commit if the ref still holds this exact entry (prevents a stale
+      // timer from firing after a second delete has replaced the ref with a different id).
+      const timer = setTimeout(() => {
+        if (pendingDeleteRef.current?.id === id) {
+          commitPendingDelete();
+          setLastAction(null);
+        }
+      }, 5000);
+      pendingDeleteRef.current = { id, entry, timer };
+      setLastAction({ type: "delete", entry });
+    },
+    [entries, commitPendingDelete],
+  );
 
-  const handleUpdate = useCallback(async (id, changes) => {
-    const previous = entries.find(e => e.id === id);
-    if (!isOnline) {
-      await enqueue({ id: crypto.randomUUID(), url: "/api/update-entry", method: "PATCH", body: JSON.stringify({ id, ...changes }), created_at: new Date().toISOString() });
-      refreshCount();
-      setEntries(prev => prev.map(e => e.id === id ? { ...e, ...changes } : e));
-      setSelected(prev => prev?.id === id ? { ...prev, ...changes } : prev);
-      if (previous) setLastAction({ type: "update", id, previous: { title: previous.title, content: previous.content, type: previous.type, tags: previous.tags, metadata: previous.metadata } });
-      return;
-    }
-    // E2E: encrypt content & metadata for secret entries before sending to server
-    const entryType = changes.type || previous?.type;
-    const isSecret = entryType === "secret";
-    let serverChanges = { ...changes };
-    if (isSecret && cryptoKey && (changes.content || changes.metadata)) {
-      const encrypted = await encryptEntry({ content: changes.content, metadata: changes.metadata }, cryptoKey);
-      if (changes.content) serverChanges.content = encrypted.content;
-      if (changes.metadata) serverChanges.metadata = encrypted.metadata;
-    }
-    try {
-      const res = await authFetch("/api/update-entry", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...serverChanges }) });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error((data?.message || data?.error) ?? `HTTP ${res.status}`);
-      if (Array.isArray(data) && data.length === 0) throw new Error(`No row matched id=${id}`);
-    } catch (e) { captureError(e, 'handleUpdate'); showError(`Save failed: ${e.message}`); setSaveError(`Save failed: ${e.message}`); setTimeout(() => setSaveError(null), 5000); return; }
-    // Fire-and-forget re-embedding (skip for secret entries — encrypted content can't be embedded)
-    if (!isSecret) {
-      const embedHeaders = getEmbedHeaders();
-      if (embedHeaders) {
-        authFetch("/api/embed", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...embedHeaders },
-          body: JSON.stringify({ entry_id: id }),
-        }).catch(() => {}); // best-effort, never blocks
+  const handleUpdate = useCallback(
+    async (id, changes) => {
+      const previous = entries.find((e) => e.id === id);
+      if (!isOnline) {
+        await enqueue({
+          id: crypto.randomUUID(),
+          url: "/api/update-entry",
+          method: "PATCH",
+          body: JSON.stringify({ id, ...changes }),
+          created_at: new Date().toISOString(),
+        });
+        refreshCount();
+        setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...changes } : e)));
+        setSelected((prev) => (prev?.id === id ? { ...prev, ...changes } : prev));
+        if (previous)
+          setLastAction({
+            type: "update",
+            id,
+            previous: {
+              title: previous.title,
+              content: previous.content,
+              type: previous.type,
+              tags: previous.tags,
+              metadata: previous.metadata,
+            },
+          });
+        return;
       }
-    }
-    // ARCH-5: Re-index the updated entry so search stays accurate
-    removeFromIndex(id);
-    const updated = { ...entries.find(e => e.id === id), ...changes };
-    indexEntry(updated);
-    setEntries(prev => prev.map(e => e.id === id ? { ...e, ...changes } : e));
-    setSelected(prev => prev?.id === id ? { ...prev, ...changes } : prev);
-    if (previous) setLastAction({ type: "update", id, previous: { title: previous.title, content: previous.content, type: previous.type, tags: previous.tags, metadata: previous.metadata } });
-  }, [entries, isOnline, refreshCount]);
+      // E2E: encrypt content & metadata for secret entries before sending to server
+      const entryType = changes.type || previous?.type;
+      const isSecret = entryType === "secret";
+      let serverChanges = { ...changes };
+      if (isSecret && cryptoKey && (changes.content || changes.metadata)) {
+        const encrypted = await encryptEntry(
+          { content: changes.content, metadata: changes.metadata },
+          cryptoKey,
+        );
+        if (changes.content) serverChanges.content = encrypted.content;
+        if (changes.metadata) serverChanges.metadata = encrypted.metadata;
+      }
+      try {
+        const res = await authFetch("/api/update-entry", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, ...serverChanges }),
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error((data?.message || data?.error) ?? `HTTP ${res.status}`);
+        if (Array.isArray(data) && data.length === 0) throw new Error(`No row matched id=${id}`);
+      } catch (e) {
+        captureError(e, "handleUpdate");
+        showError(`Save failed: ${e.message}`);
+        setSaveError(`Save failed: ${e.message}`);
+        setTimeout(() => setSaveError(null), 5000);
+        return;
+      }
+      // Fire-and-forget re-embedding (skip for secret entries — encrypted content can't be embedded)
+      if (!isSecret) {
+        const embedHeaders = getEmbedHeaders();
+        if (embedHeaders) {
+          authFetch("/api/embed", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...embedHeaders },
+            body: JSON.stringify({ entry_id: id }),
+          }).catch(() => {}); // best-effort, never blocks
+        }
+      }
+      // ARCH-5: Re-index the updated entry so search stays accurate
+      removeFromIndex(id);
+      const updated = { ...entries.find((e) => e.id === id), ...changes };
+      indexEntry(updated);
+      setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...changes } : e)));
+      setSelected((prev) => (prev?.id === id ? { ...prev, ...changes } : prev));
+      if (previous)
+        setLastAction({
+          type: "update",
+          id,
+          previous: {
+            title: previous.title,
+            content: previous.content,
+            type: previous.type,
+            tags: previous.tags,
+            metadata: previous.metadata,
+          },
+        });
+    },
+    [entries, isOnline, refreshCount],
+  );
 
   const handleUndo = useCallback(() => {
     if (!lastAction) return;
     if (lastAction.type === "delete" && pendingDeleteRef.current) {
       clearTimeout(pendingDeleteRef.current.timer);
-      setEntries(prev => [pendingDeleteRef.current.entry, ...prev]);
+      setEntries((prev) => [pendingDeleteRef.current.entry, ...prev]);
       pendingDeleteRef.current = null;
     }
     if (lastAction.type === "update") {
       const { id, previous } = lastAction;
-      authFetch("/api/update-entry", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...previous }) }).catch(err => captureError(err, 'undo:update'));
-      setEntries(prev => prev.map(e => e.id === id ? { ...e, ...previous } : e));
-      setSelected(prev => prev?.id === id ? { ...prev, ...previous } : prev);
+      authFetch("/api/update-entry", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...previous }),
+      }).catch((err) => captureError(err, "undo:update"));
+      setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...previous } : e)));
+      setSelected((prev) => (prev?.id === id ? { ...prev, ...previous } : prev));
     }
     if (lastAction.type === "create") {
       const { id } = lastAction;
-      authFetch("/api/delete-entry", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) }).catch(err => captureError(err, 'undo:delete'));
-      setEntries(prev => prev.filter(e => e.id !== id));
+      authFetch("/api/delete-entry", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      }).catch((err) => captureError(err, "undo:delete"));
+      setEntries((prev) => prev.filter((e) => e.id !== id));
     }
     setLastAction(null);
   }, [lastAction]);
@@ -480,36 +769,10 @@ export default function OpenBrain() {
     setLastAction({ type: "create", id: newEntry.id });
   }, []);
 
-  // ─── Reorder / Renewal Reminder ───
-  const handleReorder = useCallback(async (supplier) => {
-    const due = new Date();
-    const isRenewal = supplier._renewalMode;
-    if (isRenewal) due.setMonth(due.getMonth() + 1); else due.setDate(due.getDate() + 7);
-    const parsed = isRenewal ? {
-      title: `Renew ${supplier.title}`,
-      content: `Set a renewal reminder for ${supplier.title}.`,
-      type: "reminder",
-      metadata: { status: "pending", due_date: due.toISOString().split("T")[0] },
-      tags: ["renewal", "admin"]
-    } : {
-      title: `Reorder from ${supplier.title.split(" - ")[0]}`,
-      content: `Remember to place a reorder with ${supplier.title}.`,
-      type: "reminder",
-      metadata: { status: "pending", due_date: due.toISOString().split("T")[0] },
-      tags: ["reorder", "smash burger bar"]
-    };
-    try {
-      const res = await authFetch("/api/capture", { method: "POST", headers: { "Content-Type": "application/json", ...(getEmbedHeaders() || {}) }, body: JSON.stringify({ p_title: parsed.title, p_content: parsed.content, p_type: parsed.type, p_metadata: parsed.metadata, p_tags: parsed.tags }) });
-      const result = res.ok ? await res.json() : null;
-      const newEntry = { id: result?.id || Date.now().toString(), ...parsed, pinned: false, importance: 1, created_at: new Date().toISOString() };
-      setEntries(prev => [newEntry, ...prev]);
-      setLastAction({ type: "create", id: newEntry.id });
-    } catch { /* silently fail */ }
-  }, []);
 
   // ─── Chat context memoization (PERF-3) ───
   const chatContext = useMemo(() => {
-    return entries.slice(0, 100).map(e => ({
+    return entries.slice(0, 100).map((e) => ({
       id: e.id,
       title: e.title,
       type: e.type,
@@ -519,56 +782,83 @@ export default function OpenBrain() {
   }, [entries]);
 
   // Regex to detect when user is asking about vault-stored secrets
-  const SECRET_QUERY_RE = /\b(password|passcode|passphrase|credentials|login|wifi\s*(key|password)|network\s*key|bank\s*(account|pin|number|detail)|credit\s*card|cvv|routing\s*number|secret|vault)\b/i;
+  const SECRET_QUERY_RE =
+    /\b(password|passcode|passphrase|credentials|login|wifi\s*(key|password)|network\s*key|bank\s*(account|pin|number|detail)|credit\s*card|cvv|routing\s*number|secret|vault)\b/i;
 
   // Core chat send logic — used by both handleChat and post-vault-unlock retry
-  const sendChat = useCallback(async (msg, overrideSecrets) => {
-    setChatLoading(true);
-    try {
-      const secrets = overrideSecrets || (cryptoKey
-        ? entries.filter(e => e.type === "secret").map(e => ({ title: e.title, content: e.content?.slice(0, 500), tags: e.tags }))
-        : []);
+  const sendChat = useCallback(
+    async (msg, overrideSecrets) => {
+      setChatLoading(true);
+      try {
+        const secrets =
+          overrideSecrets ||
+          (cryptoKey
+            ? entries
+                .filter((e) => e.type === "secret")
+                .map((e) => ({ title: e.title, content: e.content?.slice(0, 500), tags: e.tags }))
+            : []);
 
-      const embedHeaders = getEmbedHeaders();
-      let data;
-      if (embedHeaders && activeBrain?.id) {
-        const provider = getUserProvider();
-        const genKey = provider === "openrouter" ? getOpenRouterKey() : getUserApiKey();
-        const model = provider === "openrouter" ? getOpenRouterModel() : getUserModel();
-        const history = chatMsgs.slice(-10);
-        const res = await authFetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...embedHeaders, ...(genKey ? { "X-User-Api-Key": genKey } : {}) },
-          body: JSON.stringify({ message: msg, brain_id: activeBrain.id, history, provider, model, secrets }),
-        });
-        data = await res.json();
-      } else {
-        const contextWithSecrets = secrets.length ? [...chatContext, ...secrets.map(s => ({ ...s, type: "secret" }))] : chatContext;
-        const res = await callAI({
-          max_tokens: 1000,
-          system: PROMPTS.CHAT.replace("{{MEMORIES}}", JSON.stringify(contextWithSecrets)).replace("{{LINKS}}", JSON.stringify(links)),
-          messages: [{ role: "user", content: msg }],
-        });
-        data = await res.json();
+        const embedHeaders = getEmbedHeaders();
+        let data;
+        if (embedHeaders && activeBrain?.id) {
+          const provider = getUserProvider();
+          const genKey = provider === "openrouter" ? getOpenRouterKey() : getUserApiKey();
+          const model = provider === "openrouter" ? getOpenRouterModel() : getUserModel();
+          const history = chatMsgs.slice(-10);
+          const res = await authFetch("/api/chat", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...embedHeaders,
+              ...(genKey ? { "X-User-Api-Key": genKey } : {}),
+            },
+            body: JSON.stringify({
+              message: msg,
+              brain_id: activeBrain.id,
+              history,
+              provider,
+              model,
+              secrets,
+            }),
+          });
+          data = await res.json();
+        } else {
+          const contextWithSecrets = secrets.length
+            ? [...chatContext, ...secrets.map((s) => ({ ...s, type: "secret" }))]
+            : chatContext;
+          const res = await callAI({
+            max_tokens: 1000,
+            system: PROMPTS.CHAT.replace(
+              "{{MEMORIES}}",
+              JSON.stringify(contextWithSecrets),
+            ).replace("{{LINKS}}", JSON.stringify(links)),
+            brainId: activeBrain?.id,
+            messages: [{ role: "user", content: msg }],
+          });
+          data = await res.json();
+        }
+        const content = data.content?.map((c) => c.text || "").join("") || "Couldn't process.";
+        if (containsSensitiveContent(content)) {
+          const hasPinSet = !!getStoredPinHash();
+          setPendingSecureMsg({ content });
+          setPinGateIsSetup(!hasPinSet);
+          setShowPinGate(true);
+        } else {
+          setChatMsgs((p) => [...p, { role: "assistant", content }]);
+        }
+      } catch {
+        setChatMsgs((p) => [...p, { role: "assistant", content: "Connection error." }]);
       }
-      const content = data.content?.map(c => c.text || "").join("") || "Couldn't process.";
-      if (containsSensitiveContent(content)) {
-        const hasPinSet = !!getStoredPinHash();
-        setPendingSecureMsg({ content });
-        setPinGateIsSetup(!hasPinSet);
-        setShowPinGate(true);
-      } else {
-        setChatMsgs(p => [...p, { role: "assistant", content }]);
-      }
-    } catch { setChatMsgs(p => [...p, { role: "assistant", content: "Connection error." }]); }
-    setChatLoading(false);
-  }, [cryptoKey, entries, chatContext, links, chatMsgs, activeBrain]);
+      setChatLoading(false);
+    },
+    [cryptoKey, entries, chatContext, links, chatMsgs, activeBrain],
+  );
 
   const handleChat = async () => {
     if (!chatInput.trim()) return;
     const msg = chatInput.trim();
     setChatInput("");
-    setChatMsgs(p => [...p, { role: "user", content: msg }]);
+    setChatMsgs((p) => [...p, { role: "user", content: msg }]);
 
     // If the message asks about secrets and vault is locked, prompt to unlock first
     if (!cryptoKey && vaultExists && SECRET_QUERY_RE.test(msg)) {
@@ -581,7 +871,14 @@ export default function OpenBrain() {
           setVaultModalInput("");
           setVaultModalMode("passphrase");
           setVaultModalError("");
-          setChatMsgs(p => [...p, { role: "assistant", content: "🔐 That looks like a question about your vault secrets. Please unlock your vault to continue." }]);
+          setChatMsgs((p) => [
+            ...p,
+            {
+              role: "assistant",
+              content:
+                "🔐 That looks like a question about your vault secrets. Please unlock your vault to continue.",
+            },
+          ]);
           return;
         }
       } catch {}
@@ -601,10 +898,15 @@ export default function OpenBrain() {
       if (vaultModalMode === "passphrase") {
         key = await unlockVault(vaultModalInput, vaultData.salt, vaultData.verify_token);
       } else {
-        key = await decryptVaultKeyFromRecovery(vaultData.recovery_blob, vaultModalInput.trim().toUpperCase());
+        key = await decryptVaultKeyFromRecovery(
+          vaultData.recovery_blob,
+          vaultModalInput.trim().toUpperCase(),
+        );
       }
       if (!key) {
-        setVaultModalError(vaultModalMode === "passphrase" ? "Wrong passphrase" : "Wrong recovery key");
+        setVaultModalError(
+          vaultModalMode === "passphrase" ? "Wrong passphrase" : "Wrong recovery key",
+        );
         setVaultModalBusy(false);
         return;
       }
@@ -613,9 +915,13 @@ export default function OpenBrain() {
       setVaultUnlockModal(null);
       // Decrypt secrets and re-send the pending message
       const decryptedEntries = await Promise.all(
-        entries.filter(e => e.type === "secret").map(e => decryptEntry(e, key))
+        entries.filter((e) => e.type === "secret").map((e) => decryptEntry(e, key)),
       );
-      const secrets = decryptedEntries.map(e => ({ title: e.title, content: e.content?.slice(0, 500), tags: e.tags }));
+      const secrets = decryptedEntries.map((e) => ({
+        title: e.title,
+        content: e.content?.slice(0, 500),
+        tags: e.tags,
+      }));
       await sendChat(pendingMsg, secrets);
     } catch {
       setVaultModalError("Unlock failed");
@@ -626,61 +932,71 @@ export default function OpenBrain() {
   const navViews = [
     { id: "grid", l: "Grid", ic: "▦" },
     { id: "suggest", l: "Fill Brain", ic: "✦" },
-    { id: "refine", l: "Refine", ic: "◇" },
-    { id: "calendar", l: "Calendar", ic: "📅" },
+    { id: "refine", l: "Refine", ic: "✦" },
     { id: "todos", l: "Todos", ic: "✓" },
     { id: "timeline", l: "Timeline", ic: "◔" },
-    { id: "graph", l: "Graph", ic: "◉" },
     { id: "vault", l: "Vault", ic: "🔐" },
     { id: "chat", l: "Ask", ic: "◈" },
     { id: "settings", l: "Settings", ic: "⚙" },
   ];
 
-  const entriesValue = useMemo(() => ({
-    entries,
-    setEntries,
-    entriesLoaded,
-    selected,
-    setSelected,
-    handleDelete,
-    handleUpdate,
-  }), [entries, setEntries, entriesLoaded, selected, setSelected, handleDelete, handleUpdate]);
+  const entriesValue = useMemo(
+    () => ({
+      entries,
+      setEntries,
+      entriesLoaded,
+      selected,
+      setSelected,
+      handleDelete,
+      handleUpdate,
+    }),
+    [entries, setEntries, entriesLoaded, selected, setSelected, handleDelete, handleUpdate],
+  );
 
-  const brainValue = useMemo(() => ({
-    activeBrain,
-    brains,
-    refresh,
-    canInvite,
-    canManageMembers,
-  }), [activeBrain, brains, refresh, canInvite, canManageMembers]);
+  const brainValue = useMemo(
+    () => ({
+      activeBrain,
+      brains,
+      refresh,
+      canInvite,
+      canManageMembers,
+    }),
+    [activeBrain, brains, refresh, canInvite, canManageMembers],
+  );
 
-  // Show loading state while brains are being fetched to prevent read-only / onboarding flash
   if (brainsLoading) {
     return (
-      <div style={{ minHeight: "100vh", background: t.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Söhne', system-ui, -apple-system, sans-serif" }}>
-        <div style={{ fontSize: 48, marginBottom: 16, animation: "ob-pulse 1.5s ease-in-out infinite" }}>🧠</div>
-        <p style={{ fontSize: 13, color: t.textDim, margin: 0 }}>Loading your brains...</p>
-        <div style={{ width: 120, height: 3, borderRadius: 3, background: t.surface, overflow: "hidden", marginTop: 12 }}>
-          <div style={{ width: "40%", height: "100%", borderRadius: 3, background: "linear-gradient(90deg, #4ECDC4, #45B7D1)", animation: "ob-slide 1.2s ease-in-out infinite" }} />
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-background">
+        <div className="synapse-bg" aria-hidden="true" />
+        <div className="relative z-10 flex flex-col items-center gap-4">
+          <div className="text-4xl">🧠</div>
+          <p className="text-sm text-on-surface-variant uppercase tracking-[0.2em] font-semibold">Loading your brains...</p>
+          <div className="w-24 h-0.5 rounded-full overflow-hidden" style={{ background: "rgba(114,239,245,0.1)" }}>
+            <div className="h-full" style={{ background: "linear-gradient(90deg,#72eff5,#d575ff)", animation: "loading-bar 1.5s ease-in-out infinite" }} />
+          </div>
         </div>
-        <style>{`
-          @keyframes ob-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.08); opacity: 0.7; } }
-          @keyframes ob-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
-        `}</style>
+        <style>{`@keyframes loading-bar{0%{width:0%;margin-left:0%}50%{width:60%;margin-left:20%}100%{width:0%;margin-left:100%}}`}</style>
       </div>
     );
   }
 
   return (
     <EntriesContext.Provider value={entriesValue}>
-    <BrainContext.Provider value={brainValue}>
-    <div style={{ minHeight: "100vh", background: t.bg, color: t.text, fontFamily: "'Söhne', system-ui, -apple-system, sans-serif", transition: "background 0.25s, color 0.25s", overflowX: "hidden" }}>
-      <div style={{ padding: "12px 12px 0" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "nowrap" }}>
-          <div
-            style={{ width: 34, height: 34, minWidth: 34, borderRadius: 10, background: "linear-gradient(135deg, #4ECDC4, #45B7D1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}
-          >🧠</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
+      <BrainContext.Provider value={brainValue}>
+        <>
+          {/* Desktop sidebar — fixed, outside overflow container */}
+          <DesktopSidebar
+            activeBrainName={activeBrain?.name || "OpenBrain"}
+            view={view}
+            onNavigate={(id) => { setView(id); setNavOpen(false); }}
+            isDark={isDark}
+            onToggleTheme={toggleTheme}
+            isOnline={isOnline}
+            pendingCount={pendingCount}
+            entryCount={entries.length}
+            onShowCreateBrain={() => setShowCreateBrain(true)}
+            navViews={navViews}
+          >
             {brains.length > 0 && (
               <BrainSwitcher
                 brains={brains}
@@ -694,317 +1010,571 @@ export default function OpenBrain() {
                 onBrainTip={(brain) => setShowBrainTip(brain)}
               />
             )}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-            {/* Theme toggle */}
-            <button
-              onClick={toggleTheme}
-              title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-              style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${isDark ? "#4a4a6a" : "#c0c0e0"}`, background: isDark ? "#2a2a4a" : "#ffffff", cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, padding: 0 }}
-            >
-              {isDark ? "🌙" : "☀️"}
-            </button>
-            {/* Hamburger */}
-            <button
-              onClick={() => setNavOpen(o => !o)}
-              title="Menu"
-              style={{ width: 34, height: 34, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8, cursor: "pointer", flexShrink: 0, padding: 0 }}
-            >
-              {[0,1,2].map(i => <div key={i} style={{ width: 14, height: 2, background: t.textMid, borderRadius: 1 }} />)}
-            </button>
-          </div>
-        </div>
-      </div>
+          </DesktopSidebar>
 
-      <QuickCapture entries={entries} setEntries={setEntries} links={links} addLinks={addLinks} onCreated={handleCreated} onUpdate={handleUpdate} brainId={activeBrain?.id} brains={brains} isOnline={isOnline} refreshCount={refreshCount} canWrite={canWrite} cryptoKey={cryptoKey} onNavigate={setView} />
+          <div className="overflow-x-hidden w-full">
+          {/* Main content — pushed right of sidebar on desktop, below fixed header on mobile */}
+          {/* Main scroll area — offset from sidebar on desktop */}
+          <div className="min-h-dvh bg-background lg:ml-72">
 
-      {showBrainTip && (
-        <BrainTipCard
-          brain={showBrainTip}
-          onDismiss={() => setShowBrainTip(null)}
-          onFill={() => { setShowBrainTip(null); setView("suggest"); }}
-        />
-      )}
-
-      {view === "grid" && nudge && <NudgeBanner nudge={nudge} onDismiss={() => { setNudge(null); sessionStorage.removeItem("openbrain_nudge"); }} />}
-
-      {/* Slide-in nav panel */}
-      {navOpen && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 1000 }} onClick={() => setNavOpen(false)}>
-          <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: "75vw", maxWidth: 260, background: isDark ? "#16161e" : "#f8f8ff", borderLeft: `1px solid ${t.border}`, boxShadow: "-8px 0 32px rgba(0,0,0,0.4)", display: "flex", flexDirection: "column", padding: "20px 0" }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ padding: "0 20px 16px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: t.textMid }}>Navigation</span>
-              <button onClick={() => setNavOpen(false)} style={{ background: "none", border: "none", color: t.textDim, fontSize: 18, cursor: "pointer", lineHeight: 1 }}>×</button>
-            </div>
-            <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
-              {[{ id: "capture", l: "Capture", ic: "+" }, ...navViews].map(v => (
-                <button key={v.id} onClick={() => { setView(v.id); setNavOpen(false); }}
-                  style={{ width: "100%", textAlign: "left", padding: "12px 20px", border: "none", background: view === v.id ? (isDark ? "rgba(78,205,196,0.1)" : "rgba(78,205,196,0.15)") : "none", color: view === v.id ? "#4ECDC4" : t.text, fontSize: 14, fontWeight: view === v.id ? 700 : 400, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
-                  <span style={{ fontSize: 16, width: 24, textAlign: "center" }}>{v.ic}</span>
-                  <span>{v.l}</span>
-                  {v.id === "suggest" && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#FF6B35", marginLeft: "auto" }} />}
-                </button>
-              ))}
-            </div>
-            <div style={{ padding: "8px 16px", borderTop: `1px solid ${t.border}` }}>
-              <button
-                onClick={() => { setNavOpen(false); setShowCreateBrain(true); }}
-                style={{ width: "100%", padding: "10px 16px", background: "rgba(124,143,240,0.1)", border: "1px solid rgba(124,143,240,0.3)", borderRadius: 10, color: "#a5b4fc", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, justifyContent: "center" }}
-              >
-                + Add Family or Business Brain
-              </button>
-            </div>
-            <div style={{ padding: "8px 20px", borderTop: `1px solid ${t.border}`, fontSize: 11, color: t.textDim }}>
-              {entries.length} memories · {pendingCount > 0 ? `${pendingCount} pending sync` : "synced"}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showCreateBrain && (
-        <CreateBrainModal
-          onClose={() => setShowCreateBrain(false)}
-          onCreate={async (brain) => {
-            await refresh();
-            setActiveBrain(brain);
-            setShowBrainTip(brain);
-            setShowCreateBrain(false);
-          }}
-        />
-      )}
-
-      <div style={{ padding: "12px 12px" }}>
-        {view === "capture" && (
-          <div style={{ paddingTop: 8 }}>
-            <OnboardingChecklist activeBrain={activeBrain} onNavigate={setView} />
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 4 }}>
-              {[
-                { id: "grid",    l: "Memory Grid", ic: "▦", desc: "Browse all memories" },
-                { id: "suggest", l: "Fill Brain",   ic: "✦", desc: "Guided questions" },
-                { id: "chat",    l: "Ask",          ic: "◈", desc: "Chat with your brain" },
-                { id: "vault",   l: "Vault",        ic: "🔐", desc: "Encrypted secrets" },
-              ].map(v => (
-                <button key={v.id} onClick={() => setView(v.id)} style={{
-                  padding: "14px 12px", background: t.surface, border: `1px solid ${t.border}`,
-                  borderRadius: 12, cursor: "pointer", textAlign: "left",
-                }}>
-                  <div style={{ fontSize: 16, marginBottom: 4 }}>{v.ic}</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{v.l}</div>
-                  <div style={{ fontSize: 11, color: t.textDim, marginTop: 2 }}>{v.desc}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-        {view === "grid" && <>
-          {/* Workspace toggle — only show business tab if user has a business brain */}
-          <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-            {[
-              { ws: "all", label: "All" },
-              { ws: "personal", label: "👤 Personal" },
-              ...(brains.some(b => b.type === "business") ? [{ ws: "business", label: "🏪 Business" }] : []),
-            ].map(({ ws, label }) => (
-              <button key={ws} onClick={() => { setWorkspace(ws); localStorage.setItem("openbrain_workspace", ws); }} style={{ padding: "5px 14px", borderRadius: 20, border: "none", fontSize: 11, fontWeight: 600, cursor: "pointer", background: workspace === ws ? "#A29BFE" : t.surface, color: workspace === ws ? "#0f0f23" : t.textMuted, textTransform: "capitalize" }}>{label}</button>
-            ))}
-          </div>
-          <div style={{ position: "relative", marginBottom: 16 }}>
-            <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: t.textFaint }}>⌕</span>
-            <input value={searchInput} onChange={e => setSearchInput(e.target.value)} placeholder="Search..." style={{ width: "100%", boxSizing: "border-box", padding: "12px 16px 12px 38px", background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, color: t.textSoft, fontSize: 14, outline: "none" }} />
-          </div>
-          <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 16, scrollbarWidth: "none" }}>
-            <button onClick={() => setTypeFilter("all")} style={{ flexShrink: 0, padding: "6px 14px", borderRadius: 20, border: "none", fontSize: 11, fontWeight: 600, cursor: "pointer", background: typeFilter === "all" ? "#4ECDC4" : t.surface, color: typeFilter === "all" ? "#0f0f23" : t.textMuted }}>All ({entries.length})</button>
-            {Object.entries(types).map(([typ, n]) => { const c = TC[typ] || TC.note; return <button key={typ} onClick={() => setTypeFilter(typ)} style={{ flexShrink: 0, padding: "6px 14px", borderRadius: 20, border: "none", fontSize: 11, fontWeight: 600, cursor: "pointer", background: typeFilter === typ ? c.c : t.surface, color: typeFilter === typ ? "#0f0f23" : t.textMuted }}>{c.i} {typ} ({n})</button>; })}
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(70px, 1fr))", gap: 8, marginBottom: 16 }}>
-            {[{ l: "Memories", v: entries.length, c: "#4ECDC4" }, { l: "Pinned", v: entries.filter(e => e.pinned).length, c: "#FFD700" }, { l: "Types", v: Object.keys(types).length, c: "#A29BFE" }, { l: "Links", v: links.length, c: "#FF6B35" }].map(s =>
-              <div key={s.l} style={{ background: t.surface, borderRadius: 10, padding: "10px 8px", textAlign: "center", border: `1px solid ${t.border}` }}><div style={{ fontSize: 22, fontWeight: 800, color: s.c }}>{s.v}</div><div style={{ fontSize: 8, color: t.textDim, textTransform: "uppercase", letterSpacing: 1, marginTop: 2 }}>{s.l}</div></div>
+          {/* Mobile header — hidden on desktop */}
+          <MobileHeader
+            brainName={activeBrain?.name || "OpenBrain"}
+            brainEmoji="🧠"
+            onToggleTheme={toggleTheme}
+            isDark={isDark}
+            isOnline={isOnline}
+            pendingCount={pendingCount}
+          >
+            {brains.length > 0 && (
+              <BrainSwitcher
+                brains={brains}
+                activeBrain={activeBrain}
+                onSwitch={setActiveBrain}
+                onBrainCreated={async (brain) => {
+                  await refresh();
+                  setActiveBrain(brain);
+                }}
+                onBrainDeleted={deleteBrain}
+                onBrainTip={(brain) => setShowBrainTip(brain)}
+              />
             )}
-          </div>
-          {filtered.length > 0 ? <VirtualGrid filtered={filtered} setSelected={setSelected} /> : <p style={{ textAlign: "center", color: "#555", marginTop: 40 }}>No memories match.</p>}
-        </>}
+          </MobileHeader>
 
-        {view === "suppliers" && <SupplierPanel entries={entries} onSelect={setSelected} onReorder={handleReorder} />}
-        {view === "suggest" && <Suspense fallback={<Loader />}><SuggestionsView entries={entries} setEntries={setEntries} activeBrain={activeBrain} brains={brains} /></Suspense>}
-        {view === "refine" && <Suspense fallback={<Loader />}><RefineView entries={entries} setEntries={setEntries} links={links} addLinks={addLinks} activeBrain={activeBrain} brains={brains} onSwitchBrain={setActiveBrain} /></Suspense>}
-        {view === "calendar" && <Suspense fallback={<Loader />}><CalendarView /></Suspense>}
-        {view === "todos" && <Suspense fallback={<Loader />}><TodoView entries={entries} /></Suspense>}
-        {view === "timeline" && <VirtualTimeline sorted={sortedTimeline} setSelected={setSelected} />}
-        {view === "graph" && <Suspense fallback={<Loader />}><p style={{ fontSize: 12, color: "#666", marginBottom: 12 }}>Knowledge graph — click nodes to view</p><GraphView onSelect={setSelected} entries={entries} links={links} graphError={graphError} /></Suspense>}
-        {view === "vault" && <Suspense fallback={<Loader />}><VaultView entries={entries} onSelect={setSelected} cryptoKey={cryptoKey} onVaultUnlock={handleVaultUnlock} /></Suspense>}
+          <QuickCapture
+            entries={entries}
+            setEntries={setEntries}
+            links={links}
+            addLinks={addLinks}
+            onCreated={handleCreated}
+            onUpdate={handleUpdate}
+            brainId={activeBrain?.id}
+            brains={brains}
+            isOnline={isOnline}
+            refreshCount={refreshCount}
+            canWrite={canWrite}
+            cryptoKey={cryptoKey}
+            onNavigate={setView}
+          />
 
-        {view === "chat" && (
-          <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 220px)", maxHeight: "calc(100dvh - 220px)" }}>
-            <div style={{ flex: 1, overflow: "auto", marginBottom: 12 }}>
-              {chatMsgs.map((m, i) => (
-                <div key={i} style={{ marginBottom: 12, display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
-                  <div style={{ maxWidth: "85%", padding: "10px 14px", borderRadius: m.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px", background: m.role === "user" ? "#4ECDC4" : t.surface, color: m.role === "user" ? "#0f0f23" : t.textMid, fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "break-word" }}>
-                    {m.role === "assistant" ? m.content.split(PHONE_REGEX).map((part, pi) =>
-                      PHONE_REGEX.test(part)
-                        ? <a key={pi} href={`tel:${part}`} style={{ color: "#4ECDC4", fontWeight: 700, textDecoration: "none" }}>{part}</a>
-                        : part
-                    ) : m.content}
-                  </div>
-                </div>
-              ))}
-              {chatLoading && <div style={{ display: "flex" }}><div style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", background: t.surface, color: t.textDim }}>Thinking...</div></div>}
-              {/* Vault unlock prompt — shown inline when user asks about secrets */}
-              {vaultUnlockModal && (
-                <div style={{ margin: "12px 0", padding: 16, background: t.surface, border: `1px solid #FF475780`, borderRadius: 12 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                    <span style={{ fontSize: 20 }}>🔐</span>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>Unlock Vault</span>
-                    <button onClick={() => setVaultUnlockModal(null)} style={{ marginLeft: "auto", background: "none", border: "none", color: t.textFaint, fontSize: 16, cursor: "pointer" }}>✕</button>
-                  </div>
-                  <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-                    <button onClick={() => { setVaultModalMode("passphrase"); setVaultModalInput(""); setVaultModalError(""); }} style={{ padding: "4px 12px", borderRadius: 16, border: "none", fontSize: 11, fontWeight: 600, cursor: "pointer", background: vaultModalMode === "passphrase" ? "#4ECDC4" : t.bg, color: vaultModalMode === "passphrase" ? "#0f0f23" : t.textMuted }}>Passphrase</button>
-                    <button onClick={() => { setVaultModalMode("recovery"); setVaultModalInput(""); setVaultModalError(""); }} style={{ padding: "4px 12px", borderRadius: 16, border: "none", fontSize: 11, fontWeight: 600, cursor: "pointer", background: vaultModalMode === "recovery" ? "#4ECDC4" : t.bg, color: vaultModalMode === "recovery" ? "#0f0f23" : t.textMuted }}>Recovery Key</button>
-                  </div>
-                  <input
-                    type={vaultModalMode === "passphrase" ? "password" : "text"}
-                    value={vaultModalInput}
-                    onChange={e => setVaultModalInput(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && handleVaultModalUnlock()}
-                    placeholder={vaultModalMode === "passphrase" ? "Enter vault passphrase..." : "XXXXX-XXXXX-XXXXX-XXXXX-XXXXX"}
-                    autoFocus
-                    style={{ width: "100%", boxSizing: "border-box", padding: "10px 14px", background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, color: t.textSoft, fontSize: 14, outline: "none", fontFamily: vaultModalMode === "recovery" ? "monospace" : "inherit", marginBottom: 8 }}
-                  />
-                  {vaultModalError && <p style={{ color: "#FF4757", fontSize: 12, margin: "0 0 8px" }}>{vaultModalError}</p>}
-                  <button onClick={handleVaultModalUnlock} disabled={vaultModalBusy || !vaultModalInput.trim()} style={{ width: "100%", padding: "10px 0", background: "#4ECDC4", border: "none", borderRadius: 8, color: "#0f0f23", fontWeight: 700, fontSize: 13, cursor: "pointer", opacity: vaultModalBusy ? 0.5 : 1 }}>
-                    {vaultModalBusy ? "Unlocking..." : "Unlock & Answer"}
+          {showBrainTip && (
+            <BrainTipCard
+              brain={showBrainTip}
+              onDismiss={() => setShowBrainTip(null)}
+              onFill={() => {
+                setShowBrainTip(null);
+                setView("suggest");
+              }}
+            />
+          )}
+
+          {view === "grid" && nudge && (
+            <NudgeBanner
+              nudge={nudge}
+              onDismiss={() => {
+                setNudge(null);
+                sessionStorage.removeItem("openbrain_nudge");
+              }}
+            />
+          )}
+
+          {/* Slide-in nav panel */}
+          {/* Slide-out navigation drawer */}
+          {navOpen && (
+            <div
+              className="fixed inset-0 z-50 transition-opacity"
+              style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
+              onClick={() => setNavOpen(false)}
+            >
+              <div
+                className="absolute right-0 top-0 h-full w-72 flex flex-col border-l overflow-y-auto"
+                style={{
+                  background: "#141414",
+                  borderColor: "rgba(72,72,71,0.15)",
+                  paddingTop: "max(16px, env(safe-area-inset-top))",
+                  paddingBottom: "max(16px, env(safe-area-inset-bottom))",
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 pb-4 mb-2 border-b" style={{ borderColor: "rgba(72,72,71,0.15)" }}>
+                  <span className="text-sm font-bold text-white" style={{ fontFamily: "'Manrope', sans-serif" }}>Navigation</span>
+                  <button
+                    onClick={() => setNavOpen(false)}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg text-[#777] hover:text-white hover:bg-white/10 transition-colors"
+                  >
+                    ×
                   </button>
                 </div>
-              )}
-              <div ref={chatEndRef} />
+
+                {/* Nav items */}
+                <div className="flex-1 px-3 space-y-1">
+                  {[{ id: "capture", l: "Home", ic: "⌂" }, ...navViews].map((v) => {
+                    const isActive = view === v.id;
+                    return (
+                      <button
+                        key={v.id}
+                        onClick={() => {
+                          setView(v.id);
+                          setNavOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors"
+                        style={{
+                          background: isActive ? "rgba(114,239,245,0.08)" : "transparent",
+                          color: isActive ? "#72eff5" : "#aaa",
+                        }}
+                      >
+                        <span className="w-6 text-center text-base">{v.ic}</span>
+                        <span className="text-sm font-medium">{v.l}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Add Brain button */}
+                <div className="px-3 pt-3 mt-2 border-t" style={{ borderColor: "rgba(72,72,71,0.15)" }}>
+                  <button
+                    onClick={() => {
+                      setNavOpen(false);
+                      setShowCreateBrain(true);
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors hover:bg-white/5"
+                    style={{ color: "#d575ff" }}
+                  >
+                    <span className="w-6 text-center text-base">+</span>
+                    <span className="text-sm font-medium">Add Brain</span>
+                  </button>
+                </div>
+
+                {/* Footer stats */}
+                <div className="px-5 pt-3 pb-2 mt-2 border-t" style={{ borderColor: "rgba(72,72,71,0.15)" }}>
+                  <p className="text-[11px] text-[#555]">
+                    {entries.length} memories ·{" "}
+                    {pendingCount > 0 ? `${pendingCount} pending sync` : "synced"}
+                  </p>
+                </div>
+              </div>
             </div>
-            {/* Quick-ask chips */}
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-              {CHAT_CHIPS.map(chip => (
-                <button key={chip.label} onClick={() => setChatInput(chip.text)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${t.border}`, background: t.surface, color: t.textMuted, fontSize: 11, cursor: "pointer" }}>{chip.label}</button>
-              ))}
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === "Enter" && handleChat()} placeholder="Ask about your memories..." style={{ flex: 1, padding: "12px 16px", background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, color: t.textSoft, fontSize: 14, outline: "none" }} />
-              <button onClick={handleChat} disabled={chatLoading} style={{ padding: "12px 20px", background: "#4ECDC4", border: "none", borderRadius: 12, color: "#0f0f23", fontWeight: 700, cursor: "pointer", opacity: chatLoading ? 0.5 : 1 }}>→</button>
-            </div>
+          )}
+
+          {showCreateBrain && (
+            <CreateBrainModal
+              onClose={() => setShowCreateBrain(false)}
+              onCreate={async (brain) => {
+                await refresh();
+                setActiveBrain(brain);
+                setShowBrainTip(brain);
+                setShowCreateBrain(false);
+              }}
+            />
+          )}
+
+          <div className="px-4 sm:px-6 pt-4 pb-32 lg:pb-8 max-w-6xl mx-auto">
+            {view === "capture" && (
+              <div className="space-y-5">
+                {/* Primary CTA */}
+                <button
+                  onClick={() => setView("suggest")}
+                  className="w-full flex items-center gap-4 p-5 rounded-3xl border press-scale transition-all group"
+                  style={{ background: "rgba(213,117,255,0.06)", borderColor: "rgba(213,117,255,0.15)" }}
+                  onMouseEnter={(el) => { (el.currentTarget as HTMLElement).style.borderColor = "rgba(213,117,255,0.30)"; }}
+                  onMouseLeave={(el) => { (el.currentTarget as HTMLElement).style.borderColor = "rgba(213,117,255,0.15)"; }}
+                >
+                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(135deg, #d575ff, #9800d0)", boxShadow: "0 4px 24px rgba(213,117,255,0.25)" }}>
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 text-left">
+                    <div className="font-bold text-on-surface mb-0.5" style={{ fontFamily: "'Manrope', sans-serif" }}>Fill Your Brain</div>
+                    <div className="text-sm text-on-surface-variant">Answer guided questions to build your memory</div>
+                  </div>
+                  <svg className="w-5 h-5 text-on-surface-variant group-hover:text-secondary transition-colors" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                  </svg>
+                </button>
+
+                {/* Quick actions grid */}
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { id: "grid",     l: "Memory Grid",  ic: "▦", desc: "Browse all entries",   color: "#72eff5" },
+                    { id: "chat",     l: "Ask Brain",    ic: "◈", desc: "Chat with your data",   color: "#d575ff" },
+                    { id: "todos",    l: "Todos",        ic: "✓", desc: "Deadlines & events",    color: "#72eff5" },
+                    { id: "vault",    l: "Vault",        ic: "🔐", desc: "Encrypted secrets",    color: "#ff9ac3" },
+                  ].map((v) => (
+                    <button
+                      key={v.id}
+                      onClick={() => setView(v.id)}
+                      className="flex flex-col items-start gap-2 p-4 rounded-2xl border transition-all press-scale text-left"
+                      style={{ background: "#1a1919", borderColor: "rgba(72,72,71,0.08)" }}
+                      onMouseEnter={(el) => { (el.currentTarget as HTMLElement).style.borderColor = `${v.color}30`; }}
+                      onMouseLeave={(el) => { (el.currentTarget as HTMLElement).style.borderColor = "rgba(72,72,71,0.08)"; }}
+                    >
+                      <div className="text-xl">{v.ic}</div>
+                      <div>
+                        <div className="text-sm font-bold text-on-surface" style={{ fontFamily: "'Manrope', sans-serif" }}>{v.l}</div>
+                        <div className="text-xs text-on-surface-variant/60 mt-0.5">{v.desc}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {view === "grid" && (
+              <div className="space-y-4">
+                {/* Search bar */}
+                <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border" style={{ background: "rgba(26,25,25,0.8)", borderColor: "rgba(72,72,71,0.12)", backdropFilter: "blur(12px)" }}>
+                  <svg className="w-4 h-4 text-primary flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                  </svg>
+                  <input
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    placeholder="Search memories..."
+                    className="flex-1 bg-transparent border-none outline-none text-on-surface placeholder:text-on-surface-variant/40 text-sm"
+                    style={{ fontFamily: "'Inter', sans-serif" }}
+                  />
+                </div>
+
+                {/* Workspace filter removed */}
+
+                {!entriesLoaded ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <SkeletonCard count={6} />
+                  </div>
+                ) : filtered.length > 0 ? (
+                  <VirtualGrid filtered={filtered} setSelected={setSelected} />
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-20 gap-3">
+                    <div className="text-4xl opacity-40">🔍</div>
+                    <p className="font-bold text-on-surface" style={{ fontFamily: "'Manrope', sans-serif" }}>No memories match</p>
+                    <p className="text-sm text-on-surface-variant">Try a different search or filter</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+
+            {view === "suggest" && (
+              <Suspense fallback={<Loader />}>
+                <SuggestionsView
+                  entries={entries}
+                  setEntries={setEntries}
+                  activeBrain={activeBrain}
+                  brains={brains}
+                />
+              </Suspense>
+            )}
+            {view === "refine" && (
+              <Suspense fallback={<Loader />}>
+                <RefineView
+                  entries={entries}
+                  setEntries={setEntries}
+                  links={links}
+                  addLinks={addLinks}
+                  activeBrain={activeBrain}
+                  brains={brains}
+                  onSwitchBrain={setActiveBrain}
+                />
+              </Suspense>
+            )}
+            {view === "todos" && (
+              <Suspense fallback={<Loader />}>
+                <TodoView entries={entries} />
+              </Suspense>
+            )}
+            {view === "timeline" && (
+              <VirtualTimeline sorted={sortedTimeline} setSelected={setSelected} />
+            )}
+            {view === "vault" && (
+              <Suspense fallback={<Loader />}>
+                <VaultView
+                  entries={entries}
+                  onSelect={setSelected}
+                  cryptoKey={cryptoKey}
+                  onVaultUnlock={handleVaultUnlock}
+                  brainId={activeBrain?.id}
+                  onEntryCreated={(e) => setEntries((prev) => [e, ...prev])}
+                />
+              </Suspense>
+            )}
+
+            {view === "chat" && (
+              <div className="flex flex-col h-[calc(100dvh-180px)] lg:h-[calc(100dvh-80px)]">
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto space-y-4 pb-4">
+                  {chatMsgs.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
+                      <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, #d575ff, #9800d0)", boxShadow: "0 4px 30px rgba(213,117,255,0.25)" }}>
+                        <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-bold text-on-surface text-lg mb-1" style={{ fontFamily: "'Manrope', sans-serif" }}>Ask your brain anything</p>
+                        <p className="text-sm text-on-surface-variant max-w-xs">Questions, summaries, connections — your knowledge at your fingertips.</p>
+                      </div>
+                    </div>
+                  )}
+                  {chatMsgs.map((m, i) => (
+                    <div key={i} className={m.role === "user" ? "flex justify-end" : "flex gap-3 items-start"}>
+                      {m.role === "assistant" && (
+                        <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center mt-1" style={{ background: "linear-gradient(135deg, #d575ff, #9800d0)", boxShadow: "0 2px 12px rgba(213,117,255,0.25)" }}>
+                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09z" />
+                          </svg>
+                        </div>
+                      )}
+                      <div
+                        className="max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed"
+                        style={m.role === "user"
+                          ? { background: "rgba(114,239,245,0.12)", border: "1px solid rgba(114,239,245,0.18)", color: "#ffffff", borderRadius: "1rem 1rem 2px 1rem" }
+                          : { background: "#1a1919", border: "1px solid rgba(72,72,71,0.08)", color: "#adaaaa", borderRadius: "2px 1rem 1rem 1rem" }
+                        }
+                      >
+                        {m.role === "assistant"
+                          ? m.content.split(PHONE_REGEX).map((part, pi) =>
+                              PHONE_REGEX.test(part) ? <a key={pi} href={`tel:${part}`} className="text-primary underline">{part}</a> : part
+                            )
+                          : m.content}
+                      </div>
+                    </div>
+                  ))}
+                  {chatLoading && (
+                    <div className="flex gap-3 items-center">
+                      <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center animate-pulse" style={{ background: "linear-gradient(135deg, #d575ff, #9800d0)" }}>
+                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09z" />
+                        </svg>
+                      </div>
+                      <div className="flex items-center gap-1.5 px-4 py-3 rounded-2xl" style={{ background: "#1a1919" }}>
+                        <span className="w-2 h-2 rounded-full bg-secondary animate-bounce" style={{ animationDelay: "0ms" }} />
+                        <span className="w-2 h-2 rounded-full bg-secondary animate-bounce" style={{ animationDelay: "150ms" }} />
+                        <span className="w-2 h-2 rounded-full bg-secondary animate-bounce" style={{ animationDelay: "300ms" }} />
+                      </div>
+                    </div>
+                  )}
+                  {vaultUnlockModal && (
+                    <div className="p-4 rounded-2xl border" style={{ background: "rgba(255,154,195,0.06)", borderColor: "rgba(255,154,195,0.18)" }}>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-bold text-tertiary flex items-center gap-2" style={{ fontFamily: "'Manrope', sans-serif" }}>🔐 Unlock Vault</span>
+                        <button onClick={() => setVaultUnlockModal(null)} className="text-on-surface-variant hover:text-on-surface press-scale">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                      </div>
+                      <div className="flex gap-2 mb-3">
+                        {["passphrase", "recovery"].map((mode) => (
+                          <button key={mode} onClick={() => { setVaultModalMode(mode); setVaultModalInput(""); setVaultModalError(""); }}
+                            className="text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
+                            style={{ background: vaultModalMode === mode ? "rgba(255,154,195,0.15)" : "#262626", color: vaultModalMode === mode ? "#ff9ac3" : "#adaaaa", border: `1px solid ${vaultModalMode === mode ? "rgba(255,154,195,0.25)" : "rgba(72,72,71,0.15)"}` }}
+                          >{mode === "passphrase" ? "Passphrase" : "Recovery Key"}</button>
+                        ))}
+                      </div>
+                      <input type={vaultModalMode === "passphrase" ? "password" : "text"} value={vaultModalInput}
+                        onChange={(e) => setVaultModalInput(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleVaultModalUnlock()}
+                        placeholder={vaultModalMode === "passphrase" ? "Enter vault passphrase..." : "XXXXX-XXXXX-XXXXX-XXXXX-XXXXX"}
+                        autoFocus
+                        className="w-full px-4 py-2.5 rounded-xl text-sm text-on-surface placeholder:text-on-surface-variant/40 focus:outline-none mb-3 min-h-[44px]"
+                        style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.2)" }}
+                      />
+                      {vaultModalError && <p className="text-xs text-error mb-2">{vaultModalError}</p>}
+                      <button onClick={handleVaultModalUnlock} disabled={vaultModalBusy || !vaultModalInput.trim()}
+                        className="w-full py-2.5 rounded-xl text-sm font-bold press-scale disabled:opacity-40"
+                        style={{ background: "linear-gradient(135deg, #ff9ac3, #ec77aa)", color: "#6b0c40" }}
+                      >{vaultModalBusy ? "Unlocking…" : "Unlock & Answer"}</button>
+                    </div>
+                  )}
+                  <div ref={chatEndRef} />
+                </div>
+
+                {/* Input area */}
+                <div className="pt-3 border-t" style={{ borderColor: "rgba(72,72,71,0.10)" }}>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {CHAT_CHIPS.map((chip) => (
+                      <button key={chip.label} onClick={() => setChatInput(chip.text)}
+                        className="text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5 rounded-full transition-all press-scale"
+                        style={{ background: "#1a1919", color: "#adaaaa", border: "1px solid rgba(72,72,71,0.15)" }}
+                        onMouseEnter={(el) => { (el.currentTarget as HTMLElement).style.color = "#d575ff"; (el.currentTarget as HTMLElement).style.borderColor = "rgba(213,117,255,0.20)"; }}
+                        onMouseLeave={(el) => { (el.currentTarget as HTMLElement).style.color = "#adaaaa"; (el.currentTarget as HTMLElement).style.borderColor = "rgba(72,72,71,0.15)"; }}
+                      >{chip.label}</button>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input value={chatInput} onChange={(e) => setChatInput(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleChat()}
+                      placeholder="Ask about your memories…"
+                      className="flex-1 px-4 py-3 rounded-xl text-sm text-on-surface placeholder:text-on-surface-variant/40 focus:outline-none min-h-[44px] transition-all"
+                      style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.20)", fontFamily: "'Inter', sans-serif" }}
+                      onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(114,239,245,0.4)"; }}
+                      onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(72,72,71,0.20)"; }}
+                    />
+                    <button onClick={handleChat} disabled={chatLoading}
+                      className="w-11 h-11 rounded-xl flex-shrink-0 flex items-center justify-center press-scale disabled:opacity-40"
+                      style={{ background: "linear-gradient(135deg, #72eff5, #1fb1b7)", boxShadow: "0 4px 24px rgba(114,239,245,0.20)", color: "#002829" }}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {view === "settings" && <SettingsView />}
           </div>
-        )}
 
-        {view === "settings" && <SettingsView />}
-      </div>
+          <Suspense fallback={null}>
+            <DetailModal
+              entry={selected}
+              onClose={() => setSelected(null)}
+              onDelete={handleDelete}
+              onUpdate={handleUpdate}
 
-      <Suspense fallback={null}>
-        <DetailModal
-          entry={selected}
-          onClose={() => setSelected(null)}
-          onDelete={handleDelete}
-          onUpdate={handleUpdate}
-          onReorder={handleReorder}
-          entries={entries}
-          links={links}
-          canWrite={canWrite}
-          brains={brains}
-          vaultUnlocked={!!cryptoKey}
-        />
-      </Suspense>
+              entries={entries}
+              links={links}
+              canWrite={canWrite}
+              brains={brains}
+              vaultUnlocked={!!cryptoKey}
+            />
+          </Suspense>
 
-      {lastAction && (
-        <UndoToast
-          action={lastAction}
-          onUndo={handleUndo}
-          onDismiss={() => {
-            if (lastAction.type === "delete") commitPendingDelete();
-            setLastAction(null);
-          }}
-        />
-      )}
+          {lastAction && (
+            <UndoToast
+              action={lastAction}
+              onUndo={handleUndo}
+              onDismiss={() => {
+                if (lastAction.type === "delete") commitPendingDelete();
+                setLastAction(null);
+              }}
+            />
+          )}
 
-      {saveError && (
-        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: t.surface, border: `1px solid ${t.error}`, borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, zIndex: 2000, boxShadow: "0 4px 20px #0008", minWidth: 240, maxWidth: "calc(100vw - 32px)", boxSizing: "border-box" }}>
-          <span style={{ fontSize: 14, color: t.error }}>⚠ {saveError}</span>
-          <button onClick={() => setSaveError(null)} style={{ marginLeft: "auto", background: "none", border: "none", color: "#666", fontSize: 18, cursor: "pointer", lineHeight: 1 }}>✕</button>
-        </div>
-      )}
+          {saveError && (
+            <div className="fixed top-4 right-4 z-[100] flex items-center gap-3 px-4 py-3 rounded-2xl border max-w-sm" style={{ background: "rgba(26,25,25,0.95)", backdropFilter: "blur(24px)", borderColor: "rgba(255,110,132,0.20)", boxShadow: "0 20px 40px rgba(0,0,0,0.4)" }}>
+              <svg className="w-4 h-4 text-error flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+              <span className="flex-1 text-sm text-on-surface">{saveError}</span>
+              <button onClick={() => setSaveError(null)} className="text-on-surface-variant hover:text-on-surface press-scale">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+          )}
 
-      {showPinGate && (
-        <PinGate
-          isSetup={pinGateIsSetup}
-          onSuccess={() => {
-            if (pendingSecureMsg) {
-              setChatMsgs(p => [...p, { role: "assistant", content: pendingSecureMsg.content }]);
-              setPendingSecureMsg(null);
-            }
-            setShowPinGate(false);
-            setPinGateIsSetup(false);
-          }}
-          onCancel={() => {
-            setPendingSecureMsg(null);
-            setShowPinGate(false);
-            setPinGateIsSetup(false);
-          }}
-        />
-      )}
+          {showPinGate && (
+            <PinGate
+              isSetup={pinGateIsSetup}
+              onSuccess={() => {
+                if (pendingSecureMsg) {
+                  setChatMsgs((p) => [
+                    ...p,
+                    { role: "assistant", content: pendingSecureMsg.content },
+                  ]);
+                  setPendingSecureMsg(null);
+                }
+                setShowPinGate(false);
+                setPinGateIsSetup(false);
+              }}
+              onCancel={() => {
+                setPendingSecureMsg(null);
+                setShowPinGate(false);
+                setPinGateIsSetup(false);
+              }}
+            />
+          )}
 
-      {showOnboarding && (
-        <OnboardingModal
-          onComplete={(selected, answeredItems, skippedQs) => {
-            // Mark answered onboarding questions so they don't re-appear in Fill Brain
-            if (answeredItems?.length) {
-              try {
-                const key = "openbrain_answered_qs";
-                const existing = new Set(JSON.parse(localStorage.getItem(key) || "[]"));
-                answeredItems.forEach(item => existing.add(item.q));
-                localStorage.setItem(key, JSON.stringify([...existing]));
-              } catch {}
+          {showOnboarding && (
+            <OnboardingModal
+              onComplete={(selected, answeredItems, skippedQs) => {
+                // Mark answered onboarding questions so they don't re-appear in Fill Brain
+                if (answeredItems?.length) {
+                  try {
+                    const key = "openbrain_answered_qs";
+                    const existing = new Set(JSON.parse(localStorage.getItem(key) || "[]"));
+                    answeredItems.forEach((item) => existing.add(item.q));
+                    localStorage.setItem(key, JSON.stringify([...existing]));
+                  } catch {}
 
-              // Batch-save answered items to the brain via Quick Capture API
-              answeredItems.forEach(item => {
-                callAI({
-                  max_tokens: 800,
-                  system: PROMPTS.QA_PARSE,
-                  messages: [{ role: "user", content: `Question: ${item.q}\nAnswer: ${item.a}` }]
-                })
-                  .then(r => r.json())
-                  .then(data => {
-                    let parsed = {};
-                    try { parsed = JSON.parse((data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim()); } catch {}
-                    if (parsed.title && activeBrain?.id) {
-                      authFetch("/api/capture", {
-                        method: "POST", headers: { "Content-Type": "application/json", ...(getEmbedHeaders() || {}) },
-                        body: JSON.stringify({
-                          p_title: parsed.title,
-                          p_content: parsed.content || item.a,
-                          p_type: parsed.type || "note",
-                          p_metadata: parsed.metadata || {},
-                          p_tags: parsed.tags || [],
-                          p_brain_id: activeBrain.id,
-                        })
-                      }).catch(err => console.error('[OpenBrain:onboarding] Failed to save parsed Q&A', err));
-                    }
-                  })
-                  .catch(err => console.error('[OpenBrain:onboarding] Failed to parse Q&A with AI', err));
-              });
-            }
+                  // Batch-save answered items to the brain via Quick Capture API
+                  answeredItems.forEach((item) => {
+                    callAI({
+                      max_tokens: 800,
+                      system: PROMPTS.QA_PARSE,
+                      brainId: activeBrain?.id,
+                      messages: [
+                        { role: "user", content: `Question: ${item.q}\nAnswer: ${item.a}` },
+                      ],
+                    })
+                      .then((r) => r.json())
+                      .then((data) => {
+                        let parsed = {};
+                        try {
+                          parsed = JSON.parse(
+                            (data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim(),
+                          );
+                        } catch {}
+                        if (parsed.title && activeBrain?.id) {
+                          authFetch("/api/capture", {
+                            method: "POST",
+                            headers: {
+                              "Content-Type": "application/json",
+                              ...(getEmbedHeaders() || {}),
+                            },
+                            body: JSON.stringify({
+                              p_title: parsed.title,
+                              p_content: parsed.content || item.a,
+                              p_type: parsed.type || "note",
+                              p_metadata: parsed.metadata || {},
+                              p_tags: parsed.tags || [],
+                              p_brain_id: activeBrain.id,
+                            }),
+                          }).catch((err) =>
+                            console.error("[OpenBrain:onboarding] Failed to save parsed Q&A", err),
+                          );
+                        }
+                      })
+                      .catch((err) =>
+                        console.error("[OpenBrain:onboarding] Failed to parse Q&A with AI", err),
+                      );
+                  });
+                }
 
-            // Store skipped onboarding questions — Fill Brain will surface them
-            if (skippedQs?.length) {
-              try {
-                const existing = JSON.parse(localStorage.getItem("openbrain_onboarding_skipped") || "[]");
-                const merged = [...existing];
-                skippedQs.forEach(q => {
-                  if (!merged.find(e => e.q === q.q)) merged.push(q);
-                });
-                localStorage.setItem("openbrain_onboarding_skipped", JSON.stringify(merged));
-              } catch {}
-            }
+                // Store skipped onboarding questions — Fill Brain will surface them
+                if (skippedQs?.length) {
+                  try {
+                    const existing = JSON.parse(
+                      localStorage.getItem("openbrain_onboarding_skipped") || "[]",
+                    );
+                    const merged = [...existing];
+                    skippedQs.forEach((q) => {
+                      if (!merged.find((e) => e.q === q.q)) merged.push(q);
+                    });
+                    localStorage.setItem("openbrain_onboarding_skipped", JSON.stringify(merged));
+                  } catch {}
+                }
 
-            setShowOnboarding(false);
-            setView("suggest");
-          }}
-        />
-      )}
-    </div>
-    </BrainContext.Provider>
+                setShowOnboarding(false);
+                setView("suggest");
+              }}
+            />
+          )}
+
+          <BottomNav
+            activeView={view}
+            onNavigate={(id) => {
+              if (id === "more") {
+                setNavOpen((o) => !o);
+              } else {
+                setView(id);
+                setNavOpen(false);
+              }
+            }}
+          />
+
+          </div>{/* /main content wrapper */}
+          </div>{/* /bg wrapper */}
+        </>
+      </BrainContext.Provider>
     </EntriesContext.Provider>
   );
 }

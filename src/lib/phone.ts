@@ -1,4 +1,4 @@
-import type { Entry } from '../types';
+import type { Entry } from "../types";
 
 export function extractPhone(entry: Entry): string | null {
   const s = JSON.stringify(entry.metadata || {}) + " " + (entry.content || "");

@@ -6,12 +6,14 @@ const P = "openbrain_";
 
 export function getUserId(): string | null {
   try {
-    const key = Object.keys(localStorage).find(k => k.endsWith("-auth-token"));
+    const key = Object.keys(localStorage).find((k) => k.endsWith("-auth-token"));
     if (key) {
       const data = JSON.parse(localStorage.getItem(key)!);
       return data?.user?.id || null;
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return null;
 }
 
@@ -20,8 +22,14 @@ try {
   const uid = getUserId();
   if (uid) {
     const migrations = [
-      ["api_key"], ["model"], ["provider"], ["openrouter_key"], ["openrouter_model"],
-      ["embed_provider"], ["embed_openai_key"], ["gemini_key"],
+      ["api_key"],
+      ["model"],
+      ["provider"],
+      ["openrouter_key"],
+      ["openrouter_model"],
+      ["embed_provider"],
+      ["embed_openai_key"],
+      ["gemini_key"],
     ];
     for (const [suffix] of migrations) {
       const oldKey = `openbrain_${uid}_${suffix}`;
@@ -31,7 +39,9 @@ try {
       }
     }
   }
-} catch { /* ignore */ }
+} catch {
+  /* ignore */
+}
 
 export function getUserApiKey(): string | null {
   return localStorage.getItem(`${P}api_key`) || null;
@@ -87,11 +97,11 @@ export function setGroqKey(key: string | null): void {
 }
 
 const TASK_COL: Record<string, string> = {
-  capture:   "model_capture",
+  capture: "model_capture",
   questions: "model_questions",
-  vision:    "model_vision",
-  refine:    "model_refine",
-  chat:      "model_chat",
+  vision: "model_vision",
+  refine: "model_refine",
+  chat: "model_chat",
 };
 
 export function getModelForTask(task: string): string | null {
@@ -106,14 +116,19 @@ export function setModelForTask(task: string, model: string | null): void {
   if (!col) return;
   const uid = getUserId();
   if (uid) {
-    supabase.from("user_ai_settings").upsert(
-      { user_id: uid, [col]: model || null, updated_at: new Date().toISOString() },
-      { onConflict: "user_id" }
-    );
+    supabase
+      .from("user_ai_settings")
+      .upsert(
+        { user_id: uid, [col]: model || null, updated_at: new Date().toISOString() },
+        { onConflict: "user_id" },
+      );
   }
 }
 
-export function loadTaskModels(_userId: string, settingsRow: Record<string, string | null> | null): void {
+export function loadTaskModels(
+  _userId: string,
+  settingsRow: Record<string, string | null> | null,
+): void {
   if (!settingsRow) return;
   for (const [task, col] of Object.entries(TASK_COL)) {
     const val = settingsRow[col];

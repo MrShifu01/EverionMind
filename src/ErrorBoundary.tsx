@@ -26,19 +26,21 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ minHeight: "100vh", background: "#0f0f23", display: "flex", alignItems: "center", justifyContent: "center", padding: 40 }}>
-          <div style={{ textAlign: "center", maxWidth: 400 }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>🧠</div>
-            <h2 style={{ color: "#FF6B35", fontSize: 20, fontWeight: 700, margin: "0 0 12px" }}>Something went wrong</h2>
-            <p style={{ color: "#888", fontSize: 14, lineHeight: 1.6, margin: "0 0 24px" }}>
+        <div className="flex min-h-screen items-center justify-center bg-[#0f0f23] p-10">
+          <div className="max-w-[400px] text-center">
+            <div className="mb-4 text-[48px]">🧠</div>
+            <h2 className="text-orange m-0 mb-3 text-xl font-bold">Something went wrong</h2>
+            <p className="m-0 mb-6 text-sm leading-relaxed text-[#888]">
               OpenBrain hit an unexpected error. Your data is safe in the database.
             </p>
-            <p style={{ color: "#555", fontSize: 12, margin: "0 0 24px", fontFamily: "monospace", background: "#1a1a2e", padding: 12, borderRadius: 8, textAlign: "left", wordBreak: "break-all" }}>
+            <p className="m-0 mb-6 rounded-lg bg-[#1a1a2e] p-3 text-left font-mono text-xs break-all text-[#555]">
               {this.state.error?.message || "Unknown error"}
             </p>
             <button
-              onClick={() => { this.setState({ hasError: false, error: null }); }}
-              style={{ padding: "12px 32px", background: "linear-gradient(135deg, #4ECDC4, #45B7D1)", border: "none", borderRadius: 12, color: "#0f0f23", fontWeight: 700, fontSize: 14, cursor: "pointer" }}
+              onClick={() => {
+                this.setState({ hasError: false, error: null });
+              }}
+              className="gradient-accent cursor-pointer rounded-xl border-none px-8 py-3 text-sm font-bold text-[#0f0f23]"
             >
               Try again
             </button>

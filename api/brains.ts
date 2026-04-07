@@ -47,13 +47,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
           method: "POST",
           headers: hdrs({ "Prefer": "return=minimal" }),
           body: JSON.stringify({ brain_id: newBrain.id, user_id: user.id, role: "owner" }),
-        }).catch(() => {});
+        }).catch((err) => console.error("[brains:auto-create] Failed to create owner membership:", err.message));
         // Assign any orphan entries (brain_id IS NULL) to this brain
         await fetch(`${SB_URL}/rest/v1/entries?user_id=eq.${encodeURIComponent(user.id)}&brain_id=is.null`, {
           method: "PATCH",
           headers: hdrs({ "Prefer": "return=minimal" }),
           body: JSON.stringify({ brain_id: newBrain.id }),
-        }).catch(() => {});
+        }).catch((err) => console.error("[brains:auto-create] Failed to assign orphan entries:", err.message));
         ownedData = [...ownedData, newBrain];
         console.log(`[audit] AUTO-CREATE personal brain id=${newBrain.id} user=${user.id}`);
       }
@@ -121,7 +121,14 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   if (method === "POST" && action === "invite") {
     const { brain_id, email, role = "member" } = req.body;
 
-    if (!brain_id || !email) return res.status(400).json({ error: "brain_id and email required" });
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!brain_id || typeof brain_id !== "string" || !uuidRe.test(brain_id)) {
+      return res.status(400).json({ error: "Invalid brain_id" });
+    }
+    if (!email) return res.status(400).json({ error: "brain_id and email required" });
+    if (typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return res.status(400).json({ error: "Invalid email format" });
+    }
     if (!["member", "viewer"].includes(role)) return res.status(400).json({ error: "Invalid role" });
 
     // Verify the caller owns this brain
@@ -145,13 +152,38 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     });
 
     if (!inviteRes.ok) {
-      const err = await inviteRes.text();
+      const detail = await inviteRes.text().catch(() => "");
+      console.error("[brains:invite] Failed:", detail);
       return res.status(502).json({ error: "Failed to create invite" });
     }
 
     const [invite]: any[] = await inviteRes.json();
     console.log(`[audit] INVITE brain=${brain_id} email=${email} by=${user.id}`);
     return res.status(200).json({ ok: true, invite });
+  }
+
+  // ── POST /api/brains?action=invite-platform — invite someone to sign up for OpenBrain ──
+  if (method === "POST" && action === "invite-platform") {
+    const { email } = req.body;
+    if (!email || typeof email !== "string" || !email.includes("@")) {
+      return res.status(400).json({ error: "Valid email required" });
+    }
+    const invRes = await fetch(`${SB_URL}/auth/v1/invite`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SB_KEY!,
+        "Authorization": `Bearer ${SB_KEY}`,
+      },
+      body: JSON.stringify({ email: email.trim().toLowerCase() }),
+    });
+    if (!invRes.ok) {
+      const detail = await invRes.text().catch(() => "");
+      console.error("[brains:invite-platform] Failed:", detail);
+      return res.status(502).json({ error: "Failed to send platform invite" });
+    }
+    console.log(`[audit] INVITE_PLATFORM email=${email} by=${user.id}`);
+    return res.status(200).json({ ok: true });
   }
 
   // ── POST /api/brains?action=accept — accept an invite by token ──
