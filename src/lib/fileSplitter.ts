@@ -4,10 +4,17 @@
  * if/how it should be split into multiple OpenBrain entries.
  */
 
+const VALID_CAPTURE_TYPES = [
+  "note", "person", "place", "idea", "contact",
+  "document", "reminder", "color", "decision", "secret",
+] as const;
+
+type CaptureType = typeof VALID_CAPTURE_TYPES[number];
+
 interface SplitEntry {
   title: string;
   content: string;
-  type: string;
+  type: CaptureType;
   metadata?: Record<string, unknown>;
   tags?: string[];
 }
@@ -54,7 +61,13 @@ export function parseAISplitResponse(raw: string): SplitEntry[] {
     const cleaned = raw.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(cleaned);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((e: any) => e && typeof e.title === "string" && e.title.trim());
+    return parsed
+      .filter((e: any) => e && typeof e.title === "string" && e.title.trim())
+      .map((e: any) => ({
+        ...e,
+        // Normalise type: if AI returns something outside the allowed list, fall back to "note"
+        type: VALID_CAPTURE_TYPES.includes(e.type) ? e.type : "note",
+      }));
   } catch {
     return [];
   }

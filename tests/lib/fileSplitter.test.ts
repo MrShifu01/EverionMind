@@ -111,5 +111,20 @@ Instructions: Mix until smooth. Cook on pan.
       expect(entries).toHaveLength(1);
       expect(entries[0].title).toBe("Good Entry");
     });
+
+    it("normalises AI-invented types to valid capture types", () => {
+      // AI may return types like "company", "director", "address" for company docs
+      const response = JSON.stringify([
+        { title: "SMASH SOCIAL CLUB", content: "Private company", type: "company" },
+        { title: "Adriaan Stander", content: "Director", type: "director" },
+        { title: "Registered Address", content: "123 Main St", type: "address" },
+        { title: "CIPC Number", content: "2024/123456/07", type: "document" },
+      ]);
+      const entries = parseAISplitResponse(response);
+      const VALID_TYPES = ["note","person","place","idea","contact","document","reminder","color","decision","secret"];
+      entries.forEach((e) => {
+        expect(VALID_TYPES).toContain(e.type);
+      });
+    });
   });
 });

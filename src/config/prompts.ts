@@ -116,15 +116,16 @@ SPLITTING RULES:
 - For mixed documents: each distinct topic or section gets its own entry
 - Title: max 60 chars, specific and descriptive
 - Content: concise 1-3 sentence description capturing the key info
-- Choose the BEST type: person, contact, place, document, reminder, idea, decision, color, note, secret
+- type MUST be one of exactly: note, person, place, idea, contact, document, reminder, color, decision, secret — no other values allowed
 
 TYPE RULES:
 - person: named individuals (directors, contacts, staff)
-- contact: business contacts with phone/email
-- document: registration numbers, tax numbers, IDs, licences
+- contact: business/company contacts with phone/email
+- document: registration numbers, tax numbers, IDs, licences, certificates
 - place: physical addresses, locations
 - reminder: deadlines, expiry dates
-- idea/decision/note: general info
+- idea/decision: plans, choices, strategies
+- note: general info that doesn't fit the above
 - secret: passwords, PINs, credentials
 
 EXTRACTION RULES:
