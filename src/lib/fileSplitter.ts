@@ -20,6 +20,16 @@ interface SplitEntry {
 }
 
 /**
+ * Normalise an AI-returned type value to a valid CaptureType.
+ * Falls back to "note" if the value is missing or not in the allowed list.
+ */
+export function normaliseType(type: string | undefined | null): CaptureType {
+  return VALID_CAPTURE_TYPES.includes(type as CaptureType)
+    ? (type as CaptureType)
+    : "note";
+}
+
+/**
  * Heuristic check: should this content be sent to AI for splitting?
  * Returns true if content is long enough and has structural indicators
  * of multiple distinct items (sections, numbered lists, etc.)
@@ -65,8 +75,7 @@ export function parseAISplitResponse(raw: string): SplitEntry[] {
       .filter((e: any) => e && typeof e.title === "string" && e.title.trim())
       .map((e: any) => ({
         ...e,
-        // Normalise type: if AI returns something outside the allowed list, fall back to "note"
-        type: VALID_CAPTURE_TYPES.includes(e.type) ? e.type : "note",
+        type: normaliseType(e.type),
       }));
   } catch {
     return [];
