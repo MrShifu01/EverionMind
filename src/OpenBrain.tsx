@@ -339,12 +339,6 @@ function VirtualTimeline({ sorted, setSelected }) {
 // PERF-9: Module-level constant so regex is compiled once, not on every render.
 const PHONE_REGEX = /(\+27[0-9]{9}|0[6-8][0-9]{8})/;
 
-const CHAT_CHIPS = [
-  { label: "Who supplies...", text: "Who supplies " },
-  { label: "Who do I call for...", text: "Who do I call for " },
-  { label: "When does... expire?", text: "When does " },
-  { label: "What's the number for...", text: "What's the number for " },
-];
 
 export default function OpenBrain() {
   // PERF-8: Initial state uses synchronous localStorage read (fast, no flicker).
@@ -1409,29 +1403,25 @@ export default function OpenBrain() {
 
                 {/* Input area */}
                 <div className="pt-3 border-t" style={{ borderColor: "rgba(72,72,71,0.10)" }}>
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {CHAT_CHIPS.map((chip) => (
-                      <button key={chip.label} onClick={() => setChatInput(chip.text)}
-                        className="text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5 rounded-full transition-all press-scale"
-                        style={{ background: "#1a1919", color: "#adaaaa", border: "1px solid rgba(72,72,71,0.15)" }}
-                        onMouseEnter={(el) => { (el.currentTarget as HTMLElement).style.color = "#d575ff"; (el.currentTarget as HTMLElement).style.borderColor = "rgba(213,117,255,0.20)"; }}
-                        onMouseLeave={(el) => { (el.currentTarget as HTMLElement).style.color = "#adaaaa"; (el.currentTarget as HTMLElement).style.borderColor = "rgba(72,72,71,0.15)"; }}
-                      >{chip.label}</button>
-                    ))}
-                  </div>
                   {brains.length > 1 && (
-                    <div className="flex items-center gap-2 pb-1">
+                    <div className="flex mb-2 p-1 rounded-xl gap-1" style={{ background: "#1a1919" }}>
                       <button
-                        onClick={() => setSearchAllBrains((v) => !v)}
-                        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all press-scale"
-                        style={searchAllBrains
-                          ? { background: "linear-gradient(135deg, #d575ff, #9800d0)", color: "#fff", boxShadow: "0 2px 12px rgba(213,117,255,0.25)" }
-                          : { background: "#262626", color: "#adaaaa", border: "1px solid rgba(72,72,71,0.30)" }}
+                        onClick={() => setSearchAllBrains(false)}
+                        className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                        style={!searchAllBrains
+                          ? { background: "#303030", color: "#ffffff" }
+                          : { color: "#555" }}
                       >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
-                        </svg>
-                        {searchAllBrains ? "All brains" : "This brain"}
+                        This brain
+                      </button>
+                      <button
+                        onClick={() => setSearchAllBrains(true)}
+                        className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                        style={searchAllBrains
+                          ? { background: "rgba(213,117,255,0.15)", color: "#d575ff" }
+                          : { color: "#555" }}
+                      >
+                        All brains
                       </button>
                     </div>
                   )}
