@@ -36,6 +36,13 @@ const FEATURES: Feature[] = [
   },
 ];
 
+function toFriendlyError(msg: string): string {
+  if (msg.toLowerCase().includes("database error saving new user")) {
+    return "Account setup failed. Please try again in a moment.";
+  }
+  return msg;
+}
+
 export default function LoginScreen(): JSX.Element {
   const [email, setEmail] = useState<string>("");
   const [sent, setSent] = useState<boolean>(false);
@@ -53,7 +60,7 @@ export default function LoginScreen(): JSX.Element {
       email,
       options: { emailRedirectTo: window.location.origin },
     });
-    if (error) setError(error.message);
+    if (error) setError(toFriendlyError(error.message));
     else setSent(true);
     setLoading(false);
   };
