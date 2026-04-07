@@ -50,7 +50,7 @@ export function useOfflineSync({ onEntryIdUpdate }: UseOfflineSyncOptions = {}) 
 
         try {
           if (op.type === "raw-capture") {
-            const parseRes = await authFetch("/api/anthropic", {
+            const parseRes = await authFetch("/api/llm?provider=anthropic", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(op.anthropicRequest),
