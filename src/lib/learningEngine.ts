@@ -5,7 +5,8 @@
  * Chat, Suggestions — and distils them into compact "learnings" injected
  * into every AI prompt so the whole app gets smarter over time.
  *
- * Storage: localStorage, keyed per brain (each brain learns independently).
+ * Storage: sessionStorage only (S1-7: not persisted to prevent XSS exposure),
+ * keyed per brain (each brain learns independently).
  */
 
 import { KEYS } from "./storageKeys";
@@ -45,9 +46,8 @@ export interface LearningDecision {
 
 function readDecisions(brainId: string): LearningDecision[] {
   try {
-    // Check new key first, fall back to legacy refine key for migration
-    const raw = localStorage.getItem(KEYS.learningDecisions(brainId))
-      || localStorage.getItem(`openbrain_refine_decisions:${brainId}`);
+    // S1-7: Use sessionStorage (not persisted, XSS-safe)
+    const raw = sessionStorage.getItem(KEYS.learningDecisions(brainId));
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -57,17 +57,14 @@ function readDecisions(brainId: string): LearningDecision[] {
 function writeDecisions(brainId: string, decisions: LearningDecision[]): void {
   try {
     const trimmed = decisions.slice(-MAX_RAW_DECISIONS);
-    localStorage.setItem(KEYS.learningDecisions(brainId), JSON.stringify(trimmed));
-    // Clean up legacy key if it exists
-    localStorage.removeItem(`openbrain_refine_decisions:${brainId}`);
+    sessionStorage.setItem(KEYS.learningDecisions(brainId), JSON.stringify(trimmed));
   } catch { /* quota exceeded — degrade gracefully */ }
 }
 
 function readLearnings(brainId: string): string {
   try {
-    return localStorage.getItem(KEYS.learningSummary(brainId))
-      || localStorage.getItem(`openbrain_refine_learnings:${brainId}`)
-      || "";
+    // S1-7: Use sessionStorage only
+    return sessionStorage.getItem(KEYS.learningSummary(brainId)) || "";
   } catch {
     return "";
   }
@@ -75,8 +72,7 @@ function readLearnings(brainId: string): string {
 
 function writeLearnings(brainId: string, text: string): void {
   try {
-    localStorage.setItem(KEYS.learningSummary(brainId), text);
-    localStorage.removeItem(`openbrain_refine_learnings:${brainId}`);
+    sessionStorage.setItem(KEYS.learningSummary(brainId), text);
   } catch { /* quota exceeded */ }
 }
 

@@ -38,8 +38,38 @@ export function getFileExtension(filename: string): string {
   return filename.slice(dot).toLowerCase();
 }
 
-export function isSupportedFile(file: File): boolean {
-  return (SUPPORTED_EXTENSIONS as readonly string[]).includes(getFileExtension(file.name));
+// S1-8: Validate magic bytes (first 4 bytes) to detect renamed malicious files
+async function getMagicBytes(file: File): Promise<Uint8Array> {
+  const chunk = file.slice(0, 4);
+  const buffer = await chunk.arrayBuffer();
+  return new Uint8Array(buffer);
+}
+
+function matchesMagic(magic: Uint8Array, pattern: number[]): boolean {
+  if (magic.length < pattern.length) return false;
+  return pattern.every((byte, i) => byte === 0xff || magic[i] === byte);
+}
+
+async function validateMagic(file: File): Promise<boolean> {
+  const ext = getFileExtension(file.name).toLowerCase();
+  const magic = await getMagicBytes(file);
+
+  // PDF: %PDF (0x25 0x50 0x44 0x46)
+  if (ext === ".pdf") return matchesMagic(magic, [0x25, 0x50, 0x44, 0x46]);
+
+  // DOCX/XLSX: PK\x03\x04 (0x50 0x4B 0x03 0x04) — ZIP files
+  if ([".docx", ".xlsx", ".xls", ".ods"].includes(ext)) return matchesMagic(magic, [0x50, 0x4b, 0x03, 0x04]);
+
+  // Text files: no strict magic check, assume valid
+  if (TEXT_EXTENSIONS.has(ext)) return true;
+
+  return false;
+}
+
+export async function isSupportedFile(file: File): Promise<boolean> {
+  const ext = (SUPPORTED_EXTENSIONS as readonly string[]).includes(getFileExtension(file.name));
+  if (!ext) return false;
+  return validateMagic(file);
 }
 
 export function isTextFile(file: File): boolean {
