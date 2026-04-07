@@ -1,7 +1,6 @@
 import { supabase } from "./supabase";
 import { MODEL as DEFAULT_MODEL } from "../data/constants";
-
-const P = "openbrain_";
+import { KEYS } from "./storageKeys";
 
 // ── Key migration (run once at module init) ──
 try {
@@ -16,7 +15,7 @@ try {
         "groq_key",
       ]) {
         const oldKey = `openbrain_${uid}_${suffix}`;
-        const newKey = `${P}${suffix}`;
+        const newKey = `openbrain_${suffix}`;
         if (!localStorage.getItem(newKey) && localStorage.getItem(oldKey)) {
           localStorage.setItem(newKey, localStorage.getItem(oldKey)!);
         }
@@ -37,50 +36,50 @@ export function getUserId(): string | null {
 }
 
 export function getUserApiKey(): string | null {
-  return localStorage.getItem(`${P}api_key`) || null;
+  return localStorage.getItem(KEYS.AI_API_KEY) || null;
 }
 export function setUserApiKey(key: string | null): void {
-  if (key) localStorage.setItem(`${P}api_key`, key);
-  else localStorage.removeItem(`${P}api_key`);
+  if (key) localStorage.setItem(KEYS.AI_API_KEY, key);
+  else localStorage.removeItem(KEYS.AI_API_KEY);
 }
 
 export function getUserModel(): string {
-  return localStorage.getItem(`${P}model`) || DEFAULT_MODEL;
+  return localStorage.getItem(KEYS.AI_MODEL) || DEFAULT_MODEL;
 }
 export function setUserModel(model: string | null): void {
-  if (model) localStorage.setItem(`${P}model`, model);
-  else localStorage.removeItem(`${P}model`);
+  if (model) localStorage.setItem(KEYS.AI_MODEL, model);
+  else localStorage.removeItem(KEYS.AI_MODEL);
 }
 
 export function getUserProvider(): string {
-  return localStorage.getItem(`${P}provider`) || "anthropic";
+  return localStorage.getItem(KEYS.AI_PROVIDER) || "anthropic";
 }
 export function setUserProvider(provider: string | null): void {
-  localStorage.setItem(`${P}provider`, provider || "anthropic");
+  localStorage.setItem(KEYS.AI_PROVIDER, provider || "anthropic");
 }
 
 export function getOpenRouterKey(): string | null {
-  return localStorage.getItem(`${P}openrouter_key`) || null;
+  return localStorage.getItem(KEYS.OPENROUTER_KEY) || null;
 }
 export function setOpenRouterKey(key: string | null): void {
-  if (key) localStorage.setItem(`${P}openrouter_key`, key);
-  else localStorage.removeItem(`${P}openrouter_key`);
+  if (key) localStorage.setItem(KEYS.OPENROUTER_KEY, key);
+  else localStorage.removeItem(KEYS.OPENROUTER_KEY);
 }
 
 export function getOpenRouterModel(): string | null {
-  return localStorage.getItem(`${P}openrouter_model`) || null;
+  return localStorage.getItem(KEYS.OPENROUTER_MODEL) || null;
 }
 export function setOpenRouterModel(model: string | null): void {
-  if (model) localStorage.setItem(`${P}openrouter_model`, model);
-  else localStorage.removeItem(`${P}openrouter_model`);
+  if (model) localStorage.setItem(KEYS.OPENROUTER_MODEL, model);
+  else localStorage.removeItem(KEYS.OPENROUTER_MODEL);
 }
 
 export function getGroqKey(): string | null {
-  return localStorage.getItem(`${P}groq_key`) || null;
+  return localStorage.getItem(KEYS.GROQ_KEY) || null;
 }
 export function setGroqKey(key: string | null): void {
-  if (key) localStorage.setItem(`${P}groq_key`, key);
-  else localStorage.removeItem(`${P}groq_key`);
+  if (key) localStorage.setItem(KEYS.GROQ_KEY, key);
+  else localStorage.removeItem(KEYS.GROQ_KEY);
 }
 
 const TASK_COL: Record<string, string> = {
@@ -92,10 +91,10 @@ const TASK_COL: Record<string, string> = {
 };
 
 export function getModelForTask(task: string): string | null {
-  return localStorage.getItem(`${P}task_${task}`) || null;
+  return localStorage.getItem(KEYS.taskModel(task)) || null;
 }
 export function setModelForTask(task: string, model: string | null): void {
-  const lsKey = `${P}task_${task}`;
+  const lsKey = KEYS.taskModel(task);
   if (model) localStorage.setItem(lsKey, model);
   else localStorage.removeItem(lsKey);
   const col = TASK_COL[task];
@@ -118,7 +117,7 @@ export function loadTaskModels(
   if (!settingsRow) return;
   for (const [task, col] of Object.entries(TASK_COL)) {
     const val = settingsRow[col];
-    const lsKey = `${P}task_${task}`;
+    const lsKey = KEYS.taskModel(task);
     if (val) localStorage.setItem(lsKey, val);
     else localStorage.removeItem(lsKey);
   }
@@ -127,26 +126,26 @@ export function loadTaskModels(
 // ── Embedding settings ──
 
 export function getEmbedProvider(): string {
-  return localStorage.getItem(`${P}embed_provider`) || "openai";
+  return localStorage.getItem(KEYS.EMBED_PROVIDER) || "openai";
 }
 export function setEmbedProvider(p: string | null): void {
-  localStorage.setItem(`${P}embed_provider`, p || "openai");
+  localStorage.setItem(KEYS.EMBED_PROVIDER, p || "openai");
 }
 
 export function getEmbedOpenAIKey(): string | null {
-  return localStorage.getItem(`${P}embed_openai_key`) || null;
+  return localStorage.getItem(KEYS.EMBED_OPENAI_KEY) || null;
 }
 export function setEmbedOpenAIKey(key: string | null): void {
-  if (key) localStorage.setItem(`${P}embed_openai_key`, key);
-  else localStorage.removeItem(`${P}embed_openai_key`);
+  if (key) localStorage.setItem(KEYS.EMBED_OPENAI_KEY, key);
+  else localStorage.removeItem(KEYS.EMBED_OPENAI_KEY);
 }
 
 export function getGeminiKey(): string | null {
-  return localStorage.getItem(`${P}gemini_key`) || null;
+  return localStorage.getItem(KEYS.GEMINI_KEY) || null;
 }
 export function setGeminiKey(key: string | null): void {
-  if (key) localStorage.setItem(`${P}gemini_key`, key);
-  else localStorage.removeItem(`${P}gemini_key`);
+  if (key) localStorage.setItem(KEYS.GEMINI_KEY, key);
+  else localStorage.removeItem(KEYS.GEMINI_KEY);
 }
 
 export function getEmbedKey(): string | null {

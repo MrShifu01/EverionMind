@@ -1,4 +1,5 @@
 import type { Entry } from "../types";
+import { KEYS } from "./storageKeys";
 
 const DB_NAME = "openbrain-cache";
 const STORE = "entries_cache";
@@ -24,7 +25,7 @@ function openCacheDB(): Promise<IDBDatabase> {
 
 export async function writeEntriesCache(entries: Entry[]): Promise<void> {
   try {
-    localStorage.setItem("openbrain_entries", JSON.stringify(entries));
+    localStorage.setItem(KEYS.ENTRIES_CACHE, JSON.stringify(entries));
   } catch {
     /* ignore */
   }
@@ -66,7 +67,7 @@ export async function readEntriesCache(): Promise<Entry[] | null> {
   }
 
   try {
-    const cached = localStorage.getItem("openbrain_entries");
+    const cached = localStorage.getItem(KEYS.ENTRIES_CACHE);
     if (cached) {
       const parsed = JSON.parse(cached);
       if (Array.isArray(parsed) && parsed.length > 0) return parsed as Entry[];

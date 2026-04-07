@@ -1,4 +1,5 @@
 import type { OfflineOp } from "../types";
+import { KEYS } from "./storageKeys";
 
 const DB_NAME = "openbrain-offline";
 const STORE = "queue";
@@ -37,11 +38,11 @@ export async function enqueue(op: OfflineOp): Promise<void> {
     if (e instanceof DOMException && e.name === "QuotaExceededError") {
       console.warn("[offlineQueue] IndexedDB quota exceeded, falling back to localStorage");
       try {
-        const existing: OfflineOp[] = JSON.parse(localStorage.getItem("openbrain_queue") || "[]");
+        const existing: OfflineOp[] = JSON.parse(localStorage.getItem(KEYS.OFFLINE_QUEUE) || "[]");
         const idx = existing.findIndex((o) => o.id === op.id);
         if (idx >= 0) existing[idx] = op;
         else existing.push(op);
-        localStorage.setItem("openbrain_queue", JSON.stringify(existing));
+        localStorage.setItem(KEYS.OFFLINE_QUEUE, JSON.stringify(existing));
       } catch {
         /* ignore localStorage errors */
       }
@@ -65,7 +66,7 @@ export async function getAll(): Promise<OfflineOp[]> {
     );
   } catch {
     try {
-      const items: OfflineOp[] = JSON.parse(localStorage.getItem("openbrain_queue") || "[]");
+      const items: OfflineOp[] = JSON.parse(localStorage.getItem(KEYS.OFFLINE_QUEUE) || "[]");
       return items.sort(
         (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
       );
@@ -86,8 +87,8 @@ export async function remove(id: string): Promise<void> {
     });
   } catch {
     try {
-      const items: OfflineOp[] = JSON.parse(localStorage.getItem("openbrain_queue") || "[]");
-      localStorage.setItem("openbrain_queue", JSON.stringify(items.filter((o) => o.id !== id)));
+      const items: OfflineOp[] = JSON.parse(localStorage.getItem(KEYS.OFFLINE_QUEUE) || "[]");
+      localStorage.setItem(KEYS.OFFLINE_QUEUE, JSON.stringify(items.filter((o) => o.id !== id)));
     } catch {
       /* ignore */
     }
@@ -104,7 +105,7 @@ export async function clear(): Promise<void> {
       tx.onerror = () => reject(tx.error);
     });
   } catch {
-    localStorage.removeItem("openbrain_queue");
+    localStorage.removeItem(KEYS.OFFLINE_QUEUE);
   }
 }
 

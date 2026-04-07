@@ -8,8 +8,8 @@
  * Storage: localStorage, keyed per brain (each brain learns independently).
  */
 
-const DECISIONS_KEY = "openbrain_learning_decisions";
-const LEARNINGS_KEY = "openbrain_learning_summary";
+import { KEYS } from "./storageKeys";
+
 const MAX_RAW_DECISIONS = 300;
 const SUMMARIZE_EVERY = 10;
 
@@ -46,7 +46,7 @@ export interface LearningDecision {
 function readDecisions(brainId: string): LearningDecision[] {
   try {
     // Check new key first, fall back to legacy refine key for migration
-    const raw = localStorage.getItem(`${DECISIONS_KEY}:${brainId}`)
+    const raw = localStorage.getItem(KEYS.learningDecisions(brainId))
       || localStorage.getItem(`openbrain_refine_decisions:${brainId}`);
     return raw ? JSON.parse(raw) : [];
   } catch {
@@ -57,7 +57,7 @@ function readDecisions(brainId: string): LearningDecision[] {
 function writeDecisions(brainId: string, decisions: LearningDecision[]): void {
   try {
     const trimmed = decisions.slice(-MAX_RAW_DECISIONS);
-    localStorage.setItem(`${DECISIONS_KEY}:${brainId}`, JSON.stringify(trimmed));
+    localStorage.setItem(KEYS.learningDecisions(brainId), JSON.stringify(trimmed));
     // Clean up legacy key if it exists
     localStorage.removeItem(`openbrain_refine_decisions:${brainId}`);
   } catch { /* quota exceeded — degrade gracefully */ }
@@ -65,7 +65,7 @@ function writeDecisions(brainId: string, decisions: LearningDecision[]): void {
 
 function readLearnings(brainId: string): string {
   try {
-    return localStorage.getItem(`${LEARNINGS_KEY}:${brainId}`)
+    return localStorage.getItem(KEYS.learningSummary(brainId))
       || localStorage.getItem(`openbrain_refine_learnings:${brainId}`)
       || "";
   } catch {
@@ -75,7 +75,7 @@ function readLearnings(brainId: string): string {
 
 function writeLearnings(brainId: string, text: string): void {
   try {
-    localStorage.setItem(`${LEARNINGS_KEY}:${brainId}`, text);
+    localStorage.setItem(KEYS.learningSummary(brainId), text);
     localStorage.removeItem(`openbrain_refine_learnings:${brainId}`);
   } catch { /* quota exceeded */ }
 }
