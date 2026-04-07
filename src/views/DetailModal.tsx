@@ -282,7 +282,7 @@ export default function DetailModal({
       aria-modal="true"
       aria-labelledby="detail-modal-title"
       className="fixed inset-0 z-50 flex items-end lg:items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}
+      style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", paddingBottom: "calc(56px + env(safe-area-inset-bottom))" }}
       onClick={editing ? undefined : onClose}
     >
       <div

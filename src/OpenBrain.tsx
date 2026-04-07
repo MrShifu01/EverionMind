@@ -4,6 +4,7 @@ import { useTheme } from "./ThemeContext";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { authFetch } from "./lib/authFetch";
 import { callAI } from "./lib/ai";
+import { extractNudgeText } from "./lib/extractNudgeText";
 import {
   getEmbedHeaders,
   getUserProvider,
@@ -552,7 +553,7 @@ export default function OpenBrain() {
     })
       .then((r) => r.json())
       .then((data) => {
-        const text = data.content?.[0]?.text?.trim();
+        const text = extractNudgeText(data);
         if (text) {
           setNudge(text);
           sessionStorage.setItem("openbrain_nudge", text);
