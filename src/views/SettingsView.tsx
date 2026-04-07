@@ -282,7 +282,7 @@ export default function SettingsView() {
   const [byoModel, setByoModel] = useState(() => getUserModel());
   const [orKey, setOrKey] = useState(() => getOpenRouterKey() || "");
   const [orModel, setOrModel] = useState(
-    () => getOpenRouterModel() || "google/gemini-2.0-flash-exp:free",
+    () => getOpenRouterModel() || "google/gemini-2.0-flash-lite:free",
   );
   const [orModels, setOrModels] = useState<ORModel[]>([]);
   const [showKey, setShowKey] = useState(false);

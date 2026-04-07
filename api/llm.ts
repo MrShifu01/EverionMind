@@ -19,14 +19,10 @@ const OPENAI_MODELS = [
   "gpt-4.1",
 ];
 
-const OPENROUTER_MODELS = [
-  "google/gemini-2.0-flash-exp:free",
-  "anthropic/claude-3.5-haiku",
-  "anthropic/claude-sonnet-4-5",
-  "openai/gpt-4o-mini",
-  "openai/gpt-4o",
-  "meta-llama/llama-3.1-70b-instruct",
-];
+// OpenRouter model default — user may select any model via the UI;
+// the server no longer whitelists models since the user supplies their own key
+// and OpenRouter validates model names itself.
+const OPENROUTER_DEFAULT_MODEL = "google/gemini-2.0-flash-lite:free";
 
 interface LlmParams {
   model: string;
@@ -138,9 +134,12 @@ async function handleOpenAI(_req: ApiRequest, res: ApiResponse, { model, message
 }
 
 async function handleOpenRouter(_req: ApiRequest, res: ApiResponse, { model, messages, max_tokens, system, apiKey }: LlmParams): Promise<void> {
-  if (model && !OPENROUTER_MODELS.includes(model)) {
-    return res.status(400).json({ error: "Model not allowed" });
-  }
+  // No server-side model whitelist — the user supplies their own API key so
+  // OpenRouter validates model names. Sanitise only: must be a non-empty string
+  // under 200 chars with no control characters.
+  const safeModel = (model && typeof model === "string" && model.length <= 200 && !/[\x00-\x1f]/.test(model))
+    ? model
+    : OPENROUTER_DEFAULT_MODEL;
 
   // OpenRouter uses OpenAI-compatible format — system param becomes first message
   const orMessages = system
@@ -156,7 +155,7 @@ async function handleOpenRouter(_req: ApiRequest, res: ApiResponse, { model, mes
       "X-Title": "OpenBrain",
     },
     body: JSON.stringify({
-      model: model || "google/gemini-2.0-flash-exp:free",
+      model: safeModel,
       max_tokens: max_tokens || 1000,
       messages: orMessages,
       route: "fallback",
@@ -169,7 +168,7 @@ async function handleOpenRouter(_req: ApiRequest, res: ApiResponse, { model, mes
   if (response.ok && data.choices?.[0]?.message?.content) {
     return res.status(200).json({
       content: [{ type: "text", text: data.choices[0].message.content }],
-      model: data.model || model,
+      model: data.model || safeModel,
     });
   }
 
