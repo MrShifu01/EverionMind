@@ -3,7 +3,6 @@ import {
   shouldSplitContent,
   parseAISplitResponse,
   buildSplitPrompt,
-  normaliseType,
 } from "../../src/lib/fileSplitter";
 
 describe("fileSplitter", () => {
@@ -63,26 +62,8 @@ Instructions: Mix until smooth. Cook on pan.
     });
   });
 
-  describe("normaliseType", () => {
-    it("returns the type unchanged if it is valid", () => {
-      expect(normaliseType("note")).toBe("note");
-      expect(normaliseType("person")).toBe("person");
-      expect(normaliseType("secret")).toBe("secret");
-    });
-
-    it("returns 'note' for AI-invented types like 'company'", () => {
-      expect(normaliseType("company")).toBe("note");
-    });
-
-    it("returns 'note' for AI-invented types like 'director'", () => {
-      expect(normaliseType("director")).toBe("note");
-    });
-
-    it("returns 'note' for undefined or empty", () => {
-      expect(normaliseType(undefined)).toBe("note");
-      expect(normaliseType("")).toBe("note");
-    });
-  });
+  // normaliseType was removed — types are now fully flexible (AI-chosen).
+  // parseAISplitResponse already falls back to "note" for missing/empty types.
 
   describe("parseAISplitResponse", () => {
     it("parses valid JSON array of entries", () => {

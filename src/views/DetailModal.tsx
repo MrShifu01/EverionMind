@@ -286,7 +286,7 @@ export default function DetailModal({
       onClick={editing ? undefined : onClose}
     >
       <div
-        className="relative w-full max-w-lg rounded-t-2xl lg:rounded-2xl border overflow-y-auto max-h-[90vh] p-5"
+        className="relative w-full max-w-lg rounded-t-2xl lg:rounded-2xl border overflow-y-auto max-h-[90vh] p-5 pb-8"
         style={{
           background: "#1a1919",
           borderColor: "rgba(72,72,71,0.2)",
@@ -389,32 +389,28 @@ export default function DetailModal({
               <label className="block text-[10px] uppercase tracking-widest font-semibold mb-1.5" style={{ color: "#777" }}>
                 Type
               </label>
-              <select
+              {/* Free-form type input — AI can use any label; datalist shows known types */}
+              <datalist id="entry-types-list">
+                {Array.from(new Set([
+                  ...entries.map((e) => e.type).filter(Boolean),
+                  "note", "person", "place", "idea", "contact",
+                  "document", "reminder", "decision", "secret",
+                ])).map((typ) => <option key={typ} value={typ} />)}
+              </datalist>
+              <input
+                type="text"
+                list="entry-types-list"
                 value={editType}
-                onChange={(e) => setEditType(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl text-on-surface text-sm min-h-[44px] transition-all focus:outline-none cursor-pointer"
+                onChange={(e) => setEditType(e.target.value.toLowerCase().trim())}
+                placeholder="e.g. recipe, supplier, director…"
+                className="w-full px-4 py-3 rounded-xl text-on-surface text-sm min-h-[44px] transition-all focus:outline-none"
                 style={{
                   background: "#262626",
                   border: "1px solid rgba(72,72,71,0.20)",
                 }}
-              >
-                {[
-                  "note",
-                  "person",
-                  "place",
-                  "idea",
-                  "contact",
-                  "document",
-                  "reminder",
-                  "color",
-                  "decision",
-                  "secret",
-                ].map((typ) => (
-                  <option key={typ} value={typ}>
-                    {typ}
-                  </option>
-                ))}
-              </select>
+                onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(114,239,245,0.6)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(114,239,245,0.08)"; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(72,72,71,0.20)"; e.currentTarget.style.boxShadow = "none"; }}
+              />
             </div>
             <div>
               <label className="block text-[10px] uppercase tracking-widest font-semibold mb-1.5" style={{ color: "#777" }}>

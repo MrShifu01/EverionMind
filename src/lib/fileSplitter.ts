@@ -7,31 +7,13 @@
  * The only reserved type is "secret", which triggers E2E encryption.
  */
 
-const VALID_CAPTURE_TYPES = [
-  "note", "person", "place", "idea", "contact",
-  "document", "reminder", "color", "decision", "secret",
-] as const;
-
-type CaptureType = typeof VALID_CAPTURE_TYPES[number];
-
 interface SplitEntry {
   title: string;
   content: string;
-  type: CaptureType;
+  type: string;
   metadata?: Record<string, unknown>;
   tags?: string[];
 }
-
-/**
- * Normalise an AI-returned type value to a valid CaptureType.
- * Falls back to "note" if the value is missing or not in the allowed list.
- */
-export function normaliseType(type: string | undefined | null): CaptureType {
-  return VALID_CAPTURE_TYPES.includes(type as CaptureType)
-    ? (type as CaptureType)
-    : "note";
-}
-
 /**
  * Heuristic check: should this content be sent to AI for splitting?
  * Returns true if content is long enough and has structural indicators

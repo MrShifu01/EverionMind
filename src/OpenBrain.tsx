@@ -5,6 +5,7 @@ import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { authFetch } from "./lib/authFetch";
 import { callAI } from "./lib/ai";
 import { extractNudgeText } from "./lib/extractNudgeText";
+import { scoreEntriesForQuery } from "./lib/chatContext";
 import {
   getEmbedHeaders,
   getUserProvider,
@@ -824,9 +825,21 @@ export default function OpenBrain() {
           });
           data = await res.json();
         } else {
+          // Keyword-score entries against the query so the most relevant
+          // ones appear first in the context window, not just the oldest 100.
+          const relevantEntries = scoreEntriesForQuery(
+            entries.map((e) => ({
+              id: e.id,
+              title: e.title,
+              type: e.type,
+              tags: e.tags || [],
+              content: e.content ? e.content.slice(0, 200) : undefined,
+            })),
+            msg,
+          ).slice(0, 60);
           const contextWithSecrets = secrets.length
-            ? [...chatContext, ...secrets.map((s) => ({ ...s, type: "secret" }))]
-            : chatContext;
+            ? [...relevantEntries, ...secrets.map((s) => ({ ...s, type: "secret" }))]
+            : relevantEntries;
           const res = await callAI({
             max_tokens: 1000,
             system: PROMPTS.CHAT.replace(
@@ -838,7 +851,7 @@ export default function OpenBrain() {
           });
           data = await res.json();
         }
-        const content = data.content?.map((c) => c.text || "").join("") || "Couldn't process.";
+        const content = extractNudgeText(data) || data.content?.map((c: any) => c.text || "").join("") || "Couldn't process.";
         if (containsSensitiveContent(content)) {
           const hasPinSet = !!getStoredPinHash();
           setPendingSecureMsg({ content });
@@ -852,7 +865,7 @@ export default function OpenBrain() {
       }
       setChatLoading(false);
     },
-    [cryptoKey, entries, chatContext, links, chatMsgs, activeBrain],
+    [cryptoKey, entries, links, chatMsgs, activeBrain],
   );
 
   const handleChat = async () => {
