@@ -554,6 +554,55 @@ export default function OpenBrain() {
         metadata: e.metadata,
         created_at: e.created_at,
       }));
+
+    // Detect potential duplicates: same title, same creation date, different types
+    const titlesByDate: Record<string, typeof recent> = {};
+    for (const e of recent) {
+      const dateKey = e.created_at?.slice(0, 10) || "unknown";
+      titlesByDate[dateKey] = titlesByDate[dateKey] || [];
+      titlesByDate[dateKey].push(e);
+    }
+    const duplicates: string[] = [];
+    for (const dayEntries of Object.values(titlesByDate)) {
+      const byTitle: Record<string, typeof recent> = {};
+      for (const e of dayEntries) {
+        byTitle[e.title] = byTitle[e.title] || [];
+        byTitle[e.title].push(e);
+      }
+      for (const sameTitle of Object.values(byTitle)) {
+        if (sameTitle.length > 1 && new Set(sameTitle.map((x) => x.type)).size > 1) {
+          duplicates.push(
+            `"${sameTitle[0].title}" appears as both ${sameTitle.map((x) => x.type).join(" and ")} on same day`,
+          );
+        }
+      }
+    }
+
+    // Detect upcoming expirations (within 90 days)
+    const now = new Date();
+    const expirations: string[] = [];
+    for (const e of recent) {
+      const meta = e.metadata || {};
+      const dateFields = [
+        { key: "expiry_date", label: "expires" },
+        { key: "warranty_expiration", label: "warranty expires" },
+        { key: "due_date", label: "due" },
+      ];
+      for (const { key, label } of dateFields) {
+        const dateStr = meta[key];
+        if (dateStr) {
+          const date = new Date(dateStr);
+          const daysUntil = Math.floor((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          if (daysUntil > 0 && daysUntil <= 90) {
+            expirations.push(`${e.title} ${label} in ${daysUntil} days`);
+          }
+        }
+      }
+    }
+
+    const gaps = [...duplicates.slice(0, 1), ...expirations.slice(0, 1)];
+    const gapContext = gaps.length ? `\n\nDetected gaps: ${gaps.join("; ")}` : "";
+
     callAI({
       max_tokens: 200,
       system: PROMPTS.NUDGE,
@@ -561,7 +610,7 @@ export default function OpenBrain() {
       messages: [
         {
           role: "user",
-          content: `My recent memories:\n${JSON.stringify(recent)}\n\nWhat should I know right now?`,
+          content: `My recent memories:\n${JSON.stringify(recent)}\n\nWhat should I know right now?${gapContext}`,
         },
       ],
     })
