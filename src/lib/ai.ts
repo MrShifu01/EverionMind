@@ -72,7 +72,7 @@ export async function callAI({
     model =
       (task ? getModelForTask(task) : null) ||
       getOpenRouterModel() ||
-      "google/gemini-2.0-flash-exp:free";
+      "google/gemini-2.0-flash-lite:free";
   } else {
     model = getUserModel();
   }
