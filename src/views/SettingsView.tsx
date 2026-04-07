@@ -21,6 +21,8 @@ import {
   setGeminiKey,
   getGroqKey,
   setGroqKey,
+  getModelForTask,
+  setModelForTask,
 } from "../lib/aiFetch";
 import { callAI } from "../lib/ai";
 import { supabase } from "../lib/supabase";
@@ -28,7 +30,41 @@ import NotificationSettings from "../components/NotificationSettings";
 import { PinGate, getStoredPinHash, removePin } from "../lib/pin";
 import { MODELS } from "../config/models";
 import { useBrain } from "../context/BrainContext";
-import type { Brain } from "../types";
+import type { Brain, Entry } from "../types";
+import TrashView from "./TrashView";
+
+function priceTier(pricing?: { prompt?: string }): { label: string; color: string } {
+  const p = parseFloat(pricing?.prompt ?? "1");
+  if (p === 0) return { label: "Free", color: "#22c55e" };
+  if (p < 0.000001) return { label: "Cheap", color: "#4ECDC4" };
+  if (p < 0.000010) return { label: "Normal", color: "#888" };
+  return { label: "Expensive", color: "#FF6B35" };
+}
+
+function UsagePanel() {
+  const [usage, setUsage] = useState({ inputTokens: 0, outputTokens: 0, estimatedUsd: 0 });
+  useEffect(() => {
+    import("../lib/usageTracker").then(m => setUsage(m.getMonthlyUsage()));
+  }, []);
+
+  return (
+    <div className="rounded-2xl border p-4 space-y-3" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
+      <p className="text-sm font-semibold text-white">Usage this month</p>
+      <div className="space-y-1 text-xs" style={{ color: "#aaa" }}>
+        <p>Input tokens: <span className="text-white">{usage.inputTokens.toLocaleString()}</span></p>
+        <p>Output tokens: <span className="text-white">{usage.outputTokens.toLocaleString()}</span></p>
+        <p>Est. cost: <span className="text-white">${usage.estimatedUsd.toFixed(4)}</span> <span style={{ color: "#555" }}>(estimate only)</span></p>
+      </div>
+      <button
+        onClick={() => { import("../lib/usageTracker").then(m => { m.clearUsage(); setUsage({ inputTokens: 0, outputTokens: 0, estimatedUsd: 0 }); }); }}
+        className="rounded-lg px-3 text-xs"
+        style={{ color: "#888", border: "1px solid rgba(72,72,71,0.3)", minHeight: 36 }}
+      >
+        Clear history
+      </button>
+    </div>
+  );
+}
 
 interface BrainMember {
   user_id: string;
@@ -300,6 +336,18 @@ export default function SettingsView() {
   const [showEmbedKey, setShowEmbedKey] = useState(false);
   // Advanced section toggle
   const [showAdvanced, setShowAdvanced] = useState(false);
+  // Embed mismatch warning
+  const [embedMismatchCount, setEmbedMismatchCount] = useState(0);
+  const [pendingEmbedProvider, setPendingEmbedProvider] = useState<string | null>(null);
+  // Per-task model overrides
+  const [taskModels, setTaskModels] = useState<Record<string, string | null>>(() => {
+    const tasks = ["capture", "questions", "refine", "chat", "vision"];
+    const result: Record<string, string | null> = {};
+    for (const t of tasks) result[t] = getModelForTask(t);
+    return result;
+  });
+  // Trash view
+  const [showTrash, setShowTrash] = useState(false);
   // Brain members
   const [members, setMembers] = useState<BrainMember[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -444,6 +492,15 @@ export default function SettingsView() {
   const saveEmbedProvider = (p: string) => {
     setEmbedProviderState(p);
     setEmbedProvider(p);
+  };
+  const handleEmbedProviderClick = (p: string) => {
+    if (p === embedProvider) {
+      saveEmbedProvider(p);
+      return;
+    }
+    // Show warning when switching providers — entries with old embeddings will be mismatched
+    setPendingEmbedProvider(p);
+    setEmbedMismatchCount(1); // conservative: at least some entries may be embedded
   };
   const saveEmbedOpenAIKey = (k: string) => {
     setEmbedOpenAIKeyState(k);
@@ -902,6 +959,63 @@ export default function SettingsView() {
                 Tip: choose a model with ZDR (zero data retention) for sensitive entries.
               </p>
             </div>
+            {orModels.length > 0 && (
+              <div className="space-y-3 pt-2 border-t" style={{ borderColor: "rgba(72,72,71,0.2)" }}>
+                <p className="text-xs font-semibold" style={{ color: "#aaa" }}>Per-task models</p>
+                {([
+                  ["Entry capture", "capture"],
+                  ["Fill Brain questions", "questions"],
+                  ["Refine collection", "refine"],
+                  ["Brain chat", "chat"],
+                ] as [string, string][]).map(([label, task]) => (
+                  <div key={task} className="flex items-center gap-2">
+                    <span className="text-xs w-36 shrink-0" style={{ color: "#aaa" }}>{label}</span>
+                    <select
+                      value={taskModels[task] ?? "default"}
+                      onChange={e => {
+                        const v = e.target.value;
+                        setModelForTask(task, v === "default" ? null : v);
+                        setTaskModels(prev => ({ ...prev, [task]: v === "default" ? null : v }));
+                      }}
+                      className="flex-1 rounded-lg px-2 text-xs"
+                      style={{ background: "rgba(255,255,255,0.05)", color: "#fff", border: "1px solid rgba(72,72,71,0.3)", height: 44 }}
+                    >
+                      <option value="default">Same as global default</option>
+                      {orModels.map(m => {
+                        const tier = priceTier(m.pricing);
+                        return (
+                          <option key={m.id} value={m.id}>
+                            {m.name ?? m.id} [{tier.label}]
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                ))}
+                {/* Vision model picker */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs w-36 shrink-0" style={{ color: "#aaa" }}>Image reading</span>
+                  <select
+                    value={taskModels["vision"] ?? "default"}
+                    onChange={e => {
+                      const v = e.target.value;
+                      setModelForTask("vision", v === "default" ? null : v);
+                      setTaskModels(prev => ({ ...prev, vision: v === "default" ? null : v }));
+                    }}
+                    className="flex-1 rounded-lg px-2 text-xs"
+                    style={{ background: "rgba(255,255,255,0.05)", color: "#fff", border: "1px solid rgba(72,72,71,0.3)", height: 44 }}
+                  >
+                    <option value="default">Same as global default</option>
+                    {orModels
+                      .filter(m => (m as any).modality?.includes?.("image") || (m as any).architecture?.modality?.includes?.("image"))
+                      .map(m => {
+                        const tier = priceTier(m.pricing);
+                        return <option key={m.id} value={m.id}>{m.name ?? m.id} [{tier.label}]</option>;
+                      })}
+                  </select>
+                </div>
+              </div>
+            )}
           </>
         ) : (
           <>
@@ -982,7 +1096,7 @@ export default function SettingsView() {
           {["openai", "google"].map((p) => (
             <button
               key={p}
-              onClick={() => saveEmbedProvider(p)}
+              onClick={() => handleEmbedProviderClick(p)}
               className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors"
               style={{
                 color: embedProvider === p ? "#0a0a0a" : "#aaa",
@@ -994,6 +1108,23 @@ export default function SettingsView() {
             </button>
           ))}
         </div>
+        {pendingEmbedProvider && (
+          <div className="rounded-xl p-3 text-xs space-y-2" style={{ background: "rgba(255,107,53,0.1)", border: "1px solid rgba(255,107,53,0.3)" }}>
+            <p style={{ color: "#FF6B35" }}>
+              Switching providers may make search inconsistent until you re-embed. Existing embeddings were created with a different provider.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => { saveEmbedProvider(pendingEmbedProvider!); setPendingEmbedProvider(null); }}
+                className="rounded-lg px-3 text-xs font-semibold" style={{ background: "rgba(255,107,53,0.2)", color: "#FF6B35", minHeight: 36 }}>
+                Switch anyway
+              </button>
+              <button onClick={() => setPendingEmbedProvider(null)}
+                className="rounded-lg px-3 text-xs" style={{ color: "#888", minHeight: 36 }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
         {embedProvider === "openai" ? (
           <div className="space-y-1">
             <p className="text-xs font-medium" style={{ color: "#777" }}>
@@ -1146,6 +1277,41 @@ export default function SettingsView() {
       {/* AI Memory Guide */}
       <MemoryEditor activeBrain={activeBrain} />
       </>}
+
+      {/* ─── Usage Tracking ─── */}
+      <UsagePanel />
+
+      {/* ─── Data & Storage ─── */}
+      <div className="rounded-2xl border p-4 space-y-3" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
+        <p className="text-sm font-semibold text-white">Data & Storage</p>
+        <button
+          onClick={() => setShowTrash(s => !s)}
+          className="rounded-xl px-4 py-2 text-xs font-semibold transition-opacity hover:opacity-90"
+          style={{ background: "rgba(255,71,87,0.1)", color: "#FF4757", minHeight: 44 }}
+        >
+          {showTrash ? "Hide Trash" : "View Trash"}
+        </button>
+        {showTrash && activeBrain && (
+          <div className="mt-2">
+            <TrashView brainId={activeBrain.id} />
+          </div>
+        )}
+      </div>
+
+      {/* ─── Onboarding ─── */}
+      <div className="rounded-2xl border p-4 space-y-3" style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}>
+        <p className="text-sm font-semibold text-white">Help & Onboarding</p>
+        <button
+          onClick={() => {
+            localStorage.removeItem("openbrain_onboarded");
+            window.dispatchEvent(new CustomEvent("openbrain:restart-onboarding"));
+          }}
+          className="rounded-xl px-4 py-2 text-xs font-semibold transition-opacity hover:opacity-90"
+          style={{ background: "rgba(114,239,245,0.15)", color: "#72eff5", minHeight: 44 }}
+        >
+          Restart Onboarding
+        </button>
+      </div>
 
     </div>
   );

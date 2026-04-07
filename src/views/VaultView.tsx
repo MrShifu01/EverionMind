@@ -43,6 +43,9 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
   const [decryptedSecrets, setDecryptedSecrets] = useState<Entry[]>([]);
   const [revealedIds, setRevealedIds] = useState<Set<string>>(new Set());
   const [copyMsg, setCopyMsg] = useState<string | null>(null);
+  // Bulk select mode
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Add Secret modal state
@@ -529,6 +532,20 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
     );
   }
 
+  // ── Bulk delete ──
+  const bulkDelete = useCallback(async () => {
+    if (!confirm(`Permanently delete ${selectedIds.size} selected secret${selectedIds.size !== 1 ? "s" : ""}? This cannot be undone.`)) return;
+    const ids = Array.from(selectedIds);
+    for (const id of ids) {
+      const res = await authFetch(`/api/entries?id=${id}`, { method: "DELETE" }).catch(() => null);
+      if (res?.ok) {
+        setDecryptedSecrets(prev => prev.filter(e => e.id !== id));
+        setSelectedIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+      }
+    }
+    setBulkMode(false);
+  }, [selectedIds]);
+
   // ── Unlocked: show all secrets ──
   return (
     <div className="px-4 py-4 space-y-4" style={{ background: "#0e0e0e", fontFamily: "'Manrope', sans-serif" }}>
@@ -554,11 +571,20 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
             ➕ Add Secret
           </button>
           <button
+            onClick={() => { setBulkMode(b => !b); setSelectedIds(new Set()); }}
+            className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors hover:bg-white/5"
+            style={{ color: bulkMode ? "#72eff5" : "#aaa", borderColor: bulkMode ? "rgba(114,239,245,0.3)" : "rgba(72,72,71,0.3)", minHeight: 44 }}
+          >
+            {bulkMode ? "Cancel" : "Select"}
+          </button>
+          <button
             onClick={() => {
               setStatus("locked");
               setPassphrase("");
               setRecoveryInput("");
               setRevealedIds(new Set());
+              setBulkMode(false);
+              setSelectedIds(new Set());
               onVaultUnlock(null);
             }}
             className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors hover:bg-white/5"
@@ -601,16 +627,30 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
               >
                 <div className="flex items-center justify-between p-3">
                   <div className="flex items-center gap-2 min-w-0">
+                    {bulkMode && (
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(e.id)}
+                        onChange={ev => setSelectedIds(prev => {
+                          const next = new Set(prev);
+                          if (ev.target.checked) next.add(e.id); else next.delete(e.id);
+                          return next;
+                        })}
+                        style={{ minHeight: 44, minWidth: 44 }}
+                      />
+                    )}
                     <span className="text-base">{getTypeConfig(e.type).i}</span>
                     <span className="text-sm font-medium text-white truncate">{e.title}</span>
                   </div>
-                  <button
-                    onClick={() => toggleReveal(e.id)}
-                    className="rounded-xl px-3 py-1 text-xs font-medium border shrink-0 transition-colors hover:bg-white/5"
-                    style={{ color: "#72eff5", borderColor: "rgba(114,239,245,0.2)" }}
-                  >
-                    {revealed ? "Hide" : "Reveal"}
-                  </button>
+                  {!bulkMode && (
+                    <button
+                      onClick={() => toggleReveal(e.id)}
+                      className="rounded-xl px-3 py-1 text-xs font-medium border shrink-0 transition-colors hover:bg-white/5"
+                      style={{ color: "#72eff5", borderColor: "rgba(114,239,245,0.2)" }}
+                    >
+                      {revealed ? "Hide" : "Reveal"}
+                    </button>
+                  )}
                 </div>
 
                 {revealed ? (
@@ -676,6 +716,19 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
               </div>
             );
           })}
+        </div>
+      )}
+
+      {bulkMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-20 left-4 right-4 rounded-2xl p-3 flex items-center justify-between z-50"
+          style={{ background: "#1a1a1a", border: "1px solid rgba(72,72,71,0.4)" }}>
+          <span className="text-sm text-white">{selectedIds.size} selected</span>
+          <div className="flex gap-2">
+            <button onClick={bulkDelete} className="rounded-lg px-4 text-xs font-semibold"
+              style={{ background: "rgba(255,71,87,0.2)", color: "#FF4757", minHeight: 44 }}>
+              Delete
+            </button>
+          </div>
         </div>
       )}
 

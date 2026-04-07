@@ -164,6 +164,7 @@ export default function QuickCapture({
   const recognitionRef = useRef(null);
   const connectionsTimerRef = useRef(null);
   const lastConnectionsLengthRef = useRef(entries ? entries.length : 0);
+  const isBulkImportingRef = useRef(false);
 
   // Keep selection in sync when active brain changes
   useEffect(() => {
@@ -347,6 +348,7 @@ export default function QuickCapture({
     setMultiPreview(null);
     setLoading(true);
     setStatus("saving");
+    isBulkImportingRef.current = true;
     let savedCount = 0;
     for (const parsed of entriesToSave) {
       try {
@@ -399,6 +401,7 @@ export default function QuickCapture({
         console.error("[multiSave] error:", err);
       }
     }
+    isBulkImportingRef.current = false;
     setStatus(savedCount > 0 ? "saved-db" : "error");
     setLoading(false);
     setTimeout(() => setStatus(null), 3000);
@@ -690,7 +693,7 @@ export default function QuickCapture({
               const currentLength = entries.length;
               const delta = currentLength - lastConnectionsLengthRef.current;
               lastConnectionsLengthRef.current = currentLength + 1; // +1 for the entry being saved
-              if (delta <= 3) {
+              if (!isBulkImportingRef.current && delta <= 3) {
                 clearTimeout(connectionsTimerRef.current);
                 const entrySnapshot = newEntry;
                 const entriesSnapshot = entries;

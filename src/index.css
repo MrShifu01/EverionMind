@@ -233,3 +233,11 @@ body {
 
 /* App is dark-mode only — light mode removed because all component
    inline styles use hardcoded dark colors that CSS variables can't override */
+
+/* Minimum 44px touch targets for accessibility */
+button,
+[role="button"],
+input[type="checkbox"],
+input[type="radio"] {
+  min-height: 44px;
+}

@@ -451,6 +451,11 @@ export default function OpenBrain() {
       setShowOnboarding(false);
     }
   }, [brains, showOnboarding]);
+  useEffect(() => {
+    const handler = () => setShowOnboarding(true);
+    window.addEventListener("openbrain:restart-onboarding", handler);
+    return () => window.removeEventListener("openbrain:restart-onboarding", handler);
+  }, []);
   const [showBrainTip, setShowBrainTip] = useState(null);
   const [showCreateBrain, setShowCreateBrain] = useState(false);
   const [chatInput, setChatInput] = useState("");
