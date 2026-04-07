@@ -964,22 +964,6 @@ export default function OpenBrain() {
     [activeBrain, brains, refresh, canInvite, canManageMembers],
   );
 
-  if (brainsLoading) {
-    return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center bg-background">
-        <div className="synapse-bg" aria-hidden="true" />
-        <div className="relative z-10 flex flex-col items-center gap-4">
-          <div className="text-4xl">🧠</div>
-          <p className="text-sm text-on-surface-variant uppercase tracking-[0.2em] font-semibold">Loading your brains...</p>
-          <div className="w-24 h-0.5 rounded-full overflow-hidden" style={{ background: "rgba(114,239,245,0.1)" }}>
-            <div className="h-full" style={{ background: "linear-gradient(90deg,#72eff5,#d575ff)", animation: "loading-bar 1.5s ease-in-out infinite" }} />
-          </div>
-        </div>
-        <style>{`@keyframes loading-bar{0%{width:0%;margin-left:0%}50%{width:60%;margin-left:20%}100%{width:0%;margin-left:100%}}`}</style>
-      </div>
-    );
-  }
-
   return (
     <EntriesContext.Provider value={entriesValue}>
       <BrainContext.Provider value={brainValue}>
