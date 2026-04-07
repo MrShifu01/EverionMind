@@ -5,6 +5,7 @@ import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { authFetch } from "./lib/authFetch";
 import { callAI } from "./lib/ai";
 import { extractNudgeText } from "./lib/extractNudgeText";
+import { scoreEntriesForQuery } from "./lib/chatContext";
 import {
   getEmbedHeaders,
   getUserProvider,
@@ -453,6 +454,7 @@ export default function OpenBrain() {
   const [showBrainTip, setShowBrainTip] = useState(null);
   const [showCreateBrain, setShowCreateBrain] = useState(false);
   const [chatInput, setChatInput] = useState("");
+  const [searchAllBrains, setSearchAllBrains] = useState(false);
   const [chatMsgs, setChatMsgs] = useState([
     {
       role: "assistant",
@@ -806,6 +808,25 @@ export default function OpenBrain() {
           const genKey = provider === "openrouter" ? getOpenRouterKey() : getUserApiKey();
           const model = provider === "openrouter" ? getOpenRouterModel() : getUserModel();
           const history = chatMsgs.slice(-10);
+          const isAllBrains = searchAllBrains && brains.length > 1;
+          // In single-brain mode, send keyword-scored entries as a fallback for
+          // when no vector matches exist (i.e. entries haven't been embedded yet).
+          // In all-brains mode the server fetches recent entries itself.
+          const keywordFallback = isAllBrains
+            ? []
+            : scoreEntriesForQuery(
+                entries.map((e) => ({
+                  id: e.id,
+                  title: e.title,
+                  type: e.type,
+                  tags: e.tags || [],
+                  content: e.content ? e.content.slice(0, 200) : undefined,
+                })),
+                msg,
+              ).slice(0, 40);
+          const brainParam = isAllBrains
+            ? { brain_ids: brains.map((b) => b.id) }
+            : { brain_id: activeBrain.id };
           const res = await authFetch("/api/chat", {
             method: "POST",
             headers: {
@@ -815,18 +836,31 @@ export default function OpenBrain() {
             },
             body: JSON.stringify({
               message: msg,
-              brain_id: activeBrain.id,
+              ...brainParam,
               history,
               provider,
               model,
               secrets,
+              ...(isAllBrains ? {} : { fallback_entries: keywordFallback }),
             }),
           });
           data = await res.json();
         } else {
+          // Keyword-score entries against the query so the most relevant
+          // ones appear first in the context window, not just the oldest 100.
+          const relevantEntries = scoreEntriesForQuery(
+            entries.map((e) => ({
+              id: e.id,
+              title: e.title,
+              type: e.type,
+              tags: e.tags || [],
+              content: e.content ? e.content.slice(0, 200) : undefined,
+            })),
+            msg,
+          ).slice(0, 60);
           const contextWithSecrets = secrets.length
-            ? [...chatContext, ...secrets.map((s) => ({ ...s, type: "secret" }))]
-            : chatContext;
+            ? [...relevantEntries, ...secrets.map((s) => ({ ...s, type: "secret" }))]
+            : relevantEntries;
           const res = await callAI({
             max_tokens: 1000,
             system: PROMPTS.CHAT.replace(
@@ -838,7 +872,7 @@ export default function OpenBrain() {
           });
           data = await res.json();
         }
-        const content = data.content?.map((c) => c.text || "").join("") || "Couldn't process.";
+        const content = extractNudgeText(data) || data.content?.map((c: any) => c.text || "").join("") || "Couldn't process.";
         if (containsSensitiveContent(content)) {
           const hasPinSet = !!getStoredPinHash();
           setPendingSecureMsg({ content });
@@ -852,7 +886,7 @@ export default function OpenBrain() {
       }
       setChatLoading(false);
     },
-    [cryptoKey, entries, chatContext, links, chatMsgs, activeBrain],
+    [cryptoKey, entries, links, chatMsgs, activeBrain, searchAllBrains, brains],
   );
 
   const handleChat = async () => {
@@ -964,22 +998,6 @@ export default function OpenBrain() {
     }),
     [activeBrain, brains, refresh, canInvite, canManageMembers],
   );
-
-  if (brainsLoading) {
-    return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center bg-background">
-        <div className="synapse-bg" aria-hidden="true" />
-        <div className="relative z-10 flex flex-col items-center gap-4">
-          <div className="text-4xl">🧠</div>
-          <p className="text-sm text-on-surface-variant uppercase tracking-[0.2em] font-semibold">Loading your brains...</p>
-          <div className="w-24 h-0.5 rounded-full overflow-hidden" style={{ background: "rgba(114,239,245,0.1)" }}>
-            <div className="h-full" style={{ background: "linear-gradient(90deg,#72eff5,#d575ff)", animation: "loading-bar 1.5s ease-in-out infinite" }} />
-          </div>
-        </div>
-        <style>{`@keyframes loading-bar{0%{width:0%;margin-left:0%}50%{width:60%;margin-left:20%}100%{width:0%;margin-left:100%}}`}</style>
-      </div>
-    );
-  }
 
   return (
     <EntriesContext.Provider value={entriesValue}>
@@ -1401,10 +1419,26 @@ export default function OpenBrain() {
                       >{chip.label}</button>
                     ))}
                   </div>
+                  {brains.length > 1 && (
+                    <div className="flex items-center gap-2 pb-1">
+                      <button
+                        onClick={() => setSearchAllBrains((v) => !v)}
+                        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all press-scale"
+                        style={searchAllBrains
+                          ? { background: "linear-gradient(135deg, #d575ff, #9800d0)", color: "#fff", boxShadow: "0 2px 12px rgba(213,117,255,0.25)" }
+                          : { background: "#262626", color: "#adaaaa", border: "1px solid rgba(72,72,71,0.30)" }}
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+                        </svg>
+                        {searchAllBrains ? "All brains" : "This brain"}
+                      </button>
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <input value={chatInput} onChange={(e) => setChatInput(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleChat()}
-                      placeholder="Ask about your memories…"
+                      placeholder={searchAllBrains ? "Ask across all your brains…" : "Ask about your memories…"}
                       className="flex-1 px-4 py-3 rounded-xl text-sm text-on-surface placeholder:text-on-surface-variant/40 focus:outline-none min-h-[44px] transition-all"
                       style={{ background: "#262626", border: "1px solid rgba(72,72,71,0.20)", fontFamily: "'Inter', sans-serif" }}
                       onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(114,239,245,0.4)"; }}
