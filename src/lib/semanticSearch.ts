@@ -23,8 +23,9 @@ export async function semanticSearch(
 ): Promise<Entry[]> {
   if (!query.trim()) return entries;
 
-  const { getEmbedHeaders } = await import("./aiSettings");
-  const rawHeaders = embedHeaders ?? getEmbedHeaders();
+  const rawHeaders = embedHeaders !== undefined
+    ? embedHeaders
+    : (await import("./aiSettings")).getEmbedHeaders();
 
   // Normalise to lowercase for HTTP transport
   const headers: Record<string, string> | null = rawHeaders
