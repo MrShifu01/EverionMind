@@ -5,8 +5,8 @@ import { callAI } from "./lib/ai";
 import { getEmbedHeaders } from "./lib/aiSettings";
 import { decryptEntry } from "./lib/crypto";
 import { PROMPTS } from "./config/prompts";
-import { TC, LINKS } from "./data/constants";
-import { getTypeIcons, registerTypeIcon, resolveIcon } from "./lib/typeIcons";
+import { LINKS } from "./data/constants";
+import { getTypeIcons, registerTypeIcon } from "./lib/typeIcons";
 import { useBrain as useBrainHook } from "./hooks/useBrain";
 import { useRole } from "./hooks/useRole";
 import { useOfflineSync } from "./hooks/useOfflineSync";
@@ -77,11 +77,11 @@ export default function OpenBrain() {
   const [entriesLoaded, setEntriesLoaded] = useState(false);
   const [cryptoKey, setCryptoKey] = useState<CryptoKey | null>(null);
 
-  const handleVaultUnlock = useCallback((key: CryptoKey) => {
+  const handleVaultUnlock = useCallback((key: CryptoKey | null) => {
     setCryptoKey(key);
     if (key) {
       setEntries((prev) => {
-        Promise.all(prev.map((e) => (e.type === "secret" ? decryptEntry(e, key) : e))).then(
+        Promise.all(prev.map((e) => (e.type === "secret" ? decryptEntry(e as any, key!) : e))).then(
           (decrypted) => setEntries(decrypted as Entry[]),
         );
         return prev;
@@ -97,7 +97,7 @@ export default function OpenBrain() {
       .catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { brains, activeBrain, setActiveBrain, createBrain, deleteBrain, refresh, loading: brainsLoading } =
+  const { brains, activeBrain, setActiveBrain, deleteBrain, refresh, loading: brainsLoading } =
     useBrainHook(useCallback(() => { setEntries([]); setLinks([]); setEntriesLoaded(false); }, []));
 
   const { isOnline, pendingCount, sync, refreshCount, failedOps, clearFailedOps } = useOfflineSync({
@@ -116,7 +116,7 @@ export default function OpenBrain() {
   const [typeFilter] = useState("all");
   const [workspace] = useState(() => localStorage.getItem("openbrain_workspace") || "all");
   const [view, setView] = useState("capture");
-  const [navOpen, setNavOpen] = useState(false);
+  const [, setNavOpen] = useState(false);
   const [selected, setSelected] = useState<Entry | null>(null);
   const [links, setLinks] = useState<any[]>(LINKS);
   const addLinks = useCallback((newLinks: any[]) => setLinks((prev) => [...prev, ...newLinks]), []);
@@ -183,7 +183,7 @@ export default function OpenBrain() {
   }, [search, typeFilter, workspace, entries]);
 
   const sortedTimeline = useMemo(
-    () => [...filtered].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
+    () => [...filtered].sort((a, b) => new Date(a.created_at ?? 0).getTime() - new Date(b.created_at ?? 0).getTime()),
     [filtered],
   );
 
@@ -235,7 +235,7 @@ export default function OpenBrain() {
               </MobileHeader>
 
               <QuickCapture entries={entries} setEntries={setEntries} links={links} addLinks={addLinks}
-                onCreated={handleCreated} onUpdate={handleUpdate} brainId={activeBrain?.id}
+                onCreated={handleCreated} onUpdate={handleUpdate} brainId={activeBrain?.id ?? ""}
                 brains={brains} isOnline={isOnline} refreshCount={refreshCount}
                 canWrite={canWrite} cryptoKey={cryptoKey} onNavigate={setView}
               />

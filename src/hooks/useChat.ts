@@ -29,7 +29,7 @@ interface UseChatParams {
   brains: Brain[];
   links: any[];
   cryptoKey: CryptoKey | null;
-  handleVaultUnlock: (key: CryptoKey) => void;
+  handleVaultUnlock: (key: CryptoKey | null) => void;
   vaultExists: boolean;
 }
 
@@ -249,6 +249,7 @@ export function useChat({
     setShowPinGate,
     pinGateIsSetup,
     vaultUnlockModal,
+    setVaultUnlockModal,
     vaultModalInput,
     setVaultModalInput,
     vaultModalMode,
