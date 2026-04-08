@@ -193,6 +193,11 @@ describe("LoginScreen — password login", () => {
         password: "SecurePassword123!",
       });
     });
+
+    // Should show success message
+    await waitFor(() => {
+      expect(screen.getByText(/account created/i)).toBeInTheDocument();
+    });
   });
 
   it("shows error when password signup fails", async () => {

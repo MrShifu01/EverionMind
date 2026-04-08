@@ -44,6 +44,7 @@ export default function LoginScreen(): JSX.Element {
   const [usePassword, setUsePassword] = useState<boolean>(false);
   const [password, setPassword] = useState<string>("");
   const [isSigningUp, setIsSigningUp] = useState<boolean>(true);
+  const [signupSuccess, setSignupSuccess] = useState<boolean>(false);
 
   const handleSend = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
@@ -89,14 +90,16 @@ export default function LoginScreen(): JSX.Element {
     setLoading(true);
     setError(null);
     try {
-      const { error } = await supabase.auth.signUp({
+      const { error, data } = await supabase.auth.signUp({
         email,
         password,
       });
       if (error) {
         setError(error.message);
+      } else if (data?.user) {
+        // Success: user is created
+        setSignupSuccess(true);
       }
-      // Success: user is created (may need email confirmation depending on Supabase settings)
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
@@ -518,6 +521,51 @@ export default function LoginScreen(): JSX.Element {
                   )}
                 </form>
               </>
+            )}
+
+            {/* ── Password signup success ── */}
+            {usePassword && signupSuccess && (
+              <div>
+                <h2
+                  style={{
+                    fontFamily: "'Lora', Georgia, serif",
+                    fontSize: 22,
+                    fontWeight: 700,
+                    letterSpacing: "-0.02em",
+                    margin: "0 0 8px",
+                    color: "var(--color-on-surface)",
+                  }}
+                >
+                  Account created! 🎉
+                </h2>
+                <p style={{ fontSize: 13, color: "var(--color-on-surface-variant)", lineHeight: 1.6, margin: "0 0 24px" }}>
+                  Your account has been created successfully. You can now sign in with your email and password.
+                </p>
+                <button
+                  onClick={() => {
+                    setSignupSuccess(false);
+                    setIsSigningUp(false);
+                    setEmail("");
+                    setPassword("");
+                    setError(null);
+                  }}
+                  style={{
+                    width: "100%",
+                    height: 48,
+                    borderRadius: 8,
+                    border: "none",
+                    background: "var(--color-primary)",
+                    color: "var(--color-on-primary)",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    fontFamily: "'DM Sans', system-ui, sans-serif",
+                    transition: "background 150ms",
+                  }}
+                >
+                  Sign in to your account
+                </button>
+              </div>
             )}
 
             {/* ── Email form (magic link) ── */}
