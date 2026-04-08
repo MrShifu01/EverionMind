@@ -52,7 +52,7 @@ export default function LoginScreen(): JSX.Element {
     setError(null);
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: import.meta.env.VITE_APP_URL || window.location.origin },
     });
     if (error) setError(toFriendlyError(error.message));
     else setSent(true);
@@ -79,7 +79,7 @@ export default function LoginScreen(): JSX.Element {
     setOtpCode("");
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: import.meta.env.VITE_APP_URL || window.location.origin },
     });
     if (error) setError(error.message);
     setLoading(false);

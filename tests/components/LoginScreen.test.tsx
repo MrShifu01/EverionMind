@@ -3,9 +3,9 @@
  * - Error handling: "Database error saving new user" shows friendly message
  * - Generic errors pass through unchanged
  * - Sent state shown on success
- * - No hardcoded color values (CSS vars only)
+ * - emailRedirectTo uses VITE_APP_URL when set, falls back to window.location.origin
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -24,6 +24,11 @@ vi.mock("../../src/lib/supabase", () => ({
 async function renderLoginScreen() {
   const { default: LoginScreen } = await import("../../src/LoginScreen");
   return render(<LoginScreen />);
+}
+
+/** Click "Magic link" to reveal the email + OTP form */
+async function showMagicLinkForm() {
+  await userEvent.click(screen.getByText("Magic link"));
 }
 
 describe("LoginScreen — layout", () => {
@@ -55,6 +60,7 @@ describe("LoginScreen — error handling", () => {
     render(<LoginScreen />);
 
     // Show the email form
+    await showMagicLinkForm();
 
     // Enter email and submit
     await userEvent.type(screen.getByPlaceholderText("neural@email.com"), "new@example.com");
@@ -77,6 +83,7 @@ describe("LoginScreen — error handling", () => {
     const { default: LoginScreen } = await import("../../src/LoginScreen");
     render(<LoginScreen />);
 
+    await showMagicLinkForm();
     await userEvent.type(screen.getByPlaceholderText("neural@email.com"), "user@example.com");
     await userEvent.click(screen.getByText("Send access code"));
 
@@ -91,11 +98,60 @@ describe("LoginScreen — error handling", () => {
     const { default: LoginScreen } = await import("../../src/LoginScreen");
     render(<LoginScreen />);
 
+    await showMagicLinkForm();
     await userEvent.type(screen.getByPlaceholderText("neural@email.com"), "user@example.com");
     await userEvent.click(screen.getByText("Send access code"));
 
     await waitFor(() => {
       expect(screen.getByText(/check your email/i)).toBeInTheDocument();
+    });
+  });
+});
+
+describe("LoginScreen — emailRedirectTo", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    mockSignInWithOtp.mockResolvedValue({ error: null, data: {} });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("uses VITE_APP_URL as emailRedirectTo when the env var is set", async () => {
+    vi.stubEnv("VITE_APP_URL", "https://everionmind.com");
+
+    const { default: LoginScreen } = await import("../../src/LoginScreen");
+    render(<LoginScreen />);
+
+    await showMagicLinkForm();
+    await userEvent.type(screen.getByPlaceholderText("neural@email.com"), "user@example.com");
+    await userEvent.click(screen.getByText("Send access code"));
+
+    await waitFor(() => {
+      expect(mockSignInWithOtp).toHaveBeenCalledWith({
+        email: "user@example.com",
+        options: { emailRedirectTo: "https://everionmind.com" },
+      });
+    });
+  });
+
+  it("falls back to window.location.origin when VITE_APP_URL is not set", async () => {
+    vi.stubEnv("VITE_APP_URL", "");
+
+    const { default: LoginScreen } = await import("../../src/LoginScreen");
+    render(<LoginScreen />);
+
+    await showMagicLinkForm();
+    await userEvent.type(screen.getByPlaceholderText("neural@email.com"), "user@example.com");
+    await userEvent.click(screen.getByText("Send access code"));
+
+    await waitFor(() => {
+      expect(mockSignInWithOtp).toHaveBeenCalledWith({
+        email: "user@example.com",
+        options: { emailRedirectTo: window.location.origin },
+      });
     });
   });
 });
