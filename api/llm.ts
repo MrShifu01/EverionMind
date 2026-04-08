@@ -174,14 +174,18 @@ async function handleOpenRouter(_req: ApiRequest, res: ApiResponse, { model, mes
       model: safeModel,
       max_tokens: max_tokens || 1000,
       messages: orMessages,
-      route: "fallback",
     }),
   });
 
   const data: any = await response.json();
 
+  if (!response.ok) {
+    console.error("[llm/openrouter] error", response.status, JSON.stringify(data));
+    return res.status(response.status).json(data);
+  }
+
   // Normalize to Anthropic shape so the frontend doesn't need to know the difference
-  if (response.ok && data.choices?.[0]?.message?.content) {
+  if (data.choices?.[0]?.message?.content) {
     return res.status(200).json({
       content: [{ type: "text", text: data.choices[0].message.content }],
       model: data.model || safeModel,
