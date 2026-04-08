@@ -403,7 +403,7 @@ export default function CaptureSheet({
           boxShadow: "var(--shadow-lg)",
           transform: dragY > 0 ? `translateY(${dragY}px)` : visible ? "translateY(0)" : "translateY(100%)",
           transition: dragY > 0 ? "none" : "transform 0.35s cubic-bezier(0.32, 0.72, 0, 1)",
-          paddingBottom: "calc(env(safe-area-inset-bottom) + 90px)",
+          paddingBottom: "calc(env(safe-area-inset-bottom) + 110px)",
         }}
       >
         {/* Hidden file inputs */}
@@ -444,7 +444,7 @@ export default function CaptureSheet({
               onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") capture(); }}
               disabled={loading}
               placeholder={listening ? "Listening… tap stop when done" : "Capture a thought, paste a link, log anything…"}
-              rows={4}
+              rows={7}
               className="w-full bg-transparent text-on-surface placeholder:text-on-surface-variant/40 outline-none resize-none text-base leading-relaxed"
             />
 
