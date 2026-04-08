@@ -41,7 +41,6 @@ export default function CaptureSheet({
 
   // Drag-to-close
   const [dragY, setDragY] = useState(0);
-  const dragStartY = useRef<number | null>(null);
 
   // Voice
   const [listening, setListening] = useState(false);
@@ -51,6 +50,7 @@ export default function CaptureSheet({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
+  const handleRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
 
@@ -71,6 +71,29 @@ export default function CaptureSheet({
   useEffect(() => {
     if (preview) requestAnimationFrame(() => titleInputRef.current?.focus());
   }, [preview]);
+
+  // Drag-to-close via handle only — non-passive to block pull-to-refresh
+  useEffect(() => {
+    const handle = handleRef.current;
+    if (!handle || !isOpen) return;
+    let startY = 0;
+    const onStart = (e: TouchEvent) => { startY = e.touches[0].clientY; };
+    const onMove = (e: TouchEvent) => {
+      const dy = e.touches[0].clientY - startY;
+      if (dy > 0) { e.preventDefault(); setDragY(dy); }
+    };
+    const onEnd = () => {
+      setDragY((prev) => { if (prev > 80) onClose(); return 0; });
+    };
+    handle.addEventListener("touchstart", onStart, { passive: true });
+    handle.addEventListener("touchmove", onMove, { passive: false });
+    handle.addEventListener("touchend", onEnd, { passive: true });
+    return () => {
+      handle.removeEventListener("touchstart", onStart);
+      handle.removeEventListener("touchmove", onMove);
+      handle.removeEventListener("touchend", onEnd);
+    };
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     const el = sheetRef.current;
@@ -365,22 +388,12 @@ export default function CaptureSheet({
           transition: dragY > 0 ? "none" : "transform 0.2s ease",
           paddingBottom: "max(2.5rem, env(safe-area-inset-bottom))",
         }}
-        onTouchStart={(e) => { if (preview) return; dragStartY.current = e.touches[0].clientY; }}
-        onTouchMove={(e) => {
-          if (dragStartY.current === null || preview) return;
-          const dy = e.touches[0].clientY - dragStartY.current;
-          if (dy > 0) setDragY(dy);
-        }}
-        onTouchEnd={() => {
-          if (dragY > 80) { setDragY(0); dragStartY.current = null; onClose(); }
-          else { setDragY(0); dragStartY.current = null; }
-        }}
       >
         {/* Hidden file inputs */}
         <input ref={imgRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) handleImageFile(f); }} />
         <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) handleImageFile(f); }} />
 
-        <div className="flex justify-center mb-4 lg:hidden">
+        <div ref={handleRef} className="flex justify-center items-center pb-3 -mx-5 px-5 cursor-grab active:cursor-grabbing touch-none lg:hidden" style={{ height: 28 }}>
           <div className="w-10 h-1 rounded-full" style={{ background: "var(--color-outline)" }} />
         </div>
 
@@ -414,7 +427,7 @@ export default function CaptureSheet({
               onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") capture(); }}
               disabled={loading}
               placeholder={listening ? "Listening… tap stop when done" : "Capture a thought, paste a link, log anything…"}
-              rows={5}
+              rows={4}
               className="w-full bg-transparent text-on-surface placeholder:text-on-surface-variant/40 outline-none resize-none text-base leading-relaxed"
             />
 
