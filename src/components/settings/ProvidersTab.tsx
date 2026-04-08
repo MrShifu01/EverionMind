@@ -18,8 +18,8 @@ import {
 import { supabase } from "../../lib/supabase";
 import { MODELS } from "../../config/models";
 import { countEmbedMismatches } from "../../lib/embedMismatch";
-import { getPriceTier, filterByTier, sortWithRecommended, modelLabel, TIER_RECOMMENDED } from "../../lib/orModelFilter";
-import type { ORModel, FilterTier } from "../../lib/orModelFilter";
+import { getPriceTier, filterByTier, sortWithRecommended, modelLabel, TIER_RECOMMENDED, CURATED_OR_MODELS } from "../../lib/orModelFilter";
+import type { FilterTier } from "../../lib/orModelFilter";
 import type { Brain } from "../../types";
 
 const TIER_OPTIONS: { value: FilterTier; label: string }[] = [
@@ -40,8 +40,9 @@ export default function ProvidersTab({ activeBrain }: Props) {
   const [byoModel, setByoModel] = useState(() => getUserModel());
   const [orKey, setOrKey] = useState(() => getOpenRouterKey() || "");
   const [orModel, setOrModel] = useState(() => getOpenRouterModel() || "google/gemini-2.0-flash-lite:free");
-  const [orModels, setOrModels] = useState<ORModel[]>([]);
-  const [orFilter, setOrFilter] = useState<FilterTier>("all");
+  const [orFilter, setOrFilter] = useState<FilterTier>("free");
+  const [editingOrKey, setEditingOrKey] = useState(() => !getOpenRouterKey());
+  const [perTaskOpen, setPerTaskOpen] = useState(false);
   const [showKey, setShowKey] = useState(false);
   const [byoTestStatus, setByoTestStatus] = useState<string | null>(null);
   const [byoTestError, setByoTestError] = useState<string | null>(null);
@@ -71,7 +72,6 @@ export default function ProvidersTab({ activeBrain }: Props) {
 
   const ANTHROPIC_MODELS = MODELS.ANTHROPIC;
   const OPENAI_MODELS = MODELS.OPENAI;
-  const OR_SHORTLIST = MODELS.OPENROUTER;
   const modelOptions = byoProvider === "openai" ? OPENAI_MODELS : ANTHROPIC_MODELS;
 
   const globalModelDisplay = byoProvider === "openrouter"
@@ -81,15 +81,11 @@ export default function ProvidersTab({ activeBrain }: Props) {
     : `Anthropic · ${byoModel}`;
 
   const filteredOrModels = useMemo(
-    () => sortWithRecommended(filterByTier(orModels, orFilter), orFilter),
-    [orModels, orFilter],
+    () => sortWithRecommended(filterByTier(CURATED_OR_MODELS, orFilter), orFilter),
+    [orFilter],
   );
 
-  const recommendedId = orFilter !== "all" ? TIER_RECOMMENDED[orFilter] : undefined;
-
-  useEffect(() => {
-    if (byoProvider === "openrouter" && orKey) fetchOrModels(orKey);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const recommendedId = orFilter !== "all" ? TIER_RECOMMENDED[orFilter as keyof typeof TIER_RECOMMENDED] : undefined;
 
   // Re-hydrate local state from aiSettings once Supabase load completes.
   // Without this, keys typed then refreshed appear lost because the component
@@ -102,40 +98,16 @@ export default function ProvidersTab({ activeBrain }: Props) {
       const or = getOpenRouterKey() || "";
       setOrKey(or);
       setOrModel(getOpenRouterModel() || "google/gemini-2.0-flash-lite:free");
+      if (or) setEditingOrKey(false);
       setGroqKeyVal(getGroqKey() || "");
       setEmbedProviderState(getEmbedProvider());
       setEmbedOpenAIKeyState(getEmbedOpenAIKey() || "");
       setGeminiKeyState(getGeminiKey() || "");
-      if (or && getUserProvider() === "openrouter") fetchOrModels(or);
     };
     if (isAISettingsLoaded()) sync();
     window.addEventListener("aiSettingsLoaded", sync);
     return () => window.removeEventListener("aiSettingsLoaded", sync);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const fetchOrModels = async (key: string) => {
-    const cached = sessionStorage.getItem("openbrain_or_models_v2");
-    if (cached) {
-      try { setOrModels(JSON.parse(cached)); return; } catch {}
-    }
-    try {
-      const res = await fetch("https://openrouter.ai/api/v1/models", {
-        headers: { Authorization: `Bearer ${key}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const models: ORModel[] = (data.data || []).map((m: any) => ({
-          id: m.id,
-          name: m.name || m.id,
-          pricing: m.pricing,
-          architecture: m.architecture,
-          modality: m.modality,
-        }));
-        setOrModels(models);
-        sessionStorage.setItem("openbrain_or_models_v2", JSON.stringify(models));
-      }
-    } catch {}
-  };
 
   const testByoKey = async () => {
     const key = byoProvider === "openrouter" ? orKey : byoKey;
@@ -197,14 +169,11 @@ export default function ProvidersTab({ activeBrain }: Props) {
     } else if (p === "anthropic" && !ANTHROPIC_MODELS.includes(byoModel)) {
       setByoModel(ANTHROPIC_MODELS[0]);
       setUserModel(ANTHROPIC_MODELS[0]);
-    } else if (p === "openrouter" && orKey) {
-      fetchOrModels(orKey);
     }
   };
 
   const saveOrKey = async () => {
     setOpenRouterKey(orKey || null);
-    if (orKey) fetchOrModels(orKey);
     // Auto-switch provider to openrouter so callAI() uses the correct key
     setByoProvider("openrouter");
     setUserProvider("openrouter");
@@ -212,6 +181,7 @@ export default function ProvidersTab({ activeBrain }: Props) {
     const { error } = await persistKeyToDb({ openrouter_key: orKey || null, ai_provider: "openrouter" });
     setKeySaveStatus(error ? "error" : "saved");
     if (error) console.error("[saveOrKey]", error);
+    else if (orKey) setEditingOrKey(false);
     setTimeout(() => setKeySaveStatus(null), error ? 6000 : 2000);
   };
 
@@ -301,61 +271,75 @@ export default function ProvidersTab({ activeBrain }: Props) {
               OpenRouter lets you use hundreds of models with one key.{" "}
               <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" style={{ color: "var(--color-primary)" }}>Get a key →</a>
             </p>
+            {/* API Key — compact display when saved */}
             <div className="space-y-1">
               <p className="text-xs font-medium" style={{ color: "var(--color-on-surface-variant)" }}>OpenRouter API Key</p>
-              <div className="flex flex-col gap-2">
-                <input
-                  type={showKey ? "text" : "password"} autoComplete="new-password"
-                  value={orKey}
-                  onChange={e => { setOrKey(e.target.value); setKeySaveStatus(null); }}
-                  placeholder="sk-or-..."
-                  className="w-full rounded-xl px-3 py-2 text-xs bg-transparent border outline-none text-on-surface placeholder:text-on-surface-variant/40"
-                  style={{ borderColor: "var(--color-outline-variant)" }}
-                  onFocus={e => (e.target.style.borderColor = "var(--color-primary)")}
-                  onBlur={e => (e.target.style.borderColor = "var(--color-outline-variant)")}
-                />
-                <div className="flex gap-2">
-                  <button onClick={() => setShowKey(s => !s)} className="rounded-xl px-3 py-2 text-xs border transition-colors hover:bg-white/5" style={{ color: "var(--color-on-surface-variant)", borderColor: "var(--color-outline-variant)" }}>
-                    {showKey ? "Hide" : "Show"}
-                  </button>
-                  <button onClick={saveOrKey} disabled={!orKey || keySaveStatus === "saving"} className="rounded-xl px-3 py-2 text-xs font-semibold transition-opacity hover:opacity-90 disabled:opacity-40" style={{ background: keySaveStatus === "error" ? "var(--color-error)" : "var(--color-primary)", color: "var(--color-on-primary)" }}>
-                    {keySaveStatus === "saving" ? "…" : keySaveStatus === "saved" ? "Saved!" : keySaveStatus === "error" ? "DB Error" : "Save"}
-                  </button>
-                  <button onClick={testByoKey} disabled={!orKey} className="rounded-xl px-3 py-2 text-xs border transition-colors hover:bg-white/5 disabled:opacity-40" style={{ color: "var(--color-on-surface-variant)", borderColor: "var(--color-outline-variant)" }}>
-                    {byoTestStatus === "testing" ? "…" : byoTestStatus === "ok" ? "✓" : byoTestStatus === "timeout" ? "Timeout" : byoTestStatus === "fail" ? "✗" : "Test"}
-                  </button>
+              {orKey && !editingOrKey ? (
+                <div className="flex items-center justify-between rounded-xl px-3 py-2 border" style={{ borderColor: "var(--color-outline-variant)" }}>
+                  <span className="text-xs font-mono" style={{ color: "var(--color-on-surface-variant)" }}>
+                    {orKey.slice(0, 10)}···{orKey.slice(-4)}
+                  </span>
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={testByoKey}
+                      className="rounded-lg px-2 py-1 text-[10px] border transition-colors hover:bg-white/5"
+                      style={{
+                        color: byoTestStatus === "ok" ? "var(--color-primary)" : byoTestStatus === "fail" ? "var(--color-error)" : "var(--color-on-surface-variant)",
+                        borderColor: "var(--color-outline-variant)",
+                      }}
+                    >
+                      {byoTestStatus === "testing" ? "…" : byoTestStatus === "ok" ? "✓ OK" : byoTestStatus === "fail" ? "✗ Fail" : "Test"}
+                    </button>
+                    <button
+                      onClick={() => setEditingOrKey(true)}
+                      className="rounded-lg px-2 py-1 text-[10px] border transition-colors hover:bg-white/5"
+                      style={{ color: "var(--color-on-surface-variant)", borderColor: "var(--color-outline-variant)" }}
+                    >
+                      Edit
+                    </button>
+                  </div>
                 </div>
-              </div>
-              {byoTestError && (
-                <p className="text-[11px] mt-1" style={{ color: "var(--color-error)" }}>✗ {byoTestError}</p>
-              )}
-              {byoTestStatus === "ok" && (
-                <p className="text-[11px] mt-1" style={{ color: "var(--color-primary)" }}>✓ Connected</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <input
+                    type={showKey ? "text" : "password"} autoComplete="new-password"
+                    value={orKey}
+                    onChange={e => { setOrKey(e.target.value); setKeySaveStatus(null); }}
+                    placeholder="sk-or-..."
+                    className="w-full rounded-xl px-3 py-2 text-xs bg-transparent border outline-none text-on-surface placeholder:text-on-surface-variant/40"
+                    style={{ borderColor: "var(--color-outline-variant)" }}
+                    onFocus={e => (e.target.style.borderColor = "var(--color-primary)")}
+                    onBlur={e => (e.target.style.borderColor = "var(--color-outline-variant)")}
+                  />
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowKey(s => !s)} className="rounded-xl px-3 py-2 text-xs border transition-colors hover:bg-white/5" style={{ color: "var(--color-on-surface-variant)", borderColor: "var(--color-outline-variant)" }}>
+                      {showKey ? "Hide" : "Show"}
+                    </button>
+                    <button onClick={saveOrKey} disabled={!orKey || keySaveStatus === "saving"} className="rounded-xl px-3 py-2 text-xs font-semibold transition-opacity hover:opacity-90 disabled:opacity-40" style={{ background: keySaveStatus === "error" ? "var(--color-error)" : "var(--color-primary)", color: "var(--color-on-primary)" }}>
+                      {keySaveStatus === "saving" ? "…" : keySaveStatus === "saved" ? "Saved!" : keySaveStatus === "error" ? "DB Error" : "Save"}
+                    </button>
+                    <button onClick={testByoKey} disabled={!orKey} className="rounded-xl px-3 py-2 text-xs border transition-colors hover:bg-white/5 disabled:opacity-40" style={{ color: "var(--color-on-surface-variant)", borderColor: "var(--color-outline-variant)" }}>
+                      {byoTestStatus === "testing" ? "…" : byoTestStatus === "ok" ? "✓" : byoTestStatus === "timeout" ? "Timeout" : byoTestStatus === "fail" ? "✗" : "Test"}
+                    </button>
+                  </div>
+                  {byoTestError && <p className="text-[11px]" style={{ color: "var(--color-error)" }}>✗ {byoTestError}</p>}
+                  {byoTestStatus === "ok" && <p className="text-[11px]" style={{ color: "var(--color-primary)" }}>✓ Connected</p>}
+                </div>
               )}
             </div>
+
+            {/* Model selector — tier filter as dropdown */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-medium" style={{ color: "var(--color-on-surface-variant)" }}>
-                  Model{orModels.length > 0 && <span style={{ color: "var(--color-outline)" }}> ({filteredOrModels.length}/{orModels.length})</span>}
-                </p>
-                {orModels.length > 0 && (
-                  <div className="flex items-center gap-1">
-                    {TIER_OPTIONS.map(t => (
-                      <button
-                        key={t.value}
-                        onClick={() => setOrFilter(t.value)}
-                        className="rounded-lg px-2 py-0.5 text-[10px] font-medium border transition-colors"
-                        style={{
-                          background: orFilter === t.value ? "var(--color-primary)" : "transparent",
-                          color: orFilter === t.value ? "var(--color-on-primary)" : "var(--color-on-surface-variant)",
-                          borderColor: orFilter === t.value ? "transparent" : "var(--color-outline-variant)",
-                        }}
-                      >
-                        {t.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-medium flex-1" style={{ color: "var(--color-on-surface-variant)" }}>Model</p>
+                <select
+                  value={orFilter}
+                  onChange={e => setOrFilter(e.target.value as FilterTier)}
+                  className="rounded-lg px-2 py-1 text-[10px] border bg-transparent outline-none cursor-pointer"
+                  style={{ color: "var(--color-on-surface-variant)", borderColor: "var(--color-outline-variant)" }}
+                >
+                  {TIER_OPTIONS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
               </div>
               <select
                 value={orModel}
@@ -363,82 +347,75 @@ export default function ProvidersTab({ activeBrain }: Props) {
                 className="w-full rounded-xl px-3 py-2 text-xs bg-transparent border outline-none text-on-surface"
                 style={{ borderColor: "var(--color-outline-variant)" }}
               >
-                {(filteredOrModels.length > 0
-                  ? filteredOrModels.map(m => ({ id: m.id, label: modelLabel(m, recommendedId) }))
-                  : orModels.length === 0
-                    ? OR_SHORTLIST.map(id => ({ id, label: id }))
-                    : [{ id: orModel, label: orModel }]
-                ).map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                {filteredOrModels.map(m => <option key={m.id} value={m.id}>{modelLabel(m, recommendedId)}</option>)}
               </select>
-              {orFilter !== "all" && recommendedId && (
-                <p className="text-[10px]" style={{ color: "var(--color-primary)" }}>
-                  Recommended for Everion: <strong>{recommendedId}</strong>
-                </p>
-              )}
-              {orFilter === "all" && (
-                <p className="text-[10px]" style={{ color: "var(--color-outline)" }}>
-                  Tip: filter by tier to see the recommended model for each price range. Free tier: <strong>google/gemini-2.0-flash-lite:free</strong>.
-                </p>
-              )}
               <p className="text-[10px]" style={{ color: "var(--color-outline)" }}>Tip: choose a model with ZDR (zero data retention) for sensitive entries.</p>
             </div>
-            {orModels.length > 0 && (
-              <div className="space-y-3 pt-2 border-t" style={{ borderColor: "var(--color-outline-variant)" }}>
-                <p className="text-xs font-semibold" style={{ color: "var(--color-on-surface-variant)" }}>
-                  Per-task models
-                  <span className="font-normal ml-1" style={{ color: "var(--color-outline)" }}>(filter above applies)</span>
-                </p>
-                {([
-                  ["Entry capture", "capture"],
-                  ["Fill Brain questions", "questions"],
-                  ["Refine collection", "refine"],
-                  ["Brain chat", "chat"],
-                ] as [string, string][]).map(([label, task]) => (
-                  <div key={task} className="flex flex-col gap-1">
-                    <span className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>{label}</span>
+
+            {/* Per-task models — collapsible drawer */}
+            <div className="border-t pt-1" style={{ borderColor: "var(--color-outline-variant)" }}>
+              <button
+                onClick={() => setPerTaskOpen(o => !o)}
+                className="w-full flex items-center justify-between py-1.5 text-xs font-medium text-left transition-colors hover:opacity-70"
+                style={{ color: "var(--color-on-surface-variant)" }}
+              >
+                <span>Per-task models</span>
+                <span style={{ color: "var(--color-outline)", fontSize: 10 }}>{perTaskOpen ? "▲" : "▼"}</span>
+              </button>
+              {perTaskOpen && (
+                <div className="space-y-3 pt-2 pb-1">
+                  {([
+                    ["Entry capture", "capture"],
+                    ["Fill Brain questions", "questions"],
+                    ["Refine collection", "refine"],
+                    ["Brain chat", "chat"],
+                  ] as [string, string][]).map(([label, task]) => (
+                    <div key={task} className="flex flex-col gap-1">
+                      <span className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>{label}</span>
+                      <select
+                        value={taskModels[task] ?? "default"}
+                        onChange={e => {
+                          const v = e.target.value === "default" ? null : e.target.value;
+                          setModelForTask(task, v);
+                          setTaskModels(prev => ({ ...prev, [task]: v }));
+                        }}
+                        className="w-full rounded-lg px-2 text-xs bg-transparent border outline-none"
+                        style={{ color: "var(--color-on-surface)", borderColor: "var(--color-outline-variant)", height: 36 }}
+                      >
+                        <option value="default">Same as global default</option>
+                        {CURATED_OR_MODELS.map(m => (
+                          <option key={m.id} value={m.id}>
+                            {modelLabel(m, recommendedId)} [{getPriceTier(m.pricing)}]
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>Image reading</span>
                     <select
-                      value={taskModels[task] ?? "default"}
+                      value={taskModels["vision"] ?? "default"}
                       onChange={e => {
                         const v = e.target.value === "default" ? null : e.target.value;
-                        setModelForTask(task, v);
-                        setTaskModels(prev => ({ ...prev, [task]: v }));
+                        setModelForTask("vision", v);
+                        setTaskModels(prev => ({ ...prev, vision: v }));
                       }}
-                      className="w-full rounded-lg px-2 text-xs"
-                      style={{ background: "var(--color-surface-container)", color: "var(--color-on-surface)", border: "1px solid var(--color-outline-variant)", height: 44 }}
+                      className="w-full rounded-lg px-2 text-xs bg-transparent border outline-none"
+                      style={{ color: "var(--color-on-surface)", borderColor: "var(--color-outline-variant)", height: 36 }}
                     >
                       <option value="default">Same as global default</option>
-                      {filteredOrModels.map(m => (
-                        <option key={m.id} value={m.id}>
-                          {modelLabel(m, recommendedId)} [{getPriceTier(m.pricing)}]
-                        </option>
-                      ))}
+                      {CURATED_OR_MODELS
+                        .filter(m => m.modality?.includes?.("image"))
+                        .map(m => (
+                          <option key={m.id} value={m.id}>
+                            {modelLabel(m, recommendedId)} [{getPriceTier(m.pricing)}]
+                          </option>
+                        ))}
                     </select>
                   </div>
-                ))}
-                <div className="flex flex-col gap-1">
-                  <span className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>Image reading</span>
-                  <select
-                    value={taskModels["vision"] ?? "default"}
-                    onChange={e => {
-                      const v = e.target.value === "default" ? null : e.target.value;
-                      setModelForTask("vision", v);
-                      setTaskModels(prev => ({ ...prev, vision: v }));
-                    }}
-                    className="w-full rounded-lg px-2 text-xs"
-                    style={{ background: "var(--color-surface-container)", color: "var(--color-on-surface)", border: "1px solid var(--color-outline-variant)", height: 44 }}
-                  >
-                    <option value="default">Same as global default</option>
-                    {filteredOrModels
-                      .filter(m => m.modality?.includes?.("image") || m.architecture?.modality?.includes?.("image"))
-                      .map(m => (
-                        <option key={m.id} value={m.id}>
-                          {modelLabel(m, recommendedId)} [{getPriceTier(m.pricing)}]
-                        </option>
-                      ))}
-                  </select>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </>
         ) : (
           <>

@@ -58,6 +58,26 @@ export function sortWithRecommended(models: ORModel[], tier: FilterTier): ORMode
 export function modelLabel(m: ORModel, recommendedId?: string): string {
   const cost = formatCost(m.pricing);
   const costStr = cost ? ` — ${cost}` : "";
-  const recStr = m.id === recommendedId ? " (Recommended)" : "";
+  const recStr = m.id === recommendedId ? " ★" : "";
   return `${m.name}${costStr}${recStr}`;
 }
+
+/** Curated shortlist: 3 models per price tier. */
+export const CURATED_OR_MODELS: ORModel[] = [
+  // Free
+  { id: "google/gemini-2.0-flash-lite:free",        name: "Gemini 2.0 Flash Lite",  pricing: { prompt: "0" },            modality: "text+image" },
+  { id: "meta-llama/llama-3.3-70b-instruct:free",   name: "Llama 3.3 70B",          pricing: { prompt: "0" } },
+  { id: "deepseek/deepseek-chat-v3-0324:free",       name: "DeepSeek V3",            pricing: { prompt: "0" } },
+  // Cheap  (<$2/1M)
+  { id: "google/gemini-2.0-flash-001",              name: "Gemini 2.0 Flash",        pricing: { prompt: "0.0000001" },    modality: "text+image" },
+  { id: "openai/gpt-4o-mini",                       name: "GPT-4o Mini",             pricing: { prompt: "0.00000015" },   modality: "text+image" },
+  { id: "meta-llama/llama-3.3-70b-instruct",        name: "Llama 3.3 70B",           pricing: { prompt: "0.00000059" } },
+  // Good  ($2–$15/1M)
+  { id: "anthropic/claude-3.7-sonnet",              name: "Claude 3.7 Sonnet",       pricing: { prompt: "0.000003" },     modality: "text+image" },
+  { id: "openai/gpt-4o",                            name: "GPT-4o",                  pricing: { prompt: "0.0000025" },    modality: "text+image" },
+  { id: "mistralai/mistral-large-2411",             name: "Mistral Large",           pricing: { prompt: "0.000002" } },
+  // Frontier  (≥$15/1M)
+  { id: "anthropic/claude-opus-4",                  name: "Claude Opus 4",           pricing: { prompt: "0.000015" },     modality: "text+image" },
+  { id: "openai/o1",                                name: "OpenAI o1",               pricing: { prompt: "0.000015" },     modality: "text+image" },
+  { id: "openai/gpt-4.5-preview",                   name: "GPT-4.5",                 pricing: { prompt: "0.000075" },     modality: "text+image" },
+];
