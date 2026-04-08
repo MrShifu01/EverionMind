@@ -387,7 +387,6 @@ export default function BrainTab({ activeBrain, canInvite, canManageMembers, onR
       </div>
 
       <TelegramPanel activeBrain={activeBrain} />
-      <MemoryEditor />
     </>
   );
 }

@@ -461,7 +461,10 @@ export default function ProvidersTab({ activeBrain }: Props) {
           </div>
         ) : (
           <div className="space-y-1">
-            <p className="text-xs font-medium" style={{ color: "var(--color-on-surface-variant)" }}>Google Gemini API Key <span style={{ color: "var(--color-outline)" }}>(text-embedding-004)</span></p>
+            <p className="text-xs font-medium" style={{ color: "var(--color-on-surface-variant)" }}>
+              Google Gemini API Key <span style={{ color: "var(--color-outline)" }}>(text-embedding-004)</span>{" "}
+              <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style={{ color: "var(--color-primary)" }}>Get key →</a>
+            </p>
             <div className="flex items-center gap-2">
               <input type={showEmbedKey ? "text" : "password"} value={geminiKey} onChange={e => { setGeminiKeyState(e.target.value); setGeminiKey(e.target.value || null); }} placeholder="AIza..." className="flex-1 rounded-xl px-3 py-2 text-xs bg-transparent border outline-none text-on-surface placeholder:text-on-surface-variant/40" style={{ borderColor: "var(--color-outline-variant)" }} onFocus={e => (e.target.style.borderColor = "var(--color-primary)")} onBlur={e => (e.target.style.borderColor = "var(--color-outline-variant)")} />
               <button onClick={() => setShowEmbedKey(s => !s)} className="rounded-xl px-2 py-2 text-xs border transition-colors hover:bg-white/5" style={{ color: "var(--color-on-surface-variant)", borderColor: "var(--color-outline-variant)" }}>{showEmbedKey ? "Hide" : "Show"}</button>

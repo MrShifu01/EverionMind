@@ -8,6 +8,7 @@ import {
   getModelForTask,
 } from "./aiSettings";
 import { buildSystemPrompt } from "./systemPromptBuilder";
+import { recordUsage, extractTokenUsage } from "./usageTracker";
 
 interface AIMessage {
   role: string;
@@ -90,7 +91,7 @@ export async function callAI({
     ...(userKey ? { "X-User-Api-Key": userKey } : {}),
   };
 
-  return authFetch(endpoint, {
+  const res = await authFetch(endpoint, {
     method: "POST",
     headers,
     body: JSON.stringify({
@@ -100,4 +101,21 @@ export async function callAI({
       max_tokens,
     }),
   });
+
+  if (res.ok) {
+    res.clone().json().then((body) => {
+      const { inputTokens, outputTokens } = extractTokenUsage(body);
+      if (inputTokens > 0 || outputTokens > 0) {
+        recordUsage({
+          date: new Date().toISOString().slice(0, 10),
+          inputTokens,
+          outputTokens,
+          provider: safeProvider,
+          model,
+        });
+      }
+    }).catch(() => {});
+  }
+
+  return res;
 }

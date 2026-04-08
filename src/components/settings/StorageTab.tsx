@@ -52,9 +52,9 @@ export default function StorageTab({ activeBrain }: Props) {
         >
           {showTrash ? "Hide Trash" : "View Trash"}
         </button>
-        {showTrash && activeBrain && (
+        {showTrash && (
           <div className="mt-2">
-            <TrashView brainId={activeBrain.id} />
+            <TrashView brainId={activeBrain?.id} />
           </div>
         )}
       </div>

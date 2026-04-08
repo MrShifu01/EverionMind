@@ -64,3 +64,17 @@ export function getMonthlyUsage(): MonthlySummary {
 export function clearUsage(): void {
   localStorage.removeItem(KEYS.USAGE);
 }
+
+export function extractTokenUsage(body: unknown): { inputTokens: number; outputTokens: number } {
+  if (!body || typeof body !== "object") return { inputTokens: 0, outputTokens: 0 };
+  const b = body as any;
+  // Anthropic format
+  if (b.usage?.input_tokens != null) {
+    return { inputTokens: b.usage.input_tokens, outputTokens: b.usage.output_tokens ?? 0 };
+  }
+  // OpenAI / OpenRouter format
+  if (b.usage?.prompt_tokens != null) {
+    return { inputTokens: b.usage.prompt_tokens, outputTokens: b.usage.completion_tokens ?? 0 };
+  }
+  return { inputTokens: 0, outputTokens: 0 };
+}

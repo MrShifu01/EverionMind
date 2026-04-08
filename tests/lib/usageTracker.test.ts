@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 
 // localStorage is provided by jsdom in the test environment
 
@@ -86,5 +86,26 @@ describe("usageTracker", () => {
     expect(result.inputTokens).toBe(0);
     expect(result.outputTokens).toBe(0);
     expect(result.estimatedUsd).toBe(0);
+  });
+});
+
+describe("extractTokenUsage", () => {
+  it("extracts Anthropic token format", async () => {
+    const { extractTokenUsage } = await import("../../src/lib/usageTracker");
+    const result = extractTokenUsage({ usage: { input_tokens: 100, output_tokens: 50 } });
+    expect(result).toEqual({ inputTokens: 100, outputTokens: 50 });
+  });
+
+  it("extracts OpenAI/OpenRouter token format", async () => {
+    const { extractTokenUsage } = await import("../../src/lib/usageTracker");
+    const result = extractTokenUsage({ usage: { prompt_tokens: 200, completion_tokens: 80 } });
+    expect(result).toEqual({ inputTokens: 200, outputTokens: 80 });
+  });
+
+  it("returns zeros for unknown format", async () => {
+    const { extractTokenUsage } = await import("../../src/lib/usageTracker");
+    expect(extractTokenUsage({})).toEqual({ inputTokens: 0, outputTokens: 0 });
+    expect(extractTokenUsage(null)).toEqual({ inputTokens: 0, outputTokens: 0 });
+    expect(extractTokenUsage({ something: "else" })).toEqual({ inputTokens: 0, outputTokens: 0 });
   });
 });
