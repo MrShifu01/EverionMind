@@ -15,7 +15,7 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\""
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.101.1",
+    "@supabase/supabase-js": "^2.102.1",
     "@tanstack/react-virtual": "^3.13.23",
     "@vercel/speed-insights": "^2.0.0",
     "clsx": "^2.1.1",
