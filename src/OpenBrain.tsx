@@ -120,7 +120,7 @@ export default function OpenBrain() {
   const [workspace] = useState(() => localStorage.getItem("openbrain_workspace") || "all");
   const [gridFilters, setGridFilters] = useState<EntryFilterState>({ type: "all", date: "all", sort: "newest" });
   const [view, setView] = useState("capture");
-  const [, setNavOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
   const [selected, setSelected] = useState<Entry | null>(null);
   const [links, setLinks] = useState<any[]>(LINKS);
   const addLinks = useCallback((newLinks: any[]) => setLinks((prev) => [...prev, ...newLinks]), []);
