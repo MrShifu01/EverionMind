@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "../../lib/supabase";
+import { clearAISettingsCache } from "../../lib/aiSettings";
 
 interface Props {
   email: string;
@@ -12,6 +13,7 @@ export default function AccountTab({ email }: Props) {
   const handleSignOut = async () => {
     setSigningOut(true);
     setError(null);
+    clearAISettingsCache();
     const { error } = await supabase.auth.signOut();
     if (error) {
       setError(error.message);

@@ -6,9 +6,19 @@ import { KEYS } from "./storageKeys";
 // Keys never touch localStorage; live only in this module's memory.
 const _keys: Record<string, string | null> = {};
 
-/** Clear in-memory key store. For tests only. */
+// ── Cached user ID set at login — used by syncToSupabase ──
+let _cachedUserId: string | null = null;
+
+/** Clear in-memory key store and cached user ID. For tests only. */
 export function _resetForTests(): void {
   for (const k of Object.keys(_keys)) delete _keys[k];
+  _cachedUserId = null;
+}
+
+/** Call on sign-out to wipe cached identity. */
+export function clearAISettingsCache(): void {
+  for (const k of Object.keys(_keys)) delete _keys[k];
+  _cachedUserId = null;
 }
 
 // ── Key migration: uid-prefixed → unprefixed (run once at module init) ──
@@ -55,7 +65,7 @@ export function getUserId(): string | null {
 
 // ── Internal helper: fire-and-forget Supabase upsert ──
 function syncToSupabase(fields: Record<string, string | null>): void {
-  const uid = getUserId();
+  const uid = _cachedUserId || getUserId();
   if (!uid) return;
   supabase
     .from("user_ai_settings")
@@ -141,6 +151,7 @@ export function setModelForTask(task: string, model: string | null): void {
 
 // ── Load all settings from Supabase into memory / localStorage ──
 export async function loadUserAISettings(userId: string): Promise<void> {
+  _cachedUserId = userId;
   const { data } = await supabase
     .from("user_ai_settings")
     .select("*")

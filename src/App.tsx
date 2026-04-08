@@ -52,12 +52,20 @@ export default function App(): JSX.Element {
       supabase.auth.setSession(tokens).then(({ data: { session } }) => {
         setSession(session);
         window.history.replaceState(null, "", window.location.pathname);
+      }).catch(async () => {
+        await supabase.auth.signOut().catch(() => {});
+        setSession(null);
+        window.history.replaceState(null, "", window.location.pathname);
       });
       return;
     }
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user?.id) await loadUserAISettings(session.user.id).catch(() => {});
       setSession(session);
+    }).catch(async () => {
+      // Corrupted/malformed token in localStorage — clear it and send to login
+      await supabase.auth.signOut().catch(() => {});
+      setSession(null);
     });
     const {
       data: { subscription },
