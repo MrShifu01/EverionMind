@@ -15,6 +15,7 @@
     { "source": "/api/delete-entry",     "destination": "/api/entries" },
     { "source": "/api/update-entry",     "destination": "/api/entries" },
     { "source": "/api/save-links",       "destination": "/api/capture?action=links" },
+    { "source": "/api/embed",             "destination": "/api/capture?action=embed" },
     { "source": "/api/export",           "destination": "/api/transfer" },
     { "source": "/api/import",           "destination": "/api/transfer" },
     { "source": "/api/notification-prefs", "destination": "/api/push?resource=prefs" },
