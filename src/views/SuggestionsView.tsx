@@ -1,9 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { authFetch } from "../lib/authFetch";
 import { callAI } from "../lib/ai";
-import { SUGGESTIONS } from "../data/personalSuggestions";
-import { FAMILY_SUGGESTIONS } from "../data/familySuggestions";
-import { BUSINESS_SUGGESTIONS } from "../data/businessSuggestions";
 import { PC } from "../data/constants";
 import { PROMPTS } from "../config/prompts";
 import { aiFetch } from "../lib/aiFetch";
@@ -34,13 +31,6 @@ interface SavedItem {
   brain: Brain | null;
 }
 
-/* ─── Brain-type → question set ─── */
-function getSuggestionsForType(type: string | undefined): Suggestion[] {
-  if (type === "family") return FAMILY_SUGGESTIONS;
-  if (type === "business") return BUSINESS_SUGGESTIONS;
-  return SUGGESTIONS;
-}
-
 /* ─── Brain type label/icon ─── */
 const BRAIN_META = {
   personal: { emoji: "🧠", label: "Personal" },
@@ -54,22 +44,14 @@ export default function SuggestionsView({
   activeBrain,
   brains,
 }: SuggestionsViewProps) {
-  // Always follow the active brain from the brain switcher
   const targetBrain = activeBrain;
-
-  const questionSet = useMemo((): Suggestion[] => {
-    return getSuggestionsForType(activeBrain?.type || "personal");
-  }, [activeBrain?.type]);
-
   const brainType = targetBrain?.type || "personal";
 
-  const [idx, setIdx] = useState(0);
   const [answer, setAnswer] = useState("");
   const [answered, setAnswered] = useState(0);
   const [skipped, setSkipped] = useState(0);
   const [showInput, setShowInput] = useState(false);
   const [saved, setSaved] = useState<SavedItem[]>([]);
-  const [filterCat, setFilterCat] = useState("all");
   const [, setAnim] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -95,8 +77,6 @@ export default function SuggestionsView({
 
   // Reset when active brain changes
   useEffect(() => {
-    setIdx(0);
-    setFilterCat("all");
     setAiQuestion(null);
     setAnswered(0);
     setSkipped(0);
@@ -107,7 +87,7 @@ export default function SuggestionsView({
   const bulkFileRef = useRef<HTMLInputElement>(null);
   const [bulkFiles, setBulkFiles] = useState<File[] | null>(null);
 
-  // Skipped onboarding questions — load once, stay at top of queue
+  // Skipped onboarding questions — shown first before AI questions
   const [onboardingSkipped] = useState<Suggestion[]>(() => {
     try {
       return JSON.parse(localStorage.getItem("openbrain_onboarding_skipped") || "[]");
@@ -116,40 +96,27 @@ export default function SuggestionsView({
     }
   });
 
-  const position = answered + skipped;
+  const skippedQueue = useMemo((): Suggestion[] => {
+    return onboardingSkipped.filter((s: Suggestion) => !answeredQs.has(s.q));
+  }, [answeredQs, onboardingSkipped]);
 
-  const view = useMemo((): Suggestion[] => {
-    // Skipped onboarding questions come first (if not yet answered and matching category filter)
-    const skippedPriority = onboardingSkipped.filter(
-      (s: Suggestion) => !answeredQs.has(s.q) && (filterCat === "all" || s.cat === filterCat),
-    );
-    const base =
-      filterCat === "all"
-        ? questionSet
-        : questionSet.filter((s: Suggestion) => s.cat === filterCat);
-    const rest = base.filter(
-      (s: Suggestion) =>
-        !answeredQs.has(s.q) && !skippedPriority.find((sp: Suggestion) => sp.q === s.q), // avoid duplicates if already in set
-    );
-    return [...skippedPriority, ...rest];
-  }, [filterCat, answeredQs, questionSet, onboardingSkipped]);
-
-  const total = view.length;
-  const poolEmpty = total === 0;
-  const isAiSlot = poolEmpty || position % 5 === 4;
-  const current: AiQuestion | Suggestion | null = isAiSlot
-    ? aiLoading
+  // Always AI-driven: show onboarding skipped first, then pure AI questions
+  const useSkipped = skippedQueue.length > 0;
+  const current: AiQuestion | Suggestion | null = useSkipped
+    ? skippedQueue[0]
+    : aiLoading
       ? null
-      : aiQuestion
-    : view[idx % total];
+      : aiQuestion;
 
-  useEffect(() => {
-    if (!isAiSlot || aiQuestion || aiLoading) return;
+  const generateAiQuestion = useCallback(() => {
+    if (aiLoading) return;
     setAiLoading(true);
+    setAiQuestion(null);
     const ctx = entries
-      .slice(0, 30)
-      .map((e: Entry) => `- ${e.title}: ${(e.content || "").slice(0, 100)}`)
+      .slice(0, 40)
+      .map((e: Entry) => `- [${e.type}] ${e.title}: ${(e.content || "").slice(0, 120)}`)
       .join("\n");
+    const alreadyAsked = Array.from(answeredQs).slice(-20).join(", ");
     const brainContext =
       brainType === "family"
         ? "family shared knowledge base (household, family members, emergencies, finances)"
@@ -163,7 +130,7 @@ export default function SuggestionsView({
       messages: [
         {
           role: "user",
-          content: `What they have captured so far:\n${ctx}\n\nWhat important gap should they fill next?`,
+          content: `Existing entries:\n${ctx || "(none yet)"}\n\nRecently asked questions (do not repeat):\n${alreadyAsked || "(none)"}\n\nWhat important gap should they fill next?`,
         },
       ],
     })
@@ -171,30 +138,25 @@ export default function SuggestionsView({
       .then((data) => {
         const raw = (data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim();
         let parsed: any = {};
-        try {
-          parsed = JSON.parse(raw);
-        } catch {}
+        try { parsed = JSON.parse(raw); } catch {}
         setAiQuestion(
           parsed.q
-            ? { q: parsed.q, cat: parsed.cat || "✨ AI", p: parsed.p || "medium", ai: true }
-            : {
-                q: "What's one important thing you haven't captured yet?",
-                cat: "✨ AI",
-                p: "medium",
-                ai: true,
-              },
+            ? { q: parsed.q, cat: parsed.cat || "AI", p: parsed.p || "medium", ai: true }
+            : { q: "What's one important thing you haven't captured yet?", cat: "AI", p: "medium", ai: true },
         );
       })
       .catch(() =>
-        setAiQuestion({
-          q: "What's one important thing you haven't captured yet?",
-          cat: "✨ AI",
-          p: "medium",
-          ai: true,
-        }),
+        setAiQuestion({ q: "What's one important thing you haven't captured yet?", cat: "AI", p: "medium", ai: true }),
       )
       .finally(() => setAiLoading(false));
-  }, [isAiSlot, aiQuestion, aiLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [aiLoading, entries, answeredQs, brainType, targetBrain?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Generate first AI question on mount / brain change
+  useEffect(() => {
+    if (!useSkipped && !aiQuestion && !aiLoading) {
+      generateAiQuestion();
+    }
+  }, [activeBrain?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -439,14 +401,12 @@ export default function SuggestionsView({
         setAnswer("");
         setShowInput(false);
         setAnim("");
-        if (isAiSlot) {
-          setAiQuestion(null);
-        } else if (total > 0) {
-          setIdx((p) => (p + 1) % total);
-        }
+        setAiQuestion(null);
+        // Generate next AI question after a short delay so state clears first
+        setTimeout(() => generateAiQuestion(), 50);
       }, 200);
     },
-    [isAiSlot, total],
+    [generateAiQuestion],
   );
 
   const handleSave = async () => {
@@ -473,9 +433,9 @@ export default function SuggestionsView({
       }
 
       const aiData = await aiRes.json();
-      let parsed: any = {};
+      let parsedRaw: any = {};
       try {
-        parsed = JSON.parse((aiData.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim());
+        parsedRaw = JSON.parse((aiData.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim());
       } catch (err: any) {
         const msg = `[QA_PARSE:json] ${err?.message || String(err)} — raw: ${(aiData.content?.[0]?.text || "").slice(0, 200)}`;
         console.error(msg);
@@ -484,58 +444,55 @@ export default function SuggestionsView({
         return;
       }
 
-      // Fall back to raw answer if AI produced no title
-      if (!parsed.title) {
-        parsed.title = a.slice(0, 60);
-        parsed.content = parsed.content || a;
-        parsed.type = parsed.type || "note";
+      // Normalise to array
+      const parsedEntries: any[] = Array.isArray(parsedRaw) ? parsedRaw : [parsedRaw];
+
+      // Fall back to raw answer if AI produced no title on the first entry
+      if (parsedEntries.length === 1 && !parsedEntries[0].title) {
+        parsedEntries[0].title = a.slice(0, 60);
+        parsedEntries[0].content = parsedEntries[0].content || a;
+        parsedEntries[0].type = parsedEntries[0].type || "note";
       }
 
-      // Step 2: Save to DB with embed headers
-      const rpcRes = await authFetch("/api/capture", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(getEmbedHeaders() || {}) },
-        body: JSON.stringify({
-          p_title: parsed.title,
-          p_content: parsed.content || a,
-          p_type: parsed.type || "note",
-          p_metadata: parsed.metadata || {},
-          p_tags: parsed.tags || [],
-          p_brain_id: targetBrain?.id,
-        }),
-      });
+      // Step 2: Save each entry to DB with embed headers
+      for (const parsed of parsedEntries) {
+        const rpcRes = await authFetch("/api/capture", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(getEmbedHeaders() || {}) },
+          body: JSON.stringify({
+            p_title: parsed.title,
+            p_content: parsed.content || a,
+            p_type: parsed.type || "note",
+            p_metadata: parsed.metadata || {},
+            p_tags: parsed.tags || [],
+            p_brain_id: targetBrain?.id,
+          }),
+        });
 
-      if (!rpcRes.ok) {
-        const errBody = await rpcRes.text().catch(() => "(no body)");
-        const msg = `[capture] HTTP ${rpcRes.status} — ${errBody}`;
-        console.error(msg);
-        setSaveError(msg);
-        setSaved((prev: SavedItem[]) => [
-          { q: current!.q, a, cat: current!.cat, db: false, brain: targetBrain },
-          ...prev,
-        ]);
-        setSaving(false);
-        return;
+        if (!rpcRes.ok) {
+          const errBody = await rpcRes.text().catch(() => "(no body)");
+          const msg = `[capture] HTTP ${rpcRes.status} — ${errBody}`;
+          console.error(msg);
+          setSaveError(msg);
+          continue;
+        }
+
+        let captureData: any = {};
+        try { captureData = await rpcRes.json(); } catch {}
+        if (captureData.embed_error) {
+          console.error(`[embed] ${captureData.embed_error}`);
+        }
+
+        const newEntry: Entry = {
+          id: captureData.id || String(Date.now()),
+          ...parsed,
+          pinned: false,
+          importance: 0,
+          tags: parsed.tags || [],
+          created_at: new Date().toISOString(),
+        };
+        setEntries((prev: Entry[]) => [newEntry, ...prev]);
       }
-
-      // Step 3: Check for embed errors
-      let captureData: any = {};
-      try { captureData = await rpcRes.json(); } catch {}
-      if (captureData.embed_error) {
-        const msg = `[embed] ${captureData.embed_error}`;
-        console.error(msg);
-        setSaveError(msg);
-      }
-
-      const newEntry: Entry = {
-        id: captureData.id || String(Date.now()),
-        ...parsed,
-        pinned: false,
-        importance: 0,
-        tags: parsed.tags || [],
-        created_at: new Date().toISOString(),
-      };
-      setEntries((prev: Entry[]) => [newEntry, ...prev]);
       setSaved((prev: SavedItem[]) => [
         { q: current!.q, a, cat: current!.cat, db: true, brain: targetBrain },
         ...prev,
@@ -550,7 +507,7 @@ export default function SuggestionsView({
       ]);
     }
 
-    if (!isAiSlot && current?.q) {
+    if (useSkipped && current?.q) {
       setAnsweredQs((prev) => {
         const updated = new Set(prev);
         updated.add(current.q);
@@ -588,11 +545,10 @@ const pc = current ? PC[current.p as Priority] || PC.medium : PC.medium;
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         {[
           { l: "Answered", v: answered, color: "var(--color-primary)" },
           { l: "Skipped", v: skipped, color: "var(--color-on-surface-variant)" },
-          { l: "Remaining", v: Math.max(0, total - (idx % Math.max(total, 1))), color: "var(--color-secondary)" },
         ].map((s) => (
           <div
             key={s.l}
@@ -605,39 +561,13 @@ const pc = current ? PC[current.p as Priority] || PC.medium : PC.medium;
         ))}
       </div>
 
-      {/* Progress bar */}
-      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--color-outline-variant)" }}>
-        <div
-          className="h-full rounded-full transition-all duration-500"
-          style={{
-            width: `${Math.min(total > 0 ? ((answered + skipped) / total) * 100 : 0, 100)}%`,
-            background: "var(--color-primary)",
-          }}
-        />
-      </div>
-
-      {/* Category filter chips removed — not needed */}
-
-      {/* Pool empty state */}
-      {poolEmpty && (
-        <div
-          className="rounded-2xl border px-4 py-3 text-center"
-          style={{ background: "var(--color-primary-container)", borderColor: "var(--color-primary)" }}
-        >
-          <span className="text-xs" style={{ color: "var(--color-primary)" }}>
-            ✨ All {answeredQs.size} static questions answered — AI is now driving
-          </span>
-        </div>
-      )}
-
       {/* AI loading state */}
-      {isAiSlot && aiLoading && (
+      {aiLoading && (
         <div
           className="rounded-2xl border px-4 py-6 text-center"
           style={{ background: "var(--color-secondary-container)", borderColor: "var(--color-secondary)" }}
         >
-          <div className="text-2xl mb-2">✨</div>
-          <p className="text-sm" style={{ color: "var(--color-secondary)" }}>AI is generating a personalised question…</p>
+          <p className="text-sm" style={{ color: "var(--color-secondary)" }}>Thinking of a question…</p>
         </div>
       )}
 
@@ -660,25 +590,22 @@ const pc = current ? PC[current.p as Priority] || PC.medium : PC.medium;
             >
               {current.cat}
             </span>
-            {isAiSlot && (
+            {useSkipped ? (
+              <span
+                className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                style={{ color: "var(--color-status-medium)", background: "var(--color-status-medium-container)" }}
+              >
+                ↩ From onboarding
+              </span>
+            ) : (
               <span
                 className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
                 style={{ color: "var(--color-primary)", background: "var(--color-primary-container)" }}
               >
-                ✨ AI
+                AI
               </span>
             )}
-            {!isAiSlot &&
-              current &&
-              onboardingSkipped.find((s: Suggestion) => s.q === current.q) && (
-                <span
-                  className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                  style={{ color: "var(--color-status-medium)", background: "var(--color-status-medium-container)" }}
-                >
-                  ↩ From onboarding
-                </span>
-              )}
-            <span className="text-[10px] text-on-surface-variant ml-auto">#{idx + 1}/{total}</span>
+            <span className="text-[10px] text-on-surface-variant ml-auto">#{answered + skipped + 1}</span>
           </div>
           <p className="text-base font-medium text-on-surface leading-relaxed">{current.q}</p>
         </div>

@@ -5,8 +5,11 @@
 
 export const PROMPTS: Record<string, string> = {
   /** QuickCapture: classify & structure raw text into a typed entry */
-  CAPTURE: `You classify and structure a raw text capture into an OpenBrain entry. Return ONLY valid JSON.
-Format: {"title":"...","content":"...","type":"...","icon":"SINGLE_EMOJI","metadata":{},"tags":[],"workspace":"business"|"personal"|"both"}
+  CAPTURE: `You classify and structure a raw text capture into one or more OpenBrain entries. Return ONLY valid JSON.
+
+SPLIT RULES: If the input contains 2 or more clearly distinct facts, records, or topics that are better stored separately (e.g. a person + their company, multiple ingredients, a vehicle + its insurance, a recipe + a supplier), return a JSON ARRAY of entries. Otherwise return a single JSON OBJECT.
+Single: {"title":"...","content":"...","type":"...","icon":"SINGLE_EMOJI","metadata":{},"tags":[],"workspace":"business"|"personal"|"both"}
+Multiple: [{"title":"...","content":"...","type":"...","icon":"SINGLE_EMOJI","metadata":{},"tags":[],"workspace":"..."}, ...]
 
 TYPE RULES: You MUST choose the most semantically specific type. "note" is the absolute last resort — only use it when the content is literally an unstructured personal memo with no other category. "reminder" is ONLY for time-sensitive deadlines or scheduled events with a specific date/time. Do NOT default to either.
 - Contains ingredients + cooking steps → "recipe"
@@ -52,7 +55,7 @@ IMPORTANT: Do NOT suggest merging companies just because they have similar name 
   CHAT: `You are OpenBrain, the user's memory assistant. Be concise. When you mention a phone number, format it clearly. If the answer contains a phone number, put it on its own line.\n\nMEMORIES:\n{{MEMORIES}}\n\nLINKS:\n{{LINKS}}`,
 
   /** Onboarding + SuggestionsView: parse a Q&A into a structured entry */
-  QA_PARSE: `Parse this Q&A into a structured entry. Return ONLY valid JSON:\n{"title":"...","content":"...","type":"...","metadata":{},"tags":[]}\nChoose the most semantically specific type — "note" is last resort for unstructured memos only, "reminder" only for time-sensitive items with a specific date. Be specific: "supplier", "employee", "recipe", "vehicle", "person", "place", "company", "transaction", "document", "contract", "certificate". Use "secret" for passwords, PINs, credit card numbers, bank details, API keys, or sensitive credentials.\nFor dates use: metadata.due_date, metadata.expiry_date, metadata.event_date (YYYY-MM-DD), metadata.day_of_week for recurring ("wednesday").`,
+  QA_PARSE: `Parse this Q&A into one or more structured OpenBrain entries. Return ONLY valid JSON.\nIf the answer contains 2 or more clearly distinct records (e.g. multiple people, a person + their company, multiple items), return a JSON ARRAY. Otherwise return a single JSON OBJECT.\nSingle: {"title":"...","content":"...","type":"...","metadata":{},"tags":[]}\nMultiple: [{"title":"...","content":"...","type":"...","metadata":{},"tags":[]}, ...]\nChoose the most semantically specific type — "note" is last resort for unstructured memos only, "reminder" only for time-sensitive items with a specific date. Be specific: "supplier", "employee", "recipe", "vehicle", "person", "place", "company", "transaction", "document", "contract", "certificate". Use "secret" for passwords, PINs, credit card numbers, bank details, API keys, or sensitive credentials.\nFor dates use: metadata.due_date, metadata.expiry_date, metadata.event_date (YYYY-MM-DD), metadata.day_of_week for recurring ("wednesday").`,
 
   /** SuggestionsView: generate a gap-filling question for the brain */
   FILL_BRAIN: `You are helping someone build their {{BRAIN_CONTEXT}} called OpenBrain. Identify important information they should capture but haven't yet. Study the gaps — important facts, records, contacts, plans that are missing. Generate ONE specific, actionable question relevant to this brain type. Return ONLY valid JSON: {"q":"...","cat":"...","p":"high"|"medium"|"low"}`,

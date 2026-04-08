@@ -216,11 +216,53 @@ export default function CaptureSheet({
         messages: [{ role: "user", content: input }],
       });
       const data = await res.json();
-      let parsed: ParsedEntry = { title: "" };
+      let parsedRaw: ParsedEntry | ParsedEntry[] = { title: "" };
       try {
-        parsed = JSON.parse((data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim());
+        parsedRaw = JSON.parse((data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim());
       } catch {}
 
+      // Array response: AI split input into multiple entries — save all directly
+      if (Array.isArray(parsedRaw) && parsedRaw.length > 0) {
+        setLoading(false);
+        setStatus(`Saving ${parsedRaw.length} entries…`);
+        let savedCount = 0;
+        for (const entry of parsedRaw) {
+          try {
+            const res2 = await authFetch("/api/capture", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", ...(getEmbedHeaders() || {}) },
+              body: JSON.stringify({
+                p_title: entry.title,
+                p_content: entry.content || "",
+                p_type: entry.type || "note",
+                p_metadata: entry.metadata || {},
+                p_tags: entry.tags || [],
+                p_brain_id: brainId,
+              }),
+            });
+            if (res2.ok) {
+              const result = await res2.json();
+              onCreated({
+                id: result?.id || Date.now().toString(),
+                title: entry.title,
+                content: entry.content || "",
+                type: (entry.type || "note") as Entry["type"],
+                metadata: entry.metadata || {},
+                pinned: false,
+                importance: 0,
+                tags: entry.tags || [],
+                created_at: new Date().toISOString(),
+              } as Entry);
+              savedCount++;
+            }
+          } catch {}
+        }
+        setStatus("saved");
+        setTimeout(() => { setStatus(null); onClose(); }, 700);
+        return;
+      }
+
+      const parsed = parsedRaw as ParsedEntry;
       if (parsed.title) {
         setLoading(false);
         setStatus(null);

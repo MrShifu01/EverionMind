@@ -837,10 +837,18 @@ export default function QuickCapture({
         messages: [{ role: "user", content: input }],
       });
       const data = await res.json();
-      let parsed: ParsedEntry = {};
+      let parsedRaw: ParsedEntry | ParsedEntry[] = {};
       try {
-        parsed = JSON.parse((data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim());
+        parsedRaw = JSON.parse((data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim());
       } catch {}
+      // Array response: AI split input into multiple entries
+      if (Array.isArray(parsedRaw) && parsedRaw.length > 0) {
+        setLoading(false);
+        setStatus(null);
+        setMultiPreview(parsedRaw.map((e) => ({ ...e, _raw: input })));
+        return;
+      }
+      const parsed = parsedRaw as ParsedEntry;
       if (parsed.title) {
         setLoading(false);
         setStatus(null);
