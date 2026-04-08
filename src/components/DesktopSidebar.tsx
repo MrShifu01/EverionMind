@@ -57,6 +57,18 @@ const NAV_ICONS: Record<string, ReactNode> = {
   ),
 };
 
+const MOON_ICON = (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+  </svg>
+);
+
+const SUN_ICON = (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+  </svg>
+);
+
 const CAPTURE_NAV: NavView = { id: "capture", l: "Home", ic: "⌂" };
 
 interface DesktopSidebarProps {
@@ -88,17 +100,24 @@ function NavItem({ id, label, isActive, onClick, badge }: NavItemProps) {
       onClick={onClick}
       aria-current={isActive ? "page" : undefined}
       className={cn(
-        "w-full flex items-center gap-3 px-4 py-2.5 rounded-r-lg text-sm transition-all duration-200 group border-l-2 press-scale",
+        "w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-all duration-200 group press-scale",
         isActive
-          ? "text-primary font-semibold border-primary"
-          : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container border-transparent",
-        isActive && "bg-surface-container"
+          ? "font-semibold"
+          : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
       )}
+      style={
+        isActive
+          ? {
+              background: "oklch(from var(--color-primary) l c h / 0.08)",
+              color: "var(--color-primary)",
+            }
+          : undefined
+      }
     >
-      <span className={cn("transition-colors", isActive ? "text-primary" : "text-inherit group-hover:text-on-surface")}>
+      <span className={cn("transition-colors", isActive ? "text-inherit" : "text-inherit group-hover:text-on-surface")}>
         {icon}
       </span>
-      <span className="flex-1 text-left font-label">{label}</span>
+      <span className="flex-1 text-left">{label}</span>
       {badge && (
         <span className="text-[10px] bg-secondary text-on-secondary px-1.5 py-0.5 rounded-full font-semibold">
           {badge}
@@ -123,6 +142,12 @@ export default function DesktopSidebar({
 }: DesktopSidebarProps) {
   const allItems = [CAPTURE_NAV, ...navViews];
 
+  const statusText = isOnline
+    ? pendingCount > 0
+      ? `Syncing ${pendingCount}…`
+      : `${entryCount} synced`
+    : "Offline";
+
   return (
     <aside
       className="hidden lg:flex fixed left-0 top-0 h-dvh z-40 flex-col w-72 px-4 py-6 border-r"
@@ -132,33 +157,16 @@ export default function DesktopSidebar({
       }}
     >
       {/* ── Brand row ── */}
-      <div className="flex items-center justify-between mb-6 px-2">
-        <div>
-          <h1
-            className="font-bold tracking-tight text-2xl text-primary"
-            style={{ fontFamily: "'Lora', Georgia, serif" }}
-          >
-            Everion
-          </h1>
-          <p className="text-xs text-on-surface-variant/50 mt-0.5">
-            second brain
-          </p>
-        </div>
-        <button
-          onClick={onToggleTheme}
-          aria-label="Toggle theme"
-          className="w-11 h-11 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all press-scale"
+      <div className="mb-6 px-2">
+        <h1
+          className="font-bold tracking-tight text-2xl text-primary"
+          style={{ fontFamily: "'Lora', Georgia, serif" }}
         >
-          {isDark ? (
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
-            </svg>
-          ) : (
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
-            </svg>
-          )}
-        </button>
+          Everion
+        </h1>
+        <p className="text-xs text-on-surface-variant/50 mt-0.5">
+          Own Your Intelligence
+        </p>
       </div>
 
       {/* ── Brain Switcher slot ── */}
@@ -204,27 +212,40 @@ export default function DesktopSidebar({
           onClick={() => onNavigate("settings")}
         />
 
-        {/* Status + Add Brain */}
+        {/* Status row: online dot + count + theme toggle + new brain */}
         <div className="px-4 pt-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div
-              className="w-1.5 h-1.5 rounded-full"
+              className="w-2 h-2 rounded-full flex-shrink-0"
               style={{ background: isOnline ? "var(--color-secondary)" : "var(--color-error)" }}
             />
             <span className="text-xs text-on-surface-variant/50">
-              {isOnline ? (pendingCount > 0 ? `${pendingCount} syncing` : `${entryCount} memories`) : "Offline"}
+              {statusText}
             </span>
           </div>
-          <button
-            onClick={onShowCreateBrain}
-            aria-label="Create new brain"
-            className="flex items-center gap-1.5 text-xs font-medium text-on-surface-variant hover:text-primary hover:bg-surface-container transition-all press-scale min-h-[44px] px-2.5 rounded-lg"
-          >
-            <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            New brain
-          </button>
+
+          <div className="flex items-center gap-1">
+            {/* Theme toggle — utility, lives in footer */}
+            <button
+              onClick={onToggleTheme}
+              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+              className="w-9 h-9 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all press-scale"
+            >
+              {isDark ? SUN_ICON : MOON_ICON}
+            </button>
+
+            {/* New brain */}
+            <button
+              onClick={onShowCreateBrain}
+              aria-label="Create new brain"
+              className="flex items-center gap-1.5 text-xs font-medium text-on-surface-variant hover:text-primary hover:bg-surface-container transition-all press-scale min-h-[36px] px-2.5 rounded-lg"
+            >
+              <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              New brain
+            </button>
+          </div>
         </div>
       </div>
     </aside>

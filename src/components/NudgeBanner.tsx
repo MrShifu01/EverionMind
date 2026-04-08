@@ -9,22 +9,24 @@ export function NudgeBanner({ nudge, onDismiss }: NudgeBannerProps) {
     <div
       className="flex items-start gap-3 p-4 rounded-2xl mb-4 border"
       style={{
-        background: "rgba(213,117,255,0.06)",
-        borderColor: "rgba(213,117,255,0.15)",
+        background: "color-mix(in oklch, var(--color-primary) 8%, var(--color-surface))",
+        borderColor: "color-mix(in oklch, var(--color-primary) 20%, transparent)",
       }}
     >
       <div
         className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-base"
-        style={{ background: "rgba(213,117,255,0.12)" }}
+        style={{ background: "color-mix(in oklch, var(--color-primary) 12%, transparent)" }}
       >
         💡
       </div>
       <p className="flex-1 text-sm text-on-surface-variant leading-relaxed">{nudge}</p>
       <button
         onClick={onDismiss}
+        aria-label="Dismiss"
         className="text-on-surface-variant/50 hover:text-on-surface transition-colors flex-shrink-0 mt-0.5 press-scale"
       >
         <svg
+          aria-hidden="true"
           className="w-4 h-4"
           fill="none"
           stroke="currentColor"

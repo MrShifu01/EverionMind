@@ -36,6 +36,10 @@
   --color-error-dim:                   oklch(52% 0.18 25);
   --color-on-error:                    oklch(97% 0.01 25);
 
+  /* Semantic — Status (priority/urgency signals) */
+  --color-status-medium:               oklch(72% 0.16 68);
+  --color-status-medium-container:     color-mix(in oklch, oklch(72% 0.16 68) 12%, transparent);
+
   /* On-colors */
   --color-on-surface:                  oklch(93% 0.006 60);
   --color-on-surface-variant:          oklch(58% 0.006 60);
@@ -220,6 +224,10 @@ html:not(.dark) {
   --color-error:                       oklch(50% 0.18 25);
   --color-error-dim:                   oklch(44% 0.18 25);
   --color-on-error:                    oklch(99% 0.002 80);
+
+  /* Semantic — Status */
+  --color-status-medium:               oklch(55% 0.16 68);
+  --color-status-medium-container:     color-mix(in oklch, oklch(55% 0.16 68) 12%, transparent);
 
   /* On-colors */
   --color-on-surface:                  oklch(15% 0.010 60);

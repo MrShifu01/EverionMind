@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface UndoToastProps {
   action: { type: "delete" | "update" | "create"; entry?: any; id?: string };
@@ -9,18 +9,21 @@ interface UndoToastProps {
 export function UndoToast({ action, onUndo, onDismiss }: UndoToastProps) {
   const duration = action.type === "create" ? 3000 : 5000;
   const [pct, setPct] = useState(100);
+  const rafRef = useRef<number>(0);
 
   useEffect(() => {
     const start = Date.now();
-    const tick = setInterval(() => {
+    const tick = () => {
       const p = Math.max(0, 100 - ((Date.now() - start) / duration) * 100);
       setPct(p);
       if (p <= 0) {
-        clearInterval(tick);
         onDismiss();
+        return;
       }
-    }, 80);
-    return () => clearInterval(tick);
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
   }, [duration, onDismiss]);
 
   const label = { delete: "Entry deleted", update: "Entry updated", create: "Entry created" }[
@@ -33,10 +36,10 @@ export function UndoToast({ action, onUndo, onDismiss }: UndoToastProps) {
       role="alert"
       className="fixed bottom-24 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 w-[90vw] max-w-sm overflow-hidden rounded-2xl border"
       style={{
-        background: "rgba(26,25,25,0.95)",
-        backdropFilter: "blur(24px)",
-        WebkitBackdropFilter: "blur(24px)",
-        borderColor: isDelete ? "rgba(255,110,132,0.20)" : "rgba(114,239,245,0.15)",
+        background: "var(--color-surface-container-high)",
+        borderColor: isDelete
+          ? "color-mix(in oklch, var(--color-error) 25%, transparent)"
+          : "color-mix(in oklch, var(--color-primary) 25%, transparent)",
         boxShadow: "0 20px 40px rgba(0,0,0,0.4)",
         animation: "slide-up 0.25s ease-out",
       }}
@@ -44,7 +47,11 @@ export function UndoToast({ action, onUndo, onDismiss }: UndoToastProps) {
       <div className="flex items-center gap-3 px-4 py-3">
         <div
           className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-sm"
-          style={{ background: isDelete ? "rgba(255,110,132,0.1)" : "rgba(114,239,245,0.1)" }}
+          style={{
+            background: isDelete
+              ? "color-mix(in oklch, var(--color-error) 10%, transparent)"
+              : "color-mix(in oklch, var(--color-primary) 10%, transparent)",
+          }}
         >
           {isDelete ? "🗑" : "✓"}
         </div>
@@ -59,9 +66,11 @@ export function UndoToast({ action, onUndo, onDismiss }: UndoToastProps) {
         )}
         <button
           onClick={onDismiss}
+          aria-label="Dismiss"
           className="text-on-surface-variant hover:text-on-surface transition-colors ml-1"
         >
           <svg
+            aria-hidden="true"
             className="w-4 h-4"
             fill="none"
             stroke="currentColor"
@@ -72,12 +81,12 @@ export function UndoToast({ action, onUndo, onDismiss }: UndoToastProps) {
           </svg>
         </button>
       </div>
-      <div className="h-0.5 w-full" style={{ background: "rgba(72,72,71,0.2)" }}>
+      <div className="h-0.5 w-full" style={{ background: "var(--color-outline-variant)" }}>
         <div
           className="h-full transition-none rounded-full"
           style={{
             width: `${pct}%`,
-            background: isDelete ? "#ff6e84" : "#72eff5",
+            background: isDelete ? "var(--color-error)" : "var(--color-primary)",
           }}
         />
       </div>

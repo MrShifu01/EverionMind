@@ -2,6 +2,24 @@
 
 ---
 
+## [IMPROVEMENT] Audit Fix Pass — 12→~17/20 — 2026-04-08
+**Tags**: A11Y, THEMING, PERFORMANCE, ANTI-PATTERN
+
+### Changes implemented
+- **[T1 COLORIZE]** Purged banned palette (purple rgba(213,117,255), cyan #72eff5) from NudgeBanner + UndoToast → color-mix(oklch, var(--color-primary/error) ...)
+- **[T2 HARDEN]** Focus return on close added to DetailModal + CreateBrainModal (triggerRef pattern). role="log" on ChatView. aria-label on NudgeBanner + UndoToast dismiss buttons. aria-hidden on decorative SVGs in BottomNav.
+- **[T3 NORMALIZE]** Added --color-status-medium + --color-status-medium-container tokens to index.css (dark+light). Tokenized 30+ hard-coded hex/rgba values across SkeletonCard, CreateBrainModal, DetailModal, TodoView, SuggestionsView, VaultView. text-white → text-on-surface throughout. 'Manrope'/'Inter' → 'DM Sans' in VaultView + SuggestionsView. Scrims use var(--color-scrim), backdrop-blur removed from modal scrims.
+- **[T4 OPTIMIZE]** UndoToast setInterval(80ms) → requestAnimationFrame. ChatView phoneRegex split memoized with useMemo. BottomNav wrapped in React.memo.
+
+### Architecture decisions
+- color-mix(in oklch, var(--color-X) N%, transparent) used for semi-transparent token-based colors
+- Focus return pattern: useEffect captures activeElement on mount, returns focus on cleanup
+- --color-status-medium = oklch(72%/55% 0.16 68) warm orange distinct from primary amber
+
+### Evaluator score: 95/100 — PASS
+
+---
+
 ## [FEATURE] SettingsView Decomposition + API Key Supabase Migration — 2026-04-08
 **Tags**: REFACTOR, SECURITY, DATABASE
 

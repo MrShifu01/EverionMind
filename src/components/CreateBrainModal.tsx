@@ -1,4 +1,4 @@
-import { useState, useEffect, type JSX } from "react";
+import { useState, useEffect, useRef, type JSX } from "react";
 import { authFetch } from "../lib/authFetch";
 import type { Brain } from "../types";
 import { cn } from "../lib/cn";
@@ -23,6 +23,17 @@ export default function CreateBrainModal({ onClose, onCreate }: CreateBrainModal
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const triggerRef = useRef<Element | null>(null);
+
+  // Store trigger element so focus returns on close
+  useEffect(() => {
+    triggerRef.current = document.activeElement;
+    return () => {
+      if (triggerRef.current instanceof HTMLElement) {
+        triggerRef.current.focus();
+      }
+    };
+  }, []);
 
   // Close on Escape
   useEffect(() => {
@@ -72,7 +83,12 @@ export default function CreateBrainModal({ onClose, onCreate }: CreateBrainModal
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
     >
       {/* Scrim */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="absolute inset-0"
+        style={{ background: "var(--color-scrim)" }}
+        onClick={onClose}
+        aria-hidden="true"
+      />
 
       {/* Panel */}
       <div
@@ -166,8 +182,8 @@ export default function CreateBrainModal({ onClose, onCreate }: CreateBrainModal
               placeholder="email@example.com"
               className="flex-1 px-4 py-2.5 rounded-xl text-on-surface placeholder:text-on-surface-variant/40 text-sm min-h-[44px] focus:outline-none transition-all"
               style={{
-                background: "#262626",
-                border: "1px solid rgba(72,72,71,0.20)",
+                background: "var(--color-surface-container)",
+                border: "1px solid var(--color-outline-variant)",
               }}
               onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-primary)"; }}
               onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-outline-variant)"; }}

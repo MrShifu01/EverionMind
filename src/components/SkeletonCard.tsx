@@ -5,8 +5,8 @@ function SingleSkeleton() {
       aria-label="Loading"
       className="rounded-3xl p-6 border"
       style={{
-        background: "#1a1919",
-        borderColor: "rgba(72,72,71,0.05)",
+        background: "var(--color-surface-container-lowest)",
+        borderColor: "var(--color-outline-variant)",
       }}
     >
       {/* Header row */}
@@ -42,7 +42,7 @@ export function SkeletonRow() {
       role="status"
       aria-label="Loading"
       className="flex items-center gap-3 px-4 py-3 rounded-xl"
-      style={{ background: "#1a1919" }}
+      style={{ background: "var(--color-surface-container-lowest)" }}
     >
       <div className="w-8 h-8 rounded-lg skeleton-shimmer flex-shrink-0" />
       <div className="flex-1 space-y-1.5">

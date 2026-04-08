@@ -43,6 +43,17 @@ export default function DetailModal({
 }: DetailModalProps) {
   if (!entry) return null;
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const triggerRef = useRef<Element | null>(null);
+
+  // Store the element that opened the modal so focus can return on close
+  useEffect(() => {
+    triggerRef.current = document.activeElement;
+    return () => {
+      if (triggerRef.current instanceof HTMLElement) {
+        triggerRef.current.focus();
+      }
+    };
+  }, []);
   const [deleting, setDeleting] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -343,7 +354,7 @@ export default function DetailModal({
       aria-modal="true"
       aria-labelledby="detail-modal-title"
       className="fixed inset-0 z-50 flex items-end lg:items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", paddingBottom: "calc(96px + env(safe-area-inset-bottom))" }}
+      style={{ background: "var(--color-scrim)", paddingBottom: "calc(96px + env(safe-area-inset-bottom))" }}
       onClick={editing ? undefined : onClose}
     >
       <div

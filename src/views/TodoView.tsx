@@ -86,7 +86,7 @@ function MiniCalendar({
   return (
     <div
       className="rounded-2xl border overflow-hidden"
-      style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}
+      style={{ background: "var(--color-surface-container)", borderColor: "var(--color-outline-variant)" }}
     >
       {/* Header toggle */}
       <button
@@ -124,7 +124,7 @@ function MiniCalendar({
               >→</button>
             </>
           )}
-          <span className="text-xs" style={{ color: "#555" }}>
+          <span className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
             {expanded ? "▾" : "▸"}
           </span>
         </div>
@@ -138,7 +138,7 @@ function MiniCalendar({
               <div
                 key={i}
                 className="text-center text-[10px] font-medium py-1"
-                style={{ color: "#555" }}
+                style={{ color: "var(--color-on-surface-variant)" }}
               >
                 {d}
               </div>
@@ -333,7 +333,7 @@ export default function TodoView({ entries: propEntries, typeIcons = {} }: TodoV
             {items.length}
           </span>
         </div>
-        <div className="divide-y" style={{ borderColor: "rgba(72,72,71,0.12)" }}>
+        <div className="divide-y" style={{ borderColor: "var(--color-outline-variant)" }}>
           {items.map((item) => renderItem(item, showDate))}
         </div>
       </div>
@@ -341,14 +341,14 @@ export default function TodoView({ entries: propEntries, typeIcons = {} }: TodoV
   }
 
   return (
-    <div className="px-4 py-4" style={{ background: "#0e0e0e", minHeight: "100%" }}>
+    <div className="px-4 py-4" style={{ background: "var(--color-background)", minHeight: "100%" }}>
       <MiniCalendar dateMap={dateMap} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
 
       {/* Selected day detail */}
       {selectedDay && (
         <div
           className="mt-4 rounded-2xl border p-4 space-y-3"
-          style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}
+          style={{ background: "var(--color-surface-container)", borderColor: "var(--color-outline-variant)" }}
         >
           <p
             className="text-sm font-semibold"
@@ -365,7 +365,7 @@ export default function TodoView({ entries: propEntries, typeIcons = {} }: TodoV
               <div
                 key={e.id}
                 className="flex items-start gap-3 rounded-xl border px-3 py-2"
-                style={{ background: "rgba(14,14,14,0.5)", borderColor: "rgba(72,72,71,0.15)" }}
+                style={{ background: "var(--color-surface-dim)", borderColor: "var(--color-outline-variant)" }}
               >
                 <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
                   <span className="text-base">{eIcon}</span>
@@ -377,7 +377,7 @@ export default function TodoView({ entries: propEntries, typeIcons = {} }: TodoV
                   </span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white truncate">{e.title}</p>
+                  <p className="text-sm text-on-surface truncate">{e.title}</p>
                   {e.content && (
                     <p className="text-xs mt-0.5 truncate" style={{ color: "var(--color-on-surface-variant)" }}>
                       {e.content.slice(0, 120)}
@@ -395,7 +395,7 @@ export default function TodoView({ entries: propEntries, typeIcons = {} }: TodoV
         <div className="mt-8 flex flex-col items-center justify-center py-16 text-center">
           <div className="text-5xl mb-4">📋</div>
           <p
-            className="text-lg font-semibold text-white mb-1"
+            className="text-lg font-semibold text-on-surface mb-1"
             style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}
           >
             All clear
@@ -409,9 +409,9 @@ export default function TodoView({ entries: propEntries, typeIcons = {} }: TodoV
 
       {!selectedDay && total > 0 && (
         <div className="mt-6 space-y-8">
-          {renderSection("Overdue", "🔴", overdue, true, "#ff6e84")}
+          {renderSection("Overdue", "🔴", overdue, true, "var(--color-error)")}
           {renderSection("Today", "🟢", today, false, "var(--color-primary)")}
-          {renderSection("Tomorrow", "🟡", tomorrow, false, "#FFEAA7")}
+          {renderSection("Tomorrow", "🟡", tomorrow, false, "var(--color-status-medium)")}
           {renderSection("This week", "📅", thisWeek, true)}
         </div>
       )}

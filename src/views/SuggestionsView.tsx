@@ -572,7 +572,7 @@ export default function SuggestionsView({
       {/* Brain selector chips — multi-select */}
       {brains?.length > 0 && (
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#777] mb-2">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant mb-2">
             Fill which brain{brains.length > 1 ? "s" : ""}?
           </p>
           {brains.length > 1 ? (
@@ -588,8 +588,8 @@ export default function SuggestionsView({
                     onClick={() => toggleBrain(b.id)}
                     className="flex items-center gap-1.5 rounded-full px-3 py-1.5 border text-xs font-medium transition-colors"
                     style={{
-                      background: active ? "var(--color-primary-container)" : "rgba(38,38,38,0.5)",
-                      borderColor: active ? "var(--color-primary)" : "rgba(72,72,71,0.2)",
+                      background: active ? "var(--color-primary-container)" : "var(--color-surface-container)",
+                      borderColor: active ? "var(--color-primary)" : "var(--color-outline-variant)",
                       color: active ? "var(--color-primary)" : "var(--color-on-surface-variant)",
                     }}
                   >
@@ -603,22 +603,22 @@ export default function SuggestionsView({
               })}
             </div>
           ) : (
-            <span className="text-sm text-white">
+            <span className="text-sm text-on-surface">
               {bm.emoji} {targetBrain?.name || bm.label}
             </span>
           )}
-          <p className="text-xs text-[#777] mt-1">
+          <p className="text-xs text-on-surface-variant mt-1">
             {selectedBrainIds.length > 1 ? (
               <>
                 Showing merged questions · saves go to{" "}
-                <strong className="text-white">
+                <strong className="text-on-surface">
                   {bm.emoji} {targetBrain?.name || bm.label}
                 </strong>
               </>
             ) : (
               <>
                 Showing questions for{" "}
-                <strong className="text-white">
+                <strong className="text-on-surface">
                   {bm.emoji} {targetBrain?.name || bm.label}
                 </strong>
               </>
@@ -637,16 +637,16 @@ export default function SuggestionsView({
           <div
             key={s.l}
             className="rounded-xl border px-3 py-2.5 text-center"
-            style={{ background: "rgba(38,38,38,0.5)", borderColor: "rgba(72,72,71,0.15)" }}
+            style={{ background: "var(--color-surface-container)", borderColor: "var(--color-outline-variant)" }}
           >
             <div className="text-xl font-bold" style={{ color: s.color }}>{s.v}</div>
-            <div className="text-[10px] uppercase tracking-widest text-[#777] font-semibold">{s.l}</div>
+            <div className="text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">{s.l}</div>
           </div>
         ))}
       </div>
 
       {/* Progress bar */}
-      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(72,72,71,0.2)" }}>
+      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--color-outline-variant)" }}>
         <div
           className="h-full rounded-full transition-all duration-500"
           style={{
@@ -685,12 +685,12 @@ export default function SuggestionsView({
       {current && !aiLoading && (
         <div
           className="rounded-2xl border px-4 py-4"
-          style={{ background: "rgba(38,38,38,0.6)", borderColor: "rgba(72,72,71,0.2)" }}
+          style={{ background: "var(--color-surface-container)", borderColor: "var(--color-outline-variant)" }}
         >
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <span
               className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
-              style={{ color: pc.l === "High" ? "var(--color-error)" : pc.l === "Medium" ? "#ffb400" : "var(--color-primary)", background: pc.l === "High" ? "color-mix(in oklch, var(--color-error) 12%, transparent)" : pc.l === "Medium" ? "rgba(255,180,0,0.1)" : "var(--color-primary-container)" }}
+              style={{ color: pc.l === "High" ? "var(--color-error)" : pc.l === "Medium" ? "var(--color-status-medium)" : "var(--color-primary)", background: pc.l === "High" ? "color-mix(in oklch, var(--color-error) 12%, transparent)" : pc.l === "Medium" ? "var(--color-status-medium-container)" : "var(--color-primary-container)" }}
             >
               {pc.l}
             </span>
@@ -713,14 +713,14 @@ export default function SuggestionsView({
               onboardingSkipped.find((s: Suggestion) => s.q === current.q) && (
                 <span
                   className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                  style={{ color: "#ffb400", background: "rgba(255,180,0,0.1)" }}
+                  style={{ color: "var(--color-status-medium)", background: "var(--color-status-medium-container)" }}
                 >
                   ↩ From onboarding
                 </span>
               )}
-            <span className="text-[10px] text-[#555] ml-auto">#{idx + 1}/{total}</span>
+            <span className="text-[10px] text-on-surface-variant ml-auto">#{idx + 1}/{total}</span>
           </div>
-          <p className="text-base font-medium text-white leading-relaxed">{current.q}</p>
+          <p className="text-base font-medium text-on-surface leading-relaxed">{current.q}</p>
         </div>
       )}
 
@@ -733,8 +733,8 @@ export default function SuggestionsView({
               next("skip");
             }}
             disabled={aiLoading}
-            className="flex-1 py-3 rounded-xl border text-sm font-medium text-[#aaa] transition-colors hover:bg-white/5 disabled:opacity-40"
-            style={{ borderColor: "rgba(72,72,71,0.3)", background: "transparent" }}
+            className="flex-1 py-3 rounded-xl border text-sm font-medium text-on-surface-variant transition-colors hover:bg-white/5 disabled:opacity-40"
+            style={{ borderColor: "var(--color-outline-variant)", background: "transparent" }}
           >
             Skip →
           </button>
@@ -770,16 +770,16 @@ export default function SuggestionsView({
             }}
             className="hidden"
           />
-          {imgError && <p className="text-xs text-[#ff6e84]">{imgError}</p>}
-          {micError && <p className="text-xs text-[#ff6e84]">{micError}</p>}
+          {imgError && <p className="text-xs text-error">{imgError}</p>}
+          {micError && <p className="text-xs text-error">{micError}</p>}
           <textarea
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
             placeholder={listening ? "Listening..." : "Type your answer..."}
             autoFocus
             rows={3}
-            className="w-full rounded-xl border px-3 py-3 text-sm text-white bg-transparent outline-none resize-none placeholder:text-[#555] focus:border-[var(--color-primary)] transition-colors"
-            style={{ borderColor: "rgba(72,72,71,0.3)", fontFamily: "'Inter', sans-serif" }}
+            className="w-full rounded-xl border px-3 py-3 text-sm text-on-surface bg-transparent outline-none resize-none placeholder:text-on-surface-variant focus:border-[var(--color-primary)] transition-colors"
+            style={{ borderColor: "var(--color-outline-variant)", fontFamily: "'DM Sans', system-ui, sans-serif" }}
           />
           <div className="flex items-center gap-2">
             <button
@@ -790,8 +790,8 @@ export default function SuggestionsView({
                 recognitionRef.current?.stop();
                 mediaRecorderRef.current?.state !== "inactive" && mediaRecorderRef.current?.stop();
               }}
-              className="px-3 py-2 rounded-xl border text-xs text-[#aaa] transition-colors hover:bg-white/5"
-              style={{ borderColor: "rgba(72,72,71,0.3)", background: "transparent" }}
+              className="px-3 py-2 rounded-xl border text-xs text-on-surface-variant transition-colors hover:bg-white/5"
+              style={{ borderColor: "var(--color-outline-variant)", background: "transparent" }}
             >
               Cancel
             </button>
@@ -800,8 +800,8 @@ export default function SuggestionsView({
                 setSkipped((s) => s + 1);
                 next("skip");
               }}
-              className="px-3 py-2 rounded-xl border text-xs text-[#aaa] transition-colors hover:bg-white/5"
-              style={{ borderColor: "rgba(72,72,71,0.3)", background: "transparent" }}
+              className="px-3 py-2 rounded-xl border text-xs text-on-surface-variant transition-colors hover:bg-white/5"
+              style={{ borderColor: "var(--color-outline-variant)", background: "transparent" }}
             >
               Skip
             </button>
@@ -811,7 +811,7 @@ export default function SuggestionsView({
                 disabled={imgLoading || saving}
                 title="Voice input"
                 className="w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors hover:bg-white/10 disabled:opacity-40"
-                style={listening ? { background: "rgba(255,110,132,0.2)" } : undefined}
+                style={listening ? { background: "color-mix(in oklch, var(--color-error) 15%, transparent)" } : undefined}
               >
                 {listening ? "⏹" : "🎤"}
               </button>
@@ -874,7 +874,7 @@ export default function SuggestionsView({
       {saved.length > 0 && (
         <div className="mt-4">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-semibold text-[#777] uppercase tracking-widest">
+            <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-widest">
               This session ({saved.length})
             </p>
             <button
@@ -890,7 +890,7 @@ export default function SuggestionsView({
               <div
                 key={i}
                 className="rounded-xl border px-3 py-2.5"
-                style={{ background: "rgba(38,38,38,0.4)", borderColor: "rgba(72,72,71,0.15)" }}
+                style={{ background: "var(--color-surface-container-low)", borderColor: "var(--color-outline-variant)" }}
               >
                 <div className="flex items-center gap-2 mb-1">
                   <span
@@ -900,7 +900,7 @@ export default function SuggestionsView({
                     {s.cat}
                   </span>
                   {s.brain && (
-                    <span className="text-[10px] text-[#777]">
+                    <span className="text-[10px] text-on-surface-variant">
                       {BRAIN_META[(s.brain.type || "personal") as keyof typeof BRAIN_META]?.emoji}{" "}
                       {s.brain.name}
                     </span>
@@ -914,7 +914,7 @@ export default function SuggestionsView({
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-[#aaa] leading-relaxed">
+                <p className="text-xs text-on-surface-variant leading-relaxed">
                   {s.a.slice(0, 120)}
                   {s.a.length > 120 ? "…" : ""}
                 </p>
