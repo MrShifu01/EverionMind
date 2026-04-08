@@ -72,7 +72,23 @@ function syncToSupabase(fields: Record<string, string | null>): void {
     .upsert(
       { user_id: uid, ...fields, updated_at: new Date().toISOString() },
       { onConflict: "user_id" },
+    )
+    .then(({ error }) => {
+      if (error) console.error("[aiSettings] syncToSupabase failed:", error.message, fields);
+    });
+}
+
+// ── Awaitable save — use in Save buttons to surface DB errors to the user ──
+export async function persistKeyToDb(fields: Record<string, string | null>): Promise<{ error: string | null }> {
+  const uid = _cachedUserId || getUserId();
+  if (!uid) return { error: "Not authenticated — please sign in again." };
+  const { error } = await supabase
+    .from("user_ai_settings")
+    .upsert(
+      { user_id: uid, ...fields, updated_at: new Date().toISOString() },
+      { onConflict: "user_id" },
     );
+  return { error: error?.message ?? null };
 }
 
 // ── Primary AI provider ──
