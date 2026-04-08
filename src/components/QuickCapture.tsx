@@ -832,20 +832,48 @@ export default function QuickCapture({
         setPreview({ ...parsed, _raw: input });
         return;
       }
-      const newEntry = {
-        id: Date.now().toString(),
-        title: input.slice(0, 60),
-        content: input,
-        type: "note",
-        metadata: {},
-        pinned: false,
-        importance: 0,
-        tags: [],
-        created_at: new Date().toISOString(),
+      // AI returned no parseable title — save raw entry directly to DB so it
+      // persists across refreshes and gets embedded like any other capture.
+      setStatus("saving");
+      const rawTitle = input.slice(0, 500).trim() || "Untitled";
+      const captureHeaders = {
+        "Content-Type": "application/json",
+        ...(getEmbedHeaders() || {}),
       };
-      setEntries((prev) => [newEntry, ...prev]);
-      onCreated?.(newEntry);
-      setStatus("saved-raw");
+      const rpcRes = await authFetch("/api/capture", {
+        method: "POST",
+        headers: captureHeaders,
+        body: JSON.stringify({
+          p_title: rawTitle,
+          p_content: input,
+          p_type: "note",
+          p_metadata: {},
+          p_tags: [],
+          p_brain_id: primaryBrainId,
+          p_extra_brain_ids: extraBrainIds,
+        }),
+      });
+      if (rpcRes.ok) {
+        const result = await rpcRes.json();
+        const newEntry = {
+          id: result?.id || Date.now().toString(),
+          title: rawTitle,
+          content: input,
+          type: "note",
+          metadata: {},
+          pinned: false,
+          importance: 0,
+          tags: [],
+          created_at: new Date().toISOString(),
+        };
+        setEntries((prev) => [newEntry as Entry, ...prev]);
+        onCreated?.(newEntry as Entry);
+        setStatus("saved-db");
+      } else {
+        showToast("Failed to save entry. Please try again.", "error");
+        setText(input);
+        setStatus("error");
+      }
     } catch (e) {
       console.error("[capture] API error:", e);
       showToast("Capture failed. Please try again.", "error");
@@ -862,7 +890,7 @@ export default function QuickCapture({
     "saved-db": "✅ Saved & synced!",
     "saved-local": "📡 Saved — will sync when online",
     "saved-raw": "📝 Saved",
-    error: "⚠️ Sync failed — queued for retry",
+    error: "⚠️ Failed to save — please try again",
     "offline-image": "📵 Uploads need a connection",
     "img-too-large": "⚠️ Photo too large — try a smaller image",
     "file-too-large": "⚠️ File too large — max 10MB",
