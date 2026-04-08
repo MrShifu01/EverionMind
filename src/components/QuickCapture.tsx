@@ -998,42 +998,53 @@ export default function QuickCapture({
 
         {/* Action buttons */}
         <div className="flex items-center gap-1 flex-shrink-0">
+          {/* Voice */}
           <button
             onClick={startVoice}
             disabled={loading}
-            title="Voice capture"
-            aria-label="Voice capture"
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors hover:bg-surface-container disabled:opacity-40"
-            style={listening ? { background: "color-mix(in oklch, var(--color-error) 12%, transparent)" } : undefined}
+            title={listening ? "Stop recording" : "Voice capture"}
+            aria-label={listening ? "Stop recording" : "Voice capture"}
+            className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors hover:bg-white/10 disabled:opacity-40"
+            style={listening ? { background: "color-mix(in oklch, var(--color-error) 15%, transparent)", color: "var(--color-error)" } : { color: "var(--color-on-surface-variant)" }}
           >
-            🎤
+            {listening ? (
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" /></svg>
+            )}
           </button>
+          {/* Camera */}
           <button
             onClick={() => imgRef.current?.click()}
             disabled={loading}
             title="Photo capture"
             aria-label="Photo capture"
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors hover:bg-surface-container disabled:opacity-40"
+            className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors hover:bg-white/10 disabled:opacity-40"
+            style={{ color: "var(--color-on-surface-variant)" }}
           >
-            📷
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" /><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" /></svg>
           </button>
+          {/* File upload */}
           <button
             onClick={() => fileRef.current?.click()}
             disabled={loading}
             title="Upload file"
             aria-label="Upload file (PDF, Word, MD, TXT)"
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors hover:bg-surface-container disabled:opacity-40"
+            className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors hover:bg-white/10 disabled:opacity-40"
+            style={{ color: "var(--color-on-surface-variant)" }}
           >
-            📄
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
           </button>
+          {/* Bulk upload */}
           <button
             onClick={() => bulkFileRef.current?.click()}
             disabled={loading}
             title="Bulk upload"
             aria-label="Bulk upload multiple files"
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors hover:bg-surface-container disabled:opacity-40"
+            className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors hover:bg-white/10 disabled:opacity-40"
+            style={{ color: "var(--color-on-surface-variant)" }}
           >
-            📁
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" /></svg>
           </button>
           <button
             onClick={capture}
