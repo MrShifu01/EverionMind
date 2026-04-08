@@ -24,7 +24,7 @@ const ALLOWED_FIELDS = [
 const DAYS = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
 const EXPIRY_KEYWORDS = ["expir", "valid until", "renew", "passport", "licence", "insurance", "policy"];
 
-function verifyCronHmac(header: string, secret: string): boolean {
+export function verifyCronHmac(header: string, secret: string): boolean {
   const date = new Date().toISOString().slice(0, 10);
   const expected = crypto.createHmac("sha256", secret).update(date).digest("hex");
   return header === `HMAC ${expected}`;
@@ -304,7 +304,9 @@ async function handleExpiry(req: ApiRequest, res: ApiResponse): Promise<void> {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) extracted = parsed;
       }
-    } catch {}
+    } catch (e: any) {
+      console.error("[push-expiry:ai-extract]", e.message);
+    }
 
     for (const { entry_id, item, date } of extracted) {
       if (!entry_id || !item || !date) continue;

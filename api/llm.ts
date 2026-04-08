@@ -167,8 +167,8 @@ async function handleOpenRouter(_req: ApiRequest, res: ApiResponse, { model, mes
     headers: {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${apiKey}`,
-      "HTTP-Referer": "https://openbrain.app",
-      "X-Title": "OpenBrain",
+      "HTTP-Referer": "https://everionmind.com",
+      "X-Title": "Everion",
     },
     body: JSON.stringify({
       model: safeModel,

@@ -4,14 +4,9 @@ import { rateLimit } from "./_lib/rateLimit.js";
 import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
 import { generateEmbedding, generateEmbeddingsBatch, buildEntryText } from "./_lib/generateEmbedding.js";
 import { applySecurityHeaders } from "./_lib/securityHeaders.js";
+import { sbHeaders, sbHeadersNoContent } from "./_lib/sbHeaders.js";
 
 const SB_URL = process.env.SUPABASE_URL;
-const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const SB_HEADERS = (): Record<string, string> => ({
-  "Content-Type": "application/json",
-  "apikey": SB_KEY!,
-  "Authorization": `Bearer ${SB_KEY}`,
-});
 
 // Entry types are flexible — the AI decides the best label.
 // The only reserved type is "secret" (triggers E2E encryption).
@@ -79,14 +74,13 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
   // S3-4: URL deduplication — merge instead of duplicate when same URL exists
   const sourceUrl = safeBody.p_metadata?.source_url || safeBody.p_metadata?.url;
   if (sourceUrl && p_brain_id) {
-    const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-    const dedupRes = await fetch(`${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(p_brain_id)}&select=id,metadata`, { headers: { "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}` } });
+    const dedupRes = await fetch(`${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(p_brain_id)}&select=id,metadata`, { headers: sbHeadersNoContent() });
     if (dedupRes.ok) {
       const existing: any[] = await dedupRes.json();
       const dupe = existing.find((e: any) => e.metadata?.source_url === sourceUrl || e.metadata?.url === sourceUrl);
       if (dupe) {
         const merged = { ...dupe.metadata, sources: [...(dupe.metadata?.sources || [sourceUrl]), sourceUrl] };
-        await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(dupe.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json", "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}`, "Prefer": "return=representation" }, body: JSON.stringify({ metadata: merged }) });
+        await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(dupe.id)}`, { method: "PATCH", headers: sbHeaders({ Prefer: "return=representation" }), body: JSON.stringify({ metadata: merged }) });
         return res.status(200).json({ id: dupe.id, merged: true });
       }
     }
@@ -94,11 +88,7 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
 
   const response = await fetch(`${SB_URL}/rest/v1/rpc/capture`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "apikey": process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      "Authorization": `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-    },
+    headers: sbHeaders(),
     body: JSON.stringify(safeBody),
   });
 
@@ -108,19 +98,14 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
   if (response.ok && data?.id) {
     fetch(`${SB_URL}/rest/v1/audit_log`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-        'Prefer': 'return=minimal',
-      },
+      headers: sbHeaders({ Prefer: 'return=minimal' }),
       body: JSON.stringify({
         user_id: user.id,
         action: 'entry_capture',
         resource_id: data.id,
         timestamp: new Date().toISOString(),
       }),
-    }).catch(() => {}); // best-effort, never blocks
+    }).catch((err: any) => console.error('[capture:audit_log]', err.message)); // best-effort, never blocks
   }
 
   // If extra brain IDs provided, share the entry into those brains via entry_brains
@@ -130,12 +115,7 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
       const rows = extraIds.map((brain_id: string) => ({ entry_id: data.id, brain_id }));
       fetch(`${SB_URL}/rest/v1/entry_brains`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": process.env.SUPABASE_SERVICE_ROLE_KEY!,
-          "Authorization": `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-          "Prefer": "resolution=ignore-duplicates",
-        },
+        headers: sbHeaders({ Prefer: "resolution=ignore-duplicates" }),
         body: JSON.stringify(rows),
       }).catch((err: any) => console.error('[capture:entry_brains] Failed to share entry to extra brains', err));
     }
@@ -151,7 +131,7 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
         .then((embedding: number[]) =>
           fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(data.id)}`, {
             method: "PATCH",
-            headers: { "Content-Type": "application/json", "apikey": process.env.SUPABASE_SERVICE_ROLE_KEY!, "Authorization": `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`, "Prefer": "return=minimal" },
+            headers: sbHeaders({ Prefer: "return=minimal" }),
             body: JSON.stringify({ embedding: `[${embedding.join(",")}]`, embedded_at: new Date().toISOString(), embedding_provider: embedProvider }),
           })
         )
@@ -189,11 +169,7 @@ async function handleSaveLinks(req: ApiRequest, res: ApiResponse): Promise<void>
 
   const response = await fetch(`${SB_URL}/rest/v1/rpc/save_links`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "apikey": process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      "Authorization": `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-    },
+    headers: sbHeaders(),
     body: JSON.stringify({
       p_user_id: user.id,
       p_links: JSON.stringify(valid),
@@ -227,7 +203,7 @@ export async function handleEmbed(req: ApiRequest, res: ApiResponse): Promise<vo
 
   if (entry_id && !batch) {
     if (typeof entry_id !== "string" || entry_id.length > 100) return res.status(400).json({ error: "Invalid entry_id" });
-    const entryRes = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entry_id)}&select=id,title,content,tags,brain_id`, { headers: SB_HEADERS() });
+    const entryRes = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entry_id)}&select=id,title,content,tags,brain_id`, { headers: sbHeadersNoContent() });
     if (!entryRes.ok) return res.status(502).json({ error: "Database error" });
     const [entry]: any[] = await entryRes.json();
     if (!entry) return res.status(404).json({ error: "Entry not found" });
@@ -241,7 +217,7 @@ export async function handleEmbed(req: ApiRequest, res: ApiResponse): Promise<vo
         const embedding = await generateEmbedding(buildEntryText(entry), provider as "openai" | "google", apiKey);
         await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entry_id)}`, {
           method: "PATCH",
-          headers: { ...SB_HEADERS(), "Prefer": "return=minimal" },
+          headers: sbHeaders({ Prefer: "return=minimal" }),
           body: JSON.stringify({ embedding: `[${embedding.join(",")}]`, embedded_at: new Date().toISOString(), embedding_provider: provider }),
         });
         return res.status(200).json({ ok: true });
@@ -260,11 +236,11 @@ export async function handleEmbed(req: ApiRequest, res: ApiResponse): Promise<vo
     const filter = force
       ? `brain_id=eq.${encodeURIComponent(brain_id)}`
       : `brain_id=eq.${encodeURIComponent(brain_id)}&or=(embedded_at.is.null,embedding_provider.neq.${encodeURIComponent(provider)})`;
-    const entriesRes = await fetch(`${SB_URL}/rest/v1/entries?${filter}&select=id,title,content,tags&limit=5`, { headers: SB_HEADERS() });
+    const entriesRes = await fetch(`${SB_URL}/rest/v1/entries?${filter}&select=id,title,content,tags&limit=5`, { headers: sbHeadersNoContent() });
     if (!entriesRes.ok) return res.status(502).json({ error: "Database error" });
     const entries: any[] = await entriesRes.json();
     if (!entries.length) return res.status(200).json({ processed: 0, failed: 0, remaining: 0 });
-    const countRes = await fetch(`${SB_URL}/rest/v1/entries?${filter}&select=id`, { headers: { ...SB_HEADERS(), "Prefer": "count=exact" } });
+    const countRes = await fetch(`${SB_URL}/rest/v1/entries?${filter}&select=id`, { headers: sbHeadersNoContent({ Prefer: "count=exact" }) });
     const remaining = parseInt(countRes.headers.get("content-range")?.split("/")?.[1] || "0", 10);
     let processed = 0;
     let failed = 0;
@@ -274,7 +250,7 @@ export async function handleEmbed(req: ApiRequest, res: ApiResponse): Promise<vo
       await Promise.all(entries.map((entry: any, idx: number) =>
         fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entry.id)}`, {
           method: "PATCH",
-          headers: { ...SB_HEADERS(), "Prefer": "return=minimal" },
+          headers: sbHeaders({ Prefer: "return=minimal" }),
           body: JSON.stringify({ embedding: `[${embeddings[idx].join(",")}]`, embedded_at: new Date().toISOString(), embedding_provider: provider }),
         }).then(async (r: Response) => {
           if (r.ok) { processed++; }

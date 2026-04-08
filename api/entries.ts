@@ -3,12 +3,10 @@ import { verifyAuth } from "./_lib/verifyAuth.js";
 import { rateLimit } from "./_lib/rateLimit.js";
 import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
 import { applySecurityHeaders } from "./_lib/securityHeaders.js";
+import { sbHeaders, sbHeadersNoContent } from "./_lib/sbHeaders.js";
 
 const SB_URL = process.env.SUPABASE_URL;
-const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ENTRY_FIELDS = "id,title,content,type,tags,metadata,brain_id,importance,pinned,created_at";
-const sbHdrs = (): Record<string, string> => ({ "apikey": SB_KEY!, "Authorization": `Bearer ${SB_KEY}` });
-const sbHdrsJson = (extra: Record<string, string> = {}): Record<string, string> => ({ "Content-Type": "application/json", "apikey": SB_KEY!, "Authorization": `Bearer ${SB_KEY}`, ...extra });
 
 // Dispatched via rewrites:
 //   /api/delete-entry, /api/update-entry → /api/entries
@@ -42,7 +40,7 @@ async function handleEntryBrainsGet(req: ApiRequest, res: ApiResponse): Promise<
 
   const r = await fetch(
     `${SB_URL}/rest/v1/entry_brains?entry_id=eq.${encodeURIComponent(entry_id)}&select=brain_id`,
-    { headers: sbHdrs() },
+    { headers: sbHeadersNoContent() },
   );
   if (!r.ok) return res.status(502).json({ error: "Database error" });
   const rows: any[] = await r.json();
@@ -64,7 +62,7 @@ async function handleEntryBrainsPost(req: ApiRequest, res: ApiResponse): Promise
 
   const entryRes = await fetch(
     `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entry_id)}&select=brain_id`,
-    { headers: sbHdrs() },
+    { headers: sbHeadersNoContent() },
   );
   if (!entryRes.ok) return res.status(502).json({ error: "Database error" });
   const [entry]: any[] = await entryRes.json();
@@ -75,7 +73,7 @@ async function handleEntryBrainsPost(req: ApiRequest, res: ApiResponse): Promise
 
   const r = await fetch(`${SB_URL}/rest/v1/entry_brains`, {
     method: "POST",
-    headers: sbHdrsJson({ Prefer: "resolution=ignore-duplicates,return=minimal" }),
+    headers: sbHeaders({ Prefer: "resolution=ignore-duplicates,return=minimal" }),
     body: JSON.stringify({ entry_id, brain_id }),
   });
   if (!r.ok) return res.status(502).json({ error: "Database error" });
@@ -98,7 +96,7 @@ async function handleEntryBrainsDelete(req: ApiRequest, res: ApiResponse): Promi
 
   const entryRes = await fetch(
     `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entry_id)}&select=brain_id`,
-    { headers: sbHdrs() },
+    { headers: sbHeadersNoContent() },
   );
   if (!entryRes.ok) return res.status(502).json({ error: "Database error" });
   const [entry]: any[] = await entryRes.json();
@@ -109,7 +107,7 @@ async function handleEntryBrainsDelete(req: ApiRequest, res: ApiResponse): Promi
 
   const r = await fetch(
     `${SB_URL}/rest/v1/entry_brains?entry_id=eq.${encodeURIComponent(entry_id)}&brain_id=eq.${encodeURIComponent(brain_id)}`,
-    { method: "DELETE", headers: sbHdrs() },
+    { method: "DELETE", headers: sbHeadersNoContent() },
   );
   if (!r.ok) return res.status(502).json({ error: "Database error" });
   return res.status(200).json({ ok: true });
@@ -141,7 +139,7 @@ async function handleGet(req: ApiRequest, res: ApiResponse): Promise<void> {
     // Fetch entry IDs shared into this brain via entry_brains junction table
     const sharedRes = await fetch(
       `${SB_URL}/rest/v1/entry_brains?brain_id=eq.${encodeURIComponent(brain_id)}&select=entry_id`,
-      { headers: sbHdrs() }
+      { headers: sbHeadersNoContent() }
     );
     const sharedRows: any[] = sharedRes.ok ? await sharedRes.json() : [];
     const sharedIds: string[] = sharedRows.map((r: any) => r.entry_id).filter(Boolean);
@@ -158,7 +156,7 @@ async function handleGet(req: ApiRequest, res: ApiResponse): Promise<void> {
         `${SB_URL}/rest/v1/rpc/get_entries_for_brain?select=${encodeURIComponent(ENTRY_FIELDS)}&order=created_at.desc&limit=${limit + 1}`,
         {
           method: "POST",
-          headers: sbHdrsJson(),
+          headers: sbHeaders(),
           body: JSON.stringify({ p_brain_id: brain_id }),
         }
       );
@@ -178,7 +176,7 @@ async function handleGet(req: ApiRequest, res: ApiResponse): Promise<void> {
 
     // Direct query: includes primary brain entries + shared entries from entry_brains
     const directUrl = `${SB_URL}/rest/v1/entries?select=${encodeURIComponent(ENTRY_FIELDS)}&order=created_at.desc&limit=${limit + 1}${deletedFilter}${orFilter}${cursorFilter}`;
-    const directRes = await fetch(directUrl, { headers: sbHdrs() });
+    const directRes = await fetch(directUrl, { headers: sbHeadersNoContent() });
     const rows: any[] = await directRes.json();
     const hasMore = rows.length > limit;
     const results = hasMore ? rows.slice(0, limit) : rows;
@@ -188,7 +186,7 @@ async function handleGet(req: ApiRequest, res: ApiResponse): Promise<void> {
 
   // Fallback: user's own entries (pre-migration compatibility)
   const url = `${SB_URL}/rest/v1/entries?select=${encodeURIComponent(ENTRY_FIELDS)}&order=created_at.desc&limit=${limit + 1}${deletedFilter}&user_id=eq.${encodeURIComponent(user.id)}${cursorFilter}`;
-  const response = await fetch(url, { headers: sbHdrs() });
+  const response = await fetch(url, { headers: sbHeadersNoContent() });
   const rows: any[] = await response.json();
   const hasMore = rows.length > limit;
   const results = hasMore ? rows.slice(0, limit) : rows;
@@ -212,7 +210,7 @@ async function handleDelete(req: ApiRequest, res: ApiResponse): Promise<void> {
 
   // SEC-1: Verify the requesting user is a member or owner of this entry's brain
   const entryRes = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&select=brain_id`, {
-    headers: sbHdrs(),
+    headers: sbHeadersNoContent(),
   });
   if (!entryRes.ok) return res.status(502).json({ error: "Database error" });
   const [entry]: any[] = await entryRes.json();
@@ -227,7 +225,7 @@ async function handleDelete(req: ApiRequest, res: ApiResponse): Promise<void> {
       `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`,
       {
         method: "DELETE",
-        headers: sbHdrsJson({ "Prefer": "return=minimal" }),
+        headers: sbHeaders({ "Prefer": "return=minimal" }),
       }
     );
 
@@ -236,7 +234,7 @@ async function handleDelete(req: ApiRequest, res: ApiResponse): Promise<void> {
     // SEC-14: Fire-and-forget audit log write to Supabase
     fetch(`${SB_URL}/rest/v1/audit_log`, {
       method: 'POST',
-      headers: sbHdrsJson({ 'Prefer': 'return=minimal' }),
+      headers: sbHeaders({ 'Prefer': 'return=minimal' }),
       body: JSON.stringify({
         user_id: user.id,
         action: 'entry_permanent_delete',
@@ -253,7 +251,7 @@ async function handleDelete(req: ApiRequest, res: ApiResponse): Promise<void> {
     `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`,
     {
       method: "PATCH",
-      headers: sbHdrsJson({ "Prefer": "return=minimal" }),
+      headers: sbHeaders({ "Prefer": "return=minimal" }),
       body: JSON.stringify({ deleted_at: new Date().toISOString() }),
     }
   );
@@ -263,7 +261,7 @@ async function handleDelete(req: ApiRequest, res: ApiResponse): Promise<void> {
   // SEC-14: Fire-and-forget audit log write to Supabase
   fetch(`${SB_URL}/rest/v1/audit_log`, {
     method: 'POST',
-    headers: sbHdrsJson({ 'Prefer': 'return=minimal' }),
+    headers: sbHeaders({ 'Prefer': 'return=minimal' }),
     body: JSON.stringify({
       user_id: user.id,
       action: 'entry_delete',
@@ -293,7 +291,7 @@ async function handlePatch(req: ApiRequest, res: ApiResponse): Promise<void> {
 
     // SEC-1: Verify the requesting user is a member or owner of this entry's brain
     const entryRes = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&select=brain_id`, {
-      headers: sbHdrs(),
+      headers: sbHeadersNoContent(),
     });
     if (!entryRes.ok) return res.status(502).json({ error: "Database error" });
     const [entryData]: any[] = await entryRes.json();
@@ -306,7 +304,7 @@ async function handlePatch(req: ApiRequest, res: ApiResponse): Promise<void> {
       `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`,
       {
         method: "PATCH",
-        headers: sbHdrsJson({ "Prefer": "return=representation" }),
+        headers: sbHeaders({ "Prefer": "return=representation" }),
         body: JSON.stringify({ deleted_at: null }),
       }
     );
@@ -336,7 +334,7 @@ async function handlePatch(req: ApiRequest, res: ApiResponse): Promise<void> {
 
   // SEC-1: Verify the requesting user is a member or owner of this entry's brain
   const entryRes = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&select=brain_id`, {
-    headers: sbHdrs(),
+    headers: sbHeadersNoContent(),
   });
   if (!entryRes.ok) return res.status(502).json({ error: "Database error" });
   const [entry]: any[] = await entryRes.json();
@@ -349,7 +347,7 @@ async function handlePatch(req: ApiRequest, res: ApiResponse): Promise<void> {
     `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`,
     {
       method: "PATCH",
-      headers: sbHdrsJson({ "Prefer": "return=representation" }),
+      headers: sbHeaders({ "Prefer": "return=representation" }),
       body: JSON.stringify(patch),
     }
   );
@@ -359,7 +357,7 @@ async function handlePatch(req: ApiRequest, res: ApiResponse): Promise<void> {
   // SEC-14: Fire-and-forget audit log write to Supabase
   fetch(`${SB_URL}/rest/v1/audit_log`, {
     method: 'POST',
-    headers: sbHdrsJson({ 'Prefer': 'return=minimal' }),
+    headers: sbHeaders({ 'Prefer': 'return=minimal' }),
     body: JSON.stringify({
       user_id: user.id,
       action: 'entry_update',

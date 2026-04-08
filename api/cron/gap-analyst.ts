@@ -7,17 +7,13 @@
  */
 import type { ApiRequest, ApiResponse } from "../_lib/types";
 import { applySecurityHeaders } from "../_lib/securityHeaders.js";
-
-const SB_URL = process.env.SUPABASE_URL;
-const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const hdrs = (): Record<string, string> => ({
-  "Content-Type": "application/json",
-  apikey: SB_KEY!,
-  Authorization: `Bearer ${SB_KEY}`,
-});
+import { sbHeaders, sbHeadersNoContent } from "../_lib/sbHeaders.js";
+import { verifyCronHmac } from "../_lib/cronAuth.js";
 
 const MIN_TAG_COUNT = 2; // tag must appear in ≥2 entries to be considered
 const GAP_THRESHOLD = 3; // fewer than this many entries per tag = gap
+
+const SB_URL = process.env.SUPABASE_URL;
 
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
   applySecurityHeaders(res);
@@ -28,8 +24,15 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     }
   }
 
+  // SEC-16: HMAC auth for non-vercel-cron callers
+  const authHeader = (req.headers["authorization"] as string) || "";
+  const cronSecret = process.env.CRON_SECRET || "";
+  if (authHeader && !verifyCronHmac(authHeader, cronSecret) && authHeader !== `Bearer ${cronSecret}`) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
   // Fetch all brains
-  const brainsRes = await fetch(`${SB_URL}/rest/v1/brains?select=id,owner_id,name`, { headers: hdrs() });
+  const brainsRes = await fetch(`${SB_URL}/rest/v1/brains?select=id,owner_id,name`, { headers: sbHeadersNoContent() });
   if (!brainsRes.ok) return res.status(502).json({ error: "Failed to fetch brains" });
   const brains: any[] = await brainsRes.json();
 
@@ -39,7 +42,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   for (const brain of brains) {
     const entriesRes = await fetch(
       `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brain.id)}&select=id,title,tags`,
-      { headers: hdrs() }
+      { headers: sbHeadersNoContent() }
     );
     if (!entriesRes.ok) continue;
     const entries: any[] = await entriesRes.json();
@@ -63,13 +66,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
       // Store gap analysis in gap_log table (best-effort)
       fetch(`${SB_URL}/rest/v1/gap_log`, {
         method: "POST",
-        headers: { ...hdrs(), Prefer: "return=minimal" },
+        headers: sbHeaders({ Prefer: "return=minimal" }),
         body: JSON.stringify({
           brain_id: brain.id,
           gap_tags: gapTags,
           analyzed_at: new Date().toISOString(),
         }),
-      }).catch(() => {});
+      }).catch((err: any) => console.error("[gap-analyst:gap_log]", err.message));
     }
   }
 
