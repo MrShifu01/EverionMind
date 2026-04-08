@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 
 const { mockSignOut } = vi.hoisted(() => ({
@@ -18,8 +18,23 @@ describe("AccountTab", () => {
   });
 
   it("calls supabase.auth.signOut when Sign out is clicked", () => {
+    mockSignOut.mockResolvedValue({ error: null });
     render(<AccountTab email="user@example.com" />);
     fireEvent.click(screen.getByRole("button", { name: /sign out/i }));
     expect(mockSignOut).toHaveBeenCalledOnce();
+  });
+
+  it("shows signing out state while pending", async () => {
+    mockSignOut.mockReturnValue(new Promise(() => {}));
+    render(<AccountTab email="user@example.com" />);
+    fireEvent.click(screen.getByRole("button", { name: /sign out/i }));
+    expect(await screen.findByRole("button", { name: /signing out/i })).toBeInTheDocument();
+  });
+
+  it("shows error message if sign out fails", async () => {
+    mockSignOut.mockResolvedValue({ error: { message: "Network error" } });
+    render(<AccountTab email="user@example.com" />);
+    fireEvent.click(screen.getByRole("button", { name: /sign out/i }));
+    await waitFor(() => expect(screen.getByText(/network error/i)).toBeInTheDocument());
   });
 });

@@ -254,3 +254,26 @@ async function handlePin(req: ApiRequest, res: ApiResponse): Promise<void> {
 
   return void res.status(405).json({ error: "Method not allowed" });
 }
+
+// ── /api/user-data?resource=account — delete authenticated user's account ──
+async function handleDeleteAccount(req: ApiRequest, res: ApiResponse): Promise<void> {
+  if (req.method !== "DELETE") return void res.status(405).json({ error: "Method not allowed" });
+  if (!(await rateLimit(req, 5))) return void res.status(429).json({ error: "Too many requests" });
+
+  const user: any = await verifyAuth(req);
+  if (!user) return void res.status(401).json({ error: "Unauthorized" });
+
+  const r = await fetch(`${SB_URL}/auth/v1/admin/users/${encodeURIComponent(user.id)}`, {
+    method: "DELETE",
+    headers: hdrs(),
+  });
+
+  if (!r.ok) {
+    const detail = await r.text().catch(() => String(r.status));
+    console.error("[account:delete] Failed:", r.status, detail);
+    return void res.status(502).json({ error: "Failed to delete account" });
+  }
+
+  console.log(`[audit] DELETE_ACCOUNT user=${user.id}`);
+  return void res.status(200).json({ ok: true });
+}

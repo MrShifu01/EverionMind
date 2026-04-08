@@ -16,6 +16,7 @@ const TAB_DEFS = [
   { id: "brain" as TabId,         label: "Brain",         icon: "🎯" },
   { id: "notifications" as TabId, label: "Notifications", icon: "🔔" },
   { id: "storage" as TabId,       label: "Storage",       icon: "💾" },
+  { id: "danger" as TabId,        label: "Danger",        icon: "⚠️" },
 ];
 
 export default function SettingsView() {
@@ -28,9 +29,7 @@ export default function SettingsView() {
   }, []);
 
 
-  const tabs = activeBrain?.myRole === "owner"
-    ? [...TAB_DEFS, { id: "danger" as TabId, label: "Danger", icon: "⚠️" }]
-    : TAB_DEFS;
+  const tabs = TAB_DEFS;
 
   return (
     <div className="min-h-screen" style={{ background: "var(--color-background)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
@@ -71,8 +70,25 @@ export default function SettingsView() {
         )}
         {activeTab === "notifications" && <NotificationsTab />}
         {activeTab === "storage" && <StorageTab activeBrain={activeBrain ?? undefined} />}
-        {activeTab === "danger" && activeBrain?.myRole === "owner" && (
-          <DangerTab activeBrain={activeBrain} deleteBrain={deleteBrain} />
+        {activeTab === "danger" && activeBrain && (
+          <DangerTab
+            activeBrain={activeBrain}
+            deleteBrain={deleteBrain}
+            isOwner={activeBrain.myRole === "owner"}
+            deleteAccount={async () => {
+              const session = await supabase.auth.getSession();
+              const token = session.data.session?.access_token;
+              const r = await fetch("/api/user-data?resource=account", {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (!r.ok) {
+                const data = await r.json().catch(() => ({}));
+                throw new Error(data.error || "Failed to delete account");
+              }
+              await supabase.auth.signOut();
+            }}
+          />
         )}
       </div>
     </div>
