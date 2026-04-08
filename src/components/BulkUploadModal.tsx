@@ -1,12 +1,10 @@
-// @ts-nocheck
 import { useState, useEffect, useRef } from "react";
 import { aiFetch } from "../lib/aiFetch";
 import { callAI } from "../lib/ai";
 import { authFetch } from "../lib/authFetch";
 import { getUserModel, getEmbedHeaders } from "../lib/aiSettings";
-import { isSupportedFile, isTextFile, isDocxFile, isExcelFile, readTextFile, readDocxFile, readExcelFile, readFileAsBase64, ACCEPT_STRING } from "../lib/fileParser";
+import { isSupportedFile, isTextFile, isDocxFile, isExcelFile, readTextFile, readDocxFile, readExcelFile, readFileAsBase64 } from "../lib/fileParser";
 import { shouldSplitContent, buildSplitPrompt, parseAISplitResponse } from "../lib/fileSplitter";
-import { getTypeConfig } from "../data/constants";
 import { registerTypeIcon, pickDefaultIcon } from "../lib/typeIcons";
 import { PROMPTS } from "../config/prompts";
 

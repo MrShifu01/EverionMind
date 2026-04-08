@@ -1,6 +1,4 @@
-// @ts-nocheck
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { useTheme } from "../ThemeContext";
 import { callAI } from "../lib/ai";
 import { aiFetch } from "../lib/aiFetch";
 import { getUserModel, getUserApiKey, getGroqKey, getEmbedHeaders } from "../lib/aiSettings";
@@ -16,6 +14,48 @@ import { registerTypeIcon, pickDefaultIcon } from "../lib/typeIcons";
 import { isSupportedFile, isTextFile, isDocxFile, isExcelFile, readTextFile, readDocxFile, readExcelFile, readFileAsBase64, ACCEPT_STRING } from "../lib/fileParser";
 import { shouldSplitContent, buildSplitPrompt, parseAISplitResponse } from "../lib/fileSplitter";
 import BulkUploadModal from "./BulkUploadModal";
+import type { Entry, Link } from "../types";
+
+type CaptureStatus =
+  | "thinking" | "saving" | "saved-db" | "saved-local" | "saved-raw"
+  | "error" | "offline-image" | "img-too-large" | "file-too-large"
+  | "unsupported-file" | "reading-file" | "splitting" | "file-empty"
+  | "vault-needed" | "mic-denied";
+
+interface ParsedEntry {
+  title?: string;
+  type?: string;
+  tags?: string[];
+  content?: string;
+  metadata?: Record<string, unknown>;
+  icon?: string;
+  _raw?: string;
+  [key: string]: unknown;
+}
+
+interface PreviewModalProps {
+  preview: ParsedEntry;
+  entries: Entry[];
+  onSave: (entry: ParsedEntry) => void;
+  onUpdate: (id: string, update: Partial<Entry>) => void | Promise<void>;
+  onCancel: () => void;
+}
+
+interface QuickCaptureProps {
+  entries: Entry[];
+  setEntries: React.Dispatch<React.SetStateAction<Entry[]>>;
+  links?: Link[];
+  addLinks?: (links: Link[]) => void;
+  onCreated?: (entry: Entry) => void;
+  onUpdate?: (id: string, update: Partial<Entry>) => void | Promise<void>;
+  isOnline?: boolean;
+  refreshCount?: (() => void) | null;
+  brainId: string;
+  brains?: { id: string; name: string; type?: string }[];
+  canWrite?: boolean;
+  cryptoKey?: CryptoKey | null;
+  onNavigate?: ((id: string) => void) | null;
+}
 
 const BRAIN_META_QC = {
   personal: { emoji: "🧠" },
@@ -23,11 +63,11 @@ const BRAIN_META_QC = {
   business: { emoji: "🏪" },
 };
 
-function PreviewModal({ preview, entries, onSave, onUpdate, onCancel }) {
+function PreviewModal({ preview, entries, onSave, onUpdate, onCancel }: PreviewModalProps) {
   const [title, setTitle] = useState(preview.title || "");
   const [type, setType] = useState(preview.type || "note");
   const [tags, setTags] = useState((preview.tags || []).join(", "));
-  const modalRef = useRef(null);
+  const modalRef = useRef<HTMLDivElement>(null);
   const dupes = useMemo(() => {
     if (!title.trim()) return [];
     return entries.filter((e) => scoreTitle(title, e.title) > 50).slice(0, 3);
@@ -37,13 +77,13 @@ function PreviewModal({ preview, entries, onSave, onUpdate, onCancel }) {
   useEffect(() => {
     const el = modalRef.current;
     if (!el) return;
-    const focusable = el.querySelectorAll(
-      'button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    const focusable = Array.from(
+      el.querySelectorAll<HTMLElement>('button, input, select, textarea, [tabindex]:not([tabindex="-1"])')
     );
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
     first?.focus();
-    function trap(e) {
+    function trap(e: KeyboardEvent) {
       if (e.key !== "Tab") return;
       if (e.shiftKey) {
         if (document.activeElement === first) { e.preventDefault(); last?.focus(); }
@@ -116,14 +156,14 @@ function PreviewModal({ preview, entries, onSave, onUpdate, onCancel }) {
           <div className="mt-4 p-3 rounded-xl border" style={{ borderColor: "var(--color-primary-container)", background: "color-mix(in oklch, var(--color-primary) 6%, transparent)" }}>
             <p className="text-xs font-semibold mb-2 text-primary">⚠ Similar entries found — update one instead?</p>
             {dupes.map((d) => (
-              <div key={d.id} className="flex items-center justify-between gap-2 py-1.5">
-                <span className="text-xs text-on-surface-variant truncate">• {d.title}</span>
+              <div key={(d as Entry).id} className="flex items-center justify-between gap-2 py-1.5">
+                <span className="text-xs text-on-surface-variant truncate">• {(d as Entry).title}</span>
                 <button
                   onClick={() => {
-                    onUpdate(d.id, {
+                    onUpdate((d as Entry).id, {
                       title: title.trim(),
                       type,
-                      tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+                      tags: tags.split(",").map((t: string) => t.trim()).filter(Boolean),
                       content: preview.content,
                       metadata: preview.metadata,
                     });
@@ -152,7 +192,7 @@ function PreviewModal({ preview, entries, onSave, onUpdate, onCancel }) {
                 ...preview,
                 title: title.trim(),
                 type,
-                tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
+                tags: tags.split(",").map((tag: string) => tag.trim()).filter(Boolean),
               })
             }
             disabled={!title.trim()}
@@ -181,40 +221,34 @@ export default function QuickCapture({
   canWrite = true,
   cryptoKey = null,
   onNavigate = null,
-}) {
+}: QuickCaptureProps) {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState(null);
-  const [preview, setPreview] = useState(null);
+  const [status, setStatus] = useState<CaptureStatus | null>(null);
+  const [preview, setPreview] = useState<ParsedEntry | null>(null);
   const [listening, setListening] = useState(false);
   // Multi-brain: which brains to capture into (primary = first element)
   const [selectedBrainIds, setSelectedBrainIds] = useState(() => (brainId ? [brainId] : []));
-  const [multiPreview, setMultiPreview] = useState(null); // array of parsed entries from file split
-  const imgRef = useRef(null);
-  const fileRef = useRef(null);
-  const bulkFileRef = useRef(null);
-  const [bulkFiles, setBulkFiles] = useState(null); // File[] | null
-  const recognitionRef = useRef(null);
-  const connectionsTimerRef = useRef(null);
-  const lastConnectionsLengthRef = useRef(entries ? entries.length : 0);
-  const isBulkImportingRef = useRef(false);
+  const [multiPreview, setMultiPreview] = useState<ParsedEntry[] | null>(null);
+  const imgRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const bulkFileRef = useRef<HTMLInputElement>(null);
+  const [bulkFiles, setBulkFiles] = useState<File[] | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null);
+  const connectionsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastConnectionsLengthRef = useRef<number>(entries ? entries.length : 0);
+  const isBulkImportingRef = useRef<boolean>(false);
 
   // Keep selection in sync when active brain changes
   useEffect(() => {
     if (brainId) setSelectedBrainIds((prev) => (prev.includes(brainId) ? prev : [brainId]));
   }, [brainId]);
 
-  function toggleBrain(id) {
-    setSelectedBrainIds((prev) => {
-      if (prev.includes(id)) return prev.length > 1 ? prev.filter((x) => x !== id) : prev;
-      return [...prev, id];
-    });
-  }
-
   const primaryBrainId = selectedBrainIds[0] || brainId;
   const extraBrainIds = selectedBrainIds.slice(1);
 
-  const handleImageUpload = async (e) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
@@ -231,9 +265,9 @@ export default function QuickCapture({
     setLoading(true);
     setStatus("thinking");
     try {
-      const base64 = await new Promise((res, rej) => {
+      const base64 = await new Promise<string>((res, rej) => {
         const r = new FileReader();
-        r.onload = () => res(r.result.split(",")[1]);
+        r.onload = () => res((r.result as string).split(",")[1]);
         r.onerror = rej;
         r.readAsDataURL(file);
       });
@@ -268,7 +302,7 @@ export default function QuickCapture({
     setStatus(null);
   };
 
-  const handleFileUpload = async (e) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
@@ -351,7 +385,7 @@ export default function QuickCapture({
           // Show multi-entry preview
           setLoading(false);
           setStatus(null);
-          setMultiPreview(entries);
+          setMultiPreview(entries as ParsedEntry[]);
           return;
         } else if (entries.length === 1) {
           // Single entry — show normal preview
@@ -372,7 +406,7 @@ export default function QuickCapture({
     setTimeout(() => setStatus(null), 3000);
   };
 
-  const saveMultiEntries = async (entriesToSave) => {
+  const saveMultiEntries = async (entriesToSave: ParsedEntry[]) => {
     setMultiPreview(null);
     setLoading(true);
     setStatus("saving");
@@ -422,8 +456,8 @@ export default function QuickCapture({
             tags: parsed.tags || [],
             created_at: new Date().toISOString(),
           };
-          setEntries((prev) => [newEntry, ...prev]);
-          onCreated?.(newEntry);
+          setEntries((prev) => [newEntry as Entry, ...prev]);
+          onCreated?.(newEntry as Entry);
           savedCount++;
         } else {
           const errData = await rpcRes.json().catch(() => ({}));
@@ -440,11 +474,13 @@ export default function QuickCapture({
   };
 
   // Whisper recording state
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   const _startSpeechRecognitionFallback = useCallback(() => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
+    const SR: (new () => any) | undefined = w.SpeechRecognition || w.webkitSpeechRecognition;
     if (!SR) {
       setText((prev) => prev + " [Voice not supported in this browser]");
       return;
@@ -458,13 +494,13 @@ export default function QuickCapture({
     recognition.interimResults = true;
     recognition.continuous = false;
     recognitionRef.current = recognition;
-    let silenceTimer = null;
-    recognition.onresult = (event) => {
+    let silenceTimer: ReturnType<typeof setTimeout> | null = null;
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
       const transcript = Array.from(event.results)
-        .map((r) => r[0].transcript)
+        .map((r: SpeechRecognitionResult) => r[0].transcript)
         .join("");
       setText(transcript);
-      clearTimeout(silenceTimer);
+      if (silenceTimer !== null) clearTimeout(silenceTimer);
       if (event.results[event.results.length - 1].isFinal) {
         silenceTimer = setTimeout(() => recognition.stop(), 2000);
       }
@@ -550,14 +586,14 @@ export default function QuickCapture({
         setLoading(true);
         setStatus("thinking");
         try {
-          const base64 = await new Promise((resolve, reject) => {
+          const base64 = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
-            reader.onload = () => resolve(reader.result.split(",")[1]);
+            reader.onload = () => resolve((reader.result as string).split(",")[1]);
             reader.onerror = reject;
             reader.readAsDataURL(blob);
           });
 
-          const transcribeHeaders = { "Content-Type": "application/json" };
+          const transcribeHeaders: Record<string, string> = { "Content-Type": "application/json" };
           if (groqKey) transcribeHeaders["X-Groq-Api-Key"] = groqKey;
           if (openAIKey) transcribeHeaders["X-User-Api-Key"] = openAIKey;
           const transcribeRes = await authFetch("/api/transcribe", {
@@ -583,10 +619,11 @@ export default function QuickCapture({
 
       recorder.start(1000); // timeslice 1s — ensures ondataavailable fires on iOS
       setListening(true);
-    } catch (err) {
-      console.warn("[Voice] mic error:", err.message);
+    } catch (err: unknown) {
+      const micErr = err as { message?: string; name?: string };
+      console.warn("[Voice] mic error:", micErr.message);
       // Show error to user instead of silently failing
-      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+      if (micErr.name === "NotAllowedError" || micErr.name === "PermissionDeniedError") {
         setText((prev) => (prev ? prev : ""));
         setStatus("mic-denied");
         setTimeout(() => setStatus(null), 3000);
@@ -598,7 +635,7 @@ export default function QuickCapture({
   }, [listening, _startSpeechRecognitionFallback, stopWhisperRecording]);
 
   const doSave = useCallback(
-    async (parsed) => {
+    async (parsed: ParsedEntry) => {
       // Track capture edits as learnings (compare AI original vs user's final)
       if (preview && primaryBrainId) {
         if (preview.type && parsed.type && preview.type !== parsed.type) {
@@ -660,8 +697,8 @@ export default function QuickCapture({
                 { content: serverContent, metadata: serverMetadata },
                 cryptoKey,
               );
-              serverContent = encrypted.content;
-              serverMetadata = encrypted.metadata;
+              serverContent = encrypted.content as string;
+              serverMetadata = encrypted.metadata as Record<string, unknown>;
             }
             const captureHeaders = {
               "Content-Type": "application/json",
@@ -707,8 +744,8 @@ export default function QuickCapture({
                 tags: parsed.tags || [],
                 created_at: new Date().toISOString(),
               };
-              setEntries((prev) => [newEntry, ...prev]);
-              onCreated?.(newEntry);
+              setEntries((prev) => [newEntry as Entry, ...prev]);
+              onCreated?.(newEntry as Entry);
               setStatus("saved-db");
               // PERF-6: debounce findConnections by 5 s; skip during bulk import
               // (heuristic: if entries grew by more than 3 since last run, it's a bulk import)
@@ -716,7 +753,7 @@ export default function QuickCapture({
               const delta = currentLength - lastConnectionsLengthRef.current;
               lastConnectionsLengthRef.current = currentLength + 1; // +1 for the entry being saved
               if (!isBulkImportingRef.current && delta <= 3) {
-                clearTimeout(connectionsTimerRef.current);
+                if (connectionsTimerRef.current !== null) clearTimeout(connectionsTimerRef.current);
                 const entrySnapshot = newEntry;
                 const entriesSnapshot = entries;
                 const linksSnapshot = links || [];
@@ -726,7 +763,8 @@ export default function QuickCapture({
                     entriesSnapshot,
                     linksSnapshot,
                     primaryBrainId,
-                  ).then((newLinks) => {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  ).then((newLinks: any) => {
                     if (newLinks.length === 0) return;
                     addLinks?.(newLinks);
                     authFetch("/api/save-links", {
@@ -750,10 +788,11 @@ export default function QuickCapture({
                 tags: parsed.tags || [],
                 created_at: new Date().toISOString(),
               };
-              await saveEntry(newEntry, { brainId: primaryBrainId, vaultKey: cryptoKey ?? null });
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              await saveEntry(newEntry as Entry, { brainId: primaryBrainId, vaultKey: cryptoKey as any });
               refreshCount?.();
-              setEntries((prev) => [newEntry, ...prev]);
-              onCreated?.(newEntry);
+              setEntries((prev) => [newEntry as Entry, ...prev]);
+              onCreated?.(newEntry as Entry);
               setStatus("error");
             }
           }
@@ -797,21 +836,11 @@ export default function QuickCapture({
         tags: [],
         created_at: new Date().toISOString(),
       };
-      await enqueue({
-        id: crypto.randomUUID(),
-        type: "raw-capture",
-        anthropicRequest: {
-          model: getUserModel(),
-          max_tokens: 800,
-          system: PROMPTS.CAPTURE,
-          messages: [{ role: "user", content: input }],
-        },
-        tempId,
-        created_at: new Date().toISOString(),
-      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await enqueue({ id: crypto.randomUUID(), type: "raw-capture", anthropicRequest: { model: getUserModel(), max_tokens: 800, system: PROMPTS.CAPTURE, messages: [{ role: "user", content: input }] }, tempId, created_at: new Date().toISOString() } as any);
       refreshCount?.();
-      setEntries((prev) => [newEntry, ...prev]);
-      onCreated?.(newEntry);
+      setEntries((prev) => [newEntry as Entry, ...prev]);
+      onCreated?.(newEntry as Entry);
       setStatus("saved-local");
       setLoading(false);
       setTimeout(() => setStatus(null), 3000);
@@ -825,7 +854,7 @@ export default function QuickCapture({
         messages: [{ role: "user", content: input }],
       });
       const data = await res.json();
-      let parsed = {};
+      let parsed: ParsedEntry = {};
       try {
         parsed = JSON.parse((data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim());
       } catch {}
@@ -863,18 +892,8 @@ export default function QuickCapture({
         tags: [],
         created_at: new Date().toISOString(),
       };
-      await enqueue({
-        id: crypto.randomUUID(),
-        type: "raw-capture",
-        anthropicRequest: {
-          model: getUserModel(),
-          max_tokens: 800,
-          system: PROMPTS.CAPTURE,
-          messages: [{ role: "user", content: input }],
-        },
-        tempId,
-        created_at: new Date().toISOString(),
-      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await enqueue({ id: crypto.randomUUID(), type: "raw-capture", anthropicRequest: { model: getUserModel(), max_tokens: 800, system: PROMPTS.CAPTURE, messages: [{ role: "user", content: input }] }, tempId, created_at: new Date().toISOString() } as any);
       refreshCount?.();
       setEntries((prev) => [newEntry, ...prev]);
       onCreated?.(newEntry);
@@ -1006,7 +1025,7 @@ export default function QuickCapture({
           <button
             onClick={capture}
             disabled={loading || !text.trim()}
-            title={`Save to ${(BRAIN_META_QC[brains[0]?.type] || BRAIN_META_QC.personal).emoji} ${brains[0]?.name || "brain"}`}
+            title={`Save to ${(BRAIN_META_QC[brains[0]?.type as keyof typeof BRAIN_META_QC] ?? BRAIN_META_QC.personal).emoji} ${brains[0]?.name || "brain"}`}
             className="w-8 h-8 flex items-center justify-center rounded-xl text-lg font-bold transition-all disabled:opacity-30"
             style={{
               background: text.trim() ? "var(--color-primary)" : "var(--color-surface-container-highest)",
@@ -1022,7 +1041,7 @@ export default function QuickCapture({
       {status && (
         <div className="mt-2 px-1">
           <p className="text-xs" style={{ color: status === "error" || status.includes("large") || status.includes("unsupported") ? "var(--color-error)" : "var(--color-primary)" }}>
-            {statusMsg[status]}
+            {status ? statusMsg[status] : null}
           </p>
           {status === "vault-needed" && onNavigate && (
             <button
@@ -1045,7 +1064,7 @@ export default function QuickCapture({
           preview={preview}
           entries={entries}
           onSave={doSave}
-          onUpdate={onUpdate}
+          onUpdate={onUpdate ?? (() => {})}
           onCancel={() => setPreview(null)}
         />
       )}
@@ -1057,8 +1076,8 @@ export default function QuickCapture({
           brainId={primaryBrainId}
           brains={brains}
           onCreated={(entry) => {
-            setEntries((prev) => [entry, ...prev]);
-            onCreated?.(entry);
+            setEntries((prev) => [entry as Entry, ...prev]);
+            onCreated?.(entry as Entry);
           }}
           onDone={(totalSaved) => {
             setBulkFiles(null);
@@ -1108,14 +1127,14 @@ export default function QuickCapture({
                   style={{ background: "rgba(38,38,38,0.6)", borderColor: "var(--color-outline-variant)" }}
                 >
                   <button
-                    onClick={() => setMultiPreview((prev) => prev.filter((_, j) => j !== i))}
+                    onClick={() => setMultiPreview((prev) => (prev ?? []).filter((_, j) => j !== i))}
                     title="Remove"
                     className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full text-xs text-on-surface-variant hover:text-white hover:bg-white/10"
                   >
                     ✕
                   </button>
                   <div className="flex items-center gap-2 mb-1">
-                    <span>{getTypeConfig(entry.type).i}</span>
+                    <span>{getTypeConfig(entry.type ?? "note").i}</span>
                     <span className="text-sm font-semibold text-white truncate">{entry.title}</span>
                     <span className="text-[10px] uppercase tracking-wider text-on-surface-variant ml-auto mr-6">{entry.type}</span>
                   </div>
@@ -1123,9 +1142,9 @@ export default function QuickCapture({
                     {(entry.content || "").slice(0, 150)}
                     {(entry.content || "").length > 150 ? "…" : ""}
                   </p>
-                  {entry.tags?.length > 0 && (
+                  {(entry.tags?.length ?? 0) > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">
-                      {entry.tags.map((tag) => (
+                      {(entry.tags ?? []).map((tag) => (
                         <span
                           key={tag}
                           className="text-[10px] px-2 py-0.5 rounded-full"

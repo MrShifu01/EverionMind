@@ -36,6 +36,8 @@ export interface Entry {
   created_at?: string;
   updated_at?: string;
   encrypted?: boolean;
+  pinned?: boolean;
+  importance?: number;
 }
 
 export interface TypeConfig {
