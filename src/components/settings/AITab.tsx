@@ -43,7 +43,6 @@ export default function AITab() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold text-on-surface">AI Status</p>
-            <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>Claude AI (Haiku)</p>
           </div>
           <button
             onClick={testAI}

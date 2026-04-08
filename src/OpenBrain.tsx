@@ -14,6 +14,9 @@ import { useEntryActions } from "./hooks/useEntryActions";
 import { useNudge } from "./hooks/useNudge";
 import { useChat } from "./hooks/useChat";
 import { indexEntry, searchIndex } from "./lib/searchIndex";
+import { applyEntryFilters, getEntryTypes } from "./lib/entryFilters";
+import type { EntryFilterState } from "./lib/entryFilters";
+import GridFilters from "./components/GridFilters";
 import { readEntriesCache, writeEntriesCache } from "./lib/entriesCache";
 import { PinGate } from "./lib/pin";
 import { inferWorkspace } from "./lib/workspaceInfer";
@@ -113,8 +116,8 @@ export default function OpenBrain() {
 
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
-  const [typeFilter] = useState("all");
   const [workspace] = useState(() => localStorage.getItem("openbrain_workspace") || "all");
+  const [gridFilters, setGridFilters] = useState<EntryFilterState>({ type: "all", date: "all", sort: "newest" });
   const [view, setView] = useState("capture");
   const [, setNavOpen] = useState(false);
   const [selected, setSelected] = useState<Entry | null>(null);
@@ -177,15 +180,16 @@ export default function OpenBrain() {
   const filtered = useMemo(() => {
     let r = entries;
     if (workspace !== "all") r = r.filter((e) => { const ws = inferWorkspace(e); return ws === workspace || ws === "both"; });
-    if (typeFilter !== "all") r = r.filter((e) => e.type === typeFilter);
     if (search) { const ids = searchIndex(search); if (ids) r = r.filter((e) => ids.has(e.id)); }
-    return r;
-  }, [search, typeFilter, workspace, entries]);
+    return applyEntryFilters(r, gridFilters);
+  }, [search, gridFilters, workspace, entries]);
 
   const sortedTimeline = useMemo(
     () => [...filtered].sort((a, b) => new Date(a.created_at ?? 0).getTime() - new Date(b.created_at ?? 0).getTime()),
     [filtered],
   );
+
+  const availableEntryTypes = useMemo(() => getEntryTypes(entries), [entries]);
 
   const entriesValue = useMemo(
     () => ({ entries, setEntries, entriesLoaded, selected, setSelected, handleDelete, handleUpdate }),
@@ -255,11 +259,18 @@ export default function OpenBrain() {
 
               <div className="px-4 sm:px-6 pt-4 pb-32 lg:pb-8 max-w-6xl mx-auto">
                 {view === "grid" && (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border" style={{ background: "var(--color-surface-container-low)", borderColor: "var(--color-outline-variant)" }}>
                       <svg className="w-4 h-4 text-primary flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
                       <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Search memories..." className="flex-1 bg-transparent border-none outline-none text-on-surface placeholder:text-on-surface-variant/40 text-sm" />
                     </div>
+                    <GridFilters
+                      filters={gridFilters}
+                      availableTypes={availableEntryTypes}
+                      typeIcons={typeIcons}
+                      onChange={setGridFilters}
+                      activeCount={[gridFilters.type !== "all", gridFilters.date !== "all", gridFilters.sort !== "newest"].filter(Boolean).length}
+                    />
                     {!entriesLoaded ? <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"><SkeletonCard count={6} /></div>
                       : filtered.length > 0 ? <VirtualGrid filtered={filtered} setSelected={setSelected} typeIcons={typeIcons} onPin={(e) => handleUpdate(e.id, { pinned: !e.pinned })} onDelete={(e) => handleDelete(e.id)} />
                       : <div className="flex flex-col items-center justify-center py-20 gap-3"><div className="text-4xl opacity-40">🔍</div><p className="font-bold text-on-surface">No memories match</p></div>}
