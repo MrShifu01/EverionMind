@@ -28,6 +28,10 @@ export default function SettingsView() {
   }, []);
 
 
+  const tabs = activeBrain?.myRole === "owner"
+    ? [...TAB_DEFS, { id: "danger" as TabId, label: "Danger", icon: "⚠️" }]
+    : TAB_DEFS;
+
   return (
     <div className="min-h-screen" style={{ background: "var(--color-background)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
       <div className="px-4 pt-4 pb-2 border-b" style={{ borderColor: "var(--color-outline-variant)" }}>
@@ -54,6 +58,15 @@ export default function SettingsView() {
         </div>
       </div>
 
+      <div className="px-4 py-4 space-y-4">
+        {activeTab === "account" && <AccountTab email={email} />}
+        {activeTab === "intelligence" && <ProvidersTab activeBrain={activeBrain ?? undefined} />}
+        {activeTab === "brain" && activeBrain && (
+          <BrainTab
+            activeBrain={activeBrain}
+            canInvite={canInvite}
+            canManageMembers={canManageMembers}
+            onRefreshBrains={refresh}
           />
         )}
         {activeTab === "notifications" && <NotificationsTab />}
