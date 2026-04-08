@@ -385,8 +385,19 @@ export default function CaptureSheet({
             body: JSON.stringify({ audio: base64, mimeType: actualMime, language: "en" }),
           });
           if (transcribeRes.ok) {
-            const { text: t } = await transcribeRes.json();
+            const { text: t, audioBytes, provider: txProvider, model: txModel } = await transcribeRes.json();
             if (t?.trim()) setText((prev) => prev ? `${prev} ${t.trim()}` : t.trim());
+            if (audioBytes) {
+              import("../lib/usageTracker").then(m => {
+                m.recordUsage({
+                  date: new Date().toISOString().slice(0, 10),
+                  type: "transcription",
+                  provider: txProvider || "groq",
+                  model: txModel || "whisper-large-v3-turbo",
+                  audioBytes,
+                });
+              }).catch(() => {});
+            }
           } else {
             const errBody = await transcribeRes.text().catch(() => "");
             setErrorDetail(`[transcribe] HTTP ${transcribeRes.status} — ${errBody}`);

@@ -367,8 +367,19 @@ export default function SuggestionsView({
             body: JSON.stringify({ audio: base64, mimeType: actualMime, language: "en" }),
           });
           if (transcribeRes.ok) {
-            const { text } = await transcribeRes.json();
+            const { text, audioBytes, provider: txProvider, model: txModel } = await transcribeRes.json();
             if (text?.trim()) setAnswer((prev) => (prev ? `${prev} ${text.trim()}` : text.trim()));
+            if (audioBytes) {
+              import("../lib/usageTracker").then(m => {
+                m.recordUsage({
+                  date: new Date().toISOString().slice(0, 10),
+                  type: "transcription",
+                  provider: txProvider || "groq",
+                  model: txModel || "whisper-large-v3-turbo",
+                  audioBytes,
+                });
+              }).catch(() => {});
+            }
           } else {
             setMicError("Transcription failed — try again");
             setTimeout(() => setMicError(null), 3000);

@@ -289,7 +289,7 @@ async function handleTranscribe(req: ApiRequest, res: ApiResponse): Promise<void
   }
 
   const data: any = await whisperRes.json();
-  return res.status(200).json({ text: data.text || "" });
+  return res.status(200).json({ text: data.text || "", audioBytes: audioBuffer.byteLength, provider: useGroq ? "groq" : "openai", model });
 }
 
 function _mimeToExt(mime: string): string | null {

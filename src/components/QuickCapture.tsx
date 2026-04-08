@@ -623,8 +623,19 @@ export default function QuickCapture({
           });
 
           if (transcribeRes.ok) {
-            const { text } = await transcribeRes.json();
+            const { text, audioBytes, provider: txProvider, model: txModel } = await transcribeRes.json();
             if (text?.trim()) setText((prev) => (prev ? `${prev} ${text.trim()}` : text.trim()));
+            if (audioBytes) {
+              import("../lib/usageTracker").then(m => {
+                m.recordUsage({
+                  date: new Date().toISOString().slice(0, 10),
+                  type: "transcription",
+                  provider: txProvider || "groq",
+                  model: txModel || "whisper-large-v3-turbo",
+                  audioBytes,
+                });
+              }).catch(() => {});
+            }
           } else {
             console.warn("[Whisper] transcription failed:", transcribeRes.status);
             setText((prev) => prev + " [Transcription failed — try again]");

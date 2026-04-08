@@ -117,6 +117,7 @@ export async function callAI({
       if (inputTokens > 0 || outputTokens > 0) {
         recordUsage({
           date: new Date().toISOString().slice(0, 10),
+          type: "llm",
           inputTokens,
           outputTokens,
           provider: safeProvider,

@@ -170,6 +170,12 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
           const body = await patchRes.text().catch(() => String(patchRes.status));
           embedError = `[embed:patch] HTTP ${patchRes.status} — ${body}`;
           console.error(embedError);
+        } else {
+          res.setHeader("X-Embedding-Usage", JSON.stringify({
+            provider: embedProvider,
+            model: embedProvider === "google" ? "text-embedding-004" : "text-embedding-3-small",
+            count: 1,
+          }));
         }
       } catch (err: any) {
         embedError = `[embed] ${err?.message || String(err)}`;

@@ -4,11 +4,30 @@ export async function authFetch(url: string, options: RequestInit = {}): Promise
   const {
     data: { session },
   } = await supabase.auth.getSession();
-  return fetch(url, {
+  const response = await fetch(url, {
     ...options,
     headers: {
       ...options.headers,
       ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
     },
   });
+
+  // Auto-track embedding usage when backend reports it via header
+  const embeddingHeader = response.headers.get("X-Embedding-Usage");
+  if (embeddingHeader) {
+    try {
+      const { provider, model, count } = JSON.parse(embeddingHeader) as { provider: string; model: string; count: number };
+      import("./usageTracker").then(m => {
+        m.recordUsage({
+          date: new Date().toISOString().slice(0, 10),
+          type: "embedding",
+          provider,
+          model,
+          embeddingCount: count,
+        });
+      }).catch(() => {});
+    } catch {}
+  }
+
+  return response;
 }

@@ -97,6 +97,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   let queryEmbedding: number[];
   try {
     queryEmbedding = await generateEmbedding(message.trim(), embedProvider as "openai" | "google", embedKey);
+    res.setHeader("X-Embedding-Usage", JSON.stringify({
+      provider: embedProvider,
+      model: embedProvider === "google" ? "text-embedding-004" : "text-embedding-3-small",
+      count: 1,
+    }));
   } catch (e: any) {
     console.error("[chat:embed]", e.message);
     return res.status(502).json({ error: `Embedding failed: ${e.message}` });
