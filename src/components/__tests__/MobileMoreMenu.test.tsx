@@ -3,16 +3,48 @@ import { describe, it, expect, vi } from "vitest";
 import MobileMoreMenu from "../MobileMoreMenu";
 
 describe("MobileMoreMenu", () => {
-  it("does not render when isOpen is false", () => {
+  it("renders a sidebar panel (always mounted)", () => {
     const { container } = render(<MobileMoreMenu isOpen={false} onNavigate={vi.fn()} />);
-    expect(container.firstChild).toBeNull();
+    expect(container.firstChild).not.toBeNull();
   });
 
-  it("renders when isOpen is true", () => {
+  it("sidebar panel is translated off-screen when closed", () => {
+    render(<MobileMoreMenu isOpen={false} onNavigate={vi.fn()} />);
+    const panel = screen.getByRole("complementary");
+    expect(panel.className).toContain("translate-x-full");
+  });
+
+  it("sidebar panel is visible when open", () => {
+    render(<MobileMoreMenu isOpen={true} onNavigate={vi.fn()} />);
+    const panel = screen.getByRole("complementary");
+    expect(panel.className).toContain("translate-x-0");
+  });
+
+  it("renders Fill Brain item", () => {
+    render(<MobileMoreMenu isOpen={true} onNavigate={vi.fn()} />);
+    expect(screen.getByText("Fill Brain")).toBeInTheDocument();
+  });
+
+  it("renders Refine item", () => {
     render(<MobileMoreMenu isOpen={true} onNavigate={vi.fn()} />);
     expect(screen.getByText("Refine")).toBeInTheDocument();
+  });
+
+  it("renders Vault item", () => {
+    render(<MobileMoreMenu isOpen={true} onNavigate={vi.fn()} />);
     expect(screen.getByText("Vault")).toBeInTheDocument();
+  });
+
+  it("renders Settings item", () => {
+    render(<MobileMoreMenu isOpen={true} onNavigate={vi.fn()} />);
     expect(screen.getByText("Settings")).toBeInTheDocument();
+  });
+
+  it("calls onNavigate with 'suggest' when Fill Brain is clicked", () => {
+    const onNavigate = vi.fn();
+    render(<MobileMoreMenu isOpen={true} onNavigate={onNavigate} />);
+    fireEvent.click(screen.getByText("Fill Brain"));
+    expect(onNavigate).toHaveBeenCalledWith("suggest");
   });
 
   it("calls onNavigate with 'refine' when Refine button is clicked", () => {
@@ -36,10 +68,10 @@ describe("MobileMoreMenu", () => {
     expect(onNavigate).toHaveBeenCalledWith("settings");
   });
 
-  it("calls onNavigate when backdrop is clicked", () => {
+  it("calls onNavigate with 'close' when backdrop is clicked", () => {
     const onNavigate = vi.fn();
-    const { container } = render(<MobileMoreMenu isOpen={true} onNavigate={onNavigate} />);
-    const backdrop = container.querySelector("div:first-child");
+    render(<MobileMoreMenu isOpen={true} onNavigate={onNavigate} />);
+    const backdrop = document.querySelector("[data-testid='sidebar-backdrop']");
     if (backdrop) fireEvent.click(backdrop);
     expect(onNavigate).toHaveBeenCalledWith("close");
   });
