@@ -168,11 +168,25 @@ export function setModelForTask(task: string, model: string | null): void {
 // ── Load all settings from Supabase into memory / localStorage ──
 export async function loadUserAISettings(userId: string): Promise<void> {
   _cachedUserId = userId;
-  const { data } = await supabase
+  // Avoid .single()/.maybeSingle() — both send Accept: application/vnd.pgrst.object+json
+  // which PostgREST returns 406 when 0 rows exist (new user with no saved settings).
+  const { data: rows, error } = await supabase
     .from("user_ai_settings")
     .select("*")
     .eq("user_id", userId)
-    .maybeSingle();
+    .limit(1);
+
+  if (error) {
+    console.error("[aiSettings] loadUserAISettings failed:", error.message);
+    // Fall back to any keys that may still be in localStorage
+    for (const lsKey of SENSITIVE_LS_KEYS) {
+      const val = localStorage.getItem(lsKey);
+      if (val) _keys[lsKey] = val;
+    }
+    return;
+  }
+
+  const data = rows?.[0] ?? null;
 
   if (data) {
     // Sensitive keys → memory
