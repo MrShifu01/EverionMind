@@ -43,6 +43,7 @@ export default function ProvidersTab({ activeBrain }: Props) {
   const [orFilter, setOrFilter] = useState<FilterTier>("all");
   const [showKey, setShowKey] = useState(false);
   const [byoTestStatus, setByoTestStatus] = useState<string | null>(null);
+  const [byoTestError, setByoTestError] = useState<string | null>(null);
   const [keySaved, setKeySaved] = useState(false);
   const [keySaveStatus, setKeySaveStatus] = useState<string | null>(null);
   const [groqKeyVal, setGroqKeyVal] = useState(() => getGroqKey() || "");
@@ -117,6 +118,7 @@ export default function ProvidersTab({ activeBrain }: Props) {
     const key = byoProvider === "openrouter" ? orKey : byoKey;
     if (!key) return;
     setByoTestStatus("testing");
+    setByoTestError(null);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
     try {
@@ -132,16 +134,24 @@ export default function ProvidersTab({ activeBrain }: Props) {
       const res = await fetch(endpoint, {
         method: "POST",
         signal: controller.signal,
-        headers: { "Content-Type": "application/json", "X-User-Api-Key": key, ...authH },
+        headers: { "Content-Type": "application/json", "X-User-Api-Key": key.trim(), ...authH },
         body: JSON.stringify({ model, max_tokens: 10, messages: [{ role: "user", content: "Say ok" }] }),
       });
-      setByoTestStatus(res.ok ? "ok" : "fail");
+      if (res.ok) {
+        setByoTestStatus("ok");
+      } else {
+        const body = await res.json().catch(() => null);
+        const msg = body?.error || body?.message || `${res.status}`;
+        setByoTestError(msg);
+        setByoTestStatus("fail");
+      }
     } catch (e: any) {
       setByoTestStatus(e?.name === "AbortError" ? "timeout" : "fail");
+      if (e?.name === "AbortError") setByoTestError("Request timed out — model may be slow or unavailable.");
     } finally {
       clearTimeout(timeout);
     }
-    setTimeout(() => setByoTestStatus(null), 3000);
+    setTimeout(() => { setByoTestStatus(null); setByoTestError(null); }, 6000);
   };
 
   const handleSaveKey = async () => {
@@ -291,6 +301,12 @@ export default function ProvidersTab({ activeBrain }: Props) {
                   {byoTestStatus === "testing" ? "…" : byoTestStatus === "ok" ? "✓" : byoTestStatus === "timeout" ? "Timeout" : byoTestStatus === "fail" ? "✗" : "Test"}
                 </button>
               </div>
+              {byoTestError && (
+                <p className="text-[11px] mt-1" style={{ color: "var(--color-error)" }}>✗ {byoTestError}</p>
+              )}
+              {byoTestStatus === "ok" && (
+                <p className="text-[11px] mt-1" style={{ color: "var(--color-primary)" }}>✓ Connected</p>
+              )}
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
