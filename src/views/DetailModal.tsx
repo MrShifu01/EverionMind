@@ -434,7 +434,7 @@ export default function DetailModal({
             )}
             <button
               aria-label="Close"
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all press-scale"
+              className="w-11 h-11 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all press-scale"
               onClick={editing ? () => setEditing(false) : onClose}
             >
               ✕

@@ -96,7 +96,7 @@ export default function CreateBrainModal({ onClose, onCreate }: CreateBrainModal
         style={{
           background: "var(--color-surface)",
           borderColor: "var(--color-outline-variant)",
-          boxShadow: "0 20px 40px rgba(0,0,0,0.4)",
+          boxShadow: "var(--shadow-lg)",
           animation: "zoom-in-95 0.2s ease-out",
         }}
       >
@@ -104,7 +104,7 @@ export default function CreateBrainModal({ onClose, onCreate }: CreateBrainModal
         <button
           onClick={onClose}
           aria-label="Close"
-          className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all press-scale"
+          className="absolute top-5 right-5 w-11 h-11 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all press-scale"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />

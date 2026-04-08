@@ -5,17 +5,17 @@
 
 /* ── Theme Tokens ── */
 @theme {
-  /* Surfaces — Deep Neutral Charcoal (#121416 palette) */
-  --color-background:                  oklch(10% 0.004 230);
-  --color-surface:                     oklch(10% 0.004 230);
-  --color-surface-dim:                 oklch(7% 0.003 230);
-  --color-surface-container-lowest:    oklch(5% 0.003 230);
-  --color-surface-container-low:       oklch(14% 0.005 230);
-  --color-surface-container:           oklch(16% 0.005 230);
-  --color-surface-container-high:      oklch(20% 0.006 230);
-  --color-surface-container-highest:   oklch(24% 0.006 230);
-  --color-surface-variant:             oklch(20% 0.006 230);
-  --color-surface-bright:              oklch(30% 0.007 230);
+  /* Surfaces — Deep Warm Charcoal (#1A1816 palette) */
+  --color-background:                  oklch(11% 0.010 60);
+  --color-surface:                     oklch(11% 0.010 60);
+  --color-surface-dim:                 oklch(8% 0.007 60);
+  --color-surface-container-lowest:    oklch(6% 0.005 60);
+  --color-surface-container-low:       oklch(15% 0.012 62);
+  --color-surface-container:           oklch(17% 0.013 62);
+  --color-surface-container-high:      oklch(21% 0.015 65);
+  --color-surface-container-highest:   oklch(25% 0.016 65);
+  --color-surface-variant:             oklch(21% 0.015 65);
+  --color-surface-bright:              oklch(31% 0.018 65);
 
   /* Primary — Muted Gold/Bronze (#A68B67) */
   --color-primary:                     oklch(68% 0.09 75);
@@ -41,15 +41,15 @@
   --color-status-medium-container:     color-mix(in oklch, oklch(72% 0.16 68) 12%, transparent);
 
   /* On-colors */
-  --color-on-surface:                  oklch(96% 0.003 230);
-  --color-on-surface-variant:          oklch(66% 0.007 225);
+  --color-on-surface:                  oklch(96% 0.007 80);
+  --color-on-surface-variant:          oklch(62% 0.012 70);
 
   /* Borders */
-  --color-outline:                     oklch(40% 0.005 230);
-  --color-outline-variant:             oklch(22% 0.006 230);
+  --color-outline:                     oklch(38% 0.014 65);
+  --color-outline-variant:             oklch(22% 0.012 65);
 
   /* Scrim — modal backdrop */
-  --color-scrim:                       oklch(10% 0.004 230 / 0.65);
+  --color-scrim:                       oklch(10% 0.010 60 / 0.65);
 
   /* Typography */
   --font-family-headline: 'Lora', Georgia, serif;
@@ -75,11 +75,11 @@
   --radius-3xl:  1.5rem;
   --radius-full: 9999px;
 
-  /* Elevation shadows — no glow, just depth */
-  --shadow-sm:   0 1px 3px oklch(0% 0 0 / 0.3), 0 1px 2px oklch(0% 0 0 / 0.2);
-  --shadow-md:   0 4px 12px oklch(0% 0 0 / 0.35), 0 2px 4px oklch(0% 0 0 / 0.2);
-  --shadow-lg:   0 12px 32px oklch(0% 0 0 / 0.4), 0 4px 8px oklch(0% 0 0 / 0.2);
-  --shadow-nav:  0 -1px 0 oklch(22% 0.006 230), 0 8px 24px oklch(0% 0 0 / 0.3);
+  /* Elevation shadows — warm brown depth */
+  --shadow-sm:   0 1px 3px oklch(5% 0.010 60 / 0.40), 0 1px 2px oklch(5% 0.010 60 / 0.30);
+  --shadow-md:   0 4px 12px oklch(5% 0.010 60 / 0.45), 0 2px 4px oklch(5% 0.010 60 / 0.30);
+  --shadow-lg:   0 12px 32px oklch(5% 0.010 60 / 0.50), 0 4px 8px oklch(5% 0.010 60 / 0.30);
+  --shadow-nav:  0 -1px 0 oklch(22% 0.012 65), 0 8px 24px oklch(5% 0.010 60 / 0.40);
 
   /* Animations */
   --animate-shimmer:    shimmer 1.5s infinite;
@@ -172,7 +172,7 @@
 /* Selection */
 ::selection {
   background: oklch(68% 0.09 75 / 0.25);
-  color: oklch(96% 0.003 230);
+  color: oklch(96% 0.007 80);
 }
 
 /* Focus rings */
@@ -194,16 +194,16 @@
 html:not(.dark) {
   color-scheme: light;
 
-  /* Surfaces — Clean Neutral (#F8F9FA palette) */
-  --color-background:                  oklch(97.5% 0.003 230);
+  /* Surfaces — Warm Ivory Linen (#FAF7F2 palette) */
+  --color-background:                  oklch(98.5% 0.009 85);
   --color-surface:                     oklch(100% 0 0);
-  --color-surface-dim:                 oklch(95% 0.003 230);
+  --color-surface-dim:                 oklch(96.5% 0.010 85);
   --color-surface-container-lowest:    oklch(100% 0 0);
-  --color-surface-container-low:       oklch(97% 0.003 230);
-  --color-surface-container:           oklch(95% 0.003 230);
-  --color-surface-container-high:      oklch(92% 0.004 230);
-  --color-surface-container-highest:   oklch(89% 0.005 230);
-  --color-surface-variant:             oklch(92% 0.004 230);
+  --color-surface-container-low:       oklch(97.5% 0.011 85);
+  --color-surface-container:           oklch(95.5% 0.013 85);
+  --color-surface-container-high:      oklch(93% 0.014 83);
+  --color-surface-container-highest:   oklch(90% 0.016 80);
+  --color-surface-variant:             oklch(93% 0.014 83);
   --color-surface-bright:              oklch(100% 0 0);
 
   /* Primary — Muted Gold/Bronze, WCAG AA on white */
@@ -230,21 +230,21 @@ html:not(.dark) {
   --color-status-medium-container:     color-mix(in oklch, oklch(55% 0.16 68) 12%, transparent);
 
   /* On-colors */
-  --color-on-surface:                  oklch(14% 0.005 230);
-  --color-on-surface-variant:          oklch(44% 0.006 230);
+  --color-on-surface:                  oklch(18% 0.012 65);
+  --color-on-surface-variant:          oklch(36% 0.013 65);
 
   /* Borders */
-  --color-outline:                     oklch(62% 0.005 230);
-  --color-outline-variant:             oklch(88% 0.003 230);
+  --color-outline:                     oklch(62% 0.010 75);
+  --color-outline-variant:             oklch(90% 0.009 85);
 
   /* Scrim — lighter overlay for light mode */
-  --color-scrim:                       oklch(20% 0.004 230 / 0.5);
+  --color-scrim:                       oklch(18% 0.012 65 / 0.5);
 
-  /* Shadows — soft for light mode */
-  --shadow-sm:   0 1px 3px oklch(50% 0.005 230 / 0.10), 0 1px 2px oklch(50% 0.005 230 / 0.06);
-  --shadow-md:   0 4px 12px oklch(50% 0.005 230 / 0.12), 0 2px 4px oklch(50% 0.005 230 / 0.06);
-  --shadow-lg:   0 12px 32px oklch(50% 0.005 230 / 0.14), 0 4px 8px oklch(50% 0.005 230 / 0.06);
-  --shadow-nav:  0 -1px 0 oklch(88% 0.003 230), 0 8px 24px oklch(50% 0.005 230 / 0.10);
+  /* Shadows — warm soft depth for light mode */
+  --shadow-sm:   0 1px 3px oklch(30% 0.020 65 / 0.10), 0 1px 2px oklch(30% 0.020 65 / 0.06);
+  --shadow-md:   0 4px 12px oklch(30% 0.020 65 / 0.13), 0 2px 4px oklch(30% 0.020 65 / 0.07);
+  --shadow-lg:   0 12px 32px oklch(30% 0.020 65 / 0.15), 0 4px 8px oklch(30% 0.020 65 / 0.07);
+  --shadow-nav:  0 -1px 0 oklch(90% 0.009 85), 0 8px 24px oklch(30% 0.020 65 / 0.10);
 }
 
 /* ── Base styles ── */

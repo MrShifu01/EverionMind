@@ -230,7 +230,7 @@ export default function BulkUploadModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center px-4"
-      style={{ background: "rgba(0,0,0,0.75)" }}
+      style={{ background: "var(--color-scrim)" }}
     >
       <div
         className="w-full max-w-lg flex flex-col rounded-2xl border"

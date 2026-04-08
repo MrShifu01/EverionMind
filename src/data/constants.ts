@@ -1,22 +1,22 @@
 import type { TypeConfig, Priority, PriorityConfig, Entry, Link } from "../types";
 
-// Well-known type icons — unknown types fall back to TC.note at the call site.
+// Well-known type icons — all colors use CSS vars so they respond to light/dark mode.
 export const TC: Record<string, TypeConfig> = {
-  reminder: { i: "⏰", c: "#FF6B35" },
-  document: { i: "📄", c: "#4ECDC4" },
-  contact: { i: "📇", c: "#45B7D1" },
-  place: { i: "📍", c: "#96CEB4" },
-  person: { i: "👤", c: "#DDA0DD" },
-  idea: { i: "💡", c: "#FFEAA7" },
-  color: { i: "🎨", c: "#E17055" },
-  decision: { i: "⚖️", c: "#74B9FF" },
-  note: { i: "📝", c: "#A29BFE" },
-  secret: { i: "🔐", c: "#FF4757" },
+  reminder: { i: "⏰", c: "var(--color-status-medium)" },
+  document: { i: "📄", c: "var(--color-secondary)" },
+  contact:  { i: "📇", c: "var(--color-secondary)" },
+  place:    { i: "📍", c: "var(--color-on-surface-variant)" },
+  person:   { i: "👤", c: "var(--color-primary)" },
+  idea:     { i: "💡", c: "var(--color-status-medium)" },
+  color:    { i: "🎨", c: "var(--color-primary)" },
+  decision: { i: "⚖️", c: "var(--color-secondary)" },
+  note:     { i: "📝", c: "var(--color-primary)" },
+  secret:   { i: "🔐", c: "var(--color-error)" },
 };
 export const PC: Record<Priority, PriorityConfig> = {
-  high: { bg: "#FF6B3520", c: "#FF6B35", l: "High" },
-  medium: { bg: "#FFEAA720", c: "#FFEAA7", l: "Med" },
-  low: { bg: "#4ECDC420", c: "#4ECDC4", l: "Low" },
+  high:   { bg: "color-mix(in oklch, var(--color-error) 12%, transparent)",         c: "var(--color-error)",         l: "High" },
+  medium: { bg: "color-mix(in oklch, var(--color-status-medium) 12%, transparent)", c: "var(--color-status-medium)", l: "Med" },
+  low:    { bg: "color-mix(in oklch, var(--color-secondary) 12%, transparent)",      c: "var(--color-secondary)",     l: "Low" },
 };
 export const fmtD = (d: string | Date): string =>
   new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" });
@@ -26,7 +26,16 @@ export const INITIAL_ENTRIES: Entry[] = [];
 
 export const LINKS: Link[] = [];
 
-const TYPE_COLOURS = ["#9B59B6","#E67E22","#27AE60","#2980B9","#E74C3C","#16A085","#8E44AD","#D35400"];
+const TYPE_COLOURS = [
+  "var(--color-primary)",
+  "var(--color-secondary)",
+  "var(--color-status-medium)",
+  "var(--color-on-surface-variant)",
+  "var(--color-primary-dim)",
+  "var(--color-secondary-dim)",
+  "var(--color-error)",
+  "var(--color-primary)",
+];
 
 export function getTypeConfig(type: string): TypeConfig {
   if (TC[type]) return TC[type];

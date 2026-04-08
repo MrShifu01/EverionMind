@@ -148,7 +148,7 @@ export default function CaptureSheet({
   // Auto-focus on open; reset on close
   useEffect(() => {
     if (isOpen) {
-      setTimeout(() => textareaRef.current?.focus(), 120);
+      requestAnimationFrame(() => requestAnimationFrame(() => textareaRef.current?.focus()));
     } else {
       setText("");
       setStatus(null);

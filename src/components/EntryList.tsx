@@ -35,13 +35,6 @@ const EntryCard = memo(function EntryCard({
   const isCritical = importance === 2;
   const colors = TYPE_THEME[e.type] || TYPE_THEME.default;
 
-  // Left accent border communicates importance tier
-  const leftBorderColor = isCritical
-    ? "var(--color-error)"
-    : isPinned
-    ? "var(--color-primary)"
-    : "transparent";
-
   return (
     <article
       tabIndex={0}
@@ -50,8 +43,7 @@ const EntryCard = memo(function EntryCard({
       aria-label={e.title}
       {...(isPinned ? { "data-pinned": "true" } : {})}
       {...(importance > 0 ? { "data-importance": String(importance) } : {})}
-      className={`entry-card${isCritical ? " entry-card--critical" : isPinned ? " entry-card--pinned" : ""} group cursor-pointer rounded-2xl p-5 border-r border-t border-b border-l-4 transition-all duration-200 hover:-translate-y-0.5 press-scale`}
-      style={{ borderLeftColor: leftBorderColor }}
+      className={`entry-card${isCritical ? " entry-card--critical" : isPinned ? " entry-card--pinned" : ""} group cursor-pointer rounded-2xl p-5 border transition-all duration-200 press-scale`}
     >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2.5">
@@ -171,15 +163,14 @@ export function VirtualGrid({
       : 1
   );
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    function update() {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        setCOLS(window.innerWidth >= 1280 ? 3 : window.innerWidth >= 640 ? 2 : 1);
-      }, 100);
-    }
-    window.addEventListener("resize", update);
-    return () => { window.removeEventListener("resize", update); clearTimeout(timer); };
+    const el = listRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? 0;
+      setCOLS(w >= 1024 ? 3 : w >= 560 ? 2 : 1);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
   const rows = useMemo(() => {
     const r: Entry[][] = [];

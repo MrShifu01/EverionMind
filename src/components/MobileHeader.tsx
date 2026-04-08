@@ -27,25 +27,22 @@ export default function MobileHeader({
         paddingTop: "max(12px, env(safe-area-inset-top))",
       }}
     >
-      {/* Left — Logo + brain name */}
-      <div className="flex items-center gap-2.5 min-w-0">
-        <div
-          className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{
-            background: "var(--color-primary-container)",
-            border: "1px solid var(--color-outline-variant)",
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2a5 5 0 0 1 5 5c0 1.5-.67 2.84-1.72 3.75A5 5 0 0 1 17 15a5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 1.72-3.75A5 5 0 0 1 7 7a5 5 0 0 1 5-5z"/>
-            <circle cx="12" cy="12" r="1.5" fill="var(--color-primary)" stroke="none"/>
-          </svg>
-        </div>
+      {/* Left — Everion wordmark */}
+      <div className="flex items-center gap-2 min-w-0">
+        {/* Brand mark: espresso square + ivory E + bronze dot */}
+        <svg width="26" height="26" viewBox="0 0 48 48" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+          <rect width="48" height="48" rx="10" fill="var(--color-on-surface)"/>
+          <rect x="12" y="12" width="4" height="24" rx="1.5" fill="var(--color-background)"/>
+          <rect x="12" y="12" width="22" height="4" rx="1.5" fill="var(--color-background)"/>
+          <rect x="12" y="22" width="16" height="4" rx="1.5" fill="var(--color-background)"/>
+          <rect x="12" y="32" width="22" height="4" rx="1.5" fill="var(--color-background)"/>
+          <circle cx="38" cy="38" r="5" fill="var(--color-primary)"/>
+        </svg>
         <h1
-          className="font-bold text-primary text-base"
-          style={{ fontFamily: "'Lora', Georgia, serif" }}
+          className="font-bold text-base tracking-tight truncate"
+          style={{ fontFamily: "'Lora', Georgia, serif", color: "var(--color-on-surface)" }}
         >
-          EV
+          Everion
         </h1>
       </div>
 
@@ -75,7 +72,7 @@ export default function MobileHeader({
         <button
           onClick={onToggleTheme}
           aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-          className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors hover:bg-surface-container ml-1"
+          className="w-11 h-11 flex items-center justify-center rounded-xl transition-colors hover:bg-surface-container ml-1"
           style={{ color: "var(--color-on-surface-variant)" }}
         >
           {isDark ? (

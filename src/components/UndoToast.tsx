@@ -40,7 +40,7 @@ export function UndoToast({ action, onUndo, onDismiss }: UndoToastProps) {
         borderColor: isDelete
           ? "color-mix(in oklch, var(--color-error) 25%, transparent)"
           : "color-mix(in oklch, var(--color-primary) 25%, transparent)",
-        boxShadow: "0 20px 40px rgba(0,0,0,0.4)",
+        boxShadow: "var(--shadow-lg)",
         animation: "slide-up 0.25s ease-out",
       }}
     >

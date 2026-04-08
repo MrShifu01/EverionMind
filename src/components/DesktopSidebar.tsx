@@ -108,7 +108,7 @@ function NavItem({ id, label, isActive, onClick, badge }: NavItemProps) {
       style={
         isActive
           ? {
-              background: "oklch(from var(--color-primary) l c h / 0.08)",
+              background: "color-mix(in oklch, var(--color-primary) 8%, transparent)",
               color: "var(--color-primary)",
             }
           : undefined
@@ -229,7 +229,7 @@ export default function DesktopSidebar({
             <button
               onClick={onToggleTheme}
               aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-              className="w-9 h-9 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all press-scale"
+              className="w-11 h-11 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all press-scale"
             >
               {isDark ? SUN_ICON : MOON_ICON}
             </button>
@@ -238,7 +238,7 @@ export default function DesktopSidebar({
             <button
               onClick={onShowCreateBrain}
               aria-label="Create new brain"
-              className="flex items-center gap-1.5 text-xs font-medium text-on-surface-variant hover:text-primary hover:bg-surface-container transition-all press-scale min-h-[36px] px-2.5 rounded-lg"
+              className="flex items-center gap-1.5 text-xs font-medium text-on-surface-variant hover:text-primary hover:bg-surface-container transition-all press-scale min-h-[44px] px-2.5 rounded-lg"
             >
               <svg aria-hidden="true" className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />

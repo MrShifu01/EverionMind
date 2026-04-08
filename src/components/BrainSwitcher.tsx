@@ -94,7 +94,7 @@ export default function BrainSwitcher({
           style={{
             background: "var(--color-surface)",
             borderColor: "var(--color-outline-variant)",
-            boxShadow: "0 20px 40px rgba(0,0,0,0.4)",
+            boxShadow: "var(--shadow-lg)",
             animation: "zoom-in-95 0.15s ease-out",
           }}
         >

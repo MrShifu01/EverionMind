@@ -258,7 +258,7 @@ export default function ChatView({
                 <button
                   onClick={() => setVaultUnlockModal(null)}
                   aria-label="Dismiss vault unlock"
-                  className="press-scale w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
+                  className="press-scale w-11 h-11 flex items-center justify-center rounded-lg transition-colors"
                   style={{ color: "var(--color-on-surface-variant)" }}
                   onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-surface-container-high)"; }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
