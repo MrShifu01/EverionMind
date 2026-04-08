@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { authFetch } from "../../lib/authFetch";
 import {
   getUserApiKey, setUserApiKey,
@@ -68,6 +68,10 @@ export default function ProvidersTab({ activeBrain }: Props) {
     () => filterByTier(orModels, orFilter),
     [orModels, orFilter],
   );
+
+  useEffect(() => {
+    if (byoProvider === "openrouter" && orKey) fetchOrModels(orKey);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchOrModels = async (key: string) => {
     const cached = sessionStorage.getItem("openbrain_or_models_v2");
