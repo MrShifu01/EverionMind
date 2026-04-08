@@ -35,3 +35,35 @@ describe("BottomNav — FAB capture action", () => {
     expect(gridBtn).toHaveAttribute("aria-current", "page");
   });
 });
+
+describe("BottomNav — More button", () => {
+  it("has a More button", () => {
+    render(<BottomNav activeView="capture" onNavigate={vi.fn()} onCapture={vi.fn()} />);
+    expect(screen.getByRole("button", { name: /^more$/i })).toBeInTheDocument();
+  });
+
+  it("calls onNavigate with 'more' when More button is clicked", () => {
+    const onNavigate = vi.fn();
+    render(<BottomNav activeView="capture" onNavigate={onNavigate} onCapture={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /^more$/i }));
+    expect(onNavigate).toHaveBeenCalledWith("more");
+  });
+
+  it("shows More button as active when activeView is 'vault'", () => {
+    render(<BottomNav activeView="vault" onNavigate={vi.fn()} onCapture={vi.fn()} />);
+    const moreBtn = screen.getByRole("button", { name: /^more$/i });
+    expect(moreBtn).toHaveAttribute("aria-current", "page");
+  });
+
+  it("shows More button as active when activeView is 'settings'", () => {
+    render(<BottomNav activeView="settings" onNavigate={vi.fn()} onCapture={vi.fn()} />);
+    const moreBtn = screen.getByRole("button", { name: /^more$/i });
+    expect(moreBtn).toHaveAttribute("aria-current", "page");
+  });
+
+  it("shows More button as active when activeView is 'refine'", () => {
+    render(<BottomNav activeView="refine" onNavigate={vi.fn()} onCapture={vi.fn()} />);
+    const moreBtn = screen.getByRole("button", { name: /^more$/i });
+    expect(moreBtn).toHaveAttribute("aria-current", "page");
+  });
+});

@@ -34,6 +34,7 @@ import BottomNav from "./components/BottomNav";
 import MobileHeader from "./components/MobileHeader";
 import CaptureSheet from "./components/CaptureSheet";
 import DesktopSidebar from "./components/DesktopSidebar";
+import MobileMoreMenu from "./components/MobileMoreMenu";
 import LoadingScreen from "./components/LoadingScreen";
 import SkeletonCard from "./components/SkeletonCard";
 import SettingsView from "./views/SettingsView";
@@ -361,6 +362,17 @@ export default function OpenBrain() {
                 onCreated={handleCreated}
                 brainId={activeBrain?.id}
                 isOnline={isOnline}
+              />
+              <MobileMoreMenu
+                isOpen={navOpen}
+                onNavigate={(id) => {
+                  if (id === "close") {
+                    setNavOpen(false);
+                  } else {
+                    setView(id);
+                    setNavOpen(false);
+                  }
+                }}
               />
               <BottomNav
                 activeView={view}
