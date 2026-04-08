@@ -32,19 +32,19 @@ const FEATURES: Feature[] = [
 ];
 
 const C = {
-  bg:          "oklch(12% 0.009 60)",
-  surface:     "oklch(15% 0.009 60)",
-  container:   "oklch(19% 0.009 60)",
-  highest:     "oklch(27% 0.009 60)",
-  border:      "oklch(24% 0.009 60)",
-  borderFaint: "oklch(20% 0.009 60)",
-  text:        "oklch(93% 0.006 60)",
-  textMuted:   "oklch(58% 0.006 60)",
-  textFaint:   "oklch(40% 0.006 60)",
-  primary:     "oklch(72% 0.14 75)",
-  primaryDim:  "oklch(64% 0.14 75)",
-  primaryBg:   "oklch(26% 0.07 75)",
-  primaryText: "oklch(13% 0.06 75)",
+  bg:          "oklch(10% 0.004 230)",
+  surface:     "oklch(16% 0.005 230)",
+  container:   "oklch(20% 0.006 230)",
+  highest:     "oklch(24% 0.006 230)",
+  border:      "oklch(22% 0.006 230)",
+  borderFaint: "oklch(16% 0.005 230)",
+  text:        "oklch(96% 0.003 230)",
+  textMuted:   "oklch(66% 0.007 225)",
+  textFaint:   "oklch(48% 0.007 225)",
+  primary:     "oklch(68% 0.09 75)",
+  primaryDim:  "oklch(60% 0.09 75)",
+  primaryBg:   "oklch(24% 0.05 75)",
+  primaryText: "oklch(12% 0.05 75)",
   error:       "oklch(62% 0.18 25)",
 };
 
@@ -581,7 +581,7 @@ export default function LoginScreen(): JSX.Element {
           }
           .login-two-col > div:first-child {
             border-right: none !important;
-            border-bottom: 1px solid oklch(24% 0.009 60) !important;
+            border-bottom: 1px solid oklch(22% 0.006 230) !important;
             padding: 40px 24px !important;
           }
           .login-two-col > div:last-child {

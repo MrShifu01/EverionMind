@@ -320,12 +320,12 @@ export default function BrainTab({ activeBrain, canInvite, canManageMembers, onR
             </div>
           )}
           {canInvite && pendingInvites.length > 0 && (
-            <div className="space-y-1 pt-2 border-t" style={{ borderColor: "rgba(72,72,71,0.2)" }}>
+            <div className="space-y-1 pt-2 border-t" style={{ borderColor: "var(--color-outline-variant)" }}>
               <p className="text-xs font-medium" style={{ color: "var(--color-on-surface-variant)" }}>Pending invites</p>
               {pendingInvites.map(inv => (
                 <div key={inv.id} className="flex items-center gap-2 text-xs">
                   <span style={{ color: "var(--color-on-surface-variant)" }}>{inv.email}</span>
-                  <span className="rounded-full px-2 py-0.5" style={{ color: "var(--color-on-surface-variant)", background: "rgba(128,128,128,0.1)" }}>{inv.role}</span>
+                  <span className="rounded-full px-2 py-0.5" style={{ color: "var(--color-on-surface-variant)", background: "var(--color-surface-container)" }}>{inv.role}</span>
                   {canManageMembers && (
                     <button
                       onClick={() => authFetch("/api/brains?action=revoke-invite", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brain_id: activeBrain?.id, invite_id: inv.id }) }).then(() => setPendingInvites(p => p.filter(i => i.id !== inv.id)))}

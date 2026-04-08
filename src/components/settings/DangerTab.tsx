@@ -31,7 +31,7 @@ export default function DangerTab({ activeBrain, deleteBrain }: Props) {
   return (
     <div
       className="rounded-2xl border p-4 space-y-3"
-      style={{ background: "rgba(220,38,38,0.05)", borderColor: "rgba(220,38,38,0.2)" }}
+      style={{ background: "color-mix(in oklch, var(--color-error) 5%, transparent)", borderColor: "color-mix(in oklch, var(--color-error) 20%, transparent)" }}
     >
       <div>
         <p className="text-sm font-semibold" style={{ color: "var(--color-error)" }}>Danger Zone</p>

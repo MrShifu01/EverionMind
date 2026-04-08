@@ -245,7 +245,8 @@ export function PinGate({ onSuccess, onCancel, isSetup = false }: PinGateProps) 
             </button>
             <button
               onClick={handleSubmit}
-              className="bg-teal flex-1 cursor-pointer rounded-[10px] border-none p-[11px] text-[13px] font-bold text-[#0f0f23]"
+              className="flex-1 cursor-pointer rounded-[10px] border-none p-[11px] text-[13px] font-bold"
+              style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
             >
               {btnLabel[step]}
             </button>

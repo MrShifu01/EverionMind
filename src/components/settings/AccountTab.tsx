@@ -18,7 +18,7 @@ export default function AccountTab({ email }: Props) {
         <button
           onClick={() => supabase.auth.signOut()}
           className="rounded-xl px-3 py-1.5 text-xs font-medium border transition-colors hover:bg-white/5"
-          style={{ color: "var(--color-error)", borderColor: "rgba(255,110,132,0.3)" }}
+          style={{ color: "var(--color-error)", borderColor: "color-mix(in oklch, var(--color-error) 30%, transparent)" }}
         >
           Sign out
         </button>

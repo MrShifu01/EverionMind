@@ -58,7 +58,7 @@ const inputClasses =
 function toggleClasses(on: boolean): string {
   return `inline-flex items-center gap-1.5 py-[7px] px-3.5 rounded-[20px] text-xs font-bold cursor-pointer border-none ${
     on
-      ? "bg-teal/[0.12] text-teal outline outline-1 outline-teal/25"
+      ? "bg-[var(--color-secondary-container)] text-[var(--color-secondary)] outline outline-1 outline-[var(--color-outline-variant)]"
       : "bg-ob-surface text-ob-text-dim outline outline-1 outline-ob-border"
   }`;
 }
@@ -392,7 +392,7 @@ export default function NotificationSettings(): JSX.Element {
                         aria-pressed={active}
                         className={`cursor-pointer rounded-[20px] border-none px-3.5 py-1.5 text-xs font-bold ${
                           active
-                            ? "bg-teal/[0.12] text-teal outline-teal/25 outline outline-1"
+                            ? "bg-[var(--color-secondary-container)] text-[var(--color-secondary)] outline-[var(--color-outline-variant)] outline outline-1"
                             : "bg-ob-bg text-ob-text-dim outline-ob-border outline outline-1"
                         }`}
                       >

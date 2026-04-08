@@ -97,7 +97,7 @@ function MiniCalendar({
           <span className="text-xl">📅</span>
           <div className="flex flex-col items-start">
             <span
-              className="text-sm font-semibold text-white"
+              className="text-sm font-semibold text-[var(--color-on-surface)]"
               style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}
             >
               {monthLabel}
@@ -280,7 +280,7 @@ export default function TodoView({ entries: propEntries, typeIcons = {} }: TodoV
       >
         <span className="text-lg mt-0.5">{icon}</span>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-white truncate">{entry.title}</p>
+          <p className="text-sm font-medium text-[var(--color-on-surface)] truncate">{entry.title}</p>
           {entry.content && entry.content !== entry.title && (
             <p className="text-xs mt-0.5 truncate" style={{ color: "var(--color-on-surface-variant)" }}>
               {entry.content}

@@ -26,21 +26,22 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex min-h-screen items-center justify-center bg-[#0f0f23] p-10">
+        <div className="flex min-h-screen items-center justify-center p-10" style={{ background: "var(--color-background)", color: "var(--color-on-surface)" }}>
           <div className="max-w-[400px] text-center">
             <div className="mb-4 text-[48px]">🧠</div>
-            <h2 className="text-orange m-0 mb-3 text-xl font-bold">Something went wrong</h2>
-            <p className="m-0 mb-6 text-sm leading-relaxed text-[#888]">
-              OpenBrain hit an unexpected error. Your data is safe in the database.
+            <h2 className="m-0 mb-3 text-xl font-bold" style={{ color: "var(--color-primary)" }}>Something went wrong</h2>
+            <p className="m-0 mb-6 text-sm leading-relaxed" style={{ color: "var(--color-on-surface-variant)" }}>
+              Everion hit an unexpected error. Your data is safe in the database.
             </p>
-            <p className="m-0 mb-6 rounded-lg bg-[#1a1a2e] p-3 text-left font-mono text-xs break-all text-[#555]">
+            <p className="m-0 mb-6 rounded-lg p-3 text-left font-mono text-xs break-all" style={{ background: "var(--color-surface-container)", color: "var(--color-on-surface-variant)" }}>
               {this.state.error?.message || "Unknown error"}
             </p>
             <button
               onClick={() => {
                 this.setState({ hasError: false, error: null });
               }}
-              className="gradient-accent cursor-pointer rounded-xl border-none px-8 py-3 text-sm font-bold text-[#0f0f23]"
+              className="cursor-pointer rounded-xl border-none px-8 py-3 text-sm font-bold"
+              style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
             >
               Try again
             </button>

@@ -444,11 +444,11 @@ export default function RefineView({
           style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)" }}
         >
           <div className="text-4xl">{brainEmoji}</div>
-          <h2 className="text-xl font-semibold text-white" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+          <h2 className="text-xl font-semibold text-[var(--color-on-surface)]" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
             Refine — Owner Only
           </h2>
           <p style={{ color: "var(--color-on-surface-variant)" }} className="text-sm leading-relaxed">
-            Only the owner of <strong className="text-white">{activeBrain.name}</strong> can
+            Only the owner of <strong className="text-[var(--color-on-surface)]">{activeBrain.name}</strong> can
             run the Refine analysis.
             <br />
             Members can view and add entries, but AI auditing is reserved for the brain owner.
@@ -472,7 +472,7 @@ export default function RefineView({
       {/* Header */}
       <div className="space-y-3">
         <h2
-          className="text-xl font-semibold text-white"
+          className="text-xl font-semibold text-[var(--color-on-surface)]"
           style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}
         >
           Refine{isSharedBrain ? ` — ${activeBrain.name}` : ""}
@@ -571,7 +571,7 @@ export default function RefineView({
             { l: "Remaining", v: visible.length },
           ].map((s) => (
             <div key={s.l} className="flex flex-col gap-0.5">
-              <span className="text-xl font-semibold text-white" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>{s.v}</span>
+              <span className="text-xl font-semibold text-[var(--color-on-surface)]" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>{s.v}</span>
               <span className="text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--color-on-surface-variant)" }}>{s.l}</span>
             </div>
           ))}
@@ -585,7 +585,7 @@ export default function RefineView({
           style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)" }}
         >
           <div className="text-3xl" style={{ color: "var(--color-primary)" }}>✓</div>
-          <p className="text-sm font-medium text-white">Everything looks clean</p>
+          <p className="text-sm font-medium text-[var(--color-on-surface)]">Everything looks clean</p>
           <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
             No high-confidence improvements or missing links found
           </p>
@@ -599,7 +599,7 @@ export default function RefineView({
           style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)" }}
         >
           <div className="text-3xl" style={{ color: "var(--color-secondary)" }}>✦</div>
-          <p className="text-sm font-medium text-white">All suggestions resolved</p>
+          <p className="text-sm font-medium text-[var(--color-on-surface)]">All suggestions resolved</p>
           <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>Re-analyze to check again</p>
         </div>
       )}
@@ -657,7 +657,7 @@ export default function RefineView({
                     {/* From entry */}
                     <div className="flex-1 min-w-0">
                       <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: "var(--color-on-surface-variant)" }}>From</div>
-                      <div className="text-sm text-white truncate">
+                      <div className="text-sm text-[var(--color-on-surface)] truncate">
                         {(TC as Record<string, any>)[
                           entries.find((e) => e.id === ls.fromId)?.type || "note"
                         ]?.i || "📝"}{" "}
@@ -696,7 +696,7 @@ export default function RefineView({
                     {/* To entry */}
                     <div className="flex-1 min-w-0 text-right">
                       <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: "var(--color-on-surface-variant)" }}>To</div>
-                      <div className="text-sm text-white truncate">
+                      <div className="text-sm text-[var(--color-on-surface)] truncate">
                         {(TC as Record<string, any>)[
                           entries.find((e) => e.id === ls.toId)?.type || "note"
                         ]?.i || "📝"}{" "}
@@ -778,7 +778,7 @@ export default function RefineView({
                         entries.find((e) => e.id === es.entryId)?.type || "note"
                       ]?.i || "📝"}
                     </span>
-                    <span className="text-sm font-medium text-white truncate flex-1">
+                    <span className="text-sm font-medium text-[var(--color-on-surface)] truncate flex-1">
                       {es.entryTitle ||
                         entries.find((e) => e.id === es.entryId)?.title ||
                         es.entryId}

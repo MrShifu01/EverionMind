@@ -5,31 +5,31 @@
 
 /* ── Theme Tokens ── */
 @theme {
-  /* Surfaces — Warm Charcoal */
-  --color-background:                  oklch(12% 0.009 60);
-  --color-surface:                     oklch(12% 0.009 60);
-  --color-surface-dim:                 oklch(9% 0.009 60);
-  --color-surface-container-lowest:    oklch(7% 0.009 60);
-  --color-surface-container-low:       oklch(15% 0.009 60);
-  --color-surface-container:           oklch(19% 0.009 60);
-  --color-surface-container-high:      oklch(23% 0.009 60);
-  --color-surface-container-highest:   oklch(27% 0.009 60);
-  --color-surface-variant:             oklch(23% 0.009 60);
-  --color-surface-bright:              oklch(32% 0.009 60);
+  /* Surfaces — Deep Neutral Charcoal (#121416 palette) */
+  --color-background:                  oklch(10% 0.004 230);
+  --color-surface:                     oklch(10% 0.004 230);
+  --color-surface-dim:                 oklch(7% 0.003 230);
+  --color-surface-container-lowest:    oklch(5% 0.003 230);
+  --color-surface-container-low:       oklch(14% 0.005 230);
+  --color-surface-container:           oklch(16% 0.005 230);
+  --color-surface-container-high:      oklch(20% 0.006 230);
+  --color-surface-container-highest:   oklch(24% 0.006 230);
+  --color-surface-variant:             oklch(20% 0.006 230);
+  --color-surface-bright:              oklch(30% 0.007 230);
 
-  /* Primary — Warm Amber */
-  --color-primary:                     oklch(72% 0.14 75);
-  --color-primary-dim:                 oklch(64% 0.14 75);
-  --color-primary-container:           oklch(26% 0.07 75);
-  --color-on-primary:                  oklch(13% 0.06 75);
-  --color-on-primary-container:        oklch(88% 0.08 75);
+  /* Primary — Muted Gold/Bronze (#A68B67) */
+  --color-primary:                     oklch(68% 0.09 75);
+  --color-primary-dim:                 oklch(60% 0.09 75);
+  --color-primary-container:           oklch(24% 0.05 75);
+  --color-on-primary:                  oklch(12% 0.05 75);
+  --color-on-primary-container:        oklch(86% 0.07 75);
 
-  /* Secondary — Muted Sage (used sparingly for secondary actions) */
-  --color-secondary:                   oklch(62% 0.08 150);
-  --color-secondary-dim:               oklch(55% 0.08 150);
-  --color-secondary-container:         oklch(22% 0.04 150);
-  --color-on-secondary:                oklch(14% 0.04 150);
-  --color-on-secondary-container:      oklch(85% 0.06 150);
+  /* Secondary — Calm Slate Blue (#5D6D7E) */
+  --color-secondary:                   oklch(60% 0.045 225);
+  --color-secondary-dim:               oklch(53% 0.045 225);
+  --color-secondary-container:         oklch(22% 0.025 225);
+  --color-on-secondary:                oklch(12% 0.02 225);
+  --color-on-secondary-container:      oklch(85% 0.04 225);
 
   /* Semantic — Error */
   --color-error:                       oklch(62% 0.18 25);
@@ -41,15 +41,15 @@
   --color-status-medium-container:     color-mix(in oklch, oklch(72% 0.16 68) 12%, transparent);
 
   /* On-colors */
-  --color-on-surface:                  oklch(93% 0.006 60);
-  --color-on-surface-variant:          oklch(58% 0.006 60);
+  --color-on-surface:                  oklch(96% 0.003 230);
+  --color-on-surface-variant:          oklch(66% 0.007 225);
 
   /* Borders */
-  --color-outline:                     oklch(38% 0.006 60);
-  --color-outline-variant:             oklch(24% 0.006 60);
+  --color-outline:                     oklch(40% 0.005 230);
+  --color-outline-variant:             oklch(22% 0.006 230);
 
-  /* Scrim — modal backdrop (warm dark, adapts to light mode below) */
-  --color-scrim:                       oklch(12% 0.009 60 / 0.65);
+  /* Scrim — modal backdrop */
+  --color-scrim:                       oklch(10% 0.004 230 / 0.65);
 
   /* Typography */
   --font-family-headline: 'Lora', Georgia, serif;
@@ -79,7 +79,7 @@
   --shadow-sm:   0 1px 3px oklch(0% 0 0 / 0.3), 0 1px 2px oklch(0% 0 0 / 0.2);
   --shadow-md:   0 4px 12px oklch(0% 0 0 / 0.35), 0 2px 4px oklch(0% 0 0 / 0.2);
   --shadow-lg:   0 12px 32px oklch(0% 0 0 / 0.4), 0 4px 8px oklch(0% 0 0 / 0.2);
-  --shadow-nav:  0 -1px 0 oklch(24% 0.009 60), 0 8px 24px oklch(0% 0 0 / 0.3);
+  --shadow-nav:  0 -1px 0 oklch(22% 0.006 230), 0 8px 24px oklch(0% 0 0 / 0.3);
 
   /* Animations */
   --animate-shimmer:    shimmer 1.5s infinite;
@@ -171,8 +171,8 @@
 
 /* Selection */
 ::selection {
-  background: oklch(72% 0.14 75 / 0.25);
-  color: oklch(93% 0.006 60);
+  background: oklch(68% 0.09 75 / 0.25);
+  color: oklch(96% 0.003 230);
 }
 
 /* Focus rings */
@@ -194,31 +194,31 @@
 html:not(.dark) {
   color-scheme: light;
 
-  /* Surfaces */
-  --color-background:                  oklch(97% 0.004 75);
-  --color-surface:                     oklch(99% 0.002 80);
-  --color-surface-dim:                 oklch(94% 0.006 75);
+  /* Surfaces — Clean Neutral (#F8F9FA palette) */
+  --color-background:                  oklch(97.5% 0.003 230);
+  --color-surface:                     oklch(100% 0 0);
+  --color-surface-dim:                 oklch(95% 0.003 230);
   --color-surface-container-lowest:    oklch(100% 0 0);
-  --color-surface-container-low:       oklch(96% 0.004 75);
-  --color-surface-container:           oklch(93% 0.006 75);
-  --color-surface-container-high:      oklch(90% 0.007 75);
-  --color-surface-container-highest:   oklch(87% 0.009 75);
-  --color-surface-variant:             oklch(90% 0.007 75);
-  --color-surface-bright:              oklch(99% 0.002 80);
+  --color-surface-container-low:       oklch(97% 0.003 230);
+  --color-surface-container:           oklch(95% 0.003 230);
+  --color-surface-container-high:      oklch(92% 0.004 230);
+  --color-surface-container-highest:   oklch(89% 0.005 230);
+  --color-surface-variant:             oklch(92% 0.004 230);
+  --color-surface-bright:              oklch(100% 0 0);
 
-  /* Primary — dark amber, WCAG AA on warm off-white */
-  --color-primary:                     oklch(50% 0.14 75);
-  --color-primary-dim:                 oklch(44% 0.14 75);
-  --color-primary-container:           oklch(93% 0.07 75);
-  --color-on-primary:                  oklch(99% 0.002 80);
-  --color-on-primary-container:        oklch(28% 0.09 75);
+  /* Primary — Muted Gold/Bronze, WCAG AA on white */
+  --color-primary:                     oklch(46% 0.09 75);
+  --color-primary-dim:                 oklch(40% 0.09 75);
+  --color-primary-container:           oklch(92% 0.05 75);
+  --color-on-primary:                  oklch(100% 0 0);
+  --color-on-primary-container:        oklch(26% 0.07 75);
 
-  /* Secondary — dark sage */
-  --color-secondary:                   oklch(42% 0.08 150);
-  --color-secondary-dim:               oklch(36% 0.08 150);
-  --color-secondary-container:         oklch(92% 0.05 150);
-  --color-on-secondary:                oklch(99% 0.002 80);
-  --color-on-secondary-container:      oklch(20% 0.06 150);
+  /* Secondary — Calm Slate Blue, WCAG AA on white */
+  --color-secondary:                   oklch(40% 0.04 225);
+  --color-secondary-dim:               oklch(34% 0.04 225);
+  --color-secondary-container:         oklch(92% 0.025 225);
+  --color-on-secondary:                oklch(100% 0 0);
+  --color-on-secondary-container:      oklch(22% 0.04 225);
 
   /* Error */
   --color-error:                       oklch(50% 0.18 25);
@@ -230,21 +230,21 @@ html:not(.dark) {
   --color-status-medium-container:     color-mix(in oklch, oklch(55% 0.16 68) 12%, transparent);
 
   /* On-colors */
-  --color-on-surface:                  oklch(15% 0.010 60);
-  --color-on-surface-variant:          oklch(42% 0.007 60);
+  --color-on-surface:                  oklch(14% 0.005 230);
+  --color-on-surface-variant:          oklch(44% 0.006 230);
 
   /* Borders */
-  --color-outline:                     oklch(62% 0.008 60);
-  --color-outline-variant:             oklch(82% 0.007 75);
+  --color-outline:                     oklch(62% 0.005 230);
+  --color-outline-variant:             oklch(88% 0.003 230);
 
-  /* Scrim — lighter overlay for warm cream light mode */
-  --color-scrim:                       oklch(20% 0.005 60 / 0.5);
+  /* Scrim — lighter overlay for light mode */
+  --color-scrim:                       oklch(20% 0.004 230 / 0.5);
 
   /* Shadows — soft for light mode */
-  --shadow-sm:   0 1px 3px oklch(50% 0.005 60 / 0.10), 0 1px 2px oklch(50% 0.005 60 / 0.06);
-  --shadow-md:   0 4px 12px oklch(50% 0.005 60 / 0.12), 0 2px 4px oklch(50% 0.005 60 / 0.06);
-  --shadow-lg:   0 12px 32px oklch(50% 0.005 60 / 0.14), 0 4px 8px oklch(50% 0.005 60 / 0.06);
-  --shadow-nav:  0 -1px 0 oklch(82% 0.007 75), 0 8px 24px oklch(50% 0.005 60 / 0.10);
+  --shadow-sm:   0 1px 3px oklch(50% 0.005 230 / 0.10), 0 1px 2px oklch(50% 0.005 230 / 0.06);
+  --shadow-md:   0 4px 12px oklch(50% 0.005 230 / 0.12), 0 2px 4px oklch(50% 0.005 230 / 0.06);
+  --shadow-lg:   0 12px 32px oklch(50% 0.005 230 / 0.14), 0 4px 8px oklch(50% 0.005 230 / 0.06);
+  --shadow-nav:  0 -1px 0 oklch(88% 0.003 230), 0 8px 24px oklch(50% 0.005 230 / 0.10);
 }
 
 /* ── Base styles ── */

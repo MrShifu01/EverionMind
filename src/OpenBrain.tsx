@@ -247,7 +247,7 @@ export default function OpenBrain() {
               {showBrainTip && <BrainTipCard brain={showBrainTip} onDismiss={() => setShowBrainTip(null)} onFill={() => { setShowBrainTip(null); setView("suggest"); }} />}
               {view === "grid" && nudge && <NudgeBanner nudge={nudge} onDismiss={() => { setNudge(null); sessionStorage.removeItem("openbrain_nudge"); }} />}
               {failedOps.length > 0 && (
-                <div className="mx-4 mt-2 p-3 rounded-2xl border flex items-center gap-3" style={{ background: "rgba(255,110,132,0.08)", borderColor: "rgba(255,110,132,0.2)" }}>
+                <div className="mx-4 mt-2 p-3 rounded-2xl border flex items-center gap-3" style={{ background: "color-mix(in oklch, var(--color-error) 8%, transparent)", borderColor: "color-mix(in oklch, var(--color-error) 20%, transparent)" }}>
                   <span className="text-sm text-error flex-1">{failedOps.length} operation{failedOps.length > 1 ? "s" : ""} failed to sync</span>
                   <button onClick={() => clearFailedOps()} className="text-xs text-on-surface-variant hover:text-on-surface press-scale">Dismiss</button>
                 </div>
@@ -319,7 +319,7 @@ export default function OpenBrain() {
               )}
 
               {saveError && (
-                <div className="fixed top-4 right-4 z-[100] flex items-center gap-3 px-4 py-3 rounded-2xl border max-w-sm" style={{ background: "rgba(26,25,25,0.95)", borderColor: "rgba(255,110,132,0.20)" }}>
+                <div className="fixed top-4 right-4 z-[100] flex items-center gap-3 px-4 py-3 rounded-2xl border max-w-sm" style={{ background: "var(--color-surface-container-high)", borderColor: "color-mix(in oklch, var(--color-error) 20%, transparent)" }}>
                   <span className="flex-1 text-sm text-on-surface">{saveError}</span>
                   <button onClick={() => setSaveError(null)} className="text-on-surface-variant hover:text-on-surface press-scale">×</button>
                 </div>
