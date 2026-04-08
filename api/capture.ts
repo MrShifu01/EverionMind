@@ -86,13 +86,28 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
     }
   }
 
-  const response = await fetch(`${SB_URL}/rest/v1/rpc/capture`, {
+  // Direct INSERT — avoids the capture() RPC whose signature drifted from the
+  // live DB (missing p_user_id param). PostgREST returns the inserted row array.
+  const insertBody: Record<string, any> = {
+    user_id: safeBody.p_user_id,
+    title: safeBody.p_title,
+    content: safeBody.p_content,
+    type: safeBody.p_type,
+    metadata: safeBody.p_metadata,
+    tags: safeBody.p_tags,
+  };
+  if (safeBody.p_brain_id) insertBody.brain_id = safeBody.p_brain_id;
+
+  const response = await fetch(`${SB_URL}/rest/v1/entries`, {
     method: "POST",
-    headers: sbHeaders(),
-    body: JSON.stringify(safeBody),
+    headers: sbHeaders({ Prefer: "return=representation" }),
+    body: JSON.stringify(insertBody),
   });
 
-  const data: any = await response.json();
+  const rawData: any = await response.json();
+  // Normalise: PostgREST returns an array; downstream code expects { id }.
+  const inserted = Array.isArray(rawData) ? rawData[0] : rawData;
+  const data: any = inserted?.id ? { id: inserted.id } : rawData;
 
   // SEC-14: Fire-and-forget audit log write to Supabase
   if (response.ok && data?.id) {

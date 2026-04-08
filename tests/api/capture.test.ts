@@ -45,11 +45,11 @@ vi.stubGlobal("fetch", mockFetch);
 
 beforeEach(() => {
   mockFetch.mockReset();
-  // Default: Supabase capture RPC returns success
+  // PostgREST INSERT with return=representation returns an array of inserted rows.
   mockFetch.mockResolvedValue({
     ok: true,
     status: 200,
-    json: async () => ({ id: "entry-123" }),
+    json: async () => [{ id: "entry-123" }],
     text: async () => "",
   });
 });
@@ -62,7 +62,7 @@ describe("capture handler — flexible types", () => {
     await handler(req as any, res as any);
     expect(res.status).not.toHaveBeenCalledWith(400);
     const supabaseBody = JSON.parse(mockFetch.mock.calls[0][1].body);
-    expect(supabaseBody.p_type).toBe("document");
+    expect(supabaseBody.type).toBe("document");
   });
 
   it("passes AI-invented type 'company' through as-is", async () => {
@@ -72,7 +72,7 @@ describe("capture handler — flexible types", () => {
     await handler(req as any, res as any);
     expect(res.status).not.toHaveBeenCalledWith(400);
     const supabaseBody = JSON.parse(mockFetch.mock.calls[0][1].body);
-    expect(supabaseBody.p_type).toBe("company");
+    expect(supabaseBody.type).toBe("company");
   });
 
   it("passes AI-invented type 'supplier' through as-is", async () => {
@@ -82,7 +82,7 @@ describe("capture handler — flexible types", () => {
     await handler(req as any, res as any);
     expect(res.status).not.toHaveBeenCalledWith(400);
     const supabaseBody = JSON.parse(mockFetch.mock.calls[0][1].body);
-    expect(supabaseBody.p_type).toBe("supplier");
+    expect(supabaseBody.type).toBe("supplier");
   });
 
   it("defaults missing type to 'note'", async () => {
@@ -91,7 +91,7 @@ describe("capture handler — flexible types", () => {
     const res = makeRes();
     await handler(req as any, res as any);
     const supabaseBody = JSON.parse(mockFetch.mock.calls[0][1].body);
-    expect(supabaseBody.p_type).toBe("note");
+    expect(supabaseBody.type).toBe("note");
   });
 
   it("still rejects a missing title", async () => {
