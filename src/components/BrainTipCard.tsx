@@ -36,7 +36,8 @@ export default function BrainTipCard({ brain, onDismiss, onFill }: BrainTipCardP
     >
       <button
         onClick={onDismiss}
-        className="absolute top-3 right-3 text-sm rounded-full w-6 h-6 flex items-center justify-center"
+        aria-label="Dismiss tip"
+        className="absolute top-2 right-2 text-sm rounded-full w-11 h-11 flex items-center justify-center"
         style={{ color: "var(--color-on-surface-variant)", background: "var(--color-outline-variant)" }}
       >
         ×

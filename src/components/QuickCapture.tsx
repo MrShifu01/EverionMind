@@ -995,7 +995,7 @@ export default function QuickCapture({
             disabled={loading}
             title="Voice capture"
             aria-label="Voice capture"
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors hover:bg-white/10 disabled:opacity-40"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors hover:bg-surface-container disabled:opacity-40"
             style={listening ? { background: "color-mix(in oklch, var(--color-error) 12%, transparent)" } : undefined}
           >
             🎤
@@ -1005,7 +1005,7 @@ export default function QuickCapture({
             disabled={loading}
             title="Photo capture"
             aria-label="Photo capture"
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors hover:bg-white/10 disabled:opacity-40"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors hover:bg-surface-container disabled:opacity-40"
           >
             📷
           </button>
@@ -1014,7 +1014,7 @@ export default function QuickCapture({
             disabled={loading}
             title="Upload file"
             aria-label="Upload file (PDF, Word, MD, TXT)"
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors hover:bg-white/10 disabled:opacity-40"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors hover:bg-surface-container disabled:opacity-40"
           >
             📄
           </button>
@@ -1023,7 +1023,7 @@ export default function QuickCapture({
             disabled={loading}
             title="Bulk upload"
             aria-label="Bulk upload multiple files"
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors hover:bg-white/10 disabled:opacity-40"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors hover:bg-surface-container disabled:opacity-40"
           >
             📁
           </button>
@@ -1100,7 +1100,7 @@ export default function QuickCapture({
         <div
           className="fixed inset-0 z-50 flex items-center justify-center px-4 pt-4"
           style={{
-            background: "rgba(0,0,0,0.7)",
+            background: "var(--color-scrim)",
             backdropFilter: "blur(4px)",
             // Push the modal clear of the floating bottom nav (bottom-5 + ~56px tall)
             // plus iOS safe-area inset so it never hides behind the nav on any device
@@ -1110,14 +1110,14 @@ export default function QuickCapture({
         >
           <div
             className="w-full max-w-lg flex flex-col rounded-2xl border"
-            style={{ background: "#1a1919", borderColor: "var(--color-outline-variant)", maxHeight: "100%" }}
+            style={{ background: "var(--color-surface-dim)", borderColor: "var(--color-outline-variant)", maxHeight: "100%" }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Fixed header */}
             <div className="px-5 pt-5 pb-3 flex-shrink-0">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-semibold text-white">✂️ {multiPreview.length} entries found in file</span>
-                <button onClick={() => setMultiPreview(null)} className="text-on-surface-variant hover:text-white text-lg">✕</button>
+                <span className="text-sm font-semibold text-on-surface">✂️ {multiPreview.length} entries found in file</span>
+                <button onClick={() => setMultiPreview(null)} className="text-on-surface-variant hover:text-on-surface text-lg">✕</button>
               </div>
               <p className="text-xs text-on-surface-variant">
                 Review the entries extracted from your file. Remove any you don't want, then save all.
@@ -1129,18 +1129,18 @@ export default function QuickCapture({
                 <div
                   key={i}
                   className="relative rounded-xl border p-3"
-                  style={{ background: "rgba(38,38,38,0.6)", borderColor: "var(--color-outline-variant)" }}
+                  style={{ background: "var(--color-surface-container)", borderColor: "var(--color-outline-variant)" }}
                 >
                   <button
                     onClick={() => setMultiPreview((prev) => (prev ?? []).filter((_, j) => j !== i))}
                     title="Remove"
-                    className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full text-xs text-on-surface-variant hover:text-white hover:bg-white/10"
+                    className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full text-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
                   >
                     ✕
                   </button>
                   <div className="flex items-center gap-2 mb-1">
                     <span>{getTypeConfig(entry.type ?? "note").i}</span>
-                    <span className="text-sm font-semibold text-white truncate">{entry.title}</span>
+                    <span className="text-sm font-semibold text-on-surface truncate">{entry.title}</span>
                     <span className="text-[10px] uppercase tracking-wider text-on-surface-variant ml-auto mr-6">{entry.type}</span>
                   </div>
                   <p className="text-xs text-on-surface-variant leading-relaxed">

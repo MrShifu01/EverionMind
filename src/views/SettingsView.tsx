@@ -48,7 +48,7 @@ export default function SettingsView() {
               onClick={() => setActiveTab(tab.id)}
               className="px-4 py-3 text-sm font-medium whitespace-nowrap transition-all"
               style={{
-                color: activeTab === tab.id ? "var(--color-on-primary)" : "var(--color-on-surface-variant)",
+                color: activeTab === tab.id ? "var(--color-primary)" : "var(--color-on-surface-variant)",
                 borderBottom: activeTab === tab.id ? "2px solid var(--color-primary)" : "2px solid transparent",
               }}
             >

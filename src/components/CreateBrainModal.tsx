@@ -162,7 +162,6 @@ export default function CreateBrainModal({ onClose, onCreate }: CreateBrainModal
             style={{
               background: "var(--color-surface-container)",
               border: "1px solid var(--color-outline-variant)",
-              fontFamily: "'Inter', sans-serif",
             }}
             onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-primary)"; e.currentTarget.style.boxShadow = "0 0 0 3px var(--color-primary-container)"; }}
             onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-outline-variant)"; e.currentTarget.style.boxShadow = "none"; }}

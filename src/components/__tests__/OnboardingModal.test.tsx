@@ -31,6 +31,25 @@ describe("OnboardingModal — accessibility", () => {
   });
 });
 
+describe("OnboardingModal — use-case button descriptions", () => {
+  it("each use-case button has aria-describedby linked to its description text", () => {
+    render(<OnboardingModal onComplete={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /get started/i }));
+
+    const pressedButtons = screen
+      .getAllByRole("button")
+      .filter((b) => b.hasAttribute("aria-pressed"));
+
+    pressedButtons.forEach((btn) => {
+      const describedById = btn.getAttribute("aria-describedby");
+      expect(describedById).toBeTruthy();
+      const descEl = document.getElementById(describedById!);
+      expect(descEl).toBeInTheDocument();
+      expect(descEl!.textContent).toBeTruthy();
+    });
+  });
+});
+
 describe("OnboardingModal — trust intro (step 0)", () => {
   it("shows trust intro on first render — use-case buttons not yet visible", () => {
     render(<OnboardingModal onComplete={vi.fn()} />);

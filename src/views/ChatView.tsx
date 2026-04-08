@@ -85,7 +85,7 @@ export default function ChatView({
       {/* ── Message thread ── */}
       <div
         role="log"
-        className="flex-1 overflow-y-auto pb-6 scrollbar-hide"
+        className={`overflow-y-auto pb-6 scrollbar-hide ${chatMsgs.length > 0 ? "flex-1" : "flex-1 lg:flex-none"}`}
         aria-live="polite"
         aria-atomic="false"
       >

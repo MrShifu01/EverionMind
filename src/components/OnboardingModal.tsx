@@ -367,6 +367,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
           <div className="mb-6 flex flex-col gap-3">
             {USE_CASES.map((uc) => {
               const active = selected.includes(uc.id);
+              const descId = `uc-desc-${uc.id}`;
               return (
                 <button
                   key={uc.id}
@@ -377,11 +378,12 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
                   }}
                   onClick={() => toggleUseCase(uc.id)}
                   aria-pressed={active}
+                  aria-describedby={descId}
                 >
                   <span className="text-2xl">{uc.emoji}</span>
                   <div className="flex-1">
                     <div className="text-sm font-medium text-on-surface">{uc.label}</div>
-                    <div className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>{uc.desc}</div>
+                    <div id={descId} className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>{uc.desc}</div>
                   </div>
                   <div
                     className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-xs font-bold"
