@@ -259,17 +259,15 @@ export async function loadUserAISettings(userId: string): Promise<void> {
 }
 
 // ── Simple mode free model constants ──
-export const SIMPLE_AI_MODEL = "xiaomi/mimo-v2-omni:free";
+export const SIMPLE_AI_MODEL = "openrouter/free";
 export const SIMPLE_AI_FALLBACKS = [
-  "openrouter/free",              // auto-selects any live free model
   "google/gemini-2.0-flash-001",  // cheap paid — ultimate fallback
 ];
 
 export const SIMPLE_EMBED_MODEL = "nvidia/llama-nemotron-embed-vl-1b-v2:free";
 
-export const SIMPLE_VOICE_MODEL = "xiaomi/mimo-v2-omni:free";
+export const SIMPLE_VOICE_MODEL = "openrouter/free";
 export const SIMPLE_VOICE_FALLBACKS = [
-  "openrouter/free",              // auto-selects any live free model
   "google/gemini-2.0-flash-001",  // cheap paid — ultimate fallback
 ];
 
