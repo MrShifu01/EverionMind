@@ -457,3 +457,133 @@ function renderUsage(usage: TokenUsage) { ... }
 | Function named `handleX` that does Y | Misleading name |
 | `data`, `info`, `stuff`, `thing` | Unthought-out naming |
 | Parameter named `flag` or `mode` | Boolean/enum smell |
+
+---
+
+## OpenBrain — Specific Issues to Fix (Priority Order)
+
+These are concrete violations found in the current codebase, mapped to the principles above.
+
+---
+
+### P1 — God Components (SRP violation, Section 6 + 9)
+
+These files each handle data fetching, transformation, and rendering in a single component. They are the root cause of most other issues below.
+
+| File | Lines | Responsibilities |
+|------|-------|-----------------|
+| `src/components/QuickCapture.tsx` | 1,227 | Capture parsing, validation, API upload, file handling, voice recording, gallery |
+| `src/views/VaultView.tsx` | 908 | Vault setup, unlock, decryption, secret management, bulk operations |
+| `src/LoginScreen.tsx` | 851 | Auth flows, MFA, recovery codes |
+| `src/views/SuggestionsView.tsx` | 839 | Question rendering, AI generation, transcription, image generation |
+| `src/views/DetailModal.tsx` | 726 | Entry editing, brain linking, metadata updates |
+| `src/views/RefineView.tsx` | 662 | Batch quality analysis, link discovery, suggestion application |
+| `src/components/CaptureSheet.tsx` | 646 | Sheet UI, drag-to-close, voice, preview parsing |
+
+**Fix**: Extract custom hooks for all data-fetching and business logic. Each hook owns one domain concern; the component renders only. E.g., `QuickCapture.tsx` should become `useCapture.ts` + `useCaptureVoice.ts` + `useCaptureUpload.ts` + a thin `QuickCapture.tsx` that orchestrates them.
+
+---
+
+### P2 — Silent Error Swallowing (Section 13)
+
+11 places silently discard errors, making failures invisible in production:
+
+```ts
+// src/components/CaptureSheet.tsx:399
+.catch(() => {})  // user never knows upload failed
+
+// src/components/BulkUploadModal.tsx:191
+.catch(() => {})  // bulk upload failure invisible
+
+// src/components/settings/BrainTab.tsx:100, 171
+.catch(() => {})  // settings saves fail silently
+```
+
+**Fix**: Every `.catch()` must do at least one of: set an error state, call a toast/notification, or rethrow. `.catch(() => {})` is never acceptable in production.
+
+---
+
+### P3 — Console Logs in Production (Section 8 Quick Reference)
+
+37 files contain `console.log` statements that ship to production. Worst offenders:
+
+- `SuggestionsView.tsx` — 13 logs
+- `ProvidersTab.tsx` — 13 logs
+- `useChat.ts` — multiple logs
+- `ChatView.tsx`, `DetailModal.tsx`, `QuickCapture.tsx`, `CaptureSheet.tsx`
+
+**Fix**: Delete all of them. None are guarded by `process.env.NODE_ENV`. If debug logging is needed, introduce a single `debug()` utility that no-ops in production.
+
+---
+
+### P4 — `any` Type Proliferation (Section 1 / naming + typing)
+
+59 uses of `any` across the codebase, concentrated in:
+
+- `src/hooks/useChat.ts` — 11 uses
+- `src/views/SuggestionsView.tsx` — 11 uses
+- `src/views/RefineView.tsx` — 4 uses
+- `src/lib/ai.ts`, `src/lib/feedbackLearning.ts` — multiple uses
+
+**Fix**: Define explicit types at API boundaries (Section 14). The OpenRouter/AI response shapes should be typed once in `src/lib/ai.types.ts` and used everywhere — not `any`.
+
+---
+
+### P5 — Magic Numbers Without Named Constants (Section 8)
+
+| File | Line | Number | What it means |
+|------|------|--------|--------------|
+| `src/components/UndoToast.tsx` | 10 | `3000` / `5000` | Toast durations |
+| `src/components/CaptureSheet.tsx` | 367 | `1000` | Byte threshold for "large" content |
+| `src/components/CaptureSheet.tsx` | 412 | `1000` | Recorder interval (ms) |
+| `src/components/NotificationSettings.tsx` | 174 | `8000` | Error display duration |
+| `src/components/settings/DangerTab.tsx` | 25 | `5000` | Delay before destructive action |
+
+**Fix**: Extract into named constants at the top of the file or a shared `src/lib/constants.ts`. `const TOAST_DURATION_MS = 3000` is self-documenting; `3000` is not.
+
+---
+
+### P6 — Type-Based File Structure (Section 11)
+
+Current structure groups code by what it *is*, not what it *does*:
+
+```
+src/
+  components/   ← everything UI
+  views/        ← everything page-level
+  hooks/        ← everything stateful
+  lib/          ← everything else
+```
+
+This means a feature like "Capture" is split across `components/QuickCapture.tsx`, `components/CaptureSheet.tsx`, `hooks/useCapture*`, and `lib/capture*` with no clear ownership boundary.
+
+**Fix**: Migrate toward feature folders when touching these files. Target structure:
+
+```
+src/
+  features/
+    capture/      QuickCapture.tsx, CaptureSheet.tsx, useCapture.ts
+    vault/        VaultView.tsx, useVault.ts, vault.types.ts
+    suggestions/  SuggestionsView.tsx, useSuggestions.ts
+    chat/         ChatView.tsx, useChat.ts
+  components/     Only truly shared atoms (Button, Modal, Toast)
+  lib/            Only shared utilities with no feature ownership
+```
+
+---
+
+### P7 — DRY Violations in API Fetch Patterns
+
+`RefineView.tsx`, `DetailModal.tsx`, and `SuggestionsView.tsx` each implement their own fetch-then-update patterns for entries. The error handling and loading state management is copy-pasted, not shared.
+
+**Fix**: A single `useEntryMutation` hook (or equivalent) should wrap the `authFetch('/api/update-entry')` + optimistic update + error toast pattern used in all three. Call-sites become one line instead of 15.
+
+---
+
+### Summary — Where to Start
+
+1. **Delete all `console.log` calls** — 1 hour of work, immediate production quality improvement
+2. **Fix silent `.catch(() => {})` blocks** — add error state or toast to each
+3. **Replace magic numbers** with named constants in the files above
+4. **Extract hooks from `SuggestionsView.tsx`** — it's the worst god component and most actively developed
+5. **Type the AI response boundary** in `src/lib/ai.ts` — eliminates most `any` usage downstream
