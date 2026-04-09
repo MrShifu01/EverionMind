@@ -2,7 +2,7 @@
 
 ## Communication
 
-Responses must be brutally concise. One sentence where possible. No preamble, no summary, no restating what was done. Lead with the result only.
+Responses must be brutally concise. One sentence where possible. No preamble, no summary, no restating what was done. Lead with the result only. No filler phrases like "Great!", "Done!", "Sure!", or "I'll now...". Never explain what you're about to do — just do it. After a push, one line: branch + commit message. Nothing else.
 
 ## Development Practices
 
