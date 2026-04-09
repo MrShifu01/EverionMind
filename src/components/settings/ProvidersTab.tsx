@@ -324,13 +324,19 @@ export default function ProvidersTab({ activeBrain }: Props) {
         headers: { "Content-Type": "application/json", "X-User-Api-Key": orKey.trim(), ...authH },
         body: JSON.stringify({ model, max_tokens: 5, messages: [{ role: "user", content: "Say ok" }] }),
       });
-      setStatus(res.ok ? "ok" : "fail");
+      if (res.ok) {
+        setStatus("ok");
+      } else {
+        const body = await res.json().catch(() => null);
+        const msg = body?.error?.message || body?.error || body?.message || `HTTP ${res.status}`;
+        setStatus(`fail:${msg}`);
+      }
     } catch (e: any) {
-      setStatus(e?.name === "AbortError" ? "timeout" : "fail");
+      setStatus(e?.name === "AbortError" ? "timeout" : `fail:${e?.message || "Network error"}`);
     } finally {
       clearTimeout(to);
     }
-    setTimeout(() => setStatus(null), 5000);
+    setTimeout(() => setStatus(null), 10000);
   };
 
   const testSimpleEmbed = async () => {
@@ -465,37 +471,44 @@ export default function ProvidersTab({ activeBrain }: Props) {
                 status: simpleVoiceStatus,
                 onTest: () => testSimpleModel(SIMPLE_VOICE_MODEL, setSimpleVoiceStatus),
               },
-            ] as const).map(({ label, sub, status, onTest }) => (
-              <div key={label} className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium" style={{ color: "var(--color-on-surface)" }}>{label}</p>
-                  <p className="text-[10px]" style={{ color: "var(--color-on-surface-variant)" }}>{sub}</p>
+            ] as const).map(({ label, sub, status, onTest }) => {
+              const isFail = status === "fail" || status?.startsWith("fail:");
+              const errorMsg = status?.startsWith("fail:") ? status.slice(5) : null;
+              return (
+                <div key={label}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-medium" style={{ color: "var(--color-on-surface)" }}>{label}</p>
+                      <p className="text-[10px]" style={{ color: "var(--color-on-surface-variant)" }}>{sub}</p>
+                    </div>
+                    <button
+                      onClick={onTest}
+                      disabled={!orKey.trim() || editingOrKey}
+                      className="rounded-xl border px-3 py-1 text-xs font-medium transition-colors hover:bg-white/5 disabled:opacity-40 flex-shrink-0 ml-2"
+                      style={{
+                        color: status === "ok"
+                          ? "var(--color-primary)"
+                          : isFail || status === "timeout"
+                            ? "var(--color-error)"
+                            : "var(--color-on-surface-variant)",
+                        borderColor: "var(--color-outline-variant)",
+                      }}
+                    >
+                      {status === "testing" ? "Testing…"
+                        : status === "ok" ? "✓ OK"
+                        : status === "timeout" ? "Timed out"
+                        : isFail ? "✗ Failed"
+                        : "Test"}
+                    </button>
+                  </div>
+                  {errorMsg && (
+                    <p className="text-[10px] mt-0.5 leading-tight" style={{ color: "var(--color-error)" }}>
+                      {errorMsg}
+                    </p>
+                  )}
                 </div>
-                <button
-                  onClick={onTest}
-                  disabled={!orKey.trim() || editingOrKey}
-                  className="rounded-xl border px-3 py-1 text-xs font-medium transition-colors hover:bg-white/5 disabled:opacity-40"
-                  style={{
-                    color: status === "ok"
-                      ? "var(--color-primary)"
-                      : status === "fail" || status?.startsWith("fail:") || status === "timeout"
-                        ? "var(--color-error)"
-                        : "var(--color-on-surface-variant)",
-                    borderColor: "var(--color-outline-variant)",
-                  }}
-                >
-                  {status === "testing"
-                    ? "Testing…"
-                    : status === "ok"
-                      ? "✓ OK"
-                      : status === "timeout"
-                        ? "Timed out"
-                        : status === "fail" || status?.startsWith("fail:")
-                          ? "✗ Failed"
-                          : "Test"}
-                </button>
-              </div>
-            ))}
+              );
+            })}
             {!editingOrKey && orKey && (
               <p className="text-[10px]" style={{ color: "var(--color-outline)" }}>
                 Save key first, then test each model. Switch to Advanced for full control.
