@@ -67,6 +67,10 @@ export default function DetailModal({
   const [secretRevealed, setSecretRevealed] = useState(false);
   const [typeOpen, setTypeOpen] = useState(false);
   const [aiTyping, setAiTyping] = useState(false);
+<<<<<<< HEAD
+=======
+  const [aiError, setAiError] = useState<string | null>(null);
+>>>>>>> claude/fix-image-upload-ai-config-m2haq
   const typeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -80,6 +84,10 @@ export default function DetailModal({
 
   async function suggestType() {
     setAiTyping(true);
+<<<<<<< HEAD
+=======
+    setAiError(null);
+>>>>>>> claude/fix-image-upload-ai-config-m2haq
     try {
       const provider = getUserProvider();
       const apiKey = provider === "openrouter" ? getOpenRouterKey() : getUserApiKey();
@@ -99,8 +107,17 @@ export default function DetailModal({
         const raw = (data.content?.[0]?.text || data.choices?.[0]?.message?.content || "").trim().toLowerCase();
         const match = CANONICAL_TYPES.find(t => raw.startsWith(t) || raw === t);
         if (match) setEditType(match);
+        else setAiError(`No match (got: "${raw.slice(0, 30)}")`);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        const msg = (errData as any)?.error || `HTTP ${res.status}`;
+        setAiError(msg);
+        console.error("[suggestType]", res.status, errData);
       }
-    } catch { /* ignore */ }
+    } catch (err: any) {
+      setAiError(err?.message || "Request failed");
+      console.error("[suggestType]", err);
+    }
     setAiTyping(false);
   }
 
@@ -532,6 +549,7 @@ export default function DetailModal({
                   >
                     Type
                   </label>
+<<<<<<< HEAD
                   <button
                     type="button"
                     onClick={suggestType}
@@ -541,6 +559,22 @@ export default function DetailModal({
                   >
                     {aiTyping ? "Thinking…" : "✦ AI pick"}
                   </button>
+=======
+                  <div className="flex items-center gap-1.5">
+                    {aiError && (
+                      <span className="max-w-[120px] truncate text-[9px]" style={{ color: "var(--color-error)" }} title={aiError}>{aiError}</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={suggestType}
+                      disabled={aiTyping}
+                      className="rounded-lg px-2 py-0.5 text-[10px] font-semibold transition-all disabled:opacity-50"
+                      style={{ background: "var(--color-primary-container)", color: "var(--color-primary)" }}
+                    >
+                      {aiTyping ? "Thinking…" : "✦ AI pick"}
+                    </button>
+                  </div>
+>>>>>>> claude/fix-image-upload-ai-config-m2haq
                 </div>
                 <button
                   type="button"

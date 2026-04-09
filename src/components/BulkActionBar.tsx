@@ -57,8 +57,14 @@ export default function BulkActionBar({ selectedIds, entries: _entries, brains, 
         const raw = (data.content?.[0]?.text || data.choices?.[0]?.message?.content || "").trim().toLowerCase();
         const match = CANONICAL_TYPES.find(t => raw.startsWith(t) || raw === t);
         if (match) setTargetType(match);
+        else console.warn("[bulkSuggestType] no match, got:", raw);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        console.error("[bulkSuggestType]", res.status, errData);
       }
-    } catch { /* ignore */ }
+    } catch (err: any) {
+      console.error("[bulkSuggestType]", err);
+    }
     setAiTyping(false);
   }
 
