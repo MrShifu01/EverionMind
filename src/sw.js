@@ -36,7 +36,7 @@ self.addEventListener('notificationclick', event => {
   const url = event.notification.data?.url ?? '/';
 
   event.waitUntil(
-    clients
+    self.clients
       .matchAll({ type: 'window', includeUncontrolled: true })
       .then(windowClients => {
         const existing = windowClients.find(c =>
@@ -46,7 +46,7 @@ self.addEventListener('notificationclick', event => {
           existing.focus();
           existing.postMessage({ type: 'navigate', url });
         } else {
-          clients.openWindow(url);
+          self.clients.openWindow(url);
         }
       })
   );

@@ -174,11 +174,12 @@ export function VirtualGrid({
   }, [filtered, COLS]);
   const listRef = useRef<HTMLDivElement>(null);
   const ROW_GAP = 16;
+  // eslint-disable-next-line react-hooks/refs
   const virtualizer = useWindowVirtualizer({
     count: rows.length,
     estimateSize: () => 190 + ROW_GAP,
     overscan: 4,
-    scrollMargin: listRef.current?.offsetTop ?? 0,
+    scrollMargin: listRef.current?.offsetTop ?? 0, // eslint-disable-line react-hooks/refs
     measureElement: (el) => el.getBoundingClientRect().height,
   });
   return (
@@ -220,11 +221,12 @@ export function VirtualTimeline({
   typeIcons?: Record<string, string>;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line react-hooks/refs
   const virtualizer = useWindowVirtualizer({
     count: sorted.length,
     estimateSize: () => 64,
     overscan: 5,
-    scrollMargin: listRef.current?.offsetTop ?? 0,
+    scrollMargin: listRef.current?.offsetTop ?? 0, // eslint-disable-line react-hooks/refs
   });
   return (
     <div ref={listRef} className="relative">

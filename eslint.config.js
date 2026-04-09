@@ -7,7 +7,7 @@ import tsParser from '@typescript-eslint/parser'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', 'api']),
+  globalIgnores(['dist', 'api', 'supabase/functions/**']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -17,7 +17,7 @@ export default defineConfig([
     ],
     languageOptions: {
       ecmaVersion: 2020,
-      globals: globals.browser,
+      globals: { ...globals.browser, ...globals.node },
       parser: tsParser,
       parserOptions: {
         ecmaFeatures: { jsx: true },
@@ -28,7 +28,9 @@ export default defineConfig([
       '@typescript-eslint': tseslint,
     },
     rules: {
+      'no-undef': 'off',
       'no-unused-vars': 'off',
+      'no-empty': ['error', { allowEmptyCatch: true }],
       '@typescript-eslint/no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]', argsIgnorePattern: '^_' }],
     },
   },

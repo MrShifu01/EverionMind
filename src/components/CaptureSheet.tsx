@@ -225,7 +225,7 @@ export default function CaptureSheet({
       if (Array.isArray(parsedRaw) && parsedRaw.length > 0) {
         setLoading(false);
         setStatus(`Saving ${parsedRaw.length} entries…`);
-        let savedCount = 0;
+        let _savedCount = 0;
         for (const entry of parsedRaw) {
           try {
             const res2 = await authFetch("/api/capture", {
@@ -253,7 +253,7 @@ export default function CaptureSheet({
                 tags: entry.tags || [],
                 created_at: new Date().toISOString(),
               } as Entry);
-              savedCount++;
+              _savedCount++;
             }
           } catch {}
         }

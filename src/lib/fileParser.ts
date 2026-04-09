@@ -201,7 +201,7 @@ export function parseCsvTransactions(csvText: string): CsvTransaction[] {
   if (dateCol === -1 || descCol === -1 || amountCol === -1) {
     const sample = parseRow(dataLines[0]);
     sample.forEach((val, i) => {
-      if (dateCol === -1 && /^\d{1,4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,4}$/.test(val)) dateCol = i;
+      if (dateCol === -1 && /^\d{1,4}[/\-.]\d{1,2}[/\-.]\d{1,4}$/.test(val)) dateCol = i;
       if (amountCol === -1 && /^-?[\d\s,.]+$/.test(val) && val.replace(/[^\d]/g, "").length >= 2) {
         if (dateCol !== i) amountCol = i;
       }

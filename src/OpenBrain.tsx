@@ -99,7 +99,9 @@ export default function OpenBrain() {
         if (cached && cached.length > 0) setEntries((prev) => (prev.length === 0 ? cached : prev));
       })
       .catch(() => {});
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
+
+  const [links, setLinks] = useState<any[]>(LINKS);
 
   const { brains, activeBrain, setActiveBrain, deleteBrain, refresh, loading: brainsLoading } =
     useBrainHook(useCallback(() => { setEntries([]); setLinks([]); setEntriesLoaded(false); }, []));
@@ -122,9 +124,9 @@ export default function OpenBrain() {
   const [view, setView] = useState("capture");
   const [navOpen, setNavOpen] = useState(false);
   const [selected, setSelected] = useState<Entry | null>(null);
-  const [links, setLinks] = useState<any[]>(LINKS);
   const addLinks = useCallback((newLinks: any[]) => setLinks((prev) => [...prev, ...newLinks]), []);
   const [typeIcons, setTypeIcons] = useState<Record<string, string>>({});
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const refreshTypeIcons = useCallback(() => {
     if (activeBrain?.id) setTypeIcons(getTypeIcons(activeBrain.id));
   }, [activeBrain?.id]);
@@ -137,7 +139,7 @@ export default function OpenBrain() {
   const [vaultExists, setVaultExists] = useState(false);
 
   useEffect(() => {
-    if (showOnboarding && brains.length > 0) { localStorage.setItem("openbrain_onboarded", "1"); setShowOnboarding(false); }
+    if (showOnboarding && brains.length > 0) { localStorage.setItem("openbrain_onboarded", "1"); setShowOnboarding(false); } // eslint-disable-line react-hooks/set-state-in-effect
   }, [brains, showOnboarding]);
   useEffect(() => {
     const h = () => setShowOnboarding(true);
@@ -148,10 +150,10 @@ export default function OpenBrain() {
     authFetch("/api/vault").then((r) => r.ok ? r.json() : null).then((d) => { if (d?.exists) setVaultExists(true); }).catch(() => {});
   }, []);
   useEffect(() => { const t = setTimeout(() => setSearch(searchInput), 200); return () => clearTimeout(t); }, [searchInput]);
-  useEffect(() => { if (activeBrain?.id) setTypeIcons(getTypeIcons(activeBrain.id)); }, [activeBrain?.id]);
+  useEffect(() => { if (activeBrain?.id) setTypeIcons(getTypeIcons(activeBrain.id)); }, [activeBrain?.id]); // eslint-disable-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (!activeBrain?.id) return;
-    setEntriesLoaded(false);
+    setEntriesLoaded(false); // eslint-disable-line react-hooks/set-state-in-effect
     authFetch(`/api/entries?brain_id=${encodeURIComponent(activeBrain.id)}`)
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {

@@ -41,7 +41,6 @@ export default function DetailModal({
   typeIcons = {},
   onTypeIconChange,
 }: DetailModalProps) {
-  if (!entry) return null;
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerRef = useRef<Element | null>(null);
 
@@ -63,6 +62,7 @@ export default function DetailModal({
   const [editType, setEditType] = useState<string>(entry.type);
   const [editTags, setEditTags] = useState((entry.tags || []).join(", "));
   const editBrainId = entry.brain_id || "";
+
   // Extra brains: brains the entry is shared into via entry_brains junction (beyond primary)
   const [extraBrainIds, setExtraBrainIds] = useState<string[]>([]); // server state (loaded on edit open)
   const [editExtraBrainIds, setEditExtraBrainIds] = useState<string[]>([]); // in-progress edits

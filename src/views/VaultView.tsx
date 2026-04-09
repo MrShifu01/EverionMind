@@ -272,6 +272,20 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
     setAddBusy(false);
   }, [addTitle, addContent, addTags, addMetaRows, cryptoKey, brainId, onEntryCreated]);
 
+  // ── Bulk delete ──
+  const bulkDelete = useCallback(async () => {
+    if (!confirm(`Permanently delete ${selectedIds.size} selected secret${selectedIds.size !== 1 ? "s" : ""}? This cannot be undone.`)) return;
+    const ids = Array.from(selectedIds);
+    for (const id of ids) {
+      const res = await authFetch(`/api/entries?id=${id}`, { method: "DELETE" }).catch(() => null);
+      if (res?.ok) {
+        setDecryptedSecrets(prev => prev.filter(e => e.id !== id));
+        setSelectedIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+      }
+    }
+    setBulkMode(false);
+  }, [selectedIds]);
+
   // ── Loading ──
   if (status === "loading") {
     return (
@@ -531,20 +545,6 @@ export default function VaultView({ entries, onSelect, cryptoKey, onVaultUnlock,
       </div>
     );
   }
-
-  // ── Bulk delete ──
-  const bulkDelete = useCallback(async () => {
-    if (!confirm(`Permanently delete ${selectedIds.size} selected secret${selectedIds.size !== 1 ? "s" : ""}? This cannot be undone.`)) return;
-    const ids = Array.from(selectedIds);
-    for (const id of ids) {
-      const res = await authFetch(`/api/entries?id=${id}`, { method: "DELETE" }).catch(() => null);
-      if (res?.ok) {
-        setDecryptedSecrets(prev => prev.filter(e => e.id !== id));
-        setSelectedIds(prev => { const next = new Set(prev); next.delete(id); return next; });
-      }
-    }
-    setBulkMode(false);
-  }, [selectedIds]);
 
   // ── Unlocked: show all secrets ──
   return (

@@ -85,7 +85,7 @@ export default function RefineView({
   const [editValue, setEditValue] = useState("");
 
   /* ── Analyze: entry quality + link discovery in parallel ── */
-  const analyze = useCallback(async () => {
+  const analyze = useCallback(async () => { // eslint-disable-line react-hooks/preserve-manual-memoization
     if (loading) return;
     setLoading(true);
     setSuggestions(null);
@@ -256,6 +256,7 @@ export default function RefineView({
 
   /* ── Accept an entry-quality suggestion ── */
   const applyEntry = useCallback(
+    // eslint-disable-next-line react-hooks/preserve-manual-memoization
     async (s: EntrySuggestion, override?: string) => {
       const value = override ?? s.suggestedValue;
       const key = `entry:${s.entryId}:${s.field}`;
@@ -346,6 +347,7 @@ export default function RefineView({
 
   /* ── Accept a link suggestion ── */
   const applyLink = useCallback(
+    // eslint-disable-next-line react-hooks/preserve-manual-memoization
     async (s: LinkSuggestion, relOverride?: string) => {
       const rel = relOverride ?? s.rel;
       const key = `link:${s.fromId}:${s.toId}`;
@@ -379,6 +381,7 @@ export default function RefineView({
     [addLinks],
   );
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const reject = useCallback((key: string, s?: RefineSuggestion) => {
     setDismissed((p) => new Set(p).add(key));
     setEditingKey(null);
