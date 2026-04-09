@@ -1,9 +1,11 @@
-import * as pdfjsLib from "pdfjs-dist";
-import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+// All heavy libs loaded lazily so a failure in one doesn't break others
 
 async function extractPdf(buffer: ArrayBuffer): Promise<string> {
+  const [pdfjsLib, { default: workerUrl }] = await Promise.all([
+    import("pdfjs-dist"),
+    import("pdfjs-dist/build/pdf.worker.min.mjs?url"),
+  ]);
+  pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl as string;
   const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
   const pages: string[] = [];
   for (let i = 1; i <= pdf.numPages; i++) {
@@ -16,7 +18,6 @@ async function extractPdf(buffer: ArrayBuffer): Promise<string> {
 
 async function extractDocx(buffer: ArrayBuffer): Promise<string> {
   const mod = await import("mammoth");
-  // Handle CJS default interop
   const mammoth = (mod as any).default ?? mod;
   const result = await mammoth.extractRawText({ arrayBuffer: buffer });
   return result.value;
@@ -24,17 +25,16 @@ async function extractDocx(buffer: ArrayBuffer): Promise<string> {
 
 async function extractExcel(buffer: ArrayBuffer): Promise<string> {
   const mod = await import("xlsx");
-  // Handle CJS default interop
   const XLSX = (mod as any).default ?? mod;
   const wb = XLSX.read(buffer, { type: "array" });
-  return (wb.SheetNames as string[]).map((name) => {
+  return (wb.SheetNames as string[]).map((name: string) => {
     const csv = XLSX.utils.sheet_to_csv(wb.Sheets[name]);
     return `[Sheet: ${name}]\n${csv}`;
   }).join("\n\n");
 }
 
 export async function extractTextFromFile(file: File): Promise<string> {
-  // Yield to allow React to flush loading state before heavy work
+  // Yield so React can flush loading state before blocking work
   await new Promise((r) => setTimeout(r, 0));
 
   const name = file.name.toLowerCase();
