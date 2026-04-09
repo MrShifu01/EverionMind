@@ -357,7 +357,7 @@ export default function DetailModal({
           animation: "zoom-in-95 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
           // Cap height to the actual available space so the header is never pushed above viewport.
           // 96px = nav bar clearance; subtract safe-area so the header stays fully in view.
-          maxHeight: "calc(100vh - 96px - env(safe-area-inset-bottom) - env(safe-area-inset-top))",
+          maxHeight: "calc(100dvh - 96px - env(safe-area-inset-bottom) - env(safe-area-inset-top))",
         }}
         onClick={(e) => e.stopPropagation()}
         onTouchMove={(e) => e.stopPropagation()}
