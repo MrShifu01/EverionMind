@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { TC } from "../data/constants";
-import { resolveIcon, pickDefaultIcon } from "../lib/typeIcons";
+import { resolveIcon } from "../lib/typeIcons";
 import { extractPhone, toWaUrl } from "../lib/phone";
-import { authFetch } from "../lib/authFetch";
+import { useEntryEdit } from "../hooks/useEntryEdit";
 import type { Entry, Brain, EntryType } from "../types";
 
 interface DetailLink {
@@ -56,19 +56,22 @@ export default function DetailModal({
   const [deleting, setDeleting] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [editTitle, setEditTitle] = useState(entry.title);
-  const [editContent, setEditContent] = useState(entry.content);
+  const [editContent, setEditContent] = useState(entry.content ?? "");
   const [editType, setEditType] = useState<string>(entry.type);
   const [editTags, setEditTags] = useState((entry.tags || []).join(", "));
-  const editBrainId = entry.brain_id || "";
-
-  // Extra brains: brains the entry is shared into via entry_brains junction (beyond primary)
-  const [extraBrainIds, setExtraBrainIds] = useState<string[]>([]); // server state (loaded on edit open)
-  const [editExtraBrainIds, setEditExtraBrainIds] = useState<string[]>([]); // in-progress edits
-  const [extraBrainsLoaded, setExtraBrainsLoaded] = useState(false);
-  const [shareMsg, setShareMsg] = useState<string | null>(null);
   const [secretRevealed, setSecretRevealed] = useState(false);
+
+  const {
+    saving,
+    editExtraBrainIds,
+    extraBrainsLoaded,
+    shareMsg, setShareMsg,
+    editBrainId,
+    handleSave,
+    handleShare,
+    toggleExtraBrain,
+  } = useEntryEdit({ entry, editing, onUpdate, onTypeIconChange, brains });
   const isSecret = entry.type === "secret";
   const cfg = { ...(TC[editType as EntryType] || TC.note), i: resolveIcon(editType, typeIcons) };
   const related = links
@@ -107,99 +110,6 @@ export default function DetailModal({
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [editing, onClose]);
-
-  // Fetch extra brain assignments when edit mode opens
-  useEffect(() => {
-    if (!editing || extraBrainsLoaded || !entry.id) return;
-    authFetch(`/api/entry-brains?entry_id=${encodeURIComponent(entry.id)}`)
-      .then((r) => r.json())
-      .then((ids: string[]) => {
-        const clean = Array.isArray(ids) ? ids : [];
-        setExtraBrainIds(clean);
-        setEditExtraBrainIds(clean);
-        setExtraBrainsLoaded(true);
-      })
-      .catch(() => setExtraBrainsLoaded(true));
-  }, [editing, entry.id, extraBrainsLoaded]);
-
-  const handleSave = async () => {
-    setSaving(true);
-    const tags = editTags
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean);
-    const changes: Record<string, any> = {
-      title: editTitle,
-      content: editContent,
-      type: editType,
-      tags,
-    };
-    if (editBrainId && editBrainId !== entry.brain_id) changes.brain_id = editBrainId;
-    // If the type changed, ensure the new type has an icon registered
-    if (editType !== entry.type) {
-      const icon = pickDefaultIcon(editType);
-      onTypeIconChange?.(editType, icon);
-    }
-    await onUpdate?.(entry.id, changes);
-
-    // Sync extra brain assignments (entry_brains junction)
-    if (extraBrainsLoaded) {
-      const prevSet = new Set(extraBrainIds);
-      const nextSet = new Set(editExtraBrainIds);
-      const toAdd = [...nextSet].filter((id) => !prevSet.has(id));
-      const toRemove = [...prevSet].filter((id) => !nextSet.has(id));
-      await Promise.all([
-        ...toAdd.map((brain_id) =>
-          authFetch("/api/entry-brains", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ entry_id: entry.id, brain_id }),
-          }).catch((err) => console.error("[DetailModal] entry-brains add failed", brain_id, err)),
-        ),
-        ...toRemove.map((brain_id) =>
-          authFetch(
-            `/api/entry-brains?entry_id=${encodeURIComponent(entry.id)}&brain_id=${encodeURIComponent(brain_id)}`,
-            {
-              method: "DELETE",
-            },
-          ).catch((err) =>
-            console.error("[DetailModal] entry-brains remove failed", brain_id, err),
-          ),
-        ),
-      ]);
-      // Update local snapshot so subsequent saves diff correctly
-      setExtraBrainIds([...nextSet]);
-    }
-
-    setSaving(false);
-    setEditing(false);
-  };
-
-  const handleShare = async () => {
-    const phone = extractPhone(entry);
-    const text = [
-      entry.title,
-      entry.content,
-      phone ? `📞 ${phone}` : null,
-      Object.entries(entry.metadata || {})
-        .filter(([k]) => !["category", "workspace"].includes(k))
-        .map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`)
-        .join("\n") || null,
-      "— from OpenBrain",
-    ]
-      .filter(Boolean)
-      .join("\n");
-
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: entry.title, text });
-      } catch (err) { console.error("[DetailModal]", err); }
-    } else {
-      await navigator.clipboard.writeText(text);
-      setShareMsg("Copied to clipboard");
-      setTimeout(() => setShareMsg(null), 2500);
-    }
-  };
 
   const phone = extractPhone(entry);
   const isSupplier = entry.tags?.includes("supplier") || entry.metadata?.category === "supplier";
@@ -416,7 +326,7 @@ export default function DetailModal({
           border: "1px solid var(--color-outline-variant)",
           color: "var(--color-on-surface-variant)",
         }}
-        onClick={handleShare}
+        onClick={() => handleShare(entry)}
       >
         📤 Share
       </button>,
@@ -705,18 +615,7 @@ export default function DetailModal({
                                 ? "var(--color-secondary)"
                                 : "var(--color-on-surface-variant)",
                           }}
-                          onClick={() => {
-                            if (isPrimary) {
-                              // Can't deselect primary — switch primary to another already-selected brain
-                              // or do nothing (always need a primary)
-                              return;
-                            }
-                            if (isExtra) {
-                              setEditExtraBrainIds((prev) => prev.filter((id) => id !== b.id));
-                            } else {
-                              setEditExtraBrainIds((prev) => [...prev, b.id]);
-                            }
-                          }}
+                          onClick={() => toggleExtraBrain(b.id, isPrimary)}
                         >
                           {emoji} {b.name}
                           {isPrimary && <span className="text-[9px] opacity-60">primary</span>}
@@ -753,7 +652,7 @@ export default function DetailModal({
                         : "var(--color-on-primary)",
                     fontFamily: "'DM Sans', system-ui, sans-serif",
                   }}
-                  onClick={handleSave}
+                  onClick={() => handleSave({ editTitle, editContent, editType, editTags }).then(() => setEditing(false))}
                   disabled={saving || !editTitle.trim()}
                 >
                   {saving ? "Saving..." : "Save changes"}

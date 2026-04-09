@@ -17,7 +17,7 @@ export function useEntryEdit({
   editing,
   onUpdate,
   onTypeIconChange,
-  brains,
+  brains: _brains,
 }: UseEntryEditOptions) {
   const [saving, setSaving] = useState(false);
   const [extraBrainIds, setExtraBrainIds] = useState<string[]>([]);
@@ -129,7 +129,7 @@ export function useEntryEdit({
     extraBrainIds,
     editExtraBrainIds,
     extraBrainsLoaded,
-    shareMsg,
+    shareMsg, setShareMsg,
     editBrainId,
     handleSave,
     handleShare,

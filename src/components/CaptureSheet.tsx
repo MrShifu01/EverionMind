@@ -1,20 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { callAI } from "../lib/ai";
-import { aiFetch } from "../lib/aiFetch";
-import { authFetch } from "../lib/authFetch";
-import { getEmbedHeaders } from "../lib/aiSettings";
-import { PROMPTS } from "../config/prompts";
+import { useState, useRef, useEffect } from "react";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
+import { useCaptureSheetParse } from "../hooks/useCaptureSheetParse";
 import type { Entry } from "../types";
-
-interface ParsedEntry {
-  title: string;
-  content?: string;
-  type?: string;
-  tags?: string[];
-  metadata?: Record<string, unknown>;
-  _raw?: string;
-}
 
 interface CaptureSheetProps {
   isOpen: boolean;
@@ -33,16 +20,23 @@ export default function CaptureSheet({
   isOnline = true,
 }: CaptureSheetProps) {
   const [text, setText] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
-  const [errorDetail, setErrorDetail] = useState<string | null>(null);
-  const [preview, setPreview] = useState<ParsedEntry | null>(null);
-  const [previewTitle, setPreviewTitle] = useState("");
-  const [previewTags, setPreviewTags] = useState("");
 
   // Drag-to-close + entrance animation
   const [dragY, setDragY] = useState(0);
   const [visible, setVisible] = useState(false);
+
+  const {
+    loading, setLoading,
+    status, setStatus,
+    errorDetail, setErrorDetail,
+    preview, setPreview,
+    previewTitle, setPreviewTitle,
+    previewTags, setPreviewTags,
+    resetState,
+    capture,
+    confirmSave,
+    handleImageFile,
+  } = useCaptureSheetParse({ brainId, isOnline, onCreated, onClose });
 
   // Voice
   const { listening, startVoice, resetListening } = useVoiceRecorder({
@@ -69,11 +63,8 @@ export default function CaptureSheet({
     } else {
       setVisible(false);
       setText("");
-      setStatus(null);
-      setErrorDetail(null);
-      setPreview(null);
-      setPreviewTitle("");
-      setPreviewTags("");
+      resetState();
+      setLoading(false);
       resetListening();
     }
   }, [isOpen, resetListening]);
@@ -156,228 +147,6 @@ export default function CaptureSheet({
     return () => document.removeEventListener("keydown", handler);
   }, [isOpen, onClose, preview]);
 
-  const doSave = useCallback(
-    async (parsed: ParsedEntry) => {
-      setPreview(null);
-      setLoading(true);
-      setStatus("saving");
-      setErrorDetail(null);
-      try {
-        const res = await authFetch("/api/capture", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...(getEmbedHeaders() || {}) },
-          body: JSON.stringify({
-            p_title: parsed.title,
-            p_content: parsed.content || "",
-            p_type: parsed.type || "note",
-            p_metadata: parsed.metadata || {},
-            p_tags: parsed.tags || [],
-            p_brain_id: brainId,
-          }),
-        });
-        if (res.ok) {
-          const result = await res.json();
-          if (result.embed_error) {
-            console.error("[CaptureSheet:embed]", result.embed_error);
-          }
-          const newEntry: Entry = {
-            id: result?.id || Date.now().toString(),
-            title: parsed.title,
-            content: parsed.content || "",
-            type: (parsed.type || "note") as Entry["type"],
-            metadata: parsed.metadata || {},
-            pinned: false,
-            importance: 0,
-            tags: parsed.tags || [],
-            created_at: new Date().toISOString(),
-          } as Entry;
-          onCreated(newEntry);
-          setStatus("saved");
-          setTimeout(() => {
-            setStatus(null);
-            onClose();
-          }, 700);
-        } else {
-          const errBody = await res.text().catch(() => "(no body)");
-          const msg = `[capture] HTTP ${res.status} — ${errBody}`;
-          console.error(msg);
-          setErrorDetail(msg);
-          setStatus("error");
-        }
-      } catch (e: any) {
-        const msg = `[capture] ${e?.message || String(e)}`;
-        console.error(msg);
-        setErrorDetail(msg);
-        setStatus("error");
-      }
-      setLoading(false);
-    },
-    [brainId, onCreated, onClose],
-  );
-
-  const capture = useCallback(async () => {
-    if (!text.trim()) return;
-    const input = text.trim();
-    setText("");
-    setLoading(true);
-    setStatus("thinking");
-    setErrorDetail(null);
-
-    if (!isOnline) {
-      await doSave({
-        title: input.slice(0, 60),
-        content: input,
-        type: "note",
-        tags: [],
-        metadata: {},
-      });
-      return;
-    }
-
-    try {
-      const res = await callAI({
-        system: PROMPTS.CAPTURE,
-        max_tokens: 800,
-        brainId,
-        messages: [{ role: "user", content: input }],
-      });
-      const data = await res.json();
-      let parsedRaw: ParsedEntry | ParsedEntry[] = { title: "" };
-      try {
-        parsedRaw = JSON.parse(
-          (data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim(),
-        );
-      } catch (err) { console.error("[CaptureSheet]", err); }
-
-      // Array response: AI split input into multiple entries — save all directly
-      if (Array.isArray(parsedRaw) && parsedRaw.length > 0) {
-        setLoading(false);
-        setStatus(`Saving ${parsedRaw.length} entries…`);
-        let _savedCount = 0;
-        for (const entry of parsedRaw) {
-          try {
-            const res2 = await authFetch("/api/capture", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", ...(getEmbedHeaders() || {}) },
-              body: JSON.stringify({
-                p_title: entry.title,
-                p_content: entry.content || "",
-                p_type: entry.type || "note",
-                p_metadata: entry.metadata || {},
-                p_tags: entry.tags || [],
-                p_brain_id: brainId,
-              }),
-            });
-            if (res2.ok) {
-              const result = await res2.json();
-              onCreated({
-                id: result?.id || Date.now().toString(),
-                title: entry.title,
-                content: entry.content || "",
-                type: (entry.type || "note") as Entry["type"],
-                metadata: entry.metadata || {},
-                pinned: false,
-                importance: 0,
-                tags: entry.tags || [],
-                created_at: new Date().toISOString(),
-              } as Entry);
-              _savedCount++;
-            }
-          } catch (err) { console.error("[CaptureSheet]", err); }
-        }
-        setStatus("saved");
-        setTimeout(() => {
-          setStatus(null);
-          onClose();
-        }, 700);
-        return;
-      }
-
-      const parsed = parsedRaw as ParsedEntry;
-      if (parsed.title) {
-        setLoading(false);
-        setStatus(null);
-        setPreviewTitle(parsed.title);
-        setPreviewTags((parsed.tags || []).join(", "));
-        setPreview({ ...parsed, _raw: input });
-        return;
-      }
-      await doSave({
-        title: input.slice(0, 60),
-        content: input,
-        type: "note",
-        tags: [],
-        metadata: {},
-      });
-    } catch (e: any) {
-      const msg = `[ai] ${e?.message || String(e)}`;
-      console.error(msg);
-      setErrorDetail(msg);
-      setStatus("error");
-      setLoading(false);
-      setText(input);
-    }
-  }, [text, brainId, isOnline, doSave]);
-
-  const confirmSave = useCallback(() => {
-    if (!preview || !previewTitle.trim()) return;
-    doSave({
-      ...preview,
-      title: previewTitle.trim(),
-      tags: previewTags
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean),
-    });
-  }, [preview, previewTitle, previewTags, doSave]);
-
-  // ── Image (upload or camera) ──
-  const handleImageFile = async (file: File) => {
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      setErrorDetail("Image too large (max 5 MB)");
-      return;
-    }
-    setLoading(true);
-    setStatus("reading");
-    setErrorDetail(null);
-    try {
-      const base64 = await new Promise<string>((res, rej) => {
-        const r = new FileReader();
-        r.onload = () => res((r.result as string).split(",")[1]);
-        r.onerror = rej;
-        r.readAsDataURL(file);
-      });
-      const apiRes = await aiFetch("/api/anthropic", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          max_tokens: 600,
-          messages: [
-            {
-              role: "user",
-              content: [
-                { type: "image", source: { type: "base64", media_type: file.type, data: base64 } },
-                {
-                  type: "text",
-                  text: "Extract all text from this image. Output just the extracted content, clean and readable. If it's a business card, document, label, or receipt — preserve structure. No commentary.",
-                },
-              ],
-            },
-          ],
-        }),
-      });
-      const data = await apiRes.json();
-      const extracted = data.content?.[0]?.text?.trim() || "";
-      if (extracted) setText((prev) => (prev ? `${prev}\n${extracted}` : extracted));
-      else setErrorDetail("[image] No text extracted");
-    } catch (e: any) {
-      setErrorDetail(`[image] ${e?.message || String(e)}`);
-    }
-    setLoading(false);
-    setStatus(null);
-  };
-
   // Keep mounted so CSS transition plays; hide from a11y when closed
   if (!isOpen && !visible) return null;
 
@@ -427,7 +196,7 @@ export default function CaptureSheet({
           onChange={(e) => {
             const f = e.target.files?.[0];
             e.target.value = "";
-            if (f) handleImageFile(f);
+            if (f) handleImageFile(f, (extracted) => setText((prev) => (prev ? `${prev}\n${extracted}` : extracted)));
           }}
         />
         <input
@@ -439,7 +208,7 @@ export default function CaptureSheet({
           onChange={(e) => {
             const f = e.target.files?.[0];
             e.target.value = "";
-            if (f) handleImageFile(f);
+            if (f) handleImageFile(f, (extracted) => setText((prev) => (prev ? `${prev}\n${extracted}` : extracted)));
           }}
         />
 
@@ -503,7 +272,7 @@ export default function CaptureSheet({
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") capture();
+                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") capture(text, () => setText(""));
               }}
               disabled={loading}
               placeholder={
@@ -644,7 +413,7 @@ export default function CaptureSheet({
                   {text.trim() ? `${text.trim().length} chars` : "⌘↵ to save"}
                 </p>
                 <button
-                  onClick={capture}
+                  onClick={() => capture(text, () => setText(""))}
                   disabled={loading || !text.trim()}
                   className="press-scale flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all disabled:opacity-30"
                   style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
@@ -711,7 +480,7 @@ export default function CaptureSheet({
                 Back
               </button>
               <button
-                onClick={confirmSave}
+                onClick={() => confirmSave()}
                 disabled={!previewTitle.trim() || loading}
                 className="press-scale flex-[2] rounded-xl py-2.5 text-sm font-bold transition-colors disabled:opacity-40"
                 style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
