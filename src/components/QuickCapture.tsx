@@ -1149,7 +1149,7 @@ export default function QuickCapture({
           disabled={loading}
           title={listening ? "Stop recording" : "Voice capture"}
           aria-label={listening ? "Stop recording" : "Voice capture"}
-          className="flex h-9 w-9 items-center justify-center rounded-xl transition-colors hover:bg-on-surface/10 disabled:opacity-40"
+          className="hover:bg-on-surface/10 flex h-9 w-9 items-center justify-center rounded-xl transition-colors disabled:opacity-40"
           style={
             listening
               ? {
@@ -1185,7 +1185,7 @@ export default function QuickCapture({
           disabled={loading}
           title="Photo capture"
           aria-label="Photo capture"
-          className="flex h-9 w-9 items-center justify-center rounded-xl transition-colors hover:bg-on-surface/10 disabled:opacity-40"
+          className="hover:bg-on-surface/10 flex h-9 w-9 items-center justify-center rounded-xl transition-colors disabled:opacity-40"
           style={{ color: "var(--color-on-surface-variant)" }}
         >
           <svg
@@ -1213,7 +1213,7 @@ export default function QuickCapture({
           disabled={loading}
           title="Upload file"
           aria-label="Upload file (PDF, Word, MD, TXT)"
-          className="flex h-9 w-9 items-center justify-center rounded-xl transition-colors hover:bg-on-surface/10 disabled:opacity-40"
+          className="hover:bg-on-surface/10 flex h-9 w-9 items-center justify-center rounded-xl transition-colors disabled:opacity-40"
           style={{ color: "var(--color-on-surface-variant)" }}
         >
           <svg
@@ -1236,7 +1236,7 @@ export default function QuickCapture({
           disabled={loading}
           title="Bulk upload"
           aria-label="Bulk upload multiple files"
-          className="flex h-9 w-9 items-center justify-center rounded-xl transition-colors hover:bg-on-surface/10 disabled:opacity-40"
+          className="hover:bg-on-surface/10 flex h-9 w-9 items-center justify-center rounded-xl transition-colors disabled:opacity-40"
           style={{ color: "var(--color-on-surface-variant)" }}
         >
           <svg
