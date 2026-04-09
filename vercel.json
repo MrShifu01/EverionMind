@@ -1,6 +1,6 @@
 {
   "framework": "vite",
-  "devCommand": "vite --port 5180",
+  "devCommand": "vite --port 5174",
   "buildCommand": "npm run build",
   "crons": [
     { "path": "/api/push?action=daily",  "schedule": "0 8 * * *" },
