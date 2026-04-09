@@ -29,7 +29,6 @@ import BrainSwitcher from "./components/BrainSwitcher";
 import CreateBrainModal from "./components/CreateBrainModal";
 import OnboardingModal from "./components/OnboardingModal";
 import BrainTipCard from "./components/BrainTipCard";
-import QuickCapture from "./components/QuickCapture";
 import BottomNav from "./components/BottomNav";
 import MobileHeader from "./components/MobileHeader";
 import CaptureSheet from "./components/CaptureSheet";
@@ -64,7 +63,6 @@ const NAV_VIEWS = [
   { id: "todos", l: "Todos", ic: "✓" },
   { id: "suggest", l: "Fill Brain", ic: "✦" },
   { id: "refine", l: "Fix Issues", ic: "✦" },
-  { id: "vault", l: "Vault", ic: "🔐" },
   { id: "chat", l: "Ask", ic: "◈" },
 ];
 
@@ -377,22 +375,6 @@ export default function OpenBrain() {
                 </div>
               )}
 
-              <QuickCapture
-                entries={entries}
-                setEntries={setEntries}
-                links={links}
-                addLinks={addLinks}
-                onCreated={handleCreated}
-                onUpdate={handleUpdate}
-                brainId={activeBrain?.id ?? ""}
-                brains={brains}
-                isOnline={isOnline}
-                refreshCount={refreshCount}
-                canWrite={canWrite}
-                cryptoKey={cryptoKey}
-                onNavigate={setView}
-              />
-
               {showBrainTip && (
                 <BrainTipCard
                   brain={showBrainTip}
@@ -584,7 +566,7 @@ export default function OpenBrain() {
                     <ChatView {...chat} brains={brains} phoneRegex={PHONE_REGEX} />
                   </Suspense>
                 )}
-                {view === "settings" && <SettingsView />}
+                {view === "settings" && <SettingsView onNavigate={setView} />}
                 {view === "capture" && (
                   <div className="space-y-5">
                     <button

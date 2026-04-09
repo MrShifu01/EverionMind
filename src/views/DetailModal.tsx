@@ -585,49 +585,56 @@ export default function DetailModal({
                       (tap to add/remove)
                     </span>
                   </label>
-                  <div className="flex flex-wrap gap-2">
-                    {brains.map((b) => {
-                      const emoji =
-                        b.type === "family" ? "🏠" : b.type === "business" ? "🏪" : "🧠";
-                      const isPrimary = editBrainId === b.id;
-                      const isExtra = editExtraBrainIds.includes(b.id);
-                      const isActive = isPrimary || isExtra;
-                      return (
-                        <button
+                  {!extraBrainsLoaded ? (
+                    <div className="flex flex-wrap gap-2">
+                      {brains.map((b) => (
+                        <div
                           key={b.id}
-                          aria-label={`${isActive ? "Remove from" : "Add to"} ${b.name}`}
-                          aria-pressed={isActive}
-                          className="press-scale flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
-                          style={{
-                            background: isPrimary
-                              ? "var(--color-primary-container)"
-                              : isExtra
-                                ? "var(--color-secondary-container)"
-                                : "var(--color-surface-container)",
-                            border: isPrimary
-                              ? "1px solid var(--color-primary)"
-                              : isExtra
-                                ? "1px solid var(--color-secondary)"
-                                : "1px solid var(--color-outline-variant)",
-                            color: isPrimary
-                              ? "var(--color-primary)"
-                              : isExtra
-                                ? "var(--color-secondary)"
-                                : "var(--color-on-surface-variant)",
-                          }}
-                          onClick={() => toggleExtraBrain(b.id, isPrimary)}
-                        >
-                          {emoji} {b.name}
-                          {isPrimary && <span className="text-[9px] opacity-60">primary</span>}
-                          {isExtra && <span className="text-[9px] opacity-60">✓</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {!extraBrainsLoaded && editing && (
-                    <p className="mt-1.5 text-[10px]" style={{ color: "var(--color-outline)" }}>
-                      Loading brain assignments…
-                    </p>
+                          className="h-9 w-24 animate-pulse rounded-xl"
+                          style={{ background: "var(--color-surface-container)" }}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {brains.map((b) => {
+                        const emoji =
+                          b.type === "family" ? "🏠" : b.type === "business" ? "🏪" : "🧠";
+                        const isPrimary = editBrainId === b.id;
+                        const isExtra = editExtraBrainIds.includes(b.id);
+                        const isActive = isPrimary || isExtra;
+                        return (
+                          <button
+                            key={b.id}
+                            aria-label={`${isActive ? "Remove from" : "Add to"} ${b.name}`}
+                            aria-pressed={isActive}
+                            className="press-scale flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
+                            style={{
+                              background: isPrimary
+                                ? "var(--color-primary-container)"
+                                : isExtra
+                                  ? "var(--color-secondary-container)"
+                                  : "var(--color-surface-container)",
+                              border: isPrimary
+                                ? "1px solid var(--color-primary)"
+                                : isExtra
+                                  ? "1px solid var(--color-secondary)"
+                                  : "1px solid var(--color-outline-variant)",
+                              color: isPrimary
+                                ? "var(--color-primary)"
+                                : isExtra
+                                  ? "var(--color-secondary)"
+                                  : "var(--color-on-surface-variant)",
+                            }}
+                            onClick={() => toggleExtraBrain(b.id, isPrimary)}
+                          >
+                            {emoji} {b.name}
+                            {isPrimary && <span className="text-[9px] opacity-60">primary</span>}
+                            {isExtra && <span className="text-[9px] opacity-60">✓</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
               )}

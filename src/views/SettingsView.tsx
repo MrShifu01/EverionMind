@@ -20,7 +20,11 @@ const TAB_DEFS = [
   { id: "danger" as TabId, label: "Danger", icon: "⚠️" },
 ];
 
-export default function SettingsView() {
+interface SettingsViewProps {
+  onNavigate?: (id: string) => void;
+}
+
+export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
   const { activeBrain, canInvite, canManageMembers, refresh, deleteBrain } = useBrain();
   const [activeTab, setActiveTab] = useState<TabId>("account");
   const [email, setEmail] = useState("");
@@ -85,7 +89,32 @@ export default function SettingsView() {
           />
         )}
         {activeTab === "notifications" && <NotificationsTab />}
-        {activeTab === "storage" && <StorageTab activeBrain={activeBrain ?? undefined} />}
+        {activeTab === "storage" && (
+          <>
+            <StorageTab activeBrain={activeBrain ?? undefined} />
+            {onNavigate && (
+              <div
+                className="mt-4 flex items-center justify-between rounded-2xl border px-4 py-3"
+                style={{
+                  background: "var(--color-surface-container-low)",
+                  borderColor: "var(--color-outline-variant)",
+                }}
+              >
+                <div>
+                  <p className="text-on-surface text-sm font-semibold">Vault</p>
+                  <p className="text-on-surface-variant text-xs">End-to-end encrypted secrets</p>
+                </div>
+                <button
+                  onClick={() => onNavigate("vault")}
+                  className="press-scale rounded-xl px-4 py-2 text-xs font-semibold transition-all"
+                  style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
+                >
+                  Open Vault
+                </button>
+              </div>
+            )}
+          </>
+        )}
         {activeTab === "danger" && activeBrain && (
           <DangerTab
             activeBrain={activeBrain}
