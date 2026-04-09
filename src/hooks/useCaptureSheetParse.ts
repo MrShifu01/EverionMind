@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { callAI } from "../lib/ai";
 import { authFetch } from "../lib/authFetch";
-import { getEmbedHeaders, isAIConfigured } from "../lib/aiSettings";
+import { getEmbedHeaders } from "../lib/aiSettings";
 import { extractTextFromFile } from "../lib/fileExtract";
 import { parseAISplitResponse } from "../lib/fileSplitter";
 import { PROMPTS } from "../config/prompts";
@@ -144,16 +144,6 @@ export function useCaptureSheetParse({
       setStatus("thinking");
       setErrorDetail(null);
 
-      if (!isAIConfigured()) {
-        setLoading(false);
-        setStatus(null);
-        setPreviewTitle("");
-        setPreviewTags("");
-        setPreviewType("note");
-        setPreview({ title: "", content: input, type: "note", tags: [], metadata: {}, _raw: input });
-        return;
-      }
-
       if (!isOnline) {
         await doSave({ title: input.slice(0, 60), content: input, type: "note", tags: [], metadata: {} });
         return;
@@ -172,18 +162,14 @@ export function useCaptureSheetParse({
         if (!res.ok) {
           const errMsg = data?.error || `AI error ${res.status}`;
           console.error("[useCaptureSheetParse] AI error:", errMsg);
-          if (hasFiles) {
-            // AI unavailable — show content in edit preview so user can still save manually
-            setLoading(false);
-            setStatus(null);
-            setErrorDetail(`AI unavailable: ${errMsg}`);
-            setPreviewTitle("");
-            setPreviewTags("");
-            setPreviewType("note");
-            setPreview({ title: "", content: input, type: "note", tags: [], metadata: {}, _raw: input });
-          } else {
-            throw new Error(errMsg);
-          }
+          // Always show edit preview on AI failure so user can save manually
+          setLoading(false);
+          setStatus(null);
+          setErrorDetail(`AI failed: ${errMsg}`);
+          setPreviewTitle("");
+          setPreviewTags("");
+          setPreviewType("note");
+          setPreview({ title: "", content: input, type: "note", tags: [], metadata: {}, _raw: input });
           return;
         }
 
