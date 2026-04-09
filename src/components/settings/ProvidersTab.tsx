@@ -28,11 +28,11 @@ import {
   setUiSimpleMode,
   getEmbedOrModel,
   setEmbedOrModel,
+  SIMPLE_AI_MODEL,
+  SIMPLE_EMBED_MODEL,
+  SIMPLE_VOICE_MODEL,
 } from "../../lib/aiSettings";
 
-const SIMPLE_AI_MODEL = "google/gemini-2.0-flash-lite:free";
-const SIMPLE_EMBED_MODEL = "nvidia/llama-nemotron-embed-vl-1b-v2:free";
-const SIMPLE_VOICE_MODEL = "google/gemma-4-27b-a4b-it:free";
 import { supabase } from "../../lib/supabase";
 import { MODELS } from "../../config/models";
 import { countEmbedMismatches } from "../../lib/embedMismatch";
@@ -222,23 +222,10 @@ export default function ProvidersTab({ activeBrain }: Props) {
     setByoProvider("openrouter");
     setUserProvider("openrouter");
     setKeySaveStatus("saving");
-    const fields: Record<string, string | boolean | null> = {
+    const { error } = await persistKeyToDb({
       openrouter_key: orKey || null,
       ai_provider: "openrouter",
-    };
-    if (simpleMode && orKey) {
-      setOpenRouterModel(SIMPLE_AI_MODEL);
-      setOrModel(SIMPLE_AI_MODEL);
-      setEmbedProvider("openrouter");
-      setEmbedProviderState("openrouter");
-      setEmbedOrModel(SIMPLE_EMBED_MODEL);
-      setModelForTask("capture", SIMPLE_VOICE_MODEL);
-      fields.openrouter_model = SIMPLE_AI_MODEL;
-      fields.embed_provider = "openrouter";
-      fields.embed_or_model = SIMPLE_EMBED_MODEL;
-      fields.model_capture = SIMPLE_VOICE_MODEL;
-    }
-    const { error } = await persistKeyToDb(fields);
+    });
     setKeySaveStatus(error ? "error" : "saved");
     if (error) console.error("[saveOrKey]", error);
     else if (orKey) setEditingOrKey(false);
@@ -318,21 +305,6 @@ export default function ProvidersTab({ activeBrain }: Props) {
 
   const [simpleMode, setSimpleMode] = useState(() => getSimpleMode());
 
-  const applySimpleDefaults = async () => {
-    setOpenRouterModel(SIMPLE_AI_MODEL);
-    setOrModel(SIMPLE_AI_MODEL);
-    setEmbedProvider("openrouter");
-    setEmbedProviderState("openrouter");
-    setEmbedOrModel(SIMPLE_EMBED_MODEL);
-    setModelForTask("capture", SIMPLE_VOICE_MODEL);
-    await persistKeyToDb({
-      openrouter_model: SIMPLE_AI_MODEL,
-      embed_provider: "openrouter",
-      embed_or_model: SIMPLE_EMBED_MODEL,
-      model_capture: SIMPLE_VOICE_MODEL,
-    });
-  };
-
   const testSimpleModel = async (model: string, setStatus: (s: string | null) => void) => {
     if (!orKey) return;
     setStatus("testing");
@@ -403,7 +375,6 @@ export default function ProvidersTab({ activeBrain }: Props) {
             const next = !simpleMode;
             setSimpleMode(next);
             setUiSimpleMode(next);
-            if (next && orKey && !editingOrKey) applySimpleDefaults();
           }}
           className="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
           style={{

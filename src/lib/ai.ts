@@ -6,6 +6,9 @@ import {
   getOpenRouterKey,
   getOpenRouterModel,
   getModelForTask,
+  getSimpleMode,
+  SIMPLE_AI_MODEL,
+  SIMPLE_VOICE_MODEL,
 } from "./aiSettings";
 import { buildSystemPrompt } from "./systemPromptBuilder";
 import { recordUsage, extractTokenUsage } from "./usageTracker";
@@ -69,10 +72,15 @@ export async function callAI({
 
   let model: string;
   if (safeProvider === "openrouter") {
-    model =
-      (task ? getModelForTask(task) : null) ||
-      getOpenRouterModel() ||
-      "google/gemini-2.0-flash-lite:free";
+    if (getSimpleMode()) {
+      // Simple mode: capture task uses voice model, everything else uses AI model
+      model = task === "capture" ? SIMPLE_VOICE_MODEL : SIMPLE_AI_MODEL;
+    } else {
+      model =
+        (task ? getModelForTask(task) : null) ||
+        getOpenRouterModel() ||
+        SIMPLE_AI_MODEL;
+    }
   } else {
     model = getUserModel();
   }

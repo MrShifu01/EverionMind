@@ -258,6 +258,11 @@ export async function loadUserAISettings(userId: string): Promise<void> {
   }
 }
 
+// ── Simple mode free model constants ──
+export const SIMPLE_AI_MODEL = "google/gemini-2.0-flash-lite:free";
+export const SIMPLE_EMBED_MODEL = "nvidia/llama-nemotron-embed-vl-1b-v2:free";
+export const SIMPLE_VOICE_MODEL = "google/gemma-4-27b-a4b-it:free";
+
 // ── Embedding settings ──
 export function getSimpleMode(): boolean {
   const val = localStorage.getItem(KEYS.SIMPLE_MODE);
@@ -316,6 +321,12 @@ export function getEmbedHeaders(): {
   "X-Embed-Key": string;
   "X-Embed-Model"?: string;
 } | null {
+  // Simple mode: always OpenRouter + NVIDIA Nemotron — never touches advanced embed config
+  if (getSimpleMode()) {
+    const key = getOpenRouterKey();
+    if (!key) return null;
+    return { "X-Embed-Provider": "openrouter", "X-Embed-Key": key, "X-Embed-Model": SIMPLE_EMBED_MODEL };
+  }
   const provider = getEmbedProvider();
   const key = getEmbedKey();
   if (!key) return null;
