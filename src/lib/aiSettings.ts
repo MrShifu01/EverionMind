@@ -259,7 +259,7 @@ export async function loadUserAISettings(userId: string): Promise<void> {
 }
 
 // ── Simple mode free model constants ──
-export const SIMPLE_AI_MODEL = "google/gemini-2.0-flash-lite:free";
+export const SIMPLE_AI_MODEL = "google/gemini-2.0-flash-exp:free";
 export const SIMPLE_EMBED_MODEL = "nvidia/llama-nemotron-embed-vl-1b-v2:free";
 export const SIMPLE_VOICE_MODEL = "google/gemma-3-27b-it:free";
 
