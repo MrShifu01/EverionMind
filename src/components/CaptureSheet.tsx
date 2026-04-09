@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { useCaptureSheetParse } from "../hooks/useCaptureSheetParse";
+import { CANONICAL_TYPES } from "../types";
 import type { Entry } from "../types";
 
 interface CaptureSheetProps {
@@ -32,6 +33,7 @@ export default function CaptureSheet({
     preview, setPreview,
     previewTitle, setPreviewTitle,
     previewTags, setPreviewTags,
+    previewType, setPreviewType,
     resetState,
     capture,
     confirmSave,
@@ -449,6 +451,21 @@ export default function CaptureSheet({
                 className="text-on-surface focus:border-primary w-full rounded-xl border bg-transparent px-3 py-2.5 text-sm transition-colors outline-none"
                 style={{ borderColor: "var(--color-outline-variant)" }}
               />
+            </div>
+            <div>
+              <label className="text-on-surface-variant mb-1.5 block text-xs font-medium">
+                Type
+              </label>
+              <select
+                value={previewType}
+                onChange={(e) => setPreviewType(e.target.value)}
+                className="text-on-surface focus:border-primary w-full rounded-xl border bg-transparent px-3 py-2.5 text-sm transition-colors outline-none"
+                style={{ borderColor: "var(--color-outline-variant)" }}
+              >
+                {CANONICAL_TYPES.filter((t) => t !== "secret").map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="text-on-surface-variant mb-1.5 block text-xs font-medium">

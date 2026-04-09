@@ -36,6 +36,7 @@ export function useCaptureSheetParse({
   const [preview, setPreview] = useState<ParsedEntry | null>(null);
   const [previewTitle, setPreviewTitle] = useState("");
   const [previewTags, setPreviewTags] = useState("");
+  const [previewType, setPreviewType] = useState("note");
 
   const resetState = useCallback(() => {
     setStatus(null);
@@ -43,6 +44,7 @@ export function useCaptureSheetParse({
     setPreview(null);
     setPreviewTitle("");
     setPreviewTags("");
+    setPreviewType("note");
   }, []);
 
   const doSave = useCallback(
@@ -113,6 +115,7 @@ export function useCaptureSheetParse({
         setStatus(null);
         setPreviewTitle("");
         setPreviewTags("");
+        setPreviewType("note");
         setPreview({ title: "", content: input, type: "note", tags: [], metadata: {}, _raw: input });
         return;
       }
@@ -179,6 +182,7 @@ export function useCaptureSheetParse({
           setStatus(null);
           setPreviewTitle(parsed.title);
           setPreviewTags((parsed.tags || []).join(", "));
+          setPreviewType(parsed.type || "note");
           setPreview({ ...parsed, _raw: input });
           return;
         }
@@ -201,11 +205,12 @@ export function useCaptureSheetParse({
       doSave({
         ...preview,
         title: previewTitle.trim(),
+        type: previewType,
         tags: previewTags.split(",").map((t) => t.trim()).filter(Boolean),
       });
       void onRestoreText; // captured in closure for future use
     },
-    [preview, previewTitle, previewTags, doSave],
+    [preview, previewTitle, previewTags, previewType, doSave],
   );
 
   const handleImageFile = useCallback(
@@ -261,6 +266,7 @@ export function useCaptureSheetParse({
     preview, setPreview,
     previewTitle, setPreviewTitle,
     previewTags, setPreviewTags,
+    previewType, setPreviewType,
     resetState,
     capture,
     doSave,

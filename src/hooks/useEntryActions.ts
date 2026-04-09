@@ -33,7 +33,7 @@ export function useEntryActions({
   const commitPendingDelete = useCallback(() => {
     if (!pendingDeleteRef.current) return;
     const { id } = pendingDeleteRef.current;
-    writeEntriesCache(entries);
+    writeEntriesCache(entries.filter((e) => e.id !== id));
     if (isOnlineRef.current) {
       authFetch("/api/delete-entry", {
         method: "DELETE",
