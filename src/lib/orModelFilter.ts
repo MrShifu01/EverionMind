@@ -40,7 +40,7 @@ export function filterByTier(models: ORModel[], tier: FilterTier): ORModel[] {
 
 /** Best model per tier for knowledge capture, RAG chat, refinement, and vision tasks. */
 export const TIER_RECOMMENDED: Record<PriceTier, string> = {
-  free: "google/gemini-2.0-flash-exp:free", // flash-lite:free renamed/retired; exp:free is current free option
+  free: "google/gemini-2.5-pro-exp-03-25:free", // flash-lite:free renamed/retired; exp:free is current free option
   cheap: "google/gemini-2.0-flash-001", // ~$0.10/1M, excellent all-rounder
   good: "anthropic/claude-3.7-sonnet", // best reasoning + instruction following
   frontier: "anthropic/claude-opus-4", // max quality for complex RAG & refinement
@@ -66,8 +66,8 @@ export function modelLabel(m: ORModel, recommendedId?: string): string {
 export const CURATED_OR_MODELS: ORModel[] = [
   // Free
   {
-    id: "google/gemini-2.0-flash-exp:free",
-    name: "Gemini 2.0 Flash Exp",
+    id: "google/gemini-2.5-pro-exp-03-25:free",
+    name: "Gemini 2.5 Pro Exp",
     pricing: { prompt: "0" },
     modality: "text+image",
   },
