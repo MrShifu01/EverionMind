@@ -1303,7 +1303,7 @@ export default function ProvidersTab({ activeBrain }: Props) {
 
       {/* System Health */}
       <div
-        className="space-y-3 rounded-2xl border p-4"
+        className="mt-4 space-y-3 rounded-2xl border p-4"
         style={{
           background: "var(--color-surface-container-high)",
           borderColor: "var(--color-outline-variant)",
