@@ -7,7 +7,7 @@ export function NudgeBanner({ nudge, onDismiss }: NudgeBannerProps) {
   if (!nudge) return null;
   return (
     <div
-      className="mb-4 flex items-start gap-3 rounded-2xl border p-4"
+      className="mx-4 mb-4 flex items-start gap-3 rounded-2xl border p-4"
       style={{
         background: "color-mix(in oklch, var(--color-primary) 8%, var(--color-surface))",
         borderColor: "color-mix(in oklch, var(--color-primary) 20%, transparent)",

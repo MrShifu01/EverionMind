@@ -358,7 +358,7 @@ export default function ProvidersTab({ activeBrain }: Props) {
 
       {/* AI Provider / BYO Key */}
       <div
-        className={simpleMode ? "hidden" : ""}
+        className={simpleMode ? "hidden" : "mt-4"}
       >
       <div
         className="space-y-3 rounded-2xl border p-4"
@@ -753,7 +753,7 @@ export default function ProvidersTab({ activeBrain }: Props) {
 
       {/* Embedding Provider */}
       <div
-        className="space-y-3 rounded-2xl border p-4"
+        className="mt-4 space-y-3 rounded-2xl border p-4"
         style={{
           background: "var(--color-surface-container-high)",
           borderColor: "var(--color-outline-variant)",
@@ -996,7 +996,7 @@ export default function ProvidersTab({ activeBrain }: Props) {
 
       {/* Voice Transcription */}
       <div
-        className="space-y-3 rounded-2xl border p-4"
+        className="mt-4 space-y-3 rounded-2xl border p-4"
         style={{
           background: "var(--color-surface-container-high)",
           borderColor: "var(--color-outline-variant)",
