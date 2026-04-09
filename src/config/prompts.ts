@@ -74,6 +74,7 @@ Only identify these specific issues (nothing else):
 8. MERGE_SUGGESTED — Two or more entries in this batch are clearly about the same thing and should be merged into one. Example: "John Smith phone" and "John Smith email" should be a single contact entry; two entries about the same event with overlapping info should merge. entryId is the primary entry to keep, suggestedValue is the ID of the entry to merge into it, and currentValue lists both titles. Only flag if the entries are obviously duplicates or fragments of the same record.
 9. CONTENT_WEAK — Entry has a title but content is empty, trivially short (under 10 words), or just repeats the title. suggestedValue should be a brief description of what content should be added (e.g. "Add address, phone number, and business hours"). Only flag if the entry type clearly warrants more detail (contacts, places, documents, decisions).
 10. TAG_SUGGESTED — Entry has no tags or obviously missing important tags based on its content. suggestedValue should be comma-separated suggested tags (max 4). Only flag if the tags are clearly warranted and useful for search/filtering.
+11. SENSITIVE_DATA — Entry contains a password, PIN, credit card number, bank account number, API key, or private key but type is NOT "secret". Examples: "password: abc123", "PIN: 1234", "card: 4111...", "sk-...". Only flag if the value is explicit and obvious in the content. suggestedValue should be "secret".
 
 Hard rules:
 - Only suggest if confidence > 90%
@@ -85,9 +86,10 @@ Hard rules:
 - For MERGE_SUGGESTED: entryId is the entry to keep, suggestedValue is the entry ID to merge into it, currentValue lists both titles separated by " + "
 - For CONTENT_WEAK: suggestedValue is a brief description of what content to add
 - For TAG_SUGGESTED: suggestedValue is comma-separated tag suggestions
+- For SENSITIVE_DATA: suggestedValue must always be "secret"
 - Return ONLY a valid JSON array, no markdown, no explanation
 
-Schema: [{"entryId":"...","entryTitle":"...","type":"TYPE_MISMATCH|PHONE_FOUND|EMAIL_FOUND|URL_FOUND|DATE_FOUND|TITLE_POOR|SPLIT_SUGGESTED|MERGE_SUGGESTED|CONTENT_WEAK|TAG_SUGGESTED","field":"type|metadata.phone|metadata.email|metadata.url|metadata.due_date|title|content|tags","currentValue":"...","suggestedValue":"...","reason":"max 90 chars"}]
+Schema: [{"entryId":"...","entryTitle":"...","type":"TYPE_MISMATCH|PHONE_FOUND|EMAIL_FOUND|URL_FOUND|DATE_FOUND|TITLE_POOR|SPLIT_SUGGESTED|MERGE_SUGGESTED|CONTENT_WEAK|TAG_SUGGESTED|SENSITIVE_DATA","field":"type|metadata.phone|metadata.email|metadata.url|metadata.due_date|title|content|tags","currentValue":"...","suggestedValue":"...","reason":"max 90 chars"}]
 
 If nothing is wrong, return: []`,
 
@@ -120,6 +122,46 @@ Rules:
 Schema: [{"fromId":"...","fromTitle":"...","toId":"...","toTitle":"...","rel":"verb phrase","reason":"max 90 chars"}]
 
 If no pairs have a real relationship, return: []`,
+
+  /** RefineView: rename vague relationship labels */
+  WEAK_LABEL_RENAME: `You are improving a knowledge graph by renaming vague relationship labels to specific verb phrases.
+
+Rules:
+- Replace vague labels ("relates to", "related", "similar", "connected") with specific verb phrases
+- Examples: "works at", "supplies", "owns", "insures", "manages", "located at", "deadline for", "part of"
+- If you cannot determine a better label from the entry content, omit that pair from the response — do not guess
+- Return ONLY a valid JSON array, no markdown, no explanation
+
+Schema: [{"fromId":"...","toId":"...","rel":"specific verb phrase"}]
+
+Return empty array if no pair can be improved: []`,
+
+  /** RefineView: confirm duplicate entity candidates */
+  DUPLICATE_NAMES: `You are reviewing candidate pairs of entries that may refer to the same real-world entity. Confirm which pairs are genuine duplicates that should be merged.
+
+Rules:
+- Only confirm if confidence > 90% that these refer to the same entity
+- "John Smith" and "J. Smith" in a contacts brain = likely duplicate
+- "Apple Inc" and "Apple Computers" = likely same company
+- "Main Branch" and "Main Road Branch" = possibly different, SKIP
+- Return ONLY a valid JSON array, no markdown, no explanation
+
+Schema: [{"primaryId":"...","duplicateId":"...","reason":"max 90 chars"}]
+
+Return empty array if no confirmed duplicates: []`,
+
+  /** RefineView: suggest a parent/hub entry name for a cluster */
+  CLUSTER_NAMING: `You are organizing a knowledge base. You are given groups of entries that appear to be related (by shared tags or dense links). Suggest a parent/hub entry title that would unite each group.
+
+Rules:
+- The parent entry title should be concise and descriptive (max 50 chars)
+- Choose the most appropriate type for the parent entry (project, company, category, person, place, etc.)
+- Only suggest if the grouping clearly warrants a hub entry — not for generic topic overlap
+- Return ONLY a valid JSON array, no markdown, no explanation
+
+Schema: [{"memberIds":["..."],"parentTitle":"...","parentType":"...","reason":"max 90 chars"}]
+
+Return empty array if no cluster needs a parent entry: []`,
 
   /** File upload: split a document into multiple entries */
   FILE_SPLIT: `You are an AI assistant that intelligently splits uploaded document content into separate, focused OpenBrain entries. Each entry should capture ONE distinct piece of information — do NOT create long monolithic entries.

@@ -24,6 +24,17 @@ interface LinkSuggestion {
   reason: string;
 }
 
+interface WeakLabelSuggestion {
+  type: "WEAK_LABEL";
+  fromId: string;
+  toId: string;
+  fromTitle?: string;
+  toTitle?: string;
+  currentRel: string;
+  rel: string;
+  reason: string;
+}
+
 interface RefineLink {
   from: string;
   to: string;
@@ -54,6 +65,8 @@ function SvgArrows() { return <svg className="inline h-3 w-3 align-middle" fill=
 function SvgDocument() { return <svg className="inline h-3 w-3 align-middle" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>; }
 function SvgTag() { return <svg className="inline h-3 w-3 align-middle" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" /><path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" /></svg>; }
 function SvgArrowsLR() { return <svg className="inline h-3 w-3 align-middle" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5H21M16.5 3L21 7.5m0 0L16.5 12M21 7.5H3" /></svg>; }
+function SvgLock() { return <svg className="inline h-3 w-3 align-middle" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>; }
+function SvgCluster() { return <svg className="inline h-3 w-3 align-middle" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>; }
 
 const LABELS: Record<string, { label: string; icon: ReactNode; variant: string }> = {
   TYPE_MISMATCH: { label: "Wrong type", icon: <SvgRefresh />, variant: "neutral" },
@@ -67,6 +80,13 @@ const LABELS: Record<string, { label: string; icon: ReactNode; variant: string }
   CONTENT_WEAK: { label: "Needs content", icon: <SvgDocument />, variant: "neutral" },
   TAG_SUGGESTED: { label: "Add tags", icon: <SvgTag />, variant: "neutral" },
   LINK_SUGGESTED: { label: "Relationship", icon: <SvgArrowsLR />, variant: "primary" },
+  SENSITIVE_DATA: { label: "Sensitive data", icon: <SvgLock />, variant: "primary" },
+  ORPHAN_DETECTED: { label: "No connections", icon: <SvgTag />, variant: "neutral" },
+  STALE_REMINDER: { label: "Overdue", icon: <SvgCalendar />, variant: "primary" },
+  DEAD_URL: { label: "Dead link", icon: <SvgLink />, variant: "primary" },
+  WEAK_LABEL: { label: "Vague relationship", icon: <SvgArrowsLR />, variant: "neutral" },
+  DUPLICATE_ENTRY: { label: "Duplicate", icon: <SvgArrows />, variant: "primary" },
+  CLUSTER_SUGGESTED: { label: "Create hub entry", icon: <SvgCluster />, variant: "primary" },
 };
 
 function labelColors(variant: string) {
@@ -96,6 +116,7 @@ export default function RefineView({
     analyze,
     applyEntry,
     applyLink,
+    applyWeakLabel,
     reject,
     keyOf,
   } = useRefineAnalysis({ entries, links, activeBrain, setEntries, addLinks });
@@ -324,12 +345,13 @@ export default function RefineView({
         const { bg: metaBg, text: metaText } = labelColors(meta.variant);
         const busy = applying.has(key);
         const isEdit = editingKey === key;
-        const isLink = s.type === "LINK_SUGGESTED";
+        const isLink = s.type === "LINK_SUGGESTED" || s.type === "WEAK_LABEL";
         const ls = s as LinkSuggestion;
+        const ws = s as WeakLabelSuggestion;
         const es = s as EntrySuggestion;
 
         const sIdx = visible.indexOf(s);
-        const prevIsEntry = sIdx > 0 && visible[sIdx - 1].type !== "LINK_SUGGESTED";
+        const prevIsEntry = sIdx > 0 && visible[sIdx - 1].type !== "LINK_SUGGESTED" && visible[sIdx - 1].type !== "WEAK_LABEL";
         const showDivider = isLink && (sIdx === 0 || prevIsEntry);
 
         return (
@@ -369,9 +391,9 @@ export default function RefineView({
                       </div>
                       <div className="truncate text-sm text-[var(--color-on-surface)]">
                         {(TC as Record<string, any>)[
-                          entries.find((e) => e.id === ls.fromId)?.type || "note"
+                          entries.find((e) => e.id === (isLink && s.type === "WEAK_LABEL" ? ws.fromId : ls.fromId))?.type || "note"
                         ]?.i || "📝"}{" "}
-                        {ls.fromTitle}
+                        {s.type === "WEAK_LABEL" ? ws.fromTitle : ls.fromTitle}
                       </div>
                     </div>
                     <div className="flex-shrink-0 px-2 text-center">
@@ -382,7 +404,7 @@ export default function RefineView({
                           onChange={(e) => setEditValue(e.target.value)}
                           onKeyDown={(e) => {
                             if (e.key === "Enter" && editValue.trim())
-                              applyLink(ls, editValue.trim());
+                              s.type === "WEAK_LABEL" ? applyWeakLabel(ws, editValue.trim()) : applyLink(ls, editValue.trim());
                             if (e.key === "Escape") setEditingKey(null);
                           }}
                           placeholder="relationship…"
@@ -399,7 +421,9 @@ export default function RefineView({
                           className="text-xs font-medium"
                           style={{ color: "var(--color-primary)" }}
                         >
-                          ⟶ {ls.rel} ⟶
+                          {s.type === "WEAK_LABEL"
+                            ? <><s style={{ opacity: 0.5 }}>{ws.currentRel}</s> → {ws.rel}</>
+                            : <>⟶ {ls.rel} ⟶</>}
                         </span>
                       )}
                     </div>
@@ -412,9 +436,9 @@ export default function RefineView({
                       </div>
                       <div className="truncate text-sm text-[var(--color-on-surface)]">
                         {(TC as Record<string, any>)[
-                          entries.find((e) => e.id === ls.toId)?.type || "note"
+                          entries.find((e) => e.id === (s.type === "WEAK_LABEL" ? ws.toId : ls.toId))?.type || "note"
                         ]?.i || "📝"}{" "}
-                        {ls.toTitle}
+                        {s.type === "WEAK_LABEL" ? ws.toTitle : ls.toTitle}
                       </div>
                     </div>
                   </div>
@@ -422,7 +446,7 @@ export default function RefineView({
                     className="text-xs leading-relaxed"
                     style={{ color: "var(--color-on-surface-variant)" }}
                   >
-                    {ls.reason}
+                    {s.type === "WEAK_LABEL" ? ws.reason : ls.reason}
                   </p>
                   <div className="flex items-center gap-2 pt-1">
                     {isEdit ? (
@@ -439,7 +463,7 @@ export default function RefineView({
                           Cancel
                         </button>
                         <button
-                          onClick={() => editValue.trim() && applyLink(ls, editValue.trim())}
+                          onClick={() => editValue.trim() && (s.type === "WEAK_LABEL" ? applyWeakLabel(ws, editValue.trim()) : applyLink(ls, editValue.trim()))}
                           disabled={!editValue.trim() || busy}
                           className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
                           style={{
@@ -476,7 +500,7 @@ export default function RefineView({
                         <button
                           onClick={() => {
                             setEditingKey(key);
-                            setEditValue(ls.rel);
+                            setEditValue(s.type === "WEAK_LABEL" ? ws.rel : ls.rel);
                           }}
                           disabled={busy}
                           className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
@@ -490,7 +514,7 @@ export default function RefineView({
                           ✎ Edit
                         </button>
                         <button
-                          onClick={() => applyLink(ls)}
+                          onClick={() => s.type === "WEAK_LABEL" ? applyWeakLabel(ws) : applyLink(ls)}
                           disabled={busy}
                           className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
                           style={{

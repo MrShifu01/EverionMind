@@ -25,7 +25,27 @@ interface LinkSuggestion {
   reason: string;
 }
 
-type RefineSuggestion = EntrySuggestion | LinkSuggestion;
+interface WeakLabelSuggestion {
+  type: "WEAK_LABEL";
+  fromId: string;
+  toId: string;
+  fromTitle?: string;
+  toTitle?: string;
+  currentRel: string;
+  rel: string;
+  reason: string;
+}
+
+type RefineSuggestion = EntrySuggestion | LinkSuggestion | WeakLabelSuggestion;
+
+interface RefineLink {
+  from: string;
+  to: string;
+  rel?: string;
+  similarity?: number;
+}
+
+// ─── Priority weights (higher = shown first) ───────────────────────────────
 
 export const PRIORITY_WEIGHTS: Record<string, number> = {
   SENSITIVE_DATA: 10,
@@ -54,12 +74,178 @@ export function sortBySuggestionPriority<T extends { type: string }>(items: T[])
   );
 }
 
-interface RefineLink {
-  from: string;
-  to: string;
-  rel?: string;
-  similarity?: number;
+// ─── Pure detection functions (no AI, no side-effects) ─────────────────────
+
+export function detectOrphans(
+  entries: Entry[],
+  links: Array<{ from: string; to: string }>,
+): EntrySuggestion[] {
+  const linked = new Set(links.flatMap((l) => [l.from, l.to]));
+  return entries
+    .filter((e) => !e.encrypted && !linked.has(e.id) && !(e.tags && e.tags.length > 0))
+    .map((e) => ({
+      type: "ORPHAN_DETECTED",
+      entryId: e.id,
+      entryTitle: e.title,
+      field: "tags",
+      currentValue: "",
+      suggestedValue: "",
+      reason: "No links and no tags — invisible in graph",
+    }));
 }
+
+export function detectStaleReminders(entries: Entry[]): EntrySuggestion[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return entries
+    .filter((e) => {
+      if (e.encrypted) return false;
+      const due = e.metadata?.due_date;
+      if (!due) return false;
+      const d = new Date(due as string);
+      return !isNaN(d.getTime()) && d < today;
+    })
+    .map((e) => ({
+      type: "STALE_REMINDER",
+      entryId: e.id,
+      entryTitle: e.title,
+      field: "metadata.due_date",
+      currentValue: e.metadata?.due_date as string | undefined,
+      suggestedValue: "",
+      reason: `Due date ${e.metadata?.due_date} is in the past — update or archive`,
+    }));
+}
+
+export async function checkDeadUrls(entries: Entry[]): Promise<EntrySuggestion[]> {
+  const candidates = entries.filter(
+    (e) => !e.encrypted && e.metadata?.url && typeof e.metadata.url === "string",
+  );
+  if (candidates.length === 0) return [];
+
+  const results = await Promise.all(
+    candidates.map(async (e) => {
+      const url = e.metadata!.url as string;
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        await fetch(url, { method: "HEAD", mode: "no-cors", signal: controller.signal });
+        clearTimeout(timeout);
+        return null; // opaque response = probably alive
+      } catch {
+        return {
+          type: "DEAD_URL",
+          entryId: e.id,
+          entryTitle: e.title,
+          field: "metadata.url",
+          currentValue: url,
+          suggestedValue: "",
+          reason: "URL appears unreachable — check or remove it",
+        } as EntrySuggestion;
+      }
+    }),
+  );
+
+  return results.filter((r): r is EntrySuggestion => r !== null);
+}
+
+function deltaKey(brainId: string) {
+  return `refine_last_scan_${brainId}`;
+}
+
+export function getChangedEntries(entries: Entry[], lastScannedAt: string | null): Entry[] {
+  if (!lastScannedAt) return entries;
+  const cutoff = new Date(lastScannedAt).getTime();
+  return entries.filter((e) => {
+    if (!e.updated_at) return true;
+    return new Date(e.updated_at).getTime() > cutoff;
+  });
+}
+
+const WEAK_LABELS = new Set([
+  "relates to", "related", "related to", "similar",
+  "connected", "linked", "link", "connection",
+]);
+
+export function findWeakLinks(links: RefineLink[]): RefineLink[] {
+  return links.filter((l) => l.rel && WEAK_LABELS.has(l.rel.toLowerCase().trim()));
+}
+
+export function normalizeName(title: string): string {
+  return title.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
+}
+
+export function findNameCandidates(entries: Entry[]): [Entry, Entry][] {
+  const eligible = entries.filter((e) => !e.encrypted && e.title && e.title.length >= 3);
+  const pairs: [Entry, Entry][] = [];
+  for (let i = 0; i < eligible.length; i++) {
+    for (let j = i + 1; j < eligible.length; j++) {
+      const a = normalizeName(eligible[i].title);
+      const b = normalizeName(eligible[j].title);
+      const tokensA = new Set(a.split(/\s+/).filter((t) => t.length >= 3));
+      const tokensB = new Set(b.split(/\s+/).filter((t) => t.length >= 3));
+      const shared = [...tokensA].filter((t) => tokensB.has(t));
+      const meaningful = shared.filter((t) => t.length >= 5);
+      if (shared.length >= 2 || meaningful.length >= 1) {
+        pairs.push([eligible[i], eligible[j]]);
+      }
+    }
+  }
+  return pairs;
+}
+
+interface ClusterInfo {
+  sharedTags: string[];
+  memberIds: string[];
+}
+
+export function detectClusters(entries: Entry[], links: RefineLink[]): ClusterInfo[] {
+  const clusters: ClusterInfo[] = [];
+  const seen = new Set<string>();
+
+  // Tag-based: tags shared by 3+ entries
+  const tagToEntries: Record<string, string[]> = {};
+  for (const e of entries) {
+    for (const tag of e.tags || []) {
+      if (!tagToEntries[tag]) tagToEntries[tag] = [];
+      tagToEntries[tag].push(e.id);
+    }
+  }
+  for (const [, ids] of Object.entries(tagToEntries).filter(([, ids]) => ids.length >= 3)) {
+    const sorted = [...ids].sort();
+    const key = sorted.join(",");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const sharedTags = Object.entries(tagToEntries)
+      .filter(([, members]) => sorted.every((id) => members.includes(id)))
+      .map(([t]) => t);
+    clusters.push({ sharedTags, memberIds: sorted });
+  }
+
+  // Link-density: triangles of 3+ mutually connected entries
+  const adjacency: Record<string, Set<string>> = {};
+  for (const l of links) {
+    if (!adjacency[l.from]) adjacency[l.from] = new Set();
+    if (!adjacency[l.to]) adjacency[l.to] = new Set();
+    adjacency[l.from].add(l.to);
+    adjacency[l.to].add(l.from);
+  }
+  for (const e of entries) {
+    const neighbors = [...(adjacency[e.id] || [])];
+    if (neighbors.length < 2) continue;
+    const clique = [e.id, ...neighbors.filter((n) => (adjacency[n] || new Set()).has(e.id))];
+    if (clique.length >= 3) {
+      const key = [...clique].sort().join(",");
+      if (!seen.has(key)) {
+        seen.add(key);
+        clusters.push({ sharedTags: [], memberIds: [...clique].sort() });
+      }
+    }
+  }
+
+  return clusters;
+}
+
+// ─── Hook ──────────────────────────────────────────────────────────────────
 
 interface UseRefineAnalysisOptions {
   entries: Entry[];
@@ -90,12 +276,17 @@ export function useRefineAnalysis({
     setDismissed(new Set());
     setEditingKey(null);
 
+    const brainId = activeBrain?.id ?? "default";
+    const lastScannedAt = localStorage.getItem(deltaKey(brainId));
+    const entriesToAudit = getChangedEntries(entries, lastScannedAt);
+
     const existingLinkKeys = new Set((links || []).map((l: RefineLink) => `${l.from}-${l.to}`));
     const BATCH = 25;
     const entrySuggestions: RefineSuggestion[] = [];
 
+    // Entry audit (delta: only changed entries)
     const batches = [];
-    for (let i = 0; i < entries.length; i += BATCH) batches.push(entries.slice(i, i + BATCH));
+    for (let i = 0; i < entriesToAudit.length; i += BATCH) batches.push(entriesToAudit.slice(i, i + BATCH));
 
     await Promise.all(
       batches.map(async (batch) => {
@@ -124,6 +315,7 @@ export function useRefineAnalysis({
       }),
     );
 
+    // Link discovery (always full set)
     let linkSuggestions: RefineSuggestion[] = [];
     const namedLinkKeys = new Set(
       (links || [])
@@ -218,7 +410,155 @@ export function useRefineAnalysis({
       } catch (err) { console.error("[useRefineAnalysis]", err); }
     }
 
-    setSuggestions([...entrySuggestions, ...linkSuggestions]);
+    // Weak label rename (small targeted AI pass)
+    let weakLabelSuggestions: WeakLabelSuggestion[] = [];
+    const weakLinks = findWeakLinks(links || []);
+    if (weakLinks.length > 0) {
+      const candidates = weakLinks
+        .map((l) => {
+          const a = entryMap[l.from], b = entryMap[l.to];
+          if (!a || !b) return null;
+          return {
+            fromId: l.from, fromTitle: a.title, fromType: a.type,
+            fromContent: (a.content || "").slice(0, 150),
+            toId: l.to, toTitle: b.title, toType: b.type,
+            toContent: (b.content || "").slice(0, 150),
+            currentRel: l.rel,
+          };
+        })
+        .filter(Boolean);
+      if (candidates.length > 0) {
+        try {
+          const res = await callAI({
+            max_tokens: 800,
+            system: PROMPTS.WEAK_LABEL_RENAME,
+            brainId: activeBrain?.id,
+            messages: [{ role: "user", content: `WEAK LINKS TO RENAME:\n${JSON.stringify(candidates)}` }],
+          });
+          const data = await res.json();
+          const raw = (data.content?.[0]?.text || "[]").replace(/```json|```/g, "").trim();
+          try {
+            const p = JSON.parse(raw);
+            if (Array.isArray(p)) {
+              weakLabelSuggestions = p
+                .filter((x: any) => x.fromId && x.toId && x.rel)
+                .map((x: any) => {
+                  const weak = weakLinks.find((l) => l.from === x.fromId && l.to === x.toId);
+                  const a = entryMap[x.fromId], b = entryMap[x.toId];
+                  return {
+                    type: "WEAK_LABEL" as const,
+                    fromId: x.fromId,
+                    toId: x.toId,
+                    fromTitle: a?.title,
+                    toTitle: b?.title,
+                    currentRel: weak?.rel || "relates to",
+                    rel: x.rel,
+                    reason: `Rename "${weak?.rel || "relates to"}" → "${x.rel}"`,
+                  };
+                });
+            }
+          } catch (err) { console.error("[useRefineAnalysis]", err); }
+        } catch (err) { console.error("[useRefineAnalysis]", err); }
+      }
+    }
+
+    // Duplicate entity name detection (fuzzy + AI)
+    let duplicateSuggestions: EntrySuggestion[] = [];
+    const nameCandidates = findNameCandidates(entries);
+    if (nameCandidates.length > 0) {
+      const candidatePayload = nameCandidates.slice(0, 20).map(([a, b]) => ({
+        primaryId: a.id, primaryTitle: a.title, primaryType: a.type,
+        primaryContent: (a.content || "").slice(0, 150),
+        duplicateId: b.id, duplicateTitle: b.title, duplicateType: b.type,
+        duplicateContent: (b.content || "").slice(0, 150),
+      }));
+      try {
+        const res = await callAI({
+          max_tokens: 800,
+          system: PROMPTS.DUPLICATE_NAMES,
+          brainId: activeBrain?.id,
+          messages: [{ role: "user", content: `CANDIDATE PAIRS:\n${JSON.stringify(candidatePayload)}` }],
+        });
+        const data = await res.json();
+        const raw = (data.content?.[0]?.text || "[]").replace(/```json|```/g, "").trim();
+        try {
+          const p = JSON.parse(raw);
+          if (Array.isArray(p)) {
+            duplicateSuggestions = p
+              .filter((x: any) => x.primaryId && x.duplicateId)
+              .map((x: any) => {
+                const primary = entryMap[x.primaryId];
+                const dup = entryMap[x.duplicateId];
+                return {
+                  type: "DUPLICATE_ENTRY",
+                  entryId: x.primaryId,
+                  entryTitle: primary?.title,
+                  field: "content",
+                  currentValue: `${primary?.title} + ${dup?.title}`,
+                  suggestedValue: x.duplicateId,
+                  reason: x.reason,
+                } as EntrySuggestion;
+              });
+          }
+        } catch (err) { console.error("[useRefineAnalysis]", err); }
+      } catch (err) { console.error("[useRefineAnalysis]", err); }
+    }
+
+    // Cluster detection (graph + AI naming)
+    let clusterSuggestions: EntrySuggestion[] = [];
+    const clusters = detectClusters(entries, links || []);
+    if (clusters.length > 0) {
+      try {
+        const res = await callAI({
+          max_tokens: 800,
+          system: PROMPTS.CLUSTER_NAMING,
+          brainId: activeBrain?.id,
+          messages: [{ role: "user", content: `CLUSTERS:\n${JSON.stringify(
+            clusters.slice(0, 10).map((c) => ({
+              memberIds: c.memberIds,
+              sharedTags: c.sharedTags,
+              memberTitles: c.memberIds.map((id) => entryMap[id]?.title).filter(Boolean),
+            })),
+          )}` }],
+        });
+        const data = await res.json();
+        const raw = (data.content?.[0]?.text || "[]").replace(/```json|```/g, "").trim();
+        try {
+          const p = JSON.parse(raw);
+          if (Array.isArray(p)) {
+            clusterSuggestions = p
+              .filter((x: any) => x.memberIds?.length >= 3 && x.parentTitle)
+              .map((x: any) => ({
+                type: "CLUSTER_SUGGESTED",
+                entryId: x.memberIds[0],
+                entryTitle: x.parentTitle,
+                field: "content",
+                currentValue: x.memberIds.map((id: string) => entryMap[id]?.title).filter(Boolean).join(", "),
+                suggestedValue: JSON.stringify({ parentTitle: x.parentTitle, parentType: x.parentType, memberIds: x.memberIds }),
+                reason: x.reason,
+              } as EntrySuggestion));
+          }
+        } catch (err) { console.error("[useRefineAnalysis]", err); }
+      } catch (err) { console.error("[useRefineAnalysis]", err); }
+    }
+
+    // Pure logic checks (no AI)
+    const orphanSuggestions = detectOrphans(entries, links || []);
+    const staleSuggestions = detectStaleReminders(entries);
+    const deadUrlSuggestions = await checkDeadUrls(entries);
+
+    setSuggestions([
+      ...entrySuggestions,
+      ...linkSuggestions,
+      ...weakLabelSuggestions,
+      ...duplicateSuggestions,
+      ...clusterSuggestions,
+      ...orphanSuggestions,
+      ...staleSuggestions,
+      ...deadUrlSuggestions,
+    ]);
+
+    localStorage.setItem(deltaKey(brainId), new Date().toISOString());
     setLoading(false);
   }, [loading, entries, links, activeBrain]);
 
@@ -242,7 +582,45 @@ export function useRefineAnalysis({
         return;
       }
 
-      if (s.type === "MERGE_SUGGESTED") {
+      if (s.type === "CLUSTER_SUGGESTED") {
+        try {
+          const parsed = JSON.parse(s.suggestedValue);
+          await authFetch("/api/create-entry", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: parsed.parentTitle,
+              type: parsed.parentType || "note",
+              content: `Hub entry for: ${(s.currentValue || "").slice(0, 200)}`,
+              tags: [],
+              brain_id: activeBrain?.id,
+            }),
+          });
+        } catch (err) { console.error("[useRefineAnalysis]", err); }
+        setDismissed((p) => new Set(p).add(key));
+        setApplying((p) => { const n = new Set(p); n.delete(key); return n; });
+        setEditingKey(null);
+        return;
+      }
+
+      if (s.type === "SENSITIVE_DATA") {
+        try {
+          await authFetch("/api/update-entry", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: entry.id, type: "secret" }),
+          });
+          setEntries((prev) =>
+            prev.map((e) => (e.id === entry.id ? { ...e, type: "secret" } : e)),
+          );
+        } catch (err) { console.error("[useRefineAnalysis]", err); }
+        setDismissed((p) => new Set(p).add(key));
+        setApplying((p) => { const n = new Set(p); n.delete(key); return n; });
+        setEditingKey(null);
+        return;
+      }
+
+      if (s.type === "MERGE_SUGGESTED" || s.type === "DUPLICATE_ENTRY") {
         const mergeTarget = entries.find((e: Entry) => e.id === s.suggestedValue);
         if (mergeTarget) {
           const combinedContent = [entry.content, mergeTarget.content].filter(Boolean).join("\n\n");
@@ -337,32 +715,66 @@ export function useRefineAnalysis({
     [addLinks, activeBrain],
   );
 
+  const applyWeakLabel = useCallback(
+    async (s: WeakLabelSuggestion, relOverride?: string) => {
+      const rel = relOverride ?? s.rel;
+      const key = `weak:${s.fromId}:${s.toId}`;
+      setApplying((p) => new Set(p).add(key));
+
+      if (activeBrain?.id) {
+        recordDecision(activeBrain.id, {
+          source: "refine", type: "WEAK_LABEL",
+          action: relOverride ? "edit" : "accept",
+          originalValue: s.currentRel, finalValue: rel, reason: s.reason,
+        });
+      }
+
+      try {
+        await authFetch("/api/save-links", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ links: [{ from: s.fromId, to: s.toId, rel }] }),
+        });
+      } catch (err) { console.error("[useRefineAnalysis]", err); }
+
+      setDismissed((p) => new Set(p).add(key));
+      setApplying((p) => { const n = new Set(p); n.delete(key); return n; });
+      setEditingKey(null);
+    },
+    [activeBrain],
+  );
+
   const reject = useCallback(
     (key: string, s?: RefineSuggestion) => {
       setDismissed((p) => new Set(p).add(key));
       setEditingKey(null);
       if (s && activeBrain?.id) {
-        recordDecision(activeBrain.id, {
-          source: "refine", type: s.type, action: "reject",
-          field: s.type === "LINK_SUGGESTED" ? undefined : (s as EntrySuggestion).field,
-          originalValue: s.type === "LINK_SUGGESTED" ? (s as LinkSuggestion).rel : (s as EntrySuggestion).suggestedValue,
-          reason: s.type === "LINK_SUGGESTED" ? (s as LinkSuggestion).reason : (s as EntrySuggestion).reason,
-        });
+        if (s.type === "LINK_SUGGESTED") {
+          const ls = s as LinkSuggestion;
+          recordDecision(activeBrain.id, { source: "refine", type: s.type, action: "reject", originalValue: ls.rel, reason: ls.reason });
+        } else if (s.type === "WEAK_LABEL") {
+          const ws = s as WeakLabelSuggestion;
+          recordDecision(activeBrain.id, { source: "refine", type: s.type, action: "reject", originalValue: ws.currentRel, reason: ws.reason });
+        } else {
+          const es = s as EntrySuggestion;
+          recordDecision(activeBrain.id, { source: "refine", type: s.type, action: "reject", field: es.field, originalValue: es.suggestedValue, reason: es.reason });
+        }
       }
     },
     [activeBrain],
   );
 
-  const keyOf = (s: RefineSuggestion): string =>
-    s.type === "LINK_SUGGESTED"
-      ? `link:${(s as LinkSuggestion).fromId}:${(s as LinkSuggestion).toId}`
-      : `entry:${(s as EntrySuggestion).entryId}:${(s as EntrySuggestion).field}`;
+  const keyOf = (s: RefineSuggestion): string => {
+    if (s.type === "LINK_SUGGESTED") return `link:${(s as LinkSuggestion).fromId}:${(s as LinkSuggestion).toId}`;
+    if (s.type === "WEAK_LABEL") return `weak:${(s as WeakLabelSuggestion).fromId}:${(s as WeakLabelSuggestion).toId}`;
+    return `entry:${(s as EntrySuggestion).entryId}:${(s as EntrySuggestion).field}`;
+  };
 
   const visible = sortBySuggestionPriority(
     (suggestions ?? []).filter((s) => !dismissed.has(keyOf(s))),
   );
-  const linkCount = visible.filter((s) => s.type === "LINK_SUGGESTED").length;
-  const entryCount = visible.filter((s) => s.type !== "LINK_SUGGESTED").length;
+  const linkCount = visible.filter((s) => s.type === "LINK_SUGGESTED" || s.type === "WEAK_LABEL").length;
+  const entryCount = visible.filter((s) => s.type !== "LINK_SUGGESTED" && s.type !== "WEAK_LABEL").length;
   const allDone = suggestions !== null && suggestions.length > 0 && visible.length === 0;
   const noneFound = suggestions !== null && suggestions.length === 0;
 
@@ -377,6 +789,7 @@ export function useRefineAnalysis({
     analyze,
     applyEntry,
     applyLink,
+    applyWeakLabel,
     reject,
     keyOf,
   };
