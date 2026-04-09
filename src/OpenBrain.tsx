@@ -1,4 +1,5 @@
-import { useState, useMemo, useRef, useEffect, useCallback, lazy, Suspense } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback, lazy, Suspense, type ReactNode } from "react";
+import { NavIcon } from "./components/icons/NavIcons";
 import { useTheme } from "./ThemeContext";
 import { authFetch } from "./lib/authFetch";
 import { callAI } from "./lib/ai";
@@ -604,12 +605,14 @@ export default function OpenBrain() {
                       </div>
                     </button>
                     <div className="grid grid-cols-2 gap-3">
-                      {[
-                        { id: "grid", l: "Memory Grid", ic: "▦" },
-                        { id: "chat", l: "Ask Brain", ic: "◈" },
-                        { id: "refine", l: "Fix Issues", ic: "✦" },
-                        { id: "todos", l: "Todos", ic: "✓" },
-                      ].map((v) => (
+                      {(
+                        [
+                          { id: "grid", l: "Memory Grid", icon: NavIcon.grid },
+                          { id: "chat", l: "Ask Brain", icon: NavIcon.chat },
+                          { id: "refine", l: "Fix Issues", icon: NavIcon.refine },
+                          { id: "todos", l: "Todos", icon: NavIcon.todos },
+                        ] as { id: string; l: string; icon: ReactNode }[]
+                      ).map((v) => (
                         <button
                           key={v.id}
                           onClick={() => setView(v.id)}
@@ -619,7 +622,7 @@ export default function OpenBrain() {
                             borderColor: "var(--color-outline-variant)",
                           }}
                         >
-                          <div className="text-xl">{v.ic}</div>
+                          <div className="text-on-surface-variant">{v.icon}</div>
                           <div className="text-on-surface text-sm font-bold">{v.l}</div>
                         </button>
                       ))}
