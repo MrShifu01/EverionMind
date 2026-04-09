@@ -65,7 +65,7 @@ export default function ProvidersTab({ activeBrain }: Props) {
   const [byoModel, setByoModel] = useState(() => getUserModel());
   const [orKey, setOrKey] = useState(() => getOpenRouterKey() || "");
   const [orModel, setOrModel] = useState(
-    () => getOpenRouterModel() || "google/gemini-2.0-flash-001",
+    () => getOpenRouterModel() || "qwen/qwen3.6-plus-preview:free",
   );
   const [orFilter, setOrFilter] = useState<FilterTier>("free");
   const [editingOrKey, setEditingOrKey] = useState(() => !getOpenRouterKey());
@@ -130,7 +130,7 @@ export default function ProvidersTab({ activeBrain }: Props) {
       setByoModel(getUserModel());
       const or = getOpenRouterKey() || "";
       setOrKey(or);
-      setOrModel(getOpenRouterModel() || "google/gemini-2.0-flash-001");
+      setOrModel(getOpenRouterModel() || "qwen/qwen3.6-plus-preview:free");
       if (or) setEditingOrKey(false);
       setGroqKeyVal(getGroqKey() || "");
       setEmbedProviderState(getEmbedProvider());

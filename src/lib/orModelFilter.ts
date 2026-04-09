@@ -40,7 +40,7 @@ export function filterByTier(models: ORModel[], tier: FilterTier): ORModel[] {
 
 /** Best model per tier for knowledge capture, RAG chat, refinement, and vision tasks. */
 export const TIER_RECOMMENDED: Record<PriceTier, string> = {
-  free: "google/gemini-2.0-flash-001",
+  free: "qwen/qwen3.6-plus-preview:free",
   cheap: "google/gemini-2.0-flash-001", // ~$0.10/1M, excellent all-rounder
   good: "anthropic/claude-3.7-sonnet", // best reasoning + instruction following
   frontier: "anthropic/claude-opus-4", // max quality for complex RAG & refinement
@@ -66,8 +66,8 @@ export function modelLabel(m: ORModel, recommendedId?: string): string {
 export const CURATED_OR_MODELS: ORModel[] = [
   // Free
   {
-    id: "google/gemini-2.0-flash-001",
-    name: "Gemini 2.0 Flash",
+    id: "qwen/qwen3.6-plus-preview:free",
+    name: "Qwen 3.6 Plus Preview",
     pricing: { prompt: "0" },
     modality: "text+image",
   },
@@ -75,8 +75,8 @@ export const CURATED_OR_MODELS: ORModel[] = [
   { id: "deepseek/deepseek-chat-v3-0324:free", name: "DeepSeek V3", pricing: { prompt: "0" } },
   // Cheap  (<$2/1M)
   {
-    id: "google/gemini-2.0-flash-001",
-    name: "Gemini 2.0 Flash",
+    id: "qwen/qwen3.6-plus-preview:free",
+    name: "Qwen 3.6 Plus Preview",
     pricing: { prompt: "0.0000001" },
     modality: "text+image",
   },
