@@ -91,12 +91,17 @@ export default function DetailModal({
     };
   }, []);
 
-  // Lock body scroll while modal is open (prevents background page scrolling on mobile)
+  // Lock body scroll while modal is open — position:fixed is required on iOS where overflow:hidden is ignored
   useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const scrollY = window.scrollY;
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
     return () => {
-      document.body.style.overflow = prev;
+      document.body.style.position = "";
+      document.body.style.top = "";
+      document.body.style.width = "";
+      window.scrollTo(0, scrollY);
     };
   }, []);
 

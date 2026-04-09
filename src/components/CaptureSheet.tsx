@@ -72,11 +72,22 @@ export default function CaptureSheet({
 
   useEffect(() => {
     if (isOpen) {
+      // Lock body scroll on iOS (overflow:hidden is ignored; position:fixed is required)
+      const scrollY = window.scrollY;
+      document.body.style.position = "fixed";
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = "100%";
       // One RAF gives browser a frame to paint translateY(100%) before transitioning to 0
       requestAnimationFrame(() => {
         setVisible(true);
         requestAnimationFrame(() => textareaRef.current?.focus());
       });
+      return () => {
+        document.body.style.position = "";
+        document.body.style.top = "";
+        document.body.style.width = "";
+        window.scrollTo(0, scrollY);
+      };
     } else {
       setVisible(false);
       setText("");
