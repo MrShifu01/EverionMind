@@ -4,6 +4,9 @@ import { TC } from "../data/constants";
 import { resolveIcon } from "../lib/typeIcons";
 import { extractPhone, toWaUrl } from "../lib/phone";
 import { useEntryEdit } from "../hooks/useEntryEdit";
+import { authFetch } from "../lib/authFetch";
+import { getUserProvider, getUserApiKey, getOpenRouterKey, getOpenRouterModel, getUserModel } from "../lib/aiSettings";
+import { CANONICAL_TYPES } from "../types";
 import type { Entry, Brain, EntryType } from "../types";
 
 interface DetailLink {
@@ -62,6 +65,55 @@ export default function DetailModal({
   const [editType, setEditType] = useState<string>(entry.type);
   const [editTags, setEditTags] = useState((entry.tags || []).join(", "));
   const [secretRevealed, setSecretRevealed] = useState(false);
+  const [typeOpen, setTypeOpen] = useState(false);
+  const [aiTyping, setAiTyping] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const typeRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!typeOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (typeRef.current && !typeRef.current.contains(e.target as Node)) setTypeOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [typeOpen]);
+
+  async function suggestType() {
+    setAiTyping(true);
+    setAiError(null);
+    try {
+      const provider = getUserProvider();
+      const apiKey = provider === "openrouter" ? getOpenRouterKey() : getUserApiKey();
+      const model = provider === "openrouter" ? (getOpenRouterModel() || "") : getUserModel();
+      const endpoint = provider === "openai" ? "/api/openai" : provider === "openrouter" ? "/api/openrouter" : "/api/anthropic";
+      const res = await authFetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-user-api-key": apiKey || "", "x-provider": provider, "x-model": model },
+        body: JSON.stringify({
+          system: `Classify this entry. Reply with ONLY one type name from: ${CANONICAL_TYPES.filter(t => t !== "secret").join(", ")}. No explanation.`,
+          messages: [{ role: "user", content: `Title: ${editTitle}\n\nContent: ${editContent || "(none)"}` }],
+          max_tokens: 10,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const raw = (data.content?.[0]?.text || data.choices?.[0]?.message?.content || "").trim().toLowerCase();
+        const match = CANONICAL_TYPES.find(t => raw.startsWith(t) || raw === t);
+        if (match) setEditType(match);
+        else setAiError(`No match (got: "${raw.slice(0, 30)}")`);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        const msg = (errData as any)?.error || `HTTP ${res.status}`;
+        setAiError(msg);
+        console.error("[suggestType]", res.status, errData);
+      }
+    } catch (err: any) {
+      setAiError(err?.message || "Request failed");
+      console.error("[suggestType]", err);
+    }
+    setAiTyping(false);
+  }
 
   const {
     saving,
@@ -91,12 +143,17 @@ export default function DetailModal({
     };
   }, []);
 
-  // Lock body scroll while modal is open (prevents background page scrolling on mobile)
+  // Lock body scroll while modal is open — position:fixed is required on iOS where overflow:hidden is ignored
   useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const scrollY = window.scrollY;
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
     return () => {
-      document.body.style.overflow = prev;
+      document.body.style.position = "";
+      document.body.style.top = "";
+      document.body.style.width = "";
+      window.scrollTo(0, scrollY);
     };
   }, []);
 
@@ -478,52 +535,65 @@ export default function DetailModal({
                   }}
                 />
               </div>
-              <div>
-                <label
-                  className="mb-1.5 block text-[10px] font-semibold tracking-widest uppercase"
-                  style={{ color: "var(--color-on-surface-variant)" }}
-                >
-                  Type
-                </label>
-                {/* Free-form type input — AI can use any label; datalist shows known types */}
-                <datalist id="entry-types-list">
-                  {Array.from(
-                    new Set([
-                      ...entries.map((e) => e.type).filter(Boolean),
-                      "note",
-                      "person",
-                      "place",
-                      "idea",
-                      "contact",
-                      "document",
-                      "reminder",
-                      "decision",
-                      "secret",
-                    ]),
-                  ).map((typ) => (
-                    <option key={typ} value={typ} />
-                  ))}
-                </datalist>
-                <input
-                  type="text"
-                  list="entry-types-list"
-                  value={editType}
-                  onChange={(e) => setEditType(e.target.value.toLowerCase().trim())}
-                  placeholder="e.g. recipe, supplier, director…"
-                  className="text-on-surface min-h-[44px] w-full rounded-xl px-4 py-3 text-sm transition-all focus:outline-none"
+              <div ref={typeRef} className="relative">
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label
+                    className="block text-[10px] font-semibold tracking-widest uppercase"
+                    style={{ color: "var(--color-on-surface-variant)" }}
+                  >
+                    Type
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    {aiError && (
+                      <span className="max-w-[120px] truncate text-[9px]" style={{ color: "var(--color-error)" }} title={aiError}>{aiError}</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={suggestType}
+                      disabled={aiTyping}
+                      className="rounded-lg px-2 py-0.5 text-[10px] font-semibold transition-all disabled:opacity-50"
+                      style={{ background: "var(--color-primary-container)", color: "var(--color-primary)" }}
+                    >
+                      {aiTyping ? "Thinking…" : "✦ AI pick"}
+                    </button>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTypeOpen(p => !p)}
+                  className="flex min-h-[44px] w-full items-center justify-between rounded-xl px-4 py-3 text-sm transition-all"
                   style={{
                     background: "var(--color-surface-container)",
-                    border: "1px solid var(--color-outline-variant)",
+                    border: `1px solid ${typeOpen ? "var(--color-primary)" : "var(--color-outline-variant)"}`,
+                    color: "var(--color-on-surface)",
                   }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = "var(--color-primary)";
-                    e.currentTarget.style.boxShadow = "0 0 0 3px var(--color-primary-container)";
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = "var(--color-outline-variant)";
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
-                />
+                >
+                  <span>{editType.charAt(0).toUpperCase() + editType.slice(1)}</span>
+                  <svg className={`h-4 w-4 flex-shrink-0 transition-transform ${typeOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {typeOpen && (
+                  <div
+                    className="absolute top-full left-0 right-0 z-20 mt-1 overflow-y-auto rounded-xl border shadow-lg"
+                    style={{ background: "var(--color-surface-container-high)", borderColor: "var(--color-outline-variant)", maxHeight: "200px" }}
+                  >
+                    {CANONICAL_TYPES.map(t => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => { setEditType(t); setTypeOpen(false); }}
+                        className="w-full px-4 py-2.5 text-left text-sm transition-colors hover:bg-white/10"
+                        style={{
+                          color: "var(--color-on-surface)",
+                          background: editType === t ? "var(--color-primary-container)" : undefined,
+                        }}
+                      >
+                        {t.charAt(0).toUpperCase() + t.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div>
                 <label

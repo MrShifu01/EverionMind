@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { authFetch } from "../lib/authFetch";
 import { CANONICAL_TYPES } from "../types";
+import { getUserProvider, getUserApiKey, getOpenRouterKey, getOpenRouterModel, getUserModel } from "../lib/aiSettings";
 import type { Brain, Entry } from "../types";
 
 interface Props {
@@ -17,6 +18,7 @@ export default function BulkActionBar({ selectedIds, entries: _entries, brains, 
   const [progress, setProgress] = useState<string | null>(null);
   const [typeOpen, setTypeOpen] = useState(false);
   const [brainsOpen, setBrainsOpen] = useState(false);
+  const [aiTyping, setAiTyping] = useState(false);
   const typeRef = useRef<HTMLDivElement>(null);
   const brainsRef = useRef<HTMLDivElement>(null);
 
@@ -31,6 +33,40 @@ export default function BulkActionBar({ selectedIds, entries: _entries, brains, 
 
   const count = selectedIds.size;
   const hasAction = !!targetType || targetBrainIds.size > 0;
+
+  async function suggestType() {
+    setAiTyping(true);
+    try {
+      const selected = _entries.filter(e => selectedIds.has(e.id)).slice(0, 5);
+      const sample = selected.map(e => `- ${e.title}: ${(e.content || "").slice(0, 120)}`).join("\n");
+      const provider = getUserProvider();
+      const apiKey = provider === "openrouter" ? getOpenRouterKey() : getUserApiKey();
+      const model = provider === "openrouter" ? (getOpenRouterModel() || "") : getUserModel();
+      const endpoint = provider === "openai" ? "/api/openai" : provider === "openrouter" ? "/api/openrouter" : "/api/anthropic";
+      const res = await authFetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-user-api-key": apiKey || "", "x-provider": provider, "x-model": model },
+        body: JSON.stringify({
+          system: `Classify these entries. Reply with ONLY one type name from: ${CANONICAL_TYPES.filter(t => t !== "secret").join(", ")}. No explanation.`,
+          messages: [{ role: "user", content: sample }],
+          max_tokens: 10,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const raw = (data.content?.[0]?.text || data.choices?.[0]?.message?.content || "").trim().toLowerCase();
+        const match = CANONICAL_TYPES.find(t => raw.startsWith(t) || raw === t);
+        if (match) setTargetType(match);
+        else console.warn("[bulkSuggestType] no match, got:", raw);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        console.error("[bulkSuggestType]", res.status, errData);
+      }
+    } catch (err: any) {
+      console.error("[bulkSuggestType]", err);
+    }
+    setAiTyping(false);
+  }
 
   function toggleBrain(id: string) {
     setTargetBrainIds((prev) => {
@@ -118,12 +154,23 @@ export default function BulkActionBar({ selectedIds, entries: _entries, brains, 
         <div className="flex gap-2">
           {/* Type picker — custom upward dropdown */}
           <div ref={typeRef} className="relative flex flex-1 flex-col gap-1">
-            <label
-              className="text-[10px] font-semibold uppercase tracking-wide"
-              style={{ color: "var(--color-on-surface-variant)" }}
-            >
-              Change type
-            </label>
+            <div className="flex items-center justify-between">
+              <label
+                className="text-[10px] font-semibold uppercase tracking-wide"
+                style={{ color: "var(--color-on-surface-variant)" }}
+              >
+                Change type
+              </label>
+              <button
+                type="button"
+                onClick={suggestType}
+                disabled={aiTyping}
+                className="rounded-md px-1.5 py-0.5 text-[9px] font-semibold transition-all disabled:opacity-50"
+                style={{ background: "var(--color-primary-container)", color: "var(--color-primary)" }}
+              >
+                {aiTyping ? "…" : "✦ AI"}
+              </button>
+            </div>
             <button
               onClick={() => { setTypeOpen((p) => !p); setBrainsOpen(false); }}
               className="flex w-full items-center justify-between rounded-xl border bg-transparent px-2.5 py-1.5 text-left text-xs outline-none"
