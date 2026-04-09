@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { callAI } from "../lib/ai";
 import { aiFetch } from "../lib/aiFetch";
-import { getUserModel, getEmbedHeaders } from "../lib/aiSettings";
+import { getUserModel, getEmbedHeaders, isAIConfigured } from "../lib/aiSettings";
 import { encryptEntry } from "../lib/crypto";
 import { authFetch } from "../lib/authFetch";
 import { showToast } from "../lib/notifications";
@@ -88,6 +88,7 @@ function PreviewModal({ preview, entries, onSave, onUpdate, onCancel }: PreviewM
   const [title, setTitle] = useState(preview.title || "");
   const [type, setType] = useState(preview.type || "note");
   const [tags, setTags] = useState((preview.tags || []).join(", "));
+  const [body, setBody] = useState(preview.content || "");
   const modalRef = useRef<HTMLDivElement>(null);
   const dupes = useMemo(() => {
     if (!title.trim()) return [];
@@ -144,7 +145,7 @@ function PreviewModal({ preview, entries, onSave, onUpdate, onCancel }: PreviewM
       >
         <div className="mb-4 flex items-center justify-between">
           <span id="qc-preview-title" className="text-on-surface text-sm font-semibold">
-            Preview before saving
+            {preview.title ? "Preview before saving" : "Add entry details"}
           </span>
           <button
             onClick={onCancel}
@@ -170,6 +171,16 @@ function PreviewModal({ preview, entries, onSave, onUpdate, onCancel }: PreviewM
               data-form-type="other"
               spellCheck={false}
               className="text-on-surface w-full rounded-xl border bg-transparent px-3 py-2.5 text-sm transition-colors outline-none focus:border-[var(--color-primary)]"
+              style={{ borderColor: "var(--color-outline-variant)" }}
+            />
+          </div>
+          <div>
+            <label className="text-on-surface-variant mb-1.5 block text-xs font-medium">Body</label>
+            <textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              rows={3}
+              className="text-on-surface w-full rounded-xl border bg-transparent px-3 py-2.5 text-sm transition-colors outline-none focus:border-[var(--color-primary)] resize-none"
               style={{ borderColor: "var(--color-outline-variant)" }}
             />
           </div>
@@ -282,6 +293,7 @@ function PreviewModal({ preview, entries, onSave, onUpdate, onCancel }: PreviewM
               onSave({
                 ...preview,
                 title: title.trim(),
+                content: body,
                 type,
                 tags: tags
                   .split(",")
@@ -754,6 +766,13 @@ export default function QuickCapture({
     if (!text.trim()) return;
     const input = text.trim();
     setText("");
+    // No AI key — open edit modal so user can add title, type, tags manually
+    if (!isAIConfigured()) {
+      setPreview({ title: "", content: input, type: "note", tags: [], _raw: input });
+      setLoading(false);
+      setStatus(null);
+      return;
+    }
     setLoading(true);
     setErrorDetail(null);
     setStatus("thinking");
