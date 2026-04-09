@@ -27,6 +27,33 @@ interface LinkSuggestion {
 
 type RefineSuggestion = EntrySuggestion | LinkSuggestion;
 
+export const PRIORITY_WEIGHTS: Record<string, number> = {
+  SENSITIVE_DATA: 10,
+  MERGE_SUGGESTED: 9,
+  STALE_REMINDER: 8,
+  DEAD_URL: 7,
+  DUPLICATE_ENTRY: 7,
+  TYPE_MISMATCH: 6,
+  PHONE_FOUND: 5,
+  EMAIL_FOUND: 5,
+  DATE_FOUND: 5,
+  LINK_SUGGESTED: 4,
+  CLUSTER_SUGGESTED: 4,
+  CONTENT_WEAK: 3,
+  TAG_SUGGESTED: 2,
+  TITLE_POOR: 2,
+  ORPHAN_DETECTED: 2,
+  SPLIT_SUGGESTED: 2,
+  URL_FOUND: 1,
+  WEAK_LABEL: 1,
+};
+
+export function sortBySuggestionPriority<T extends { type: string }>(items: T[]): T[] {
+  return [...items].sort(
+    (a, b) => (PRIORITY_WEIGHTS[b.type] ?? 0) - (PRIORITY_WEIGHTS[a.type] ?? 0),
+  );
+}
+
 interface RefineLink {
   from: string;
   to: string;
@@ -331,7 +358,9 @@ export function useRefineAnalysis({
       ? `link:${(s as LinkSuggestion).fromId}:${(s as LinkSuggestion).toId}`
       : `entry:${(s as EntrySuggestion).entryId}:${(s as EntrySuggestion).field}`;
 
-  const visible = (suggestions ?? []).filter((s) => !dismissed.has(keyOf(s)));
+  const visible = sortBySuggestionPriority(
+    (suggestions ?? []).filter((s) => !dismissed.has(keyOf(s))),
+  );
   const linkCount = visible.filter((s) => s.type === "LINK_SUGGESTED").length;
   const entryCount = visible.filter((s) => s.type !== "LINK_SUGGESTED").length;
   const allDone = suggestions !== null && suggestions.length > 0 && visible.length === 0;
