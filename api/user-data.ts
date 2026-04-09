@@ -122,22 +122,45 @@ async function handleHealth(req: ApiRequest, res: ApiResponse): Promise<void> {
     db = r.ok;
   } catch { db = false; }
 
-  // Test Gemini — list models endpoint (lightweight key validation, also confirms gemma-4-31b-it available)
+  // Test Gemini — list available models and do a real inference test
   let gemini = false;
   let geminiModel = "";
+  let geminiError = "";
   if (GEMINI_API_KEY) {
     try {
-      const r = await fetch(
+      // Step 1: find available gemma/gemini models
+      const listR = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(GEMINI_API_KEY)}&pageSize=200`
       );
-      if (r.ok) {
-        const data: any = await r.json();
-        const models: string[] = (data.models || []).map((m: any) => m.name as string);
-        const found = models.find(n => n.includes("gemma-4-31b") || n.includes("gemma-4"));
-        gemini = true;
-        geminiModel = found ? found.replace("models/", "") : "key valid (gemma-4-31b-it not listed)";
+      if (listR.ok) {
+        const listData: any = await listR.json();
+        const names: string[] = (listData.models || []).map((m: any) => (m.name as string).replace("models/", ""));
+        const gemma4 = names.find(n => n.includes("gemma-4") && n.includes("it"));
+        const gemma3 = names.find(n => n.includes("gemma-3") && n.includes("27b"));
+        const flash  = names.find(n => n.includes("gemini-2.0-flash-lite") || n.includes("gemini-2.0-flash"));
+        const candidate = gemma4 || gemma3 || flash || names[0];
+        geminiModel = candidate || "";
+
+        // Step 2: real inference test with the found model
+        if (candidate) {
+          const testR = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${candidate}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "hi" }] }], generationConfig: { maxOutputTokens: 5 } }),
+            }
+          );
+          gemini = testR.ok;
+          if (!testR.ok) {
+            const errData: any = await testR.json().catch(() => ({}));
+            geminiError = errData?.error?.message || `HTTP ${testR.status}`;
+          }
+        }
+      } else {
+        geminiError = `Key error: HTTP ${listR.status}`;
       }
-    } catch { gemini = false; }
+    } catch (e: any) { geminiError = e.message; }
   }
 
   // Test Groq — list models (lightweight key validation)
@@ -151,7 +174,7 @@ async function handleHealth(req: ApiRequest, res: ApiResponse): Promise<void> {
     } catch { groq = false; }
   }
 
-  res.status(200).json({ db, gemini, geminiModel, groq });
+  res.status(200).json({ db, gemini, geminiModel, geminiError, groq });
 }
 
 // ── /api/vault (rewritten to /api/user-data?resource=vault) ──

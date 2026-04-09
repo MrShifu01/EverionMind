@@ -16,6 +16,7 @@ interface HealthResult {
   db: boolean;
   gemini: boolean;
   geminiModel?: string;
+  geminiError?: string;
   groq: boolean;
 }
 
@@ -50,7 +51,7 @@ export default function ProvidersTab(_props?: { activeBrain?: unknown }) {
       if (res.ok) {
         const data: HealthResult = await res.json();
         setGemini(data.gemini ? "ok" : "fail");
-        setGeminiModel(data.geminiModel || "");
+        setGeminiModel(data.gemini ? (data.geminiModel || "") : (data.geminiError || data.geminiModel || ""));
         setGroq(data.groq ? "ok" : "fail");
         setDb(data.db ? "ok" : "fail");
       } else {

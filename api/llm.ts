@@ -6,9 +6,8 @@ import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 // Hardcoded server-side models — always used when no user key is provided
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
 const GROQ_API_KEY = (process.env.GROQ_API_KEY || "").trim();
-const GEMINI_MODEL = "gemma-4-31b-it";
-// Native generateContent API — supports all Google models including Gemma
-const GEMINI_NATIVE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+// GEMINI_MODEL: set via env var, or falls back to gemini-2.0-flash-lite (guaranteed available)
+const GEMINI_MODEL = (process.env.GEMINI_MODEL || "gemini-2.0-flash-lite").trim();
 
 const ANTHROPIC_MODELS = [
   "claude-haiku-4-5-20251001",
@@ -131,11 +130,10 @@ async function handleGoogle(res: ApiResponse, { messages, max_tokens, system }: 
   };
   if (system) body.systemInstruction = { parts: [{ text: system.slice(0, 10000) }] };
 
-  const response = await fetch(`${GEMINI_NATIVE_URL}?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
+  );
   const data: any = await response.json();
   if (response.ok) {
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
