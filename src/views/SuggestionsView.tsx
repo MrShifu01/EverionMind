@@ -5,6 +5,7 @@ import { PC } from "../data/constants";
 import { PROMPTS } from "../config/prompts";
 import { aiFetch } from "../lib/aiFetch";
 import { getUserModel, getEmbedHeaders, getGroqKey, getUserApiKey } from "../lib/aiSettings";
+import { useAiQuestion } from "../hooks/useAiQuestion";
 import {
   isSupportedFile,
   isTextFile,
@@ -67,8 +68,6 @@ export default function SuggestionsView({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [imgLoading, setImgLoading] = useState(false);
   const [imgError, setImgError] = useState<string | null>(null);
-  const [aiQuestion, setAiQuestion] = useState<AiQuestion | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
   const [listening, setListening] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
@@ -85,9 +84,8 @@ export default function SuggestionsView({
     }
   });
 
-  // Reset when active brain changes
+  // Reset counters when active brain changes
   useEffect(() => {
-    setAiQuestion(null);
     setAnswered(0);
     setSkipped(0);
   }, [activeBrain?.id]);
@@ -112,73 +110,21 @@ export default function SuggestionsView({
 
   // Always AI-driven: show onboarding skipped first, then pure AI questions
   const useSkipped = skippedQueue.length > 0;
+
+  const { aiQuestion, aiLoading, generateAiQuestion } = useAiQuestion({
+    entries,
+    answeredQs,
+    brainType,
+    targetBrainId: targetBrain?.id,
+    activeBrainId: activeBrain?.id,
+    useSkipped,
+  });
+
   const current: AiQuestion | Suggestion | null = useSkipped
     ? skippedQueue[0]
     : aiLoading
       ? null
       : aiQuestion;
-
-  const generateAiQuestion = useCallback(() => {
-    if (aiLoading) return;
-    setAiLoading(true);
-    setAiQuestion(null);
-    const ctx = entries
-      .slice(0, 40)
-      .map((e: Entry) => `- [${e.type}] ${e.title}: ${(e.content || "").slice(0, 120)}`)
-      .join("\n");
-    const alreadyAsked = Array.from(answeredQs).slice(-20).join(", ");
-    const brainContext =
-      brainType === "family"
-        ? "family shared knowledge base (household, family members, emergencies, finances)"
-        : brainType === "business"
-          ? "business knowledge base (suppliers, staff, SOPs, costs, licences, equipment)"
-          : "personal knowledge base";
-    callAI({
-      max_tokens: 200,
-      system: PROMPTS.FILL_BRAIN.replace("{{BRAIN_CONTEXT}}", brainContext),
-      brainId: targetBrain?.id,
-      messages: [
-        {
-          role: "user",
-          content: `Existing entries:\n${ctx || "(none yet)"}\n\nRecently asked questions (do not repeat):\n${alreadyAsked || "(none)"}\n\nWhat important gap should they fill next?`,
-        },
-      ],
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        const raw = (data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim();
-        let parsed: any = {};
-        try {
-          parsed = JSON.parse(raw);
-        } catch (err) { console.error("[SuggestionsView]", err); }
-        setAiQuestion(
-          parsed.q
-            ? { q: parsed.q, cat: parsed.cat || "AI", p: parsed.p || "medium", ai: true }
-            : {
-                q: "What's one important thing you haven't captured yet?",
-                cat: "AI",
-                p: "medium",
-                ai: true,
-              },
-        );
-      })
-      .catch(() =>
-        setAiQuestion({
-          q: "What's one important thing you haven't captured yet?",
-          cat: "AI",
-          p: "medium",
-          ai: true,
-        }),
-      )
-      .finally(() => setAiLoading(false));
-  }, [aiLoading, entries, answeredQs, brainType, targetBrain?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Generate first AI question on mount / brain change
-  useEffect(() => {
-    if (!useSkipped && !aiQuestion && !aiLoading) {
-      generateAiQuestion();
-    }
-  }, [activeBrain?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -446,7 +392,6 @@ export default function SuggestionsView({
         setAnswer("");
         setShowInput(false);
         setAnim("");
-        setAiQuestion(null);
         // Generate next AI question after a short delay so state clears first
         setTimeout(() => generateAiQuestion(), 50);
       }, 200);
