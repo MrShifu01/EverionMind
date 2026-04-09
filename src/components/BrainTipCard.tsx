@@ -1,5 +1,6 @@
 import type { JSX } from "react";
 import type { Brain } from "../types";
+import { BrainTypeIcon } from "./icons/BrainTypeIcon";
 
 const TIPS: Record<string, string[]> = {
   family: [
@@ -24,7 +25,6 @@ interface BrainTipCardProps {
 
 export default function BrainTipCard({ brain, onDismiss, onFill }: BrainTipCardProps): JSX.Element {
   const tips = TIPS[brain.type || ""] || [];
-  const emoji = brain.type === "business" ? "🏪" : "🏠";
 
   return (
     <div
@@ -47,7 +47,9 @@ export default function BrainTipCard({ brain, onDismiss, onFill }: BrainTipCardP
       </button>
 
       <div className="flex items-center gap-2">
-        <span className="text-xl">{emoji}</span>
+        <span className="text-on-surface-variant">
+          <BrainTypeIcon type={brain.type ?? "personal"} className="h-5 w-5" />
+        </span>
         <span className="text-on-surface text-sm font-semibold">
           {brain.name} is ready — start here
         </span>

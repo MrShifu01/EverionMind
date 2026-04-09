@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { BrainTypeIcon } from "../components/icons/BrainTypeIcon";
 import { authFetch } from "../lib/authFetch";
 import { callAI } from "../lib/ai";
 import { PC } from "../data/constants";
@@ -44,9 +45,9 @@ interface SavedItem {
 
 /* ─── Brain type label/icon ─── */
 const BRAIN_META = {
-  personal: { emoji: "🧠", label: "Personal" },
-  family: { emoji: "🏠", label: "Family" },
-  business: { emoji: "🏪", label: "Business" },
+  personal: { label: "Personal" },
+  family: { label: "Family" },
+  business: { label: "Business" },
 };
 
 export default function SuggestionsView({
@@ -534,7 +535,8 @@ export default function SuggestionsView({
           <p className="text-on-surface-variant text-xs">
             Showing questions for{" "}
             <strong className="text-on-surface">
-              {bm.emoji} {targetBrain.name}
+              <BrainTypeIcon type={brainType} className="inline h-3.5 w-3.5 align-middle" />{" "}
+              {targetBrain.name}
             </strong>
           </p>
         </div>
@@ -866,7 +868,7 @@ export default function SuggestionsView({
                 ? "Processing..."
                 : listening
                   ? "Listening..."
-                  : `Save to ${bm.emoji} ${targetBrain?.name || bm.label}`}
+                  : `Save to ${targetBrain?.name || bm.label}`}
           </button>
         </div>
       )}
@@ -913,7 +915,7 @@ export default function SuggestionsView({
                   </span>
                   {s.brain && (
                     <span className="text-on-surface-variant text-[10px]">
-                      {BRAIN_META[(s.brain.type || "personal") as keyof typeof BRAIN_META]?.emoji}{" "}
+                      <BrainTypeIcon type={s.brain.type ?? "personal"} className="inline h-3 w-3 align-middle" />{" "}
                       {s.brain.name}
                     </span>
                   )}

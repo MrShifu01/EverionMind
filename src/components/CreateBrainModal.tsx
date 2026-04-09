@@ -2,18 +2,17 @@ import { useState, useEffect, useRef, type JSX } from "react";
 import { authFetch } from "../lib/authFetch";
 import type { Brain } from "../types";
 import { cn } from "../lib/cn";
+import { BrainTypeIcon } from "./icons/BrainTypeIcon";
 
 const BRAIN_TYPES = [
   {
     value: "family",
     label: "Family",
-    emoji: "🏠",
     desc: "Household, kids, shared finances, emergencies",
   },
   {
     value: "business",
     label: "Business",
-    emoji: "🏪",
     desc: "Staff, suppliers, SOPs, costs, licences",
   },
 ];
@@ -169,7 +168,9 @@ export default function CreateBrainModal({
                     : "border-outline-variant/20 hover:border-primary/20 hover:bg-surface-container",
                 )}
               >
-                <span className="text-2xl">{bt.emoji}</span>
+                <span className="text-on-surface-variant">
+                  <BrainTypeIcon type={bt.value} className="h-7 w-7" />
+                </span>
                 <span className="text-on-surface text-sm font-semibold">{bt.label}</span>
                 <span className="text-on-surface-variant text-[11px] leading-tight">{bt.desc}</span>
               </button>

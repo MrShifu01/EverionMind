@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import { TC, fmtD } from "../data/constants";
 import { resolveIcon } from "../lib/typeIcons";
 import { useEntries } from "../context/EntriesContext";
@@ -111,7 +111,9 @@ function MiniCalendar({
         onClick={() => setExpanded((s) => !s)}
       >
         <div className="flex items-center gap-3">
-          <span className="text-xl">📅</span>
+          <svg className="h-5 w-5 flex-shrink-0" style={{ color: "var(--color-on-surface-variant)" }} fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+          </svg>
           <div className="flex flex-col items-start">
             <span
               className="text-sm font-semibold text-[var(--color-on-surface)]"
@@ -347,7 +349,7 @@ export default function TodoView({ entries: propEntries, typeIcons = {} }: TodoV
 
   function renderSection(
     title: string,
-    emoji: string,
+    icon: ReactNode,
     items: TodoItem[],
     showDate: boolean,
     accentColor?: string,
@@ -356,7 +358,7 @@ export default function TodoView({ entries: propEntries, typeIcons = {} }: TodoV
     return (
       <div>
         <div className="mb-3 flex items-center gap-2">
-          <span className="text-sm leading-none">{emoji}</span>
+          <span className="flex-shrink-0 leading-none">{icon}</span>
           <p
             className="text-[10px] font-semibold tracking-[0.14em] uppercase"
             style={{
@@ -464,10 +466,10 @@ export default function TodoView({ entries: propEntries, typeIcons = {} }: TodoV
 
       {!selectedDay && total > 0 && (
         <div className="mt-6 space-y-8">
-          {renderSection("Overdue", "🔴", overdue, true, "var(--color-error)")}
-          {renderSection("Today", "🟢", today, false, "var(--color-primary)")}
-          {renderSection("Tomorrow", "🟡", tomorrow, false, "var(--color-status-medium)")}
-          {renderSection("This week", "📅", thisWeek, true)}
+          {renderSection("Overdue", <span className="block h-2 w-2 rounded-full flex-shrink-0" style={{ background: "var(--color-error)" }} />, overdue, true, "var(--color-error)")}
+          {renderSection("Today", <span className="block h-2 w-2 rounded-full flex-shrink-0" style={{ background: "var(--color-primary)" }} />, today, false, "var(--color-primary)")}
+          {renderSection("Tomorrow", <span className="block h-2 w-2 rounded-full flex-shrink-0" style={{ background: "var(--color-status-medium)" }} />, tomorrow, false, "var(--color-status-medium)")}
+          {renderSection("This week", <svg className="h-3.5 w-3.5" style={{ color: "var(--color-on-surface-variant)" }} fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>, thisWeek, true)}
         </div>
       )}
     </div>

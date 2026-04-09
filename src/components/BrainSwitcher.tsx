@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect, type JSX } from "react";
+import { useState, useRef, useEffect, type JSX, type ReactNode } from "react";
 import CreateBrainModal from "./CreateBrainModal";
+import { BrainTypeIcon } from "./icons/BrainTypeIcon";
 import type { Brain } from "../types";
 import { cn } from "../lib/cn";
 
@@ -10,12 +11,6 @@ interface BrainSwitcherProps {
   onBrainCreated: (brain: Brain) => Promise<void>;
   onBrainTip?: (brain: Brain) => void;
 }
-
-const BRAIN_EMOJI: Record<string, string> = {
-  personal: "🧠",
-  business: "🏪",
-  family: "🏠",
-};
 
 export default function BrainSwitcher({
   brains,
@@ -53,8 +48,6 @@ export default function BrainSwitcher({
     setOpen(false);
   }
 
-  const emoji = BRAIN_EMOJI[activeBrain?.type ?? "personal"] ?? "🧠";
-
   return (
     <div ref={ref} className="relative">
       {/* Trigger */}
@@ -68,10 +61,10 @@ export default function BrainSwitcher({
         }}
       >
         <div
-          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-sm"
+          className="text-on-surface-variant flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
           style={{ background: "var(--color-surface-container-high)" }}
         >
-          {emoji}
+          <BrainTypeIcon type={activeBrain?.type ?? "personal"} className="h-4 w-4" />
         </div>
         <span className="text-on-surface flex-1 truncate text-left text-sm font-semibold">
           {activeBrain?.name || "Select Brain"}
@@ -117,7 +110,7 @@ export default function BrainSwitcher({
               brain={b}
               active={activeBrain?.id === b.id}
               onSelect={select}
-              emoji={BRAIN_EMOJI[b.type ?? ""] ?? "🧠"}
+              icon={<BrainTypeIcon type={b.type ?? "personal"} className="h-4 w-4" />}
             />
           ))}
 
@@ -132,7 +125,7 @@ export default function BrainSwitcher({
               brain={b}
               active={activeBrain?.id === b.id}
               onSelect={select}
-              emoji={BRAIN_EMOJI[b.type ?? ""] ?? "🧠"}
+              icon={<BrainTypeIcon type={b.type ?? "personal"} className="h-4 w-4" />}
               role={b.myRole}
             />
           ))}
@@ -181,18 +174,18 @@ interface BrainItemProps {
   brain: Brain;
   active: boolean;
   onSelect: (brain: Brain) => void;
-  emoji: string;
+  icon: ReactNode;
   role?: string;
 }
 
-function BrainItem({ brain, active, onSelect, emoji, role }: BrainItemProps): JSX.Element {
+function BrainItem({ brain, active, onSelect, icon, role }: BrainItemProps): JSX.Element {
   return (
     <button
       type="button"
       onClick={() => onSelect(brain)}
       className="hover:bg-surface-container flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors"
     >
-      <span className="text-base">{emoji}</span>
+      <span className="text-on-surface-variant flex-shrink-0">{icon}</span>
       <span className="text-on-surface flex-1 truncate text-sm font-medium">{brain.name}</span>
       {role && role !== "owner" && (
         <span className="text-on-surface-variant/60 text-[9px] font-semibold tracking-widest uppercase">

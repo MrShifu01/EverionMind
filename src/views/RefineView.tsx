@@ -1,3 +1,4 @@
+import { type ReactNode } from "react";
 import { getDecisionCount } from "../lib/learningEngine";
 import { useRefineAnalysis } from "../hooks/useRefineAnalysis";
 import { TC } from "../data/constants";
@@ -42,18 +43,30 @@ interface RefineViewProps {
 
 /* ─── Suggestion type metadata ─── */
 // variant: "primary" = warm amber accent | "neutral" = muted on-surface
-const LABELS = {
-  TYPE_MISMATCH: { label: "Wrong type", icon: "🔄", variant: "neutral" },
-  PHONE_FOUND: { label: "Phone number", icon: "📞", variant: "primary" },
-  EMAIL_FOUND: { label: "Email address", icon: "✉️", variant: "primary" },
-  URL_FOUND: { label: "URL / link", icon: "🔗", variant: "neutral" },
-  DATE_FOUND: { label: "Date / deadline", icon: "📅", variant: "primary" },
-  TITLE_POOR: { label: "Better title", icon: "✏️", variant: "neutral" },
-  SPLIT_SUGGESTED: { label: "Split entry", icon: "✂️", variant: "neutral" },
-  MERGE_SUGGESTED: { label: "Merge entries", icon: "🔀", variant: "neutral" },
-  CONTENT_WEAK: { label: "Needs content", icon: "📝", variant: "neutral" },
-  TAG_SUGGESTED: { label: "Add tags", icon: "🏷️", variant: "neutral" },
-  LINK_SUGGESTED: { label: "Relationship", icon: "⟷", variant: "primary" },
+function SvgRefresh() { return <svg className="inline h-3 w-3 align-middle" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>; }
+function SvgPhone() { return <svg className="inline h-3 w-3 align-middle" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" /></svg>; }
+function SvgEnvelope() { return <svg className="inline h-3 w-3 align-middle" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>; }
+function SvgLink() { return <svg className="inline h-3 w-3 align-middle" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" /></svg>; }
+function SvgCalendar() { return <svg className="inline h-3 w-3 align-middle" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>; }
+function SvgPencil() { return <svg className="inline h-3 w-3 align-middle" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>; }
+function SvgScissors() { return <svg className="inline h-3 w-3 align-middle" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M7.848 8.25l1.536.887M7.848 8.25a3 3 0 11-5.196-3 3 3 0 015.196 3zm1.536.887a2.165 2.165 0 011.083 1.839c.005.351.054.695.14 1.024M9.384 9.137l2.077 1.199M7.848 15.75l1.536-.887m-1.536.887a3 3 0 11-5.196 3 3 3 0 015.196-3zm1.536-.887a2.165 2.165 0 001.083-1.838c.005-.352.054-.695.14-1.025m-1.223 2.863l2.077-1.199m0-3.328a4.323 4.323 0 012.068-1.379l5.325-1.628a4.5 4.5 0 012.48-.044l.803.215-7.794 4.5m-2.882-1.664A4.331 4.331 0 0010.607 12m3.136 1.328l7.794 4.5-.802.215a4.5 4.5 0 01-2.48-.043l-5.326-1.629a4.324 4.324 0 01-2.068-1.379M14.25 9l-3 1.5" /></svg>; }
+function SvgArrows() { return <svg className="inline h-3 w-3 align-middle" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" /></svg>; }
+function SvgDocument() { return <svg className="inline h-3 w-3 align-middle" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>; }
+function SvgTag() { return <svg className="inline h-3 w-3 align-middle" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" /><path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" /></svg>; }
+function SvgArrowsLR() { return <svg className="inline h-3 w-3 align-middle" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5H21M16.5 3L21 7.5m0 0L16.5 12M21 7.5H3" /></svg>; }
+
+const LABELS: Record<string, { label: string; icon: ReactNode; variant: string }> = {
+  TYPE_MISMATCH: { label: "Wrong type", icon: <SvgRefresh />, variant: "neutral" },
+  PHONE_FOUND: { label: "Phone number", icon: <SvgPhone />, variant: "primary" },
+  EMAIL_FOUND: { label: "Email address", icon: <SvgEnvelope />, variant: "primary" },
+  URL_FOUND: { label: "URL / link", icon: <SvgLink />, variant: "neutral" },
+  DATE_FOUND: { label: "Date / deadline", icon: <SvgCalendar />, variant: "primary" },
+  TITLE_POOR: { label: "Better title", icon: <SvgPencil />, variant: "neutral" },
+  SPLIT_SUGGESTED: { label: "Split entry", icon: <SvgScissors />, variant: "neutral" },
+  MERGE_SUGGESTED: { label: "Merge entries", icon: <SvgArrows />, variant: "neutral" },
+  CONTENT_WEAK: { label: "Needs content", icon: <SvgDocument />, variant: "neutral" },
+  TAG_SUGGESTED: { label: "Add tags", icon: <SvgTag />, variant: "neutral" },
+  LINK_SUGGESTED: { label: "Relationship", icon: <SvgArrowsLR />, variant: "primary" },
 };
 
 function labelColors(variant: string) {
@@ -307,9 +320,7 @@ export default function RefineView({
       {/* Suggestion cards */}
       {visible.map((s) => {
         const key = keyOf(s);
-        const meta = (LABELS as Record<string, { label: string; icon: string; variant: string }>)[
-          s.type
-        ] || { label: s.type, icon: "•", variant: "neutral" };
+        const meta = LABELS[s.type] || { label: s.type, icon: <span>•</span>, variant: "neutral" };
         const { bg: metaBg, text: metaText } = labelColors(meta.variant);
         const busy = applying.has(key);
         const isEdit = editingKey === key;

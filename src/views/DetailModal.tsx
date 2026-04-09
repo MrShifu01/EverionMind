@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { BrainTypeIcon } from "../components/icons/BrainTypeIcon";
 import { TC } from "../data/constants";
 import { resolveIcon } from "../lib/typeIcons";
 import { extractPhone, toWaUrl } from "../lib/phone";
@@ -272,7 +273,10 @@ export default function DetailModal({
         }}
         onClick={() => onReorder({ ...entry, _renewalMode: true })}
       >
-        🔔 Set renewal reminder
+        <svg className="inline h-3.5 w-3.5 align-middle" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+        </svg>{" "}
+        Set renewal reminder
       </button>,
     );
   }
@@ -598,8 +602,6 @@ export default function DetailModal({
                   ) : (
                     <div className="flex flex-wrap gap-2">
                       {brains.map((b) => {
-                        const emoji =
-                          b.type === "family" ? "🏠" : b.type === "business" ? "🏪" : "🧠";
                         const isPrimary = editBrainId === b.id;
                         const isExtra = editExtraBrainIds.includes(b.id);
                         const isActive = isPrimary || isExtra;
@@ -628,7 +630,8 @@ export default function DetailModal({
                             }}
                             onClick={() => toggleExtraBrain(b.id, isPrimary)}
                           >
-                            {emoji} {b.name}
+                            <BrainTypeIcon type={b.type ?? "personal"} className="h-3.5 w-3.5" />
+                            {b.name}
                             {isPrimary && <span className="text-[9px] opacity-60">primary</span>}
                             {isExtra && <span className="text-[9px] opacity-60">✓</span>}
                           </button>

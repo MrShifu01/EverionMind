@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useState, useRef, useEffect } from "react";
+import { BrainTypeIcon } from "./icons/BrainTypeIcon";
 
 interface OnboardingModalProps {
   onComplete: (
@@ -15,19 +16,16 @@ export const ONBOARDING_QUESTIONS: { q: string; cat: string; p: string }[] = [];
 const USE_CASES = [
   {
     id: "personal",
-    emoji: "🧠",
     label: "Personal",
     desc: "Identity, health, finances, contacts, documents",
   },
   {
     id: "family",
-    emoji: "🏠",
     label: "Family",
     desc: "Household, kids, shared finances, emergencies",
   },
   {
     id: "business",
-    emoji: "🏪",
     label: "Business",
     desc: "Staff, suppliers, SOPs, licences, costs",
   },
@@ -167,7 +165,9 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
                   onClick={() => toggleUseCase(uc.id)}
                   aria-pressed={active}
                 >
-                  <span className="text-2xl">{uc.emoji}</span>
+                  <span className="text-on-surface-variant">
+                    <BrainTypeIcon type={uc.id} className="h-6 w-6" />
+                  </span>
                   <div className="flex-1">
                     <div className="text-on-surface text-sm font-medium">{uc.label}</div>
                     <div className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
