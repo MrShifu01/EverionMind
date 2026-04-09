@@ -8,7 +8,9 @@ import {
   getModelForTask,
   getSimpleMode,
   SIMPLE_AI_MODEL,
+  SIMPLE_AI_FALLBACKS,
   SIMPLE_VOICE_MODEL,
+  SIMPLE_VOICE_FALLBACKS,
 } from "./aiSettings";
 import { buildSystemPrompt } from "./systemPromptBuilder";
 import { recordUsage, extractTokenUsage } from "./usageTracker";
@@ -71,10 +73,16 @@ export async function callAI({
   const endpoint = `/api/llm?provider=${safeProvider}`;
 
   let model: string;
+  let simpleFallbacks: string[] = [];
   if (safeProvider === "openrouter") {
     if (getSimpleMode()) {
-      // Simple mode: capture task uses voice model, everything else uses AI model
-      model = task === "capture" ? SIMPLE_VOICE_MODEL : SIMPLE_AI_MODEL;
+      if (task === "capture") {
+        model = SIMPLE_VOICE_MODEL;
+        simpleFallbacks = SIMPLE_VOICE_FALLBACKS;
+      } else {
+        model = SIMPLE_AI_MODEL;
+        simpleFallbacks = SIMPLE_AI_FALLBACKS;
+      }
     } else {
       model =
         (task ? getModelForTask(task) : null) ||
@@ -108,16 +116,34 @@ export async function callAI({
     "X-User-Api-Key": userKey,
   };
 
-  const res = await authFetch(endpoint, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      model,
-      messages: normalizeMessages(messages, safeProvider),
-      system: fullSystem,
-      max_tokens,
-    }),
-  });
+  const modelsToTry = [model, ...simpleFallbacks];
+
+  const isEndpointError = (body: unknown): boolean => {
+    const msg: string =
+      (body as any)?.error?.message || (body as any)?.error || (body as any)?.message || "";
+    return /no endpoint|no provider|model not found|invalid model/i.test(msg);
+  };
+
+  let res!: Response;
+  let usedModel = model;
+  for (const m of modelsToTry) {
+    usedModel = m;
+    res = await authFetch(endpoint, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: m,
+        messages: normalizeMessages(messages, safeProvider),
+        system: fullSystem,
+        max_tokens,
+      }),
+    });
+    if (res.ok) break;
+    // Only retry on endpoint-availability errors
+    const body = await res.clone().json().catch(() => null);
+    if (!isEndpointError(body)) break;
+    console.warn(`[ai] model ${m} unavailable, trying next fallback`);
+  }
 
   if (res.ok) {
     res
@@ -132,7 +158,7 @@ export async function callAI({
             inputTokens,
             outputTokens,
             provider: safeProvider,
-            model,
+            model: usedModel,
           });
         }
       })

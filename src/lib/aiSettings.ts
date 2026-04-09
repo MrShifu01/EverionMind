@@ -260,8 +260,20 @@ export async function loadUserAISettings(userId: string): Promise<void> {
 
 // ── Simple mode free model constants ──
 export const SIMPLE_AI_MODEL = "google/gemma-4-31b-it:free";
+export const SIMPLE_AI_FALLBACKS = [
+  "meta-llama/llama-3.3-70b-instruct:free",
+  "deepseek/deepseek-chat-v3-0324:free",
+  "mistralai/mistral-small-3.1-24b-instruct:free",
+];
+
 export const SIMPLE_EMBED_MODEL = "nvidia/llama-nemotron-embed-vl-1b-v2:free";
+
 export const SIMPLE_VOICE_MODEL = "google/gemma-4-31b-it:free";
+export const SIMPLE_VOICE_FALLBACKS = [
+  "meta-llama/llama-3.3-70b-instruct:free",
+  "deepseek/deepseek-chat-v3-0324:free",
+  "mistralai/mistral-small-3.1-24b-instruct:free",
+];
 
 // ── Embedding settings ──
 export function getSimpleMode(): boolean {
