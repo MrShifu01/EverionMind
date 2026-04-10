@@ -175,16 +175,18 @@ export function useCaptureSheetParse({
 
         let parsedRaw: ParsedEntry | ParsedEntry[] = { title: "" };
         let parseError = "";
+        let aiRawText = "";
         try {
-          const raw = data.content?.[0]?.text || "{}";
-          console.log("[useCaptureSheetParse] AI raw:", raw.slice(0, 200));
-          if (hasFiles) {
-            const entries = parseAISplitResponse(raw);
-            console.log("[useCaptureSheetParse] parsed entries:", entries.length);
+          aiRawText = data.content?.[0]?.text || data.choices?.[0]?.message?.content || "";
+          console.log("[useCaptureSheetParse] AI raw:", aiRawText.slice(0, 300));
+          if (!aiRawText) {
+            parseError = "Model returned empty response";
+          } else if (hasFiles) {
+            const entries = parseAISplitResponse(aiRawText);
             parsedRaw = entries.length > 0 ? entries : { title: "" };
           } else {
             // Extract JSON from response — model may wrap it in prose or code blocks
-            const stripped = raw.replace(/```json|```/g, "").trim();
+            const stripped = aiRawText.replace(/```json|```/g, "").trim();
             const jsonMatch = stripped.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
             parsedRaw = JSON.parse(jsonMatch ? jsonMatch[1] : stripped);
           }
@@ -242,10 +244,13 @@ export function useCaptureSheetParse({
           setPreview({ ...parsed, _raw: input });
           return;
         }
-        // JSON parsed but no title, or parse failed — show edit preview with error
+        // JSON parsed but no title, or parse failed — show edit preview with full debug info
         setLoading(false);
         setStatus(null);
-        if (parseError) setErrorDetail(`AI response could not be parsed: ${parseError}`);
+        const debugInfo = parseError
+          ? `Parse error: ${parseError} | Raw: "${aiRawText.slice(0, 120)}"`
+          : `No title in response | Raw: "${aiRawText.slice(0, 120)}"`;
+        setErrorDetail(debugInfo);
         setPreviewTitle("");
         setPreviewTags("");
         setPreviewType("note");

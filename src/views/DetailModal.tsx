@@ -88,11 +88,13 @@ export default function DetailModal({
       const model = provider === "openrouter" ? (getOpenRouterModel() || "") : getUserModel();
       const endpoint = provider === "openai" ? "/api/openai" : provider === "openrouter" ? "/api/openrouter" : "/api/anthropic";
       const types = CANONICAL_TYPES.filter(t => t !== "secret");
+      // Put 'person' near the end so model doesn't default to first-in-list
+      const orderedTypes = [...types.filter(t => t !== "person"), "person"];
       const res = await authFetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-user-api-key": apiKey || "", "x-provider": provider, "x-model": model },
         body: JSON.stringify({
-          system: `Reply with ONE word only — the best category for this entry. Pick from: ${types.join(", ")}. No explanation.`,
+          system: `Reply with ONE word only — the single best category for this entry. Pick from: ${orderedTypes.join(", ")}. No explanation, no punctuation, just one word.`,
           messages: [{ role: "user", content: `Title: ${editTitle}\nContent: ${(editContent || "").slice(0, 300)}` }],
           max_tokens: 20,
         }),
@@ -109,9 +111,9 @@ export default function DetailModal({
           .sort((a, b) => a.idx - b.idx)[0]?.t;
         if (match) {
           setEditType(match);
-          setAiMsg({ text: `✓ ${match} · ${usedModel}`, ok: true });
+          setAiMsg({ text: `✓ ${match} · model: ${usedModel} · raw: "${full.slice(0, 60)}"`, ok: true });
         } else {
-          setAiMsg({ text: `No match · raw: "${full.slice(0, 50)}"`, ok: false });
+          setAiMsg({ text: `No match · model: ${usedModel} · raw: "${full.slice(0, 80)}"`, ok: false });
         }
       } else {
         const errData = await res.json().catch(() => ({}));
@@ -554,7 +556,7 @@ export default function DetailModal({
                   </label>
                   <div className="flex items-center gap-1.5">
                     {aiMsg && (
-                      <span className="max-w-[200px] truncate text-[9px]" style={{ color: aiMsg.ok ? "var(--color-primary)" : "var(--color-error)" }} title={aiMsg.text}>{aiMsg.text}</span>
+                      <span className="text-[9px] break-all" style={{ color: aiMsg.ok ? "var(--color-primary)" : "var(--color-error)" }}>{aiMsg.text}</span>
                     )}
                     <button
                       type="button"
