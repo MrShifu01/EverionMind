@@ -1,4 +1,6 @@
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
+import { registerRoute, NavigationRoute } from 'workbox-routing';
+import { NetworkFirst } from 'workbox-strategies';
 
 // Take control immediately when a new SW version is available
 self.skipWaiting();
@@ -9,6 +11,23 @@ cleanupOutdatedCaches();
 
 // Injected by vite-plugin-pwa at build time
 precacheAndRoute(self.__WB_MANIFEST);
+
+// Fallback: if a lazy-loaded chunk 404s (stale hash), fetch from network
+registerRoute(
+  ({ request }) => request.destination === 'script',
+  new NetworkFirst({ cacheName: 'js-chunks' })
+);
+
+// SPA navigation fallback to index.html
+registerRoute(new NavigationRoute(
+  async ({ event }) => {
+    try {
+      return await fetch(event.request);
+    } catch {
+      return caches.match('/index.html');
+    }
+  }
+));
 
 // ── Push event: show notification ──
 self.addEventListener('push', event => {
