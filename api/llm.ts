@@ -6,9 +6,8 @@ import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 // Hardcoded server-side models — always used when no user key is provided
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
 const GROQ_API_KEY = (process.env.GROQ_API_KEY || "").trim();
-// GEMINI_MODEL: gemini-1.5-flash works with free-tier API keys (no billing required), fast (2-4s), multimodal.
-// gemini-2.0-flash-lite requires billing enabled. gemma-4-31b-it is too slow (times out).
-const GEMINI_MODEL = (process.env.GEMINI_MODEL || "gemini-1.5-flash").trim();
+// GEMINI_MODEL: gemini-2.5-flash-lite — 1000 req/day free, fast, multimodal.
+const GEMINI_MODEL = (process.env.GEMINI_MODEL || "gemini-2.5-flash-lite").trim();
 
 const ANTHROPIC_MODELS = [
   "claude-haiku-4-5-20251001",
