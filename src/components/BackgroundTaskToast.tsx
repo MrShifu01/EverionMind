@@ -93,10 +93,10 @@ export function BackgroundTaskToast({ tasks, onDismiss, onDismissAll }: Props) {
                 {task.entryTitle || task.filename}
               </p>
               <p
-                className="text-xs"
-                style={{ color: isError ? "var(--color-error)" : "var(--color-on-surface-variant)" }}
+                className="text-xs break-all"
+                style={{ color: isError ? "var(--color-error)" : task.warning ? "var(--color-error)" : "var(--color-on-surface-variant)" }}
               >
-                {isError ? (task.error || "Error") : STATUS_LABEL[task.status]}
+                {isError ? (task.error || "Error") : task.warning ? `AI failed: ${task.warning}` : STATUS_LABEL[task.status]}
               </p>
             </div>
 
