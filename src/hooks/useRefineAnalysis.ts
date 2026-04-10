@@ -245,6 +245,14 @@ export function detectClusters(entries: Entry[], links: RefineLink[]): ClusterIn
   return clusters;
 }
 
+// ─── Helpers ───────────────────────────────────────────────────────────────
+
+function extractJSON(text: string): string {
+  const cleaned = text.replace(/```json|```/g, "").trim();
+  const m = cleaned.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+  return m ? m[1] : cleaned;
+}
+
 // ─── Hook ──────────────────────────────────────────────────────────────────
 
 interface UseRefineAnalysisOptions {
@@ -306,7 +314,7 @@ export function useRefineAnalysis({
             messages: [{ role: "user", content: `Review these ${slim.length} entries:\n\n${JSON.stringify(slim)}` }],
           });
           const data = await res.json();
-          const raw = (data.content?.[0]?.text || "[]").replace(/```json|```/g, "").trim();
+          const raw = extractJSON(data.content?.[0]?.text || "[]");
           try {
             const p = JSON.parse(raw);
             if (Array.isArray(p)) entrySuggestions.push(...p);
@@ -436,7 +444,7 @@ export function useRefineAnalysis({
             messages: [{ role: "user", content: `WEAK LINKS TO RENAME:\n${JSON.stringify(candidates)}` }],
           });
           const data = await res.json();
-          const raw = (data.content?.[0]?.text || "[]").replace(/```json|```/g, "").trim();
+          const raw = extractJSON(data.content?.[0]?.text || "[]");
           try {
             const p = JSON.parse(raw);
             if (Array.isArray(p)) {

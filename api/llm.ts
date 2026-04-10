@@ -3,10 +3,11 @@ import { verifyAuth } from "./_lib/verifyAuth.js";
 import { rateLimit } from "./_lib/rateLimit.js";
 import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 
-// SEC-17: API Key Rotation Policy
-// Rotate ANTHROPIC_API_KEY every 90 days. Last rotation: 2026-04-03
-// Set up usage alerts in Anthropic console to catch unexpected spend.
-// Key is stored in Vercel environment variables (never in code).
+// Hardcoded server-side models — always used when no user key is provided
+const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
+const GROQ_API_KEY = (process.env.GROQ_API_KEY || "").trim();
+// GEMINI_MODEL: gemini-2.5-flash-lite — 1000 req/day free, fast, multimodal.
+const GEMINI_MODEL = (process.env.GEMINI_MODEL || "gemini-2.5-flash-lite").trim();
 
 const ANTHROPIC_MODELS = [
   "claude-haiku-4-5-20251001",
@@ -20,16 +21,7 @@ const OPENAI_MODELS = [
   "gpt-4.1",
 ];
 
-// OpenRouter model default — user may select any model via the UI;
-// the server no longer whitelists models since the user supplies their own key
-// and OpenRouter validates model names itself.
 const OPENROUTER_DEFAULT_MODEL = "google/gemini-2.0-flash-lite:free";
-
-// Google AI Studio model — hardcoded server-side; frontend model selection is ignored.
-const GOOGLE_AISTUDIO_MODEL = "gemma-4-31b-it";
-
-// Groq transcription model — hardcoded server-side.
-const GROQ_TRANSCRIPTION_MODEL = "whisper-large-v3-turbo";
 
 interface LlmParams {
   model: string;
@@ -85,21 +77,21 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     return res.status(400).json({ error: "Invalid max_tokens" });
   }
 
-  // SEC-2: x-user-api-key is mandatory for BYO providers.
-  // Exception: "google" falls back to GEMINI_API_KEY server env var.
-  const apiKey = ((req.headers["x-user-api-key"] as string) || "").trim();
-  if (!apiKey && provider !== "google") return res.status(400).json({ error: "x-user-api-key header is required" });
+  const userKey = ((req.headers["x-user-api-key"] as string) || "").trim();
 
+  // No user key → always use hardcoded server Gemini (Gemma 4 31B)
+  if (!userKey) {
+    if (!GEMINI_API_KEY) return res.status(400).json({ error: "x-user-api-key header is required" });
+    return handleGoogle(res, { messages, max_tokens, system });
+  }
+
+  const apiKey = userKey;
   if (provider === "openai") {
     return handleOpenAI(req, res, { model, messages, max_tokens, system, apiKey });
   }
   if (provider === "openrouter") {
     return handleOpenRouter(req, res, { model, messages, max_tokens, system, apiKey });
   }
-  if (provider === "google") {
-    return handleGoogle(req, res, { model, messages, max_tokens, system, apiKey });
-  }
-  // Default: anthropic
   return handleAnthropic(req, res, { model, messages, max_tokens, system, apiKey });
 }
 
@@ -124,6 +116,36 @@ async function handleAnthropic(_req: ApiRequest, res: ApiResponse, { model, mess
 
   const data: any = await response.json();
   res.status(response.status).json(data);
+}
+
+async function handleGoogle(res: ApiResponse, { messages, max_tokens, system }: Pick<LlmParams, "messages" | "max_tokens" | "system">): Promise<void> {
+  // Native generateContent API — works with Gemma and all Google models
+  const contents = messages.map((m: any) => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: [{ text: m.content }],
+  }));
+  const body: Record<string, any> = {
+    contents,
+    generationConfig: { maxOutputTokens: max_tokens || 1000 },
+  };
+  if (system) body.systemInstruction = { parts: [{ text: system.slice(0, 10000) }] };
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
+  );
+  const data: any = await response.json();
+  if (response.ok) {
+    // Gemma 4 uses thinking mode — parts[0] is the reasoning chain (thought:true),
+    // the actual answer is in the non-thought parts. Always read non-thought parts.
+    const parts: any[] = data.candidates?.[0]?.content?.parts || [];
+    const answerParts = parts.filter((p: any) => !p.thought);
+    const text = answerParts.map((p: any) => p.text || "").join("").trim()
+      || parts.map((p: any) => p.text || "").join("").trim(); // fallback: all parts
+    return res.status(200).json({ content: [{ type: "text", text }], model: GEMINI_MODEL });
+  }
+  console.error("[google]", response.status, JSON.stringify(data));
+  return res.status(response.status).json(data);
 }
 
 async function handleOpenAI(_req: ApiRequest, res: ApiResponse, { model, messages, max_tokens, system, apiKey }: LlmParams): Promise<void> {
@@ -208,61 +230,23 @@ async function handleOpenRouter(_req: ApiRequest, res: ApiResponse, { model, mes
   res.status(response.status).json(data);
 }
 
-async function handleGoogle(_req: ApiRequest, res: ApiResponse, { messages, max_tokens, system, apiKey }: LlmParams): Promise<void> {
-  // Model hardcoded — GOOGLE_AISTUDIO_MODEL; frontend model selection is ignored.
-  // Key: use user-supplied key or fall back to server env var.
-  const effectiveKey = apiKey || (process.env.GEMINI_API_KEY || "").trim();
-  if (!effectiveKey) return res.status(400).json({ error: "No API key — set GEMINI_API_KEY env var or provide x-user-api-key" });
-
-  const contents = messages.map((m: any) => ({
-    role: m.role === "assistant" ? "model" : "user",
-    parts: [{ text: m.content }],
-  }));
-
-  const body: Record<string, any> = {
-    contents,
-    generationConfig: { maxOutputTokens: max_tokens || 1000 },
-  };
-  if (system && typeof system === "string") {
-    body.systemInstruction = { parts: [{ text: system.slice(0, 10000) }] };
-  }
-
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GOOGLE_AISTUDIO_MODEL}:generateContent?key=${encodeURIComponent(effectiveKey)}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }
-  );
-
-  const data: any = await response.json();
-
-  if (!response.ok) {
-    console.error("[llm/google] error", response.status, JSON.stringify(data));
-    return res.status(response.status).json(data);
-  }
-
-  // Normalize to Anthropic shape
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-  return res.status(200).json({
-    content: [{ type: "text", text }],
-    model: GOOGLE_AISTUDIO_MODEL,
-    usage: data.usageMetadata,
-  });
-}
-
 // ── File extraction ──────────────────────────────────────────────────────────
 
 const MAX_FILE_B64 = 20 * 1024 * 1024;
 const EXTRACT_PROMPT = "Extract all text and information from this file. Preserve structure. Output only the extracted content, no commentary.";
 
 async function handleExtractFile(req: ApiRequest, res: ApiResponse): Promise<void> {
-  const apiKey = ((req.headers["x-user-api-key"] as string) || "").trim();
-  if (!apiKey) return res.status(400).json({ error: "x-user-api-key required" });
+  let apiKey = ((req.headers["x-user-api-key"] as string) || "").trim();
+  let provider = ((req.headers["x-provider"] as string) || "openrouter").trim();
+  let model = ((req.headers["x-model"] as string) || "").trim();
 
-  const provider = ((req.headers["x-provider"] as string) || "openrouter").trim();
-  const model = ((req.headers["x-model"] as string) || "").trim();
+  // No user key → use hardcoded server Gemini
+  if (!apiKey) {
+    if (!GEMINI_API_KEY) return res.status(400).json({ error: "x-user-api-key required" });
+    apiKey = GEMINI_API_KEY;
+    provider = "google";
+    model = GEMINI_MODEL;
+  }
   const { filename, fileData, mimeType } = req.body as { filename?: string; fileData?: string; mimeType?: string };
 
   if (!fileData || typeof fileData !== "string") return res.status(400).json({ error: "fileData required" });
@@ -270,6 +254,30 @@ async function handleExtractFile(req: ApiRequest, res: ApiResponse): Promise<voi
   if (fileData.length > MAX_FILE_B64) return res.status(413).json({ error: "File too large (max ~15 MB)" });
 
   try {
+    if (provider === "google") {
+      // Native generateContent API — supports images and all Gemma/Gemini models
+      const usedModel = model || GEMINI_MODEL;
+      const parts: any[] = [];
+      if (mimeType.startsWith("image/") || mimeType === "application/pdf") {
+        parts.push({ inlineData: { mimeType, data: fileData } });
+      }
+      parts.push({ text: EXTRACT_PROMPT });
+      const r = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${usedModel}:generateContent?key=${encodeURIComponent(apiKey)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig: { maxOutputTokens: 4096 } }),
+        }
+      );
+      const d: any = await r.json();
+      if (!r.ok) { console.error("[extract-file/google]", r.status, JSON.stringify(d)); return res.status(r.status).json(d); }
+      const xParts: any[] = d.candidates?.[0]?.content?.parts || [];
+      const xAnswer = xParts.filter((p: any) => !p.thought).map((p: any) => p.text || "").join("").trim()
+        || xParts.map((p: any) => p.text || "").join("").trim();
+      return res.status(200).json({ text: xAnswer });
+    }
+
     if (provider === "anthropic") {
       const block = mimeType.startsWith("image/")
         ? { type: "image", source: { type: "base64", media_type: mimeType, data: fileData } }
@@ -307,12 +315,8 @@ async function handleExtractFile(req: ApiRequest, res: ApiResponse): Promise<voi
 const MAX_AUDIO_BYTES = 24 * 1024 * 1024; // 24 MB
 
 async function handleTranscribe(req: ApiRequest, res: ApiResponse): Promise<void> {
-  const groqKey = ((req.headers["x-groq-api-key"] as string) || "").trim() || (process.env.GROQ_API_KEY || "").trim();
-  const openAIKey = ((req.headers["x-user-api-key"] as string) || "").trim();
-
-  if (!groqKey && !openAIKey) {
-    return res.status(400).json({ error: "Provide a Groq or OpenAI API key for voice transcription" });
-  }
+  // Always use server Groq key — no user key fallback
+  if (!GROQ_API_KEY) return res.status(500).json({ error: "Voice transcription not configured (missing GROQ_API_KEY)" });
 
   const { audio, mimeType, language } = req.body;
 
@@ -334,12 +338,9 @@ async function handleTranscribe(req: ApiRequest, res: ApiResponse): Promise<void
     return res.status(413).json({ error: "Audio too large (max 24 MB)" });
   }
 
-  const useGroq = !!groqKey;
-  const apiKey = useGroq ? groqKey : openAIKey;
-  const apiUrl = useGroq
-    ? "https://api.groq.com/openai/v1/audio/transcriptions"
-    : "https://api.openai.com/v1/audio/transcriptions";
-  const model = useGroq ? GROQ_TRANSCRIPTION_MODEL : "whisper-1";
+  const apiKey = GROQ_API_KEY;
+  const apiUrl = "https://api.groq.com/openai/v1/audio/transcriptions";
+  const model = "whisper-large-v3-turbo";
 
   const ext = _mimeToExt(mimeType) || "webm";
   const boundary = `----WebKitFormBoundary${Math.random().toString(36).slice(2)}`;
@@ -368,7 +369,7 @@ async function handleTranscribe(req: ApiRequest, res: ApiResponse): Promise<void
   let offset = 0;
   for (const part of parts) { body.set(part, offset); offset += part.byteLength; }
 
-  const providerName = useGroq ? "Groq" : "OpenAI";
+  const providerName = "Groq";
   let whisperRes: Response;
   try {
     whisperRes = await fetch(apiUrl, {
@@ -393,7 +394,7 @@ async function handleTranscribe(req: ApiRequest, res: ApiResponse): Promise<void
   }
 
   const data: any = await whisperRes.json();
-  return res.status(200).json({ text: data.text || "", audioBytes: audioBuffer.byteLength, provider: useGroq ? "groq" : "openai", model });
+  return res.status(200).json({ text: data.text || "", audioBytes: audioBuffer.byteLength, provider: "groq", model });
 }
 
 function _mimeToExt(mime: string): string | null {

@@ -110,17 +110,71 @@ async function handleHealth(req: ApiRequest, res: ApiResponse): Promise<void> {
   const user: any = await verifyAuth(req);
   if (!user) return res.status(401).json({ error: "Unauthorized" });
 
+  const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
+  const GROQ_API_KEY = (process.env.GROQ_API_KEY || "").trim();
+
+  // Test DB
+  let db = false;
   try {
-    const response = await fetch(`${SB_URL}/rest/v1/entries?select=id&limit=1`, {
-      headers: {
-        "apikey": SB_KEY!,
-        "Authorization": `Bearer ${SB_KEY}`,
-      },
+    const r = await fetch(`${SB_URL}/rest/v1/entries?select=id&limit=1`, {
+      headers: { "apikey": SB_KEY!, "Authorization": `Bearer ${SB_KEY}` },
     });
-    res.status(response.ok ? 200 : 502).json({ ok: response.ok });
-  } catch {
-    res.status(500).json({ ok: false });
+    db = r.ok;
+  } catch { db = false; }
+
+  // Test Gemini — list available models and do a real inference test
+  let gemini = false;
+  let geminiModel = "";
+  let geminiError = "";
+  if (GEMINI_API_KEY) {
+    try {
+      // Step 1: find available gemma/gemini models
+      const listR = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(GEMINI_API_KEY)}&pageSize=200`
+      );
+      if (listR.ok) {
+        const listData: any = await listR.json();
+        const names: string[] = (listData.models || []).map((m: any) => (m.name as string).replace("models/", ""));
+        const gemma4 = names.find(n => n.includes("gemma-4") && n.includes("it"));
+        const gemma3 = names.find(n => n.includes("gemma-3") && n.includes("27b"));
+        const flash  = names.find(n => n.includes("gemini-2.0-flash-lite") || n.includes("gemini-2.0-flash"));
+        const candidate = gemma4 || gemma3 || flash || names[0];
+        geminiModel = candidate || "";
+
+        // Step 2: real inference test with the found model
+        if (candidate) {
+          const testR = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${candidate}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "hi" }] }], generationConfig: { maxOutputTokens: 5 } }),
+            }
+          );
+          gemini = testR.ok;
+          if (!testR.ok) {
+            const errData: any = await testR.json().catch(() => ({}));
+            geminiError = errData?.error?.message || `HTTP ${testR.status}`;
+          }
+        }
+      } else {
+        geminiError = `Key error: HTTP ${listR.status}`;
+      }
+    } catch (e: any) { geminiError = e.message; }
   }
+
+  // Test Groq — list models (lightweight key validation)
+  let groq = false;
+  if (GROQ_API_KEY) {
+    try {
+      const r = await fetch("https://api.groq.com/openai/v1/models", {
+        headers: { "Authorization": `Bearer ${GROQ_API_KEY}` },
+      });
+      groq = r.ok;
+    } catch { groq = false; }
+  }
+
+  res.status(200).json({ db, gemini, geminiModel, geminiError, groq });
 }
 
 // ── /api/vault (rewritten to /api/user-data?resource=vault) ──

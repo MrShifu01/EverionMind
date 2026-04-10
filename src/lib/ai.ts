@@ -7,7 +7,6 @@ import {
   getOpenRouterModel,
   getModelForTask,
   getSimpleMode,
-  getGeminiKey,
   SIMPLE_AI_MODEL,
   SIMPLE_AI_FALLBACKS,
   SIMPLE_VOICE_MODEL,
@@ -38,7 +37,7 @@ export interface CallAIOptions {
   brainId?: string;
 }
 
-const SUPPORTED_PROVIDERS = ["anthropic", "openai", "openrouter", "google"] as const;
+const SUPPORTED_PROVIDERS = ["anthropic", "openai", "openrouter"] as const;
 
 function normalizeMessages(messages: AIMessage[], provider: string): AIMessage[] {
   if (provider === "anthropic") return messages;
@@ -97,25 +96,16 @@ export async function callAI({
   let userKey: string | null;
   if (safeProvider === "openrouter") {
     userKey = getOpenRouterKey();
-  } else if (safeProvider === "google") {
-    userKey = getGeminiKey(); // may be null — server falls back to GEMINI_API_KEY env var
   } else {
     userKey = getUserApiKey();
   }
 
-  // Short-circuit: server requires X-User-Api-Key for BYO providers.
-  // Google provider: server has GEMINI_API_KEY env var — no user key required.
-  if (!userKey && safeProvider !== "google") {
-    return new Response(
-      JSON.stringify({ error: "No API key configured. Add your key in Settings → Intelligence." }),
-      { status: 401, headers: { "Content-Type": "application/json" } },
-    );
-  }
-
   const fullSystem = buildSystemPrompt({ base: system, memoryGuide, brainId }) || undefined;
 
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (userKey) headers["X-User-Api-Key"] = userKey;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-User-Api-Key": userKey || "",
+  };
 
   const modelsToTry = [model, ...simpleFallbacks];
 

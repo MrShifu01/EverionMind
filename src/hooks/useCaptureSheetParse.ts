@@ -1,7 +1,8 @@
 import { useState, useCallback } from "react";
 import { callAI } from "../lib/ai";
 import { authFetch } from "../lib/authFetch";
-import { getEmbedHeaders, isAIConfigured } from "../lib/aiSettings";
+import { getEmbedHeaders } from "../lib/aiSettings";
+import { encryptEntry } from "../lib/crypto";
 import { extractTextFromFile } from "../lib/fileExtract";
 import { parseAISplitResponse } from "../lib/fileSplitter";
 import { PROMPTS } from "../config/prompts";
@@ -26,6 +27,7 @@ export interface UploadedFile {
 interface UseCaptureSheetParseOptions {
   brainId?: string;
   isOnline: boolean;
+  cryptoKey?: CryptoKey | null;
   onCreated: (entry: Entry) => void;
   onClose: () => void;
 }
@@ -33,6 +35,7 @@ interface UseCaptureSheetParseOptions {
 export function useCaptureSheetParse({
   brainId,
   isOnline,
+  cryptoKey,
   onCreated,
   onClose,
 }: UseCaptureSheetParseOptions) {
@@ -59,13 +62,17 @@ export function useCaptureSheetParse({
     setUploadedFiles((prev) => prev.filter((f) => f.name !== name));
   }, []);
 
-  // Build combined input: user text + file contents
+  // Build combined input: user text + file contents (truncated to avoid overwhelming the model)
+  const FILE_CONTENT_LIMIT = 6000;
   const buildInput = useCallback(
     (text: string) => {
       const parts: string[] = [];
       if (text.trim()) parts.push(text.trim());
       for (const f of uploadedFiles) {
-        parts.push(`[File: ${f.name}]\n${f.content}`);
+        const content = f.content.length > FILE_CONTENT_LIMIT
+          ? f.content.slice(0, FILE_CONTENT_LIMIT) + "\n…[truncated]"
+          : f.content;
+        parts.push(`[File: ${f.name}]\n${content}`);
       }
       return parts.join("\n\n");
     },
@@ -79,10 +86,44 @@ export function useCaptureSheetParse({
       setStatus("saving");
       setErrorDetail(null);
       try {
+        // ── Secret → encrypted vault_entries table ──
+        if (parsed.type === "secret") {
+          if (!cryptoKey) {
+            setErrorDetail("Vault is locked — unlock your vault first, then try again");
+            setStatus("error");
+            setLoading(false);
+            return;
+          }
+          const encrypted = await encryptEntry(
+            { content: parsed.content || "", metadata: parsed.metadata || {} },
+            cryptoKey,
+          );
+          const res = await authFetch("/api/vault-entries", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: parsed.title,
+              content: encrypted.content,
+              metadata: typeof encrypted.metadata === "string" ? encrypted.metadata : "",
+              tags: parsed.tags || [],
+              ...(brainId ? { brain_id: brainId } : {}),
+            }),
+          });
+          if (res.ok) {
+            setUploadedFiles([]);
+            setStatus("saved");
+            setTimeout(() => { setStatus(null); onClose(); }, 700);
+          } else {
+            const errBody = await res.text().catch(() => "(no body)");
+            setErrorDetail(`[vault] HTTP ${res.status} — ${errBody}`);
+            setStatus("error");
+          }
+          setLoading(false);
+          return;
+        }
+
+        // ── Regular entry → entries table ──
         const embedHeaders = getEmbedHeaders();
-        console.log("[capture:embed] headers →", embedHeaders
-          ? { provider: embedHeaders["X-Embed-Provider"], model: embedHeaders["X-Embed-Model"] ?? "(default)", hasKey: !!embedHeaders["X-Embed-Key"] }
-          : "none — embedding will be skipped");
         const res = await authFetch("/api/capture", {
           method: "POST",
           headers: { "Content-Type": "application/json", ...(embedHeaders || {}) },
@@ -97,11 +138,7 @@ export function useCaptureSheetParse({
         });
         if (res.ok) {
           const result = await res.json();
-          if (result.embed_error) {
-            console.error("[capture:embed] failed →", result.embed_error);
-          } else {
-            console.log("[capture:embed] success");
-          }
+          if (result.embed_error) console.error("[capture:embed] failed →", result.embed_error);
           const newEntry: Entry = {
             id: result?.id || Date.now().toString(),
             title: parsed.title,
@@ -132,7 +169,7 @@ export function useCaptureSheetParse({
       }
       setLoading(false);
     },
-    [brainId, onCreated, onClose],
+    [brainId, cryptoKey, onCreated, onClose],
   );
 
   const capture = useCallback(
@@ -144,63 +181,73 @@ export function useCaptureSheetParse({
       setStatus("thinking");
       setErrorDetail(null);
 
-      if (!isAIConfigured()) {
-        setLoading(false);
-        setStatus(null);
-        setPreviewTitle("");
-        setPreviewTags("");
-        setPreviewType("note");
-        setPreview({ title: "", content: input, type: "note", tags: [], metadata: {}, _raw: input });
-        return;
-      }
-
       if (!isOnline) {
         await doSave({ title: input.slice(0, 60), content: input, type: "note", tags: [], metadata: {} });
         return;
       }
 
       try {
-        const hasFiles = uploadedFiles.length > 0;
+        const hasMultipleFiles = uploadedFiles.length > 1;
         const res = await callAI({
-          system: hasFiles ? PROMPTS.FILE_SPLIT : PROMPTS.CAPTURE,
-          max_tokens: hasFiles ? 4000 : 800,
+          system: hasMultipleFiles ? PROMPTS.FILE_SPLIT : PROMPTS.CAPTURE,
+          max_tokens: uploadedFiles.length > 0 ? 2000 : 800,
           brainId,
           messages: [{ role: "user", content: input }],
         });
         const data = await res.json();
 
         if (!res.ok) {
-          const errMsg = data?.error || `AI error ${res.status}`;
+          const errMsg = data?.error?.message || (typeof data?.error === "string" ? data.error : null) || `AI error ${res.status}`;
           console.error("[useCaptureSheetParse] AI error:", errMsg);
-          if (hasFiles) {
-            // AI unavailable — show content in edit preview so user can still save manually
-            setLoading(false);
-            setStatus(null);
-            setErrorDetail(`AI unavailable: ${errMsg}`);
-            setPreviewTitle("");
-            setPreviewTags("");
-            setPreviewType("note");
-            setPreview({ title: "", content: input, type: "note", tags: [], metadata: {}, _raw: input });
-          } else {
-            throw new Error(errMsg);
-          }
+          // Always show edit preview on AI failure so user can save manually
+          setLoading(false);
+          setStatus(null);
+          setErrorDetail(`AI failed: ${errMsg}`);
+          setPreviewTitle("");
+          setPreviewTags("");
+          setPreviewType("note");
+          setPreview({ title: "", content: input, type: "note", tags: [], metadata: {}, _raw: input });
           return;
         }
 
         let parsedRaw: ParsedEntry | ParsedEntry[] = { title: "" };
+        let parseError = "";
+        let aiRawText = "";
         try {
-          const raw = data.content?.[0]?.text || "{}";
-          console.log("[useCaptureSheetParse] AI raw:", raw.slice(0, 200));
-          if (hasFiles) {
-            const entries = parseAISplitResponse(raw);
-            console.log("[useCaptureSheetParse] parsed entries:", entries.length);
+          aiRawText = data.content?.[0]?.text || data.choices?.[0]?.message?.content || "";
+          console.log("[useCaptureSheetParse] AI raw:", aiRawText.slice(0, 300));
+          if (!aiRawText) {
+            parseError = "Model returned empty response";
+          } else if (hasMultipleFiles) {
+            const entries = parseAISplitResponse(aiRawText);
             parsedRaw = entries.length > 0 ? entries : { title: "" };
           } else {
-            parsedRaw = JSON.parse(raw.replace(/```json|```/g, "").trim());
+            // Extract JSON from response — model may wrap it in prose or code blocks
+            const stripped = aiRawText.replace(/```json|```/g, "").trim();
+            const jsonMatch = stripped.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+            parsedRaw = JSON.parse(jsonMatch ? jsonMatch[1] : stripped);
           }
-        } catch (err) { console.error("[useCaptureSheetParse] parse error:", err); }
+        } catch (err: any) {
+          parseError = err?.message || String(err);
+          console.error("[useCaptureSheetParse] parse error:", parseError);
+        }
 
-        if (Array.isArray(parsedRaw) && parsedRaw.length > 0) {
+        if (Array.isArray(parsedRaw) && parsedRaw.length === 1) {
+          // Single entry from file — show preview so user can confirm before saving
+          const single = parsedRaw[0];
+          setLoading(false);
+          setStatus(null);
+          setPreviewTitle(single.title || "");
+          setPreviewTags((single.tags || []).join(", "));
+          setPreviewType(single.type || "note");
+          if (!single.title) {
+            setErrorDetail(`AI returned no title · raw: "${aiRawText.slice(0, 200)}"`);
+          }
+          setPreview({ ...single, _raw: input });
+          return;
+        }
+
+        if (Array.isArray(parsedRaw) && parsedRaw.length > 1) {
           setLoading(false);
           setStatus(`Saving ${parsedRaw.length} entries…`);
           for (const entry of parsedRaw) {
@@ -249,7 +296,17 @@ export function useCaptureSheetParse({
           setPreview({ ...parsed, _raw: input });
           return;
         }
-        await doSave({ title: input.slice(0, 60), content: input, type: "note", tags: [], metadata: {} });
+        // JSON parsed but no title, or parse failed — show edit preview with full debug info
+        setLoading(false);
+        setStatus(null);
+        const debugInfo = parseError
+          ? `Parse error: ${parseError} | Raw: "${aiRawText.slice(0, 120)}"`
+          : `No title in response | Raw: "${aiRawText.slice(0, 120)}"`;
+        setErrorDetail(debugInfo);
+        setPreviewTitle("");
+        setPreviewTags("");
+        setPreviewType("note");
+        setPreview({ title: "", content: input, type: "note", tags: [], metadata: {}, _raw: input });
       } catch (e: any) {
         const msg = `[ai] ${e?.message || String(e)}`;
         console.error(msg);

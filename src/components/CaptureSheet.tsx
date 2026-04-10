@@ -1,8 +1,11 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { useCaptureSheetParse } from "../hooks/useCaptureSheetParse";
+import { VaultIntroModal } from "./VaultIntroModal";
 import { CANONICAL_TYPES } from "../types";
 import type { Entry } from "../types";
+
+const VAULT_INTRO_KEY = "ob_vault_intro_seen";
 
 interface CaptureSheetProps {
   isOpen: boolean;
@@ -11,40 +14,7 @@ interface CaptureSheetProps {
   brainId?: string;
   cryptoKey?: CryptoKey | null;
   isOnline?: boolean;
-  entries?: Entry[];
-}
-
-const TYPE_KEYWORDS: Record<string, RegExp> = {
-  note:     /\b(note|memo|thought|write|jot)\b/,
-  task:     /\b(task|todo|do|complete|finish|action)\b/,
-  reminder: /\b(remind|alarm|schedule|meeting|appointment)\b/,
-  document: /\b(doc|file|contract|agreement|insurance|report|certificate|form)\b/,
-  person:   /\b(person|staff|employee|manager|owner|director)\b/,
-  contact:  /\b(contact|supplier|vendor|shop|store|phone|email|number)\b/,
-  event:    /\b(event|party|birthday|wedding|ceremony|function)\b/,
-  finance:  /\b(price|cost|pay|money|invoice|bank|finance|budget|expense)\b/,
-  health:   /\b(health|medical|doctor|medicine|hospital|clinic)\b/,
-  place:    /\b(place|location|address|map|restaurant|office)\b/,
-  idea:     /\b(idea|concept|brainstorm|innovation|thought)\b/,
-  decision: /\b(decide|decision|choose|choice|option|select)\b/,
-};
-
-function useSmartTypes(entries: Entry[] | undefined, previewType: string, preview: any) {
-  return useMemo(() => {
-    const freq: Record<string, number> = {};
-    for (const e of entries ?? []) freq[e.type] = (freq[e.type] || 0) + 1;
-
-    const text = (((preview?.title ?? "") + " " + (preview?.content ?? "")).toLowerCase());
-    const kwScore = (t: string) => TYPE_KEYWORDS[t]?.test(text) ? 2 : 0;
-
-    return [...CANONICAL_TYPES]
-      .filter((t) => t !== "secret")
-      .sort((a, b) => {
-        if (a === previewType) return -1;
-        if (b === previewType) return 1;
-        return (freq[b] || 0) + kwScore(b) - ((freq[a] || 0) + kwScore(a));
-      });
-  }, [entries, previewType, preview]);
+  onBackgroundFiles?: (files: File[]) => void;
 }
 
 export default function CaptureSheet({
@@ -52,10 +22,17 @@ export default function CaptureSheet({
   onClose,
   onCreated,
   brainId,
+  cryptoKey,
   isOnline = true,
-  entries,
+  onBackgroundFiles,
 }: CaptureSheetProps) {
   const [text, setText] = useState("");
+  const [activeTab, setActiveTab] = useState<"entry" | "secret">("entry");
+  const [secretTitle, setSecretTitle] = useState("");
+  const [secretContent, setSecretContent] = useState("");
+  const [secretSaving, setSecretSaving] = useState(false);
+  const [secretError, setSecretError] = useState("");
+  const [showVaultIntro, setShowVaultIntro] = useState(false);
 
   // Drag-to-close + entrance animation
   const [dragY, setDragY] = useState(0);
@@ -72,10 +49,11 @@ export default function CaptureSheet({
     uploadedFiles, removeUploadedFile,
     resetState,
     capture,
+    doSave,
     confirmSave,
     handleImageFile,
     handleDocFiles,
-  } = useCaptureSheetParse({ brainId, isOnline, onCreated, onClose });
+  } = useCaptureSheetParse({ brainId, isOnline, cryptoKey, onCreated, onClose });
 
   // Voice
   const { listening, startVoice, resetListening } = useVoiceRecorder({
@@ -86,16 +64,24 @@ export default function CaptureSheet({
   });
 
   const [typeOpen, setTypeOpen] = useState(false);
-  const smartTypes = useSmartTypes(entries, previewType, preview);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const secretTitleRef = useRef<HTMLInputElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const docRef = useRef<HTMLInputElement>(null);
   const typeRef = useRef<HTMLDivElement>(null);
+
+  function handleSecretTab() {
+    setActiveTab("secret");
+    if (!localStorage.getItem(VAULT_INTRO_KEY)) {
+      setShowVaultIntro(true);
+    }
+    requestAnimationFrame(() => secretTitleRef.current?.focus());
+  }
 
   useEffect(() => {
     if (!typeOpen) return;
@@ -108,14 +94,29 @@ export default function CaptureSheet({
 
   useEffect(() => {
     if (isOpen) {
+      // Lock body scroll on iOS (overflow:hidden is ignored; position:fixed is required)
+      const scrollY = window.scrollY;
+      document.body.style.position = "fixed";
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = "100%";
       // One RAF gives browser a frame to paint translateY(100%) before transitioning to 0
       requestAnimationFrame(() => {
         setVisible(true);
         requestAnimationFrame(() => textareaRef.current?.focus());
       });
+      return () => {
+        document.body.style.position = "";
+        document.body.style.top = "";
+        document.body.style.width = "";
+        window.scrollTo(0, scrollY);
+      };
     } else {
       setVisible(false);
       setText("");
+      setActiveTab("entry");
+      setSecretTitle("");
+      setSecretContent("");
+      setSecretError("");
       resetState();
       setLoading(false);
       resetListening();
@@ -250,7 +251,9 @@ export default function CaptureSheet({
           onChange={(e) => {
             const f = e.target.files?.[0];
             e.target.value = "";
-            if (f) handleImageFile(f);
+            if (!f) return;
+            if (onBackgroundFiles) { onBackgroundFiles([f]); onClose(); }
+            else handleImageFile(f);
           }}
         />
         <input
@@ -262,7 +265,9 @@ export default function CaptureSheet({
           onChange={(e) => {
             const f = e.target.files?.[0];
             e.target.value = "";
-            if (f) handleImageFile(f);
+            if (!f) return;
+            if (onBackgroundFiles) { onBackgroundFiles([f]); onClose(); }
+            else handleImageFile(f);
           }}
         />
         <input
@@ -274,7 +279,9 @@ export default function CaptureSheet({
           onChange={(e) => {
             const files = Array.from(e.target.files ?? []);
             e.target.value = "";
-            if (files.length) handleDocFiles(files).catch((err) => console.error("[docInput]", err));
+            if (!files.length) return;
+            if (onBackgroundFiles) { onBackgroundFiles(files); onClose(); }
+            else handleDocFiles(files).catch((err) => console.error("[docInput]", err));
           }}
         />
 
@@ -286,13 +293,51 @@ export default function CaptureSheet({
           <div className="h-1 w-10 rounded-full" style={{ background: "var(--color-outline)" }} />
         </div>
 
+        {showVaultIntro && (
+          <VaultIntroModal onDismiss={() => {
+            localStorage.setItem(VAULT_INTRO_KEY, "1");
+            setShowVaultIntro(false);
+          }} />
+        )}
+
         <div className="mb-4 flex items-center justify-between">
-          <h2
-            className="text-on-surface font-semibold"
-            style={{ fontFamily: "'Lora', Georgia, serif", fontSize: "1.125rem" }}
-          >
-            {preview ? "Before saving" : "New Entry"}
-          </h2>
+          {preview ? (
+            <h2
+              className="text-on-surface font-semibold"
+              style={{ fontFamily: "'Lora', Georgia, serif", fontSize: "1.125rem" }}
+            >
+              Before saving
+            </h2>
+          ) : (
+            <div className="flex flex-1 rounded-xl border overflow-hidden lg:mr-3"
+              style={{ borderColor: "var(--color-outline-variant)" }}>
+              <button
+                type="button"
+                onClick={() => setActiveTab("entry")}
+                className="flex-1 py-2 text-sm font-medium transition-colors"
+                style={{
+                  background: activeTab === "entry" ? "var(--color-primary)" : "transparent",
+                  color: activeTab === "entry" ? "var(--color-on-primary)" : "var(--color-on-surface-variant)",
+                }}
+              >
+                New Entry
+              </button>
+              <button
+                type="button"
+                onClick={handleSecretTab}
+                className="flex-1 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-1.5"
+                style={{
+                  background: activeTab === "secret" ? "var(--color-primary)" : "transparent",
+                  color: activeTab === "secret" ? "var(--color-on-primary)" : "var(--color-on-surface-variant)",
+                }}
+              >
+                <svg className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                </svg>
+                Add Secret
+              </button>
+            </div>
+          )}
           <button
             onClick={() => {
               if (preview) {
@@ -301,7 +346,7 @@ export default function CaptureSheet({
               } else onClose();
             }}
             aria-label={preview ? "Back to capture" : "Close"}
-            className="text-on-surface-variant hover:text-on-surface flex h-11 w-11 items-center justify-center rounded-lg transition-colors"
+            className={`text-on-surface-variant hover:text-on-surface h-11 w-11 shrink-0 items-center justify-center rounded-lg transition-colors ${preview ? "flex" : "hidden lg:flex"}`}
           >
             {preview ? (
               <svg
@@ -331,7 +376,116 @@ export default function CaptureSheet({
           </button>
         </div>
 
-        {!preview && (
+        {/* ── Add Secret tab ── */}
+        {!preview && activeTab === "secret" && (
+          <div className="space-y-3">
+            {!cryptoKey ? (
+              <div className="flex flex-col items-center gap-3 py-6 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl text-3xl"
+                  style={{ background: "color-mix(in oklch, var(--color-outline) 15%, transparent)" }}>
+                  🔒
+                </div>
+                <div>
+                  <p className="text-sm font-medium" style={{ color: "var(--color-on-surface)" }}>
+                    Vault is locked
+                  </p>
+                  <p className="mt-1 text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
+                    Go to the Vault tab and unlock with your passphrase, then come back to add a secret.
+                  </p>
+                </div>
+                <button
+                  onClick={onClose}
+                  className="mt-1 rounded-xl px-5 py-2 text-sm font-semibold transition-opacity hover:opacity-90"
+                  style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
+                >
+                  Go to Vault
+                </button>
+              </div>
+            ) : (
+            <>
+            <div className="flex items-center gap-2 rounded-xl px-3 py-2"
+              style={{ background: "color-mix(in oklch, var(--color-primary) 8%, transparent)" }}>
+              <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
+                style={{ color: "var(--color-primary)" }}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+              </svg>
+              <p className="text-xs" style={{ color: "var(--color-primary)" }}>
+                AI never reads this. Encrypted on your device before saving.
+              </p>
+            </div>
+
+            <div>
+              <label className="text-on-surface-variant mb-1.5 block text-xs font-medium">Label</label>
+              <input
+                ref={secretTitleRef}
+                value={secretTitle}
+                onChange={(e) => setSecretTitle(e.target.value)}
+                placeholder="e.g. Netflix Password, Visa Card, SSH Key…"
+                className="text-on-surface placeholder:text-on-surface-variant/40 w-full rounded-xl border bg-transparent px-3 py-2.5 text-sm outline-none transition-colors"
+                style={{ borderColor: "var(--color-outline-variant)" }}
+              />
+            </div>
+
+            <div>
+              <label className="text-on-surface-variant mb-1.5 block text-xs font-medium">Secret</label>
+              <textarea
+                value={secretContent}
+                onChange={(e) => setSecretContent(e.target.value)}
+                placeholder="Paste or type your password, PIN, key, card details…"
+                rows={5}
+                className="text-on-surface placeholder:text-on-surface-variant/40 w-full resize-none rounded-xl border bg-transparent px-3 py-2.5 text-sm leading-relaxed outline-none transition-colors"
+                style={{ borderColor: "var(--color-outline-variant)" }}
+              />
+            </div>
+
+            {secretError && (
+              <p className="font-mono text-xs break-all" style={{ color: "var(--color-error)" }}>
+                {secretError}
+              </p>
+            )}
+
+            <div className="flex gap-3 border-t pt-3" style={{ borderColor: "var(--color-outline-variant)" }}>
+              <button
+                onClick={onClose}
+                className="text-on-surface-variant press-scale flex-1 rounded-xl border py-2.5 text-sm transition-colors"
+                style={{ borderColor: "var(--color-outline-variant)" }}
+              >
+                Cancel
+              </button>
+              <button
+                disabled={!secretTitle.trim() || !secretContent.trim() || secretSaving}
+                onClick={async () => {
+                  if (!secretTitle.trim() || !secretContent.trim()) return;
+                  setSecretSaving(true);
+                  setSecretError("");
+                  await doSave({
+                    title: secretTitle.trim(),
+                    content: secretContent,
+                    type: "secret",
+                    tags: [],
+                    metadata: {},
+                  });
+                  setSecretSaving(false);
+                  // If doSave set an error, it's in errorDetail
+                  if (errorDetail) setSecretError(errorDetail);
+                  else { setSecretTitle(""); setSecretContent(""); }
+                }}
+                className="press-scale flex-[2] rounded-xl py-2.5 text-sm font-bold transition-colors disabled:opacity-40"
+                style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
+              >
+                {secretSaving ? (
+                  <span className="flex justify-center gap-1">
+                    <span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />
+                  </span>
+                ) : "Save to Vault"}
+              </button>
+            </div>
+            </>
+            )}
+          </div>
+        )}
+
+        {!preview && activeTab === "entry" && (
           <>
             <textarea
               ref={textareaRef}
@@ -552,6 +706,11 @@ export default function CaptureSheet({
 
         {preview && (
           <div className="space-y-3">
+            {errorDetail && (
+              <p className="font-mono text-xs break-all" style={{ color: "var(--color-error)" }}>
+                {errorDetail}
+              </p>
+            )}
             <div>
               <label className="text-on-surface-variant mb-1.5 block text-xs font-medium">
                 Title
@@ -594,21 +753,18 @@ export default function CaptureSheet({
                     maxHeight: "200px",
                   }}
                 >
-                  {smartTypes.map((t, i) => (
+                  {CANONICAL_TYPES.filter((t) => t !== "secret").map((t) => (
                     <button
                       key={t}
                       type="button"
                       onClick={() => { setPreviewType(t); setTypeOpen(false); }}
-                      className="flex w-full items-center justify-between px-3 py-2.5 text-left text-sm transition-colors hover:bg-white/10"
+                      className="w-full px-3 py-2.5 text-left text-sm transition-colors hover:bg-white/10"
                       style={{
                         color: "var(--color-on-surface)",
                         background: previewType === t ? "var(--color-primary-container)" : undefined,
                       }}
                     >
-                      <span>{t.charAt(0).toUpperCase() + t.slice(1)}</span>
-                      {i === 0 && t === previewType && (
-                        <span className="rounded-md px-1.5 py-0.5 text-[10px] font-bold" style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}>AI</span>
-                      )}
+                      {t.charAt(0).toUpperCase() + t.slice(1)}
                     </button>
                   ))}
                 </div>
@@ -630,35 +786,54 @@ export default function CaptureSheet({
               />
             </div>
             <div
-              className="mt-1 flex gap-3 border-t pt-3"
+              className="mt-1 border-t pt-3"
               style={{ borderColor: "var(--color-outline-variant)" }}
             >
-              <button
-                onClick={() => {
-                  setPreview(null);
-                  setText(preview._raw || "");
-                }}
-                className="text-on-surface-variant hover:bg-surface-container press-scale flex-1 rounded-xl border py-2.5 text-sm transition-colors"
-                style={{ borderColor: "var(--color-outline-variant)" }}
-              >
-                Back
-              </button>
-              <button
-                onClick={() => confirmSave()}
-                disabled={!previewTitle.trim() || loading}
-                className="press-scale flex-[2] rounded-xl py-2.5 text-sm font-bold transition-colors disabled:opacity-40"
-                style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
-              >
-                {loading ? (
-                  <span className="flex justify-center gap-1">
-                    <span className="typing-dot" />
-                    <span className="typing-dot" />
-                    <span className="typing-dot" />
-                  </span>
-                ) : (
-                  "Save to Everion"
-                )}
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setPreview(null);
+                    setText(preview._raw || "");
+                  }}
+                  className="text-on-surface-variant hover:bg-surface-container press-scale flex-1 rounded-xl border py-2.5 text-sm transition-colors"
+                  style={{ borderColor: "var(--color-outline-variant)" }}
+                >
+                  Back
+                </button>
+                <button
+                  onClick={() => confirmSave()}
+                  disabled={!previewTitle.trim() || loading}
+                  className="press-scale flex-[2] rounded-xl py-2.5 text-sm font-bold transition-colors disabled:opacity-40"
+                  style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
+                >
+                  {loading ? (
+                    <span className="flex justify-center gap-1">
+                      <span className="typing-dot" />
+                      <span className="typing-dot" />
+                      <span className="typing-dot" />
+                    </span>
+                  ) : previewType === "secret" ? (
+                    "Save to Vault"
+                  ) : (
+                    "Save to Everion"
+                  )}
+                </button>
+              </div>
+
+              {/* Vault shortcut — only shown when not already a secret */}
+              {previewType !== "secret" && (
+                <button
+                  type="button"
+                  onClick={() => setPreviewType("secret")}
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-2 text-xs transition-colors hover:bg-white/5"
+                  style={{ color: "var(--color-on-surface-variant)", opacity: 0.6 }}
+                >
+                  <svg className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                  </svg>
+                  Save to Vault instead
+                </button>
+              )}
             </div>
           </div>
         )}

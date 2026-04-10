@@ -58,10 +58,11 @@ export function useAiQuestion({
     })
       .then((r) => r.json())
       .then((data) => {
-        const raw = (data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim();
+        const rawText = (data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim();
+        const jsonMatch = rawText.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
         let parsed: any = {};
         try {
-          parsed = JSON.parse(raw);
+          parsed = JSON.parse(jsonMatch ? jsonMatch[1] : rawText);
         } catch (err) {
           console.error("[useAiQuestion]", err);
         }

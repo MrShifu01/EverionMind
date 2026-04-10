@@ -7,6 +7,7 @@ import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 import { sbHeaders, sbHeadersNoContent } from "./_lib/sbHeaders.js";
 
 const SB_URL = process.env.SUPABASE_URL;
+const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
 
 // Entry types are flexible — the AI decides the best label.
 // The only reserved type is "secret" (triggers E2E encryption).
@@ -144,11 +145,11 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
   let embedError: string | null = null;
 
   if (response.ok && data?.id) {
-    const embedProvider = ((req.headers["x-embed-provider"] as string) || "google").toLowerCase();
-    const embedKey = ((req.headers["x-embed-key"] as string) || "").trim() ||
-      (embedProvider === "google" ? (process.env.GEMINI_API_KEY || "").trim() : "");
-    const embedModel = ((req.headers["x-embed-model"] as string) || "").trim() || undefined;
-    if (embedKey && ["openai", "google", "openrouter"].includes(embedProvider)) {
+    // Always use server Gemini key for embeddings
+    const embedProvider = "google";
+    const embedKey = GEMINI_API_KEY;
+    const embedModel = undefined;
+    if (embedKey) {
       const entryForEmbed = { title: safeBody.p_title, content: safeBody.p_content, tags: safeBody.p_tags };
       try {
         const embedding = await generateEmbedding(
@@ -245,12 +246,11 @@ export async function handleEmbed(req: ApiRequest, res: ApiResponse): Promise<vo
   const user: any = await verifyAuth(req);
   if (!user) return res.status(401).json({ error: "Unauthorized" });
 
-  const provider = ((req.headers["x-embed-provider"] as string) || "google").toLowerCase();
-  const apiKey = ((req.headers["x-embed-key"] as string) || "").trim() ||
-    (provider === "google" ? (process.env.GEMINI_API_KEY || "").trim() : "");
-  if (!apiKey) return res.status(400).json({ error: "X-Embed-Key header required" });
-  if (!["openai", "google", "openrouter"].includes(provider)) return res.status(400).json({ error: "X-Embed-Provider must be openai, google, or openrouter" });
-  const embedModel = ((req.headers["x-embed-model"] as string) || "").trim() || undefined;
+  // Always use server Gemini key for embeddings
+  const provider = "google";
+  const apiKey = GEMINI_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: "Embeddings not configured (missing GEMINI_API_KEY)" });
+  const embedModel = undefined;
 
   const { entry_id, brain_id, batch, force } = req.body || {};
 
