@@ -102,7 +102,7 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
       >
         <div className="flex min-w-max gap-2 pb-0 md:min-w-full md:flex-wrap">
           {tabs.map((tab) => {
-            const isMuted = tab.id === "intelligence";
+            const isMuted = false;
             return (
               <button
                 key={tab.id}
