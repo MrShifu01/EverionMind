@@ -130,7 +130,7 @@ async function handleHealth(req: ApiRequest, res: ApiResponse): Promise<void> {
     try {
       // Step 1: find available gemma/gemini models
       const listR = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models?key=${encodeURIComponent(GEMINI_API_KEY)}&pageSize=200`
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(GEMINI_API_KEY)}&pageSize=200`
       );
       if (listR.ok) {
         const listData: any = await listR.json();
@@ -144,7 +144,7 @@ async function handleHealth(req: ApiRequest, res: ApiResponse): Promise<void> {
         // Step 2: real inference test with the found model
         if (candidate) {
           const testR = await fetch(
-            `https://generativelanguage.googleapis.com/v1/models/${candidate}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/${candidate}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },

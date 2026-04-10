@@ -131,7 +131,7 @@ async function handleGoogle(res: ApiResponse, { messages, max_tokens, system }: 
   if (system) body.systemInstruction = { parts: [{ text: system.slice(0, 10000) }] };
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
     { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
   );
   const data: any = await response.json();
@@ -263,7 +263,7 @@ async function handleExtractFile(req: ApiRequest, res: ApiResponse): Promise<voi
       }
       parts.push({ text: EXTRACT_PROMPT });
       const r = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models/${usedModel}:generateContent?key=${encodeURIComponent(apiKey)}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${usedModel}:generateContent?key=${encodeURIComponent(apiKey)}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
