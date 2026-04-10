@@ -628,22 +628,38 @@ export default function CaptureSheet({
               >
                 Back
               </button>
-              <button
-                onClick={() => confirmSave()}
-                disabled={!previewTitle.trim() || loading}
-                className="press-scale flex-[2] rounded-xl py-2.5 text-sm font-bold transition-colors disabled:opacity-40"
-                style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
-              >
-                {loading ? (
-                  <span className="flex justify-center gap-1">
-                    <span className="typing-dot" />
-                    <span className="typing-dot" />
-                    <span className="typing-dot" />
-                  </span>
-                ) : (
-                  "Save to Everion"
-                )}
-              </button>
+              <div className="flex flex-[2] flex-col gap-1.5">
+                {/* Subtle vault toggle — auto-checked when type is secret */}
+                <button
+                  type="button"
+                  onClick={() => setPreviewType((t) => t === "secret" ? "note" : "secret")}
+                  className="flex items-center gap-1.5 self-end text-xs transition-opacity hover:opacity-80"
+                  style={{ color: previewType === "secret" ? "var(--color-primary)" : "var(--color-on-surface-variant)", opacity: previewType === "secret" ? 1 : 0.5 }}
+                >
+                  <svg className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                  </svg>
+                  Save to Vault
+                </button>
+                <button
+                  onClick={() => confirmSave()}
+                  disabled={!previewTitle.trim() || loading}
+                  className="press-scale w-full rounded-xl py-2.5 text-sm font-bold transition-colors disabled:opacity-40"
+                  style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
+                >
+                  {loading ? (
+                    <span className="flex justify-center gap-1">
+                      <span className="typing-dot" />
+                      <span className="typing-dot" />
+                      <span className="typing-dot" />
+                    </span>
+                  ) : previewType === "secret" ? (
+                    "Save to Vault"
+                  ) : (
+                    "Save to Everion"
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         )}
