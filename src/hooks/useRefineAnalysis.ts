@@ -353,7 +353,6 @@ export function useRefineAnalysis({
       const score = computeCompletenessScore(e);
       const newMeta = { ...(e.metadata || {}), completeness_score: score };
       e.metadata = newMeta;
-      // Fire-and-forget: persist score to DB
       authFetch("/api/update-entry", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -361,319 +360,93 @@ export function useRefineAnalysis({
       }).catch(() => {});
     }
 
-    // Sort entries by completeness score (lowest first) for audit priority
+    // Sort entries by completeness score (lowest first) — pick 3 weakest for AI
     const scoredEntries = entries
       .filter((e) => !e.encrypted)
       .sort((a, b) => ((a.metadata as any)?.completeness_score ?? 0) - ((b.metadata as any)?.completeness_score ?? 0));
-
-    // Only audit the 25 lowest-scored entries (max 1 AI batch)
-    const entriesToAudit = scoredEntries.slice(0, 25);
+    const weakest3 = scoredEntries.slice(0, 3);
 
     const existingLinkKeys = new Set((links || []).map((l: RefineLink) => `${l.from}-${l.to}`));
-    const entrySuggestions: RefineSuggestion[] = [];
 
-    // Entry audit: lowest-scored entries first, single batch
-    const batches = [entriesToAudit];
-
-    for (let bi = 0; bi < batches.length; bi++) {
-      const batch = batches[bi];
-      const slim = batch.map((e: Entry) => ({
-        id: e.id,
-        title: e.title,
-        content: (e.content || "").slice(0, 400),
-        type: e.type,
-        metadata: e.metadata || {},
-        tags: e.tags || [],
-      }));
-      try {
-        const res = await throttledCallAI({ task: "refine",
-          max_tokens: 1500,
-          system: `Today's date is ${new Date().toISOString().slice(0, 10)}. ${PROMPTS.ENTRY_AUDIT}`,
-          brainId: activeBrain?.id,
-          messages: [{ role: "user", content: `Review these ${slim.length} entries:\n\n${JSON.stringify(slim)}` }],
-        });
-        const data = await res.json();
-        const raw = extractJSON(data.content?.[0]?.text || "[]");
-        try {
-          const p = JSON.parse(raw);
-          if (Array.isArray(p)) entrySuggestions.push(...p);
-        } catch (err) { console.error("[useRefineAnalysis]", err); }
-      } catch (err) { console.error("[useRefineAnalysis]", err); }
-    }
-
-    // Link discovery (always full set)
-    let linkSuggestions: RefineSuggestion[] = [];
-    const namedLinkKeys = new Set(
-      (links || [])
-        .filter((l: RefineLink) => l.rel)
-        .flatMap((l: RefineLink) => [`${l.from}-${l.to}`, `${l.to}-${l.from}`]),
-    );
-    const similarityPairs = (links || [])
-      .filter(
-        (l: RefineLink) =>
-          typeof l.similarity === "number" &&
-          !namedLinkKeys.has(`${l.from}-${l.to}`) &&
-          !namedLinkKeys.has(`${l.to}-${l.from}`),
-      )
-      .sort((a: RefineLink, b: RefineLink) => (b.similarity || 0) - (a.similarity || 0))
-      .slice(0, 30);
-
-    const entryMap: Record<string, Entry> = Object.fromEntries(entries.map((e: Entry) => [e.id, e]));
-
-    if (similarityPairs.length > 0) {
-      const PAIR_BATCH = 15;
-      const pairBatches = [];
-      for (let i = 0; i < similarityPairs.length; i += PAIR_BATCH)
-        pairBatches.push(similarityPairs.slice(i, i + PAIR_BATCH));
-
-      for (let pi = 0; pi < pairBatches.length; pi++) {
-        const batch = pairBatches[pi];
-        const candidates = batch
-          .map((l: RefineLink) => {
-            const a = entryMap[l.from], b = entryMap[l.to];
-            if (!a || !b) return null;
-            return {
-              fromId: a.id, fromTitle: a.title, fromType: a.type,
-              fromContent: (a.content || "").slice(0, 200), fromTags: (a.tags || []).slice(0, 6),
-              toId: b.id, toTitle: b.title, toType: b.type,
-              toContent: (b.content || "").slice(0, 200), toTags: (b.tags || []).slice(0, 6),
-            };
-          })
-          .filter(Boolean);
-        if (candidates.length === 0) continue;
-        try {
-          const res = await throttledCallAI({ task: "refine",
-            max_tokens: 1200,
-            system: PROMPTS.LINK_DISCOVERY_PAIRS,
-            brainId: activeBrain?.id,
-            messages: [{ role: "user", content: `CANDIDATE PAIRS:\n${JSON.stringify(candidates)}` }],
-          });
-          const data = await res.json();
-          const raw = (data.content?.[0]?.text || "[]").replace(/```json|```/g, "").trim();
-          try {
-            const p = JSON.parse(raw);
-            if (Array.isArray(p)) {
-              linkSuggestions.push(
-                ...p
-                  .filter((l: any) =>
-                    l.fromId && l.toId &&
-                    !existingLinkKeys.has(`${l.fromId}-${l.toId}`) &&
-                    !existingLinkKeys.has(`${l.toId}-${l.fromId}`),
-                  )
-                  .map((l: any) => ({ ...l, type: "LINK_SUGGESTED" as const })),
-              );
-            }
-          } catch (err) { console.error("[useRefineAnalysis]", err); }
-        } catch (err) { console.error("[useRefineAnalysis]", err); }
-      }
-    } else {
-      try {
-        const slim = entries.slice(0, 60).map((e: Entry) => ({
-          id: e.id, title: e.title, type: e.type,
-          content: (e.content || "").slice(0, 200), tags: (e.tags || []).slice(0, 6),
-        }));
-        const res = await throttledCallAI({ task: "refine",
-          max_tokens: 1200,
-          system: PROMPTS.LINK_DISCOVERY,
-          brainId: activeBrain?.id,
-          messages: [{ role: "user", content: `Entries:\n${JSON.stringify(slim)}\n\nExisting links (do NOT re-suggest these):\n${JSON.stringify([...existingLinkKeys])}` }],
-        });
-        const data = await res.json();
-        const raw = (data.content?.[0]?.text || "[]").replace(/```json|```/g, "").trim();
-        try {
-          const p = JSON.parse(raw);
-          if (Array.isArray(p)) {
-            linkSuggestions = p
-              .filter((l: any) =>
-                l.fromId && l.toId &&
-                !existingLinkKeys.has(`${l.fromId}-${l.toId}`) &&
-                !existingLinkKeys.has(`${l.toId}-${l.fromId}`),
-              )
-              .map((l: any) => ({ ...l, type: "LINK_SUGGESTED" as const }));
-          }
-        } catch (err) { console.error("[useRefineAnalysis]", err); }
-      } catch (err) { console.error("[useRefineAnalysis]", err); }
-    }
-
-    // Weak label rename (small targeted AI pass)
-    let weakLabelSuggestions: WeakLabelSuggestion[] = [];
-    const weakLinks = findWeakLinks(links || []);
-    if (weakLinks.length > 0) {
-      const candidates = weakLinks
-        .map((l) => {
-          const a = entryMap[l.from], b = entryMap[l.to];
-          if (!a || !b) return null;
-          return {
-            fromId: l.from, fromTitle: a.title, fromType: a.type,
-            fromContent: (a.content || "").slice(0, 150),
-            toId: l.to, toTitle: b.title, toType: b.type,
-            toContent: (b.content || "").slice(0, 150),
-            currentRel: l.rel,
-          };
-        })
-        .filter(Boolean);
-      if (candidates.length > 0) {
-        try {
-          const res = await throttledCallAI({ task: "refine",
-            max_tokens: 800,
-            system: PROMPTS.WEAK_LABEL_RENAME,
-            brainId: activeBrain?.id,
-            messages: [{ role: "user", content: `WEAK LINKS TO RENAME:\n${JSON.stringify(candidates)}` }],
-          });
-          const data = await res.json();
-          const raw = extractJSON(data.content?.[0]?.text || "[]");
-          try {
-            const p = JSON.parse(raw);
-            if (Array.isArray(p)) {
-              weakLabelSuggestions = p
-                .filter((x: any) => x.fromId && x.toId && x.rel)
-                .map((x: any) => {
-                  const weak = weakLinks.find((l) => l.from === x.fromId && l.to === x.toId);
-                  const a = entryMap[x.fromId], b = entryMap[x.toId];
-                  return {
-                    type: "WEAK_LABEL" as const,
-                    fromId: x.fromId,
-                    toId: x.toId,
-                    fromTitle: a?.title,
-                    toTitle: b?.title,
-                    currentRel: weak?.rel || "relates to",
-                    rel: x.rel,
-                    reason: `Rename "${weak?.rel || "relates to"}" → "${x.rel}"`,
-                  };
-                });
-            }
-          } catch (err) { console.error("[useRefineAnalysis]", err); }
-        } catch (err) { console.error("[useRefineAnalysis]", err); }
-      }
-    }
-
-    // Duplicate entity name detection (fuzzy + AI)
-    let duplicateSuggestions: EntrySuggestion[] = [];
-    const nameCandidates = findNameCandidates(entries);
-    if (nameCandidates.length > 0) {
-      const candidatePayload = nameCandidates.slice(0, 20).map(([a, b]) => ({
-        primaryId: a.id, primaryTitle: a.title, primaryType: a.type,
-        primaryContent: (a.content || "").slice(0, 150),
-        duplicateId: b.id, duplicateTitle: b.title, duplicateType: b.type,
-        duplicateContent: (b.content || "").slice(0, 150),
-      }));
-      try {
-        const res = await throttledCallAI({ task: "refine",
-          max_tokens: 800,
-          system: PROMPTS.DUPLICATE_NAMES,
-          brainId: activeBrain?.id,
-          messages: [{ role: "user", content: `CANDIDATE PAIRS:\n${JSON.stringify(candidatePayload)}` }],
-        });
-        const data = await res.json();
-        const raw = (data.content?.[0]?.text || "[]").replace(/```json|```/g, "").trim();
-        try {
-          const p = JSON.parse(raw);
-          if (Array.isArray(p)) {
-            duplicateSuggestions = p
-              .filter((x: any) => x.primaryId && x.duplicateId)
-              .map((x: any) => {
-                const primary = entryMap[x.primaryId];
-                const dup = entryMap[x.duplicateId];
-                return {
-                  type: "DUPLICATE_ENTRY",
-                  entryId: x.primaryId,
-                  entryTitle: primary?.title,
-                  field: "content",
-                  currentValue: `${primary?.title} + ${dup?.title}`,
-                  suggestedValue: x.duplicateId,
-                  reason: x.reason,
-                } as EntrySuggestion;
-              });
-          }
-        } catch (err) { console.error("[useRefineAnalysis]", err); }
-      } catch (err) { console.error("[useRefineAnalysis]", err); }
-    }
-
-    // Cluster detection (graph + AI naming)
-    let clusterSuggestions: EntrySuggestion[] = [];
-    const clusters = detectClusters(entries, links || []);
-    if (clusters.length > 0) {
-      try {
-        const res = await throttledCallAI({ task: "refine",
-          max_tokens: 800,
-          system: PROMPTS.CLUSTER_NAMING,
-          brainId: activeBrain?.id,
-          messages: [{ role: "user", content: `CLUSTERS:\n${JSON.stringify(
-            clusters.slice(0, 10).map((c) => ({
-              memberIds: c.memberIds,
-              sharedTags: c.sharedTags,
-              memberTitles: c.memberIds.map((id) => entryMap[id]?.title).filter(Boolean),
-            })),
-          )}` }],
-        });
-        const data = await res.json();
-        const raw = (data.content?.[0]?.text || "[]").replace(/```json|```/g, "").trim();
-        try {
-          const p = JSON.parse(raw);
-          if (Array.isArray(p)) {
-            clusterSuggestions = p
-              .filter((x: any) => x.memberIds?.length >= 3 && x.parentTitle)
-              .map((x: any) => ({
-                type: "CLUSTER_SUGGESTED",
-                entryId: x.memberIds[0],
-                entryTitle: x.parentTitle,
-                field: "content",
-                currentValue: x.memberIds.map((id: string) => entryMap[id]?.title).filter(Boolean).join(", "),
-                suggestedValue: JSON.stringify({ parentTitle: x.parentTitle, parentType: x.parentType, memberIds: x.memberIds }),
-                reason: x.reason,
-              } as EntrySuggestion));
-          }
-        } catch (err) { console.error("[useRefineAnalysis]", err); }
-      } catch (err) { console.error("[useRefineAnalysis]", err); }
-    }
-
-    // Pure logic checks (no AI)
+    // Pure logic checks (no AI needed)
     const orphanSuggestions = detectOrphans(entries, links || []);
     const staleSuggestions = detectStaleReminders(entries);
     const deadUrlSuggestions = await checkDeadUrls(entries);
 
-    // Gap detection: AI identifies what's missing from this brain
+    // ─── SINGLE AI CALL: entry audit + link suggestions + gap detection ───
+    let entrySuggestions: RefineSuggestion[] = [];
+    let linkSuggestions: RefineSuggestion[] = [];
     let gapSuggestions: EntrySuggestion[] = [];
-    try {
-      const ctx = entries
-        .slice(0, 40)
-        .map((e: Entry) => `- [${e.type}] ${e.title}: ${(e.content || "").slice(0, 120)}`)
-        .join("\n");
-      const brainType = activeBrain?.type || "personal";
-      const brainContext =
-        brainType === "family"
-          ? "family shared knowledge base (household, family members, emergencies, finances)"
-          : brainType === "business"
-            ? "business knowledge base (suppliers, staff, SOPs, costs, licences, equipment)"
-            : "personal knowledge base";
-      const gapRes = await throttledCallAI({
-        task: "refine",
-        max_tokens: 600,
-        system: `You are auditing a ${brainContext} called OpenBrain for completeness gaps. Based on the entries provided, identify 2-3 important categories of information that are clearly missing. For each gap, write a specific question the user should answer to fill it.\n\nReturn ONLY a valid JSON array:\n[{"q":"specific question","cat":"category name","p":"high"|"medium"}]\n\nRules:\n- Only suggest gaps that are clearly important for this brain type\n- Be specific, not generic (e.g. "Who is your emergency contact?" not "Add more contacts")\n- Maximum 3 gaps\n- If the brain looks comprehensive, return []`,
-        brainId: activeBrain?.id,
-        messages: [{ role: "user", content: `Existing entries (${entries.length} total):\n${ctx || "(none yet)"}` }],
-      });
-      const gapData = await gapRes.json();
-      const gapRaw = extractJSON(gapData.content?.[0]?.text || "[]");
-      const gapParsed = JSON.parse(gapRaw);
-      if (Array.isArray(gapParsed)) {
-        gapSuggestions = gapParsed.slice(0, 3).map((g: any, i: number) => ({
-          type: "GAP_DETECTED",
-          entryId: `gap-${i}-${Date.now()}`,
-          entryTitle: g.cat || "Missing info",
-          field: "content",
-          currentValue: "",
-          suggestedValue: g.q,
-          reason: g.q,
-        }));
-      }
-    } catch (err) { console.error("[useRefineAnalysis] gap detection", err); }
 
-    // Cap at 3 improvement suggestions + 3 gap suggestions (6 total max actionable)
+    const brainType = activeBrain?.type || "personal";
+    const brainContext =
+      brainType === "family"
+        ? "family shared knowledge base"
+        : brainType === "business"
+          ? "business knowledge base"
+          : "personal knowledge base";
+
+    const weakSlim = weakest3.map((e: Entry) => ({
+      id: e.id, title: e.title, type: e.type,
+      content: (e.content || "").slice(0, 400),
+      metadata: e.metadata || {}, tags: e.tags || [],
+    }));
+    const allSlim = entries
+      .filter((e) => !e.encrypted)
+      .slice(0, 40)
+      .map((e: Entry) => `- [${e.type}] ${e.title} (id:${e.id}): ${(e.content || "").slice(0, 100)}`);
+
+    console.log("[Improve Brain] weakest 3 entries:", weakest3.map(e => ({ id: e.id, title: e.title, score: (e.metadata as any)?.completeness_score })));
+    console.log("[Improve Brain] all entries count:", allSlim.length);
+    console.log("[Improve Brain] existing link keys:", existingLinkKeys.size);
+    console.log("[Improve Brain] pure-logic results:", { orphans: orphanSuggestions.length, stale: staleSuggestions.length, deadUrls: deadUrlSuggestions.length });
+    const userMessage = `WEAKEST ENTRIES TO AUDIT:\n${JSON.stringify(weakSlim)}\n\nALL ENTRIES (${entries.length} total, for link/gap analysis):\n${allSlim.join("\n")}\n\nEXISTING LINKS (do NOT re-suggest):\n${JSON.stringify([...existingLinkKeys])}`;
+    console.log("[Improve Brain] AI payload size:", userMessage.length, "chars");
+    console.log("[Improve Brain] AI payload preview:", userMessage.slice(0, 500));
+
+    try {
+      const res = await throttledCallAI({
+        task: "refine",
+        max_tokens: 2000,
+        system: `Today's date is ${new Date().toISOString().slice(0, 10)}. Brain type: ${brainContext}. ${PROMPTS.COMBINED_AUDIT}`,
+        brainId: activeBrain?.id,
+        messages: [{ role: "user", content: userMessage }],
+      });
+      const data = await res.json();
+      console.log("[Improve Brain] AI raw response:", JSON.stringify(data).slice(0, 1000));
+      const raw = extractJSON(data.content?.[0]?.text || "{}");
+      console.log("[Improve Brain] extracted JSON:", raw.slice(0, 500));
+      try {
+        const p = JSON.parse(raw);
+        console.log("[Improve Brain] parsed result:", { entries: p.entries?.length ?? 0, links: p.links?.length ?? 0, gaps: p.gaps?.length ?? 0 });
+        if (p.entries && Array.isArray(p.entries)) entrySuggestions.push(...p.entries);
+        if (p.links && Array.isArray(p.links)) {
+          linkSuggestions = p.links
+            .filter((l: any) =>
+              l.fromId && l.toId &&
+              !existingLinkKeys.has(`${l.fromId}-${l.toId}`) &&
+              !existingLinkKeys.has(`${l.toId}-${l.fromId}`),
+            )
+            .map((l: any) => ({ ...l, type: "LINK_SUGGESTED" as const }));
+        }
+        if (p.gaps && Array.isArray(p.gaps)) {
+          gapSuggestions = p.gaps.slice(0, 3).map((g: any, i: number) => ({
+            type: "GAP_DETECTED",
+            entryId: `gap-${i}-${Date.now()}`,
+            entryTitle: g.cat || "Missing info",
+            field: "content",
+            currentValue: "",
+            suggestedValue: g.q,
+            reason: g.q,
+          }));
+        }
+      } catch (err) { console.error("[Improve Brain] JSON parse failed:", err, "raw:", raw); }
+    } catch (err) { console.error("[Improve Brain] AI call failed (429?):", err); }
+
+    // Cap at 3 improvement suggestions + 3 gap suggestions (6 total max)
     const improvementPool = [
-      ...entrySuggestions, ...linkSuggestions, ...weakLabelSuggestions,
-      ...duplicateSuggestions, ...clusterSuggestions, ...orphanSuggestions,
-      ...staleSuggestions, ...deadUrlSuggestions,
+      ...entrySuggestions, ...linkSuggestions,
+      ...orphanSuggestions, ...staleSuggestions, ...deadUrlSuggestions,
     ];
     const cappedImprovements = sortBySuggestionPriority(improvementPool).slice(0, 3);
     const cappedGaps = gapSuggestions.slice(0, 3);

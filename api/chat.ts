@@ -101,7 +101,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     queryEmbedding = await generateEmbedding(message.trim(), embedProvider as "openai" | "google", embedKey);
     res.setHeader("X-Embedding-Usage", JSON.stringify({
       provider: embedProvider,
-      model: embedProvider === "google" ? "text-embedding-004" : "text-embedding-3-small",
+      model: embedProvider === "google" ? "gemini-embedding-001" : "text-embedding-3-small",
       count: 1,
     }));
   } catch (e: any) {

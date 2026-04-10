@@ -91,11 +91,11 @@ async function generateOpenAIEmbedding(inputs: string[], apiKey: string): Promis
   return data.data.map((d: any) => d.embedding);
 }
 
-const GOOGLE_EMBED_MODEL = "text-embedding-004";
+const GOOGLE_EMBED_MODEL = "gemini-embedding-001";
 
 async function generateGoogleEmbedding(text: string, apiKey: string): Promise<number[]> {
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GOOGLE_EMBED_MODEL}:embedContent?key=${encodeURIComponent(apiKey)}`,
+    `https://generativelanguage.googleapis.com/v1/models/${GOOGLE_EMBED_MODEL}:embedContent?key=${encodeURIComponent(apiKey)}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },

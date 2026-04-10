@@ -127,7 +127,7 @@ async function handleSearch(req: ApiRequest, res: ApiResponse): Promise<void> {
     _setCache(cacheKey, payload);
     res.setHeader("X-Embedding-Usage", JSON.stringify({
       provider: embedProvider,
-      model: embedProvider === "google" ? "text-embedding-004" : "text-embedding-3-small",
+      model: embedProvider === "google" ? "gemini-embedding-001" : "text-embedding-3-small",
       count: 1,
     }));
     return res.status(200).json(payload);

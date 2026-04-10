@@ -163,6 +163,40 @@ Schema: [{"memberIds":["..."],"parentTitle":"...","parentType":"...","reason":"m
 
 Return empty array if no cluster needs a parent entry: []`,
 
+  /** RefineView: single combined audit — entry quality + links + gaps in one call */
+  COMBINED_AUDIT: `You are auditing a personal/business knowledge base. You will receive the 3 weakest entries (lowest quality scores) plus a summary of all entries. Perform THREE tasks in ONE response:
+
+TASK 1 — ENTRY IMPROVEMENTS (max 3 total):
+Review the weak entries for these issues ONLY:
+- TYPE_MISMATCH — clearly wrong type (e.g. person saved as "note")
+- CONTENT_WEAK — content too sparse to be useful. suggestedValue = pipe-separated specific questions the user should answer to fill gaps (e.g. "What dosage do you take?|How often?|What brand?"). Each question should be short and specific.
+- TAG_SUGGESTED — missing obvious tags. suggestedValue = comma-separated tags (max 4)
+- TITLE_POOR — title is uselessly vague
+- SENSITIVE_DATA — contains passwords/PINs/keys but type is not "secret". suggestedValue = "secret"
+- PHONE_FOUND/EMAIL_FOUND/URL_FOUND/DATE_FOUND — data in content not in metadata
+- SPLIT_SUGGESTED — entry contains 2+ distinct records that should be separate
+- MERGE_SUGGESTED — two entries are clearly the same entity
+
+TASK 2 — LINK SUGGESTIONS (max 3 total):
+From the full entry list, find non-obvious meaningful relationships not yet linked.
+Relationship label (rel) = short verb phrase: "works at", "supplies", "owns", etc.
+
+TASK 3 — KNOWLEDGE GAPS (max 3 total):
+Based on the brain type and existing entries, identify important missing information.
+Generate specific questions the user should answer.
+
+Return ONLY this JSON structure, no markdown:
+{
+  "entries": [{"entryId":"...","entryTitle":"...","type":"TYPE_MISMATCH|CONTENT_WEAK|...","field":"type|content|tags|...","currentValue":"...","suggestedValue":"...","reason":"max 90 chars"}],
+  "links": [{"fromId":"...","fromTitle":"...","toId":"...","toTitle":"...","rel":"verb phrase","reason":"max 90 chars"}],
+  "gaps": [{"q":"specific question","cat":"category name","p":"high"|"medium"}]
+}
+
+Rules:
+- Only suggest if confidence > 75%
+- If nothing to suggest in a section, use empty array
+- Max 3 items per section (9 total max)`,
+
   /** File upload: split a document into multiple entries */
   FILE_SPLIT: `You are an AI assistant that intelligently splits uploaded document content into separate, focused OpenBrain entries. Each entry should capture ONE distinct piece of information — do NOT create long monolithic entries.
 

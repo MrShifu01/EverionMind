@@ -210,7 +210,7 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
           embedError = `[embed:patch] HTTP ${patchRes.status} — ${body}`;
           console.error(embedError);
         } else {
-          const usageModel = embedProvider === "google" ? "text-embedding-004"
+          const usageModel = embedProvider === "google" ? "gemini-embedding-001"
             : embedProvider === "openrouter" ? (embedModel || "nvidia/llama-nemotron-embed-vl-1b-v2:free")
             : "text-embedding-3-small";
           res.setHeader("X-Embedding-Usage", JSON.stringify({
