@@ -268,7 +268,7 @@ export default function RefineView({
                 cursor: embedLoading || !activeBrain ? "not-allowed" : "pointer",
               }}
             >
-              <span className="text-xl">🔄</span>
+              <svg className="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24" style={{ color: "var(--color-primary)" }}><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
               <div className="flex-1">
                 <p className="text-sm font-semibold" style={{ color: "var(--color-on-surface)" }}>
                   {embedLoading ? "Refreshing…" : "Refresh Brain"}
@@ -410,7 +410,7 @@ export default function RefineView({
           >
             {embedLoading
               ? <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-              : "🔄"}
+              : <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>}
             {embedLoading ? "Refreshing…" : "Refresh Brain"}
           </button>
         </div>
