@@ -105,14 +105,27 @@ const SCORE_WEIGHTS: Record<string, number> = {
   URL_FOUND: 2, DATE_FOUND: 2, PHONE_FOUND: 2, EMAIL_FOUND: 2, SPLIT_SUGGESTED: 2, CLUSTER_SUGGESTED: 2,
 };
 
-function computeHealthScore(allSuggestions: any[], entryCount?: number): number {
-  let score = 100;
-  for (const s of allSuggestions) score -= (SCORE_WEIGHTS[s.type] ?? 2);
-  // Completeness penalty: brains with very few entries can't be "Elite"
-  if (typeof entryCount === "number" && entryCount < 10) {
-    score -= (10 - entryCount) * 2; // -2 per missing entry below 10
+function computeHealthScore(allSuggestions: any[], entries?: any[]): number {
+  // Issue penalty score (0-100 scale, 100 = no issues)
+  let issueScore = 100;
+  for (const s of allSuggestions) issueScore -= (SCORE_WEIGHTS[s.type] ?? 2);
+  if (entries && entries.length < 10) issueScore -= (10 - entries.length) * 2;
+  issueScore = Math.max(0, Math.min(100, issueScore));
+
+  // Average completeness score across all entries (0-100)
+  let avgCompleteness = 50; // default if no entries
+  if (entries && entries.length > 0) {
+    const scores = entries
+      .filter((e: any) => !e.encrypted)
+      .map((e: any) => (e.metadata?.completeness_score as number) ?? 50);
+    avgCompleteness = scores.length > 0
+      ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length)
+      : 50;
   }
-  return Math.max(35, Math.min(100, score));
+
+  // 70% completeness + 30% issue quality
+  const combined = Math.round(avgCompleteness * 0.7 + issueScore * 0.3);
+  return Math.max(35, Math.min(100, combined));
 }
 
 function scoreColor(score: number) {
@@ -238,7 +251,7 @@ export default function RefineView({
   // Health score: accepted fixes improve it, skipped items still count against you
   const allSuggestions = suggestions ?? [];
   const unfixedSuggestions = allSuggestions.filter((s) => !accepted.has(keyOf(s)));
-  const healthScore = computeHealthScore(unfixedSuggestions, entries.length);
+  const healthScore = computeHealthScore(unfixedSuggestions, entries);
   const GAP_TYPES = ["CONTENT_WEAK","ORPHAN_DETECTED","TITLE_POOR","TAG_SUGGESTED","STALE_REMINDER","DEAD_URL","GAP_DETECTED"];
   const gaps = visible.filter((s) => GAP_TYPES.includes(s.type)).length;
   const weakConnections = visible.filter((s) => ["LINK_SUGGESTED","WEAK_LABEL"].includes(s.type)).length;

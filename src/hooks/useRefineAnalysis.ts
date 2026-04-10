@@ -3,6 +3,7 @@ import { authFetch } from "../lib/authFetch";
 import { callAI } from "../lib/ai";
 import { PROMPTS } from "../config/prompts";
 import { recordDecision } from "../lib/learningEngine";
+import { computeCompletenessScore } from "../lib/completenessScore";
 import type { Entry, Brain } from "../types";
 
 interface EntrySuggestion {
@@ -271,6 +272,16 @@ function extractJSON(text: string): string {
   return cleaned;
 }
 
+// ─── Rate-limit helper ───────────────────────────────────────────────────
+let lastCallTime = 0;
+async function throttledCallAI(opts: Parameters<typeof callAI>[0], minGap = 1500) {
+  const now = Date.now();
+  const wait = Math.max(0, minGap - (now - lastCallTime));
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  lastCallTime = Date.now();
+  return callAI(opts);
+}
+
 // ─── Hook ──────────────────────────────────────────────────────────────────
 
 interface UseRefineAnalysisOptions {
@@ -336,19 +347,35 @@ export function useRefineAnalysis({
     setEditingKey(null);
     try { sessionStorage.removeItem(suggestionsKey(brainId)); sessionStorage.removeItem(dismissedKey(brainId)); sessionStorage.removeItem(acceptedKey(brainId)); } catch { /* ignore */ }
 
-    const lastScannedAt = localStorage.getItem(deltaKey(brainId));
-    const entriesToAudit = getChangedEntries(entries, lastScannedAt);
+    // Score any unscored entries client-side and persist via API
+    const unscored = entries.filter((e) => !e.encrypted && typeof (e.metadata as any)?.completeness_score !== "number");
+    for (const e of unscored) {
+      const score = computeCompletenessScore(e);
+      const newMeta = { ...(e.metadata || {}), completeness_score: score };
+      e.metadata = newMeta;
+      // Fire-and-forget: persist score to DB
+      authFetch("/api/update-entry", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: e.id, metadata: newMeta }),
+      }).catch(() => {});
+    }
+
+    // Sort entries by completeness score (lowest first) for audit priority
+    const scoredEntries = entries
+      .filter((e) => !e.encrypted)
+      .sort((a, b) => ((a.metadata as any)?.completeness_score ?? 0) - ((b.metadata as any)?.completeness_score ?? 0));
+
+    // Only audit the 25 lowest-scored entries (max 1 AI batch)
+    const entriesToAudit = scoredEntries.slice(0, 25);
 
     const existingLinkKeys = new Set((links || []).map((l: RefineLink) => `${l.from}-${l.to}`));
-    const BATCH = 25;
     const entrySuggestions: RefineSuggestion[] = [];
 
-    // Entry audit (delta: only changed entries)
-    const batches = [];
-    for (let i = 0; i < entriesToAudit.length; i += BATCH) batches.push(entriesToAudit.slice(i, i + BATCH));
+    // Entry audit: lowest-scored entries first, single batch
+    const batches = [entriesToAudit];
 
     for (let bi = 0; bi < batches.length; bi++) {
-      if (bi > 0) await new Promise((r) => setTimeout(r, 500));
       const batch = batches[bi];
       const slim = batch.map((e: Entry) => ({
         id: e.id,
@@ -359,7 +386,7 @@ export function useRefineAnalysis({
         tags: e.tags || [],
       }));
       try {
-        const res = await callAI({ task: "refine",
+        const res = await throttledCallAI({ task: "refine",
           max_tokens: 1500,
           system: `Today's date is ${new Date().toISOString().slice(0, 10)}. ${PROMPTS.ENTRY_AUDIT}`,
           brainId: activeBrain?.id,
@@ -400,7 +427,6 @@ export function useRefineAnalysis({
         pairBatches.push(similarityPairs.slice(i, i + PAIR_BATCH));
 
       for (let pi = 0; pi < pairBatches.length; pi++) {
-        if (pi > 0) await new Promise((r) => setTimeout(r, 500));
         const batch = pairBatches[pi];
         const candidates = batch
           .map((l: RefineLink) => {
@@ -416,7 +442,7 @@ export function useRefineAnalysis({
           .filter(Boolean);
         if (candidates.length === 0) continue;
         try {
-          const res = await callAI({ task: "refine",
+          const res = await throttledCallAI({ task: "refine",
             max_tokens: 1200,
             system: PROMPTS.LINK_DISCOVERY_PAIRS,
             brainId: activeBrain?.id,
@@ -446,7 +472,7 @@ export function useRefineAnalysis({
           id: e.id, title: e.title, type: e.type,
           content: (e.content || "").slice(0, 200), tags: (e.tags || []).slice(0, 6),
         }));
-        const res = await callAI({ task: "refine",
+        const res = await throttledCallAI({ task: "refine",
           max_tokens: 1200,
           system: PROMPTS.LINK_DISCOVERY,
           brainId: activeBrain?.id,
@@ -488,7 +514,7 @@ export function useRefineAnalysis({
         .filter(Boolean);
       if (candidates.length > 0) {
         try {
-          const res = await callAI({ task: "refine",
+          const res = await throttledCallAI({ task: "refine",
             max_tokens: 800,
             system: PROMPTS.WEAK_LABEL_RENAME,
             brainId: activeBrain?.id,
@@ -532,7 +558,7 @@ export function useRefineAnalysis({
         duplicateContent: (b.content || "").slice(0, 150),
       }));
       try {
-        const res = await callAI({ task: "refine",
+        const res = await throttledCallAI({ task: "refine",
           max_tokens: 800,
           system: PROMPTS.DUPLICATE_NAMES,
           brainId: activeBrain?.id,
@@ -568,7 +594,7 @@ export function useRefineAnalysis({
     const clusters = detectClusters(entries, links || []);
     if (clusters.length > 0) {
       try {
-        const res = await callAI({ task: "refine",
+        const res = await throttledCallAI({ task: "refine",
           max_tokens: 800,
           system: PROMPTS.CLUSTER_NAMING,
           brainId: activeBrain?.id,
@@ -620,7 +646,7 @@ export function useRefineAnalysis({
           : brainType === "business"
             ? "business knowledge base (suppliers, staff, SOPs, costs, licences, equipment)"
             : "personal knowledge base";
-      const gapRes = await callAI({
+      const gapRes = await throttledCallAI({
         task: "refine",
         max_tokens: 600,
         system: `You are auditing a ${brainContext} called OpenBrain for completeness gaps. Based on the entries provided, identify 2-3 important categories of information that are clearly missing. For each gap, write a specific question the user should answer to fill it.\n\nReturn ONLY a valid JSON array:\n[{"q":"specific question","cat":"category name","p":"high"|"medium"}]\n\nRules:\n- Only suggest gaps that are clearly important for this brain type\n- Be specific, not generic (e.g. "Who is your emergency contact?" not "Add more contacts")\n- Maximum 3 gaps\n- If the brain looks comprehensive, return []`,
@@ -643,17 +669,16 @@ export function useRefineAnalysis({
       }
     } catch (err) { console.error("[useRefineAnalysis] gap detection", err); }
 
-    setSuggestions([
-      ...entrySuggestions,
-      ...linkSuggestions,
-      ...weakLabelSuggestions,
-      ...duplicateSuggestions,
-      ...clusterSuggestions,
-      ...orphanSuggestions,
-      ...staleSuggestions,
-      ...deadUrlSuggestions,
-      ...gapSuggestions,
-    ]);
+    // Cap at 3 improvement suggestions + 3 gap suggestions (6 total max actionable)
+    const improvementPool = [
+      ...entrySuggestions, ...linkSuggestions, ...weakLabelSuggestions,
+      ...duplicateSuggestions, ...clusterSuggestions, ...orphanSuggestions,
+      ...staleSuggestions, ...deadUrlSuggestions,
+    ];
+    const cappedImprovements = sortBySuggestionPriority(improvementPool).slice(0, 3);
+    const cappedGaps = gapSuggestions.slice(0, 3);
+
+    setSuggestions([...cappedImprovements, ...cappedGaps]);
 
     localStorage.setItem(deltaKey(brainId), new Date().toISOString());
     setLoading(false);
@@ -682,7 +707,7 @@ export function useRefineAnalysis({
       // ORPHAN_DETECTED: auto-generate tags with AI before applying
       if (s.type === "ORPHAN_DETECTED") {
         try {
-          const res = await callAI({
+          const res = await throttledCallAI({
             task: "refine",
             max_tokens: 200,
             system: `You are a knowledge base organizer. Given an entry, suggest 2-4 short, useful tags that would help categorize and find it later. Return ONLY a valid JSON array of tag strings, e.g. ["health","supplements"]. No markdown, no explanation.`,

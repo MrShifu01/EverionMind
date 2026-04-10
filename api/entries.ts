@@ -8,6 +8,37 @@ import { sbHeaders, sbHeadersNoContent } from "./_lib/sbHeaders.js";
 const SB_URL = process.env.SUPABASE_URL;
 const ENTRY_FIELDS = "id,title,content,type,tags,metadata,brain_id,importance,pinned,created_at";
 
+function computeCompletenessScore(title: string, content: string, type: string, tags: string[], metadata: Record<string, any>): number {
+  let score = 0;
+  const titleLen = (title || "").trim().length;
+  if (titleLen >= 5) score += 10; else if (titleLen >= 3) score += 5;
+  if (titleLen >= 15) score += 5;
+  const words = (content || "").trim().split(/\s+/).filter(Boolean).length;
+  const contentLen = (content || "").trim().length;
+  if (words >= 3) score += 5;
+  if (words >= 10) score += 10;
+  if (words >= 25) score += 10;
+  if (contentLen >= 200) score += 10;
+  const tagCount = (tags || []).length;
+  if (tagCount >= 1) score += 5;
+  if (tagCount >= 2) score += 5;
+  if (tagCount >= 3) score += 5;
+  const meta = metadata || {};
+  const meaningfulKeys = Object.entries(meta).filter(([k, v]) => v !== null && v !== undefined && v !== "" && k !== "workspace" && k !== "completeness_score");
+  if (meaningfulKeys.length >= 1) score += 5;
+  if (meaningfulKeys.length >= 2) score += 5;
+  if (meaningfulKeys.length >= 3) score += 5;
+  if (meaningfulKeys.length >= 5) score += 5;
+  const genericTypes = new Set(["note", "other", ""]);
+  if (!genericTypes.has(type || "note")) score += 10;
+  if (words >= 3 && content && title) {
+    const tNorm = title.toLowerCase().trim();
+    const cNorm = content.toLowerCase().trim();
+    if (!cNorm.startsWith(tNorm) && cNorm !== tNorm) score += 5;
+  }
+  return Math.min(100, Math.max(0, score));
+}
+
 // Dispatched via rewrites:
 //   /api/delete-entry, /api/update-entry → /api/entries
 //   /api/entry-brains → /api/entries?resource=entry-brains
@@ -312,7 +343,7 @@ async function handlePatch(req: ApiRequest, res: ApiResponse): Promise<void> {
   if (brain_id !== undefined && typeof brain_id === "string" && brain_id.length <= 100) patch.brain_id = brain_id;
 
   // SEC-1: Verify the requesting user is a member or owner of this entry's brain
-  const entryRes = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&select=brain_id`, {
+  const entryRes = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&select=brain_id,title,content,type,tags,metadata`, {
     headers: sbHeadersNoContent(),
   });
   if (!entryRes.ok) return res.status(502).json({ error: "Database error" });
@@ -321,6 +352,16 @@ async function handlePatch(req: ApiRequest, res: ApiResponse): Promise<void> {
 
   const access = await checkBrainAccess(user.id, entry.brain_id);
   if (!access) return res.status(403).json({ error: "Forbidden" });
+
+  // Recalculate completeness score with merged values
+  const mergedTitle = patch.title ?? entry.title ?? "";
+  const mergedContent = patch.content ?? entry.content ?? "";
+  const mergedType = patch.type ?? entry.type ?? "note";
+  const mergedTags = patch.tags ?? entry.tags ?? [];
+  const mergedMeta = patch.metadata ?? entry.metadata ?? {};
+  const cScore = computeCompletenessScore(mergedTitle, mergedContent, mergedType, mergedTags, mergedMeta);
+  const finalMeta = { ...(entry.metadata || {}), ...(patch.metadata || {}), completeness_score: cScore };
+  patch.metadata = finalMeta;
 
   const response = await fetch(
     `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`,
