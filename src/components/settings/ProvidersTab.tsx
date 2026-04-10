@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { authFetch } from "../../lib/authFetch";
+import { callAI } from "../../lib/ai";
+import { PROMPTS } from "../../config/prompts";
 import {
   clearAISettingsCache,
   persistKeyToDb,
@@ -18,6 +20,34 @@ interface HealthResult {
   geminiModel?: string;
   geminiError?: string;
   groq: boolean;
+}
+
+// ── Parse test cases ──────────────────────────────────────────────────────────
+// Test 1: single entry — should produce title, specific type, date metadata, phone, tags
+const PARSE_TEST_1 =
+  "Renew vehicle licence disc for the Toyota Hilux (CA 123-456) — expires 31 July 2026. " +
+  "Contact the licensing department at 051-405-4850. " +
+  "Must bring the roadworthy certificate and proof of insurance.";
+
+// Test 2: two clearly distinct records — should SPLIT into supplier + reminder
+const PARSE_TEST_2 =
+  "New supplier: Cape Fresh Produce. Contact Sarah van der Berg on 083-222-5555. " +
+  "Delivers Mondays and Thursdays, minimum order R800. " +
+  "Payment terms: 30 days. " +
+  "Also: staff training day scheduled for 3 June 2026, 08:00–17:00 at Protea Hotel Bloemfontein. " +
+  "All kitchen staff must attend — confirm attendance by 27 May.";
+
+interface ParseResult {
+  ok: boolean;
+  rawText: string;
+  parsed: unknown;
+  error?: string;
+}
+
+function extractJSON(text: string): unknown {
+  const cleaned = text.replace(/```json|```/g, "").trim();
+  const m = cleaned.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+  return JSON.parse(m ? m[1] : cleaned);
 }
 
 const dot = (s: Status) => {
@@ -43,6 +73,10 @@ export default function ProvidersTab(_props?: { activeBrain?: unknown }) {
 
   const [llmTesting, setLlmTesting] = useState(false);
   const [llmResult, setLlmResult] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const [parseLoading, setParseLoading] = useState<1 | 2 | null>(null);
+  const [parseResult1, setParseResult1] = useState<ParseResult | null>(null);
+  const [parseResult2, setParseResult2] = useState<ParseResult | null>(null);
 
   async function runTests() {
     setTesting(true);
@@ -91,6 +125,37 @@ export default function ProvidersTab(_props?: { activeBrain?: unknown }) {
       setLlmResult({ ok: false, text: `Network error: ${e?.message}` });
     }
     setLlmTesting(false);
+  }
+
+  async function runParseTest(num: 1 | 2) {
+    const text = num === 1 ? PARSE_TEST_1 : PARSE_TEST_2;
+    const setter = num === 1 ? setParseResult1 : setParseResult2;
+    setParseLoading(num);
+    setter(null);
+    try {
+      const res = await callAI({
+        system: PROMPTS.CAPTURE,
+        max_tokens: 2000,
+        messages: [{ role: "user", content: text }],
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const err = data?.error?.message || data?.error || JSON.stringify(data);
+        setter({ ok: false, rawText: JSON.stringify(data), parsed: null, error: `HTTP ${res.status}: ${err}` });
+        return;
+      }
+      const rawText: string = data.content?.[0]?.text || data.choices?.[0]?.message?.content || "(empty)";
+      try {
+        const parsed = extractJSON(rawText);
+        setter({ ok: true, rawText, parsed });
+      } catch (e: any) {
+        setter({ ok: false, rawText, parsed: null, error: `JSON parse failed: ${e?.message}` });
+      }
+    } catch (e: any) {
+      setter({ ok: false, rawText: "", parsed: null, error: `Network: ${e?.message}` });
+    } finally {
+      setParseLoading(null);
+    }
   }
 
   const cards: { title: string; desc: string; status: Status }[] = [
@@ -179,6 +244,39 @@ export default function ProvidersTab(_props?: { activeBrain?: unknown }) {
         )}
       </div>
 
+      {/* ── Parse pipeline tests ─────────────────────────────────────────── */}
+      <div
+        className="rounded-xl p-4 space-y-4"
+        style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)" }}
+      >
+        <div>
+          <p className="text-sm font-semibold" style={{ color: "var(--color-on-surface)" }}>Parse pipeline tests</p>
+          <p className="text-xs mt-0.5" style={{ color: "var(--color-on-surface-variant)" }}>
+            Runs the full CAPTURE prompt through Gemma and shows raw + parsed output.
+          </p>
+        </div>
+
+        {/* Test 1 */}
+        <ParseTestBlock
+          num={1}
+          label="Test 1 — single entry (vehicle licence, should get title + type + expiry date + phone)"
+          input={PARSE_TEST_1}
+          loading={parseLoading === 1}
+          result={parseResult1}
+          onRun={() => runParseTest(1)}
+        />
+
+        {/* Test 2 */}
+        <ParseTestBlock
+          num={2}
+          label="Test 2 — should SPLIT into 2 entries (supplier + reminder)"
+          input={PARSE_TEST_2}
+          loading={parseLoading === 2}
+          result={parseResult2}
+          onRun={() => runParseTest(2)}
+        />
+      </div>
+
       {/* Clear stored frontend keys */}
       <div
         className="rounded-xl p-4 space-y-3"
@@ -206,6 +304,134 @@ export default function ProvidersTab(_props?: { activeBrain?: unknown }) {
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Sub-component ─────────────────────────────────────────────────────────────
+
+interface ParseTestBlockProps {
+  num: number;
+  label: string;
+  input: string;
+  loading: boolean;
+  result: ParseResult | null;
+  onRun: () => void;
+}
+
+function ParseTestBlock({ num, label, input, loading, result, onRun }: ParseTestBlockProps) {
+  const [showInput, setShowInput] = useState(false);
+
+  const isArray = result?.ok && Array.isArray(result.parsed);
+  const count = isArray ? (result!.parsed as unknown[]).length : null;
+
+  return (
+    <div className="space-y-2 border-t pt-3" style={{ borderColor: "var(--color-outline-variant)" }}>
+      <p className="text-[11px] font-semibold leading-snug" style={{ color: "var(--color-on-surface-variant)" }}>
+        {label}
+      </p>
+
+      <button
+        onClick={() => setShowInput((p) => !p)}
+        className="text-[10px] underline"
+        style={{ color: "var(--color-on-surface-variant)" }}
+      >
+        {showInput ? "hide input" : "show input text"}
+      </button>
+
+      {showInput && (
+        <p className="text-[10px] font-mono break-all rounded-lg p-2" style={{ background: "var(--color-surface-container-high)", color: "var(--color-on-surface-variant)" }}>
+          {input}
+        </p>
+      )}
+
+      <button
+        onClick={onRun}
+        disabled={loading}
+        className="w-full rounded-xl py-2 text-xs font-semibold transition-all disabled:opacity-50"
+        style={{ background: "var(--color-primary-container)", color: "var(--color-primary)" }}
+      >
+        {loading ? `Running test ${num}…` : `Run test ${num}`}
+      </button>
+
+      {result && (
+        <div className="space-y-2">
+          {/* Status line */}
+          <p className="text-[11px] font-semibold" style={{ color: result.ok ? "var(--color-primary)" : "var(--color-error)" }}>
+            {result.ok
+              ? isArray
+                ? `✓ Array with ${count} entr${count === 1 ? "y" : "ies"}`
+                : "✓ Single object"
+              : `✗ ${result.error}`}
+          </p>
+
+          {/* Parsed output — one card per entry if array */}
+          {result.ok && isArray && (result.parsed as any[]).map((entry: any, i: number) => (
+            <EntryCard key={i} index={i + 1} entry={entry} />
+          ))}
+          {result.ok && !isArray && result.parsed && (
+            <EntryCard index={0} entry={result.parsed as any} />
+          )}
+
+          {/* Raw AI text (collapsed) */}
+          <details>
+            <summary className="text-[10px] cursor-pointer" style={{ color: "var(--color-on-surface-variant)" }}>
+              Raw AI response
+            </summary>
+            <p className="text-[10px] font-mono break-all whitespace-pre-wrap mt-1 rounded-lg p-2" style={{ background: "var(--color-surface-container-high)", color: "var(--color-on-surface-variant)" }}>
+              {result.rawText || "(empty)"}
+            </p>
+          </details>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EntryCard({ index, entry }: { index: number; entry: Record<string, any> }) {
+  const fields = [
+    { key: "title", label: "Title", important: true },
+    { key: "type", label: "Type", important: true },
+    { key: "tags", label: "Tags" },
+    { key: "content", label: "Content" },
+    { key: "workspace", label: "Workspace" },
+  ];
+  const meta = entry.metadata && typeof entry.metadata === "object" ? Object.entries(entry.metadata) : [];
+
+  return (
+    <div
+      className="rounded-xl p-3 space-y-1.5"
+      style={{ background: "var(--color-surface-container-high)", border: "1px solid var(--color-outline-variant)" }}
+    >
+      {index > 0 && (
+        <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--color-on-surface-variant)" }}>
+          Entry {index}
+        </p>
+      )}
+      {fields.map(({ key, label, important }) => {
+        const val = entry[key];
+        if (val === undefined || val === null || (Array.isArray(val) && val.length === 0)) return null;
+        const display = Array.isArray(val) ? val.join(", ") : String(val);
+        return (
+          <div key={key} className="flex gap-1.5">
+            <span className="text-[10px] font-semibold shrink-0 w-16" style={{ color: "var(--color-on-surface-variant)" }}>{label}</span>
+            <span
+              className="text-[11px] break-all"
+              style={{ color: important ? "var(--color-on-surface)" : "var(--color-on-surface-variant)", fontWeight: important ? 600 : 400 }}
+            >
+              {display.slice(0, 120)}{display.length > 120 ? "…" : ""}
+            </span>
+          </div>
+        );
+      })}
+      {meta.length > 0 && (
+        <div className="flex gap-1.5">
+          <span className="text-[10px] font-semibold shrink-0 w-16" style={{ color: "var(--color-on-surface-variant)" }}>Meta</span>
+          <span className="text-[10px] font-mono break-all" style={{ color: "var(--color-on-surface-variant)" }}>
+            {meta.map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(" · ")}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
