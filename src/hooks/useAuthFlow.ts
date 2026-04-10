@@ -8,6 +8,11 @@ function toFriendlyError(msg: string): string {
   return msg;
 }
 
+function redirectUrl(): string {
+  const raw = import.meta.env.VITE_APP_URL || window.location.origin;
+  return raw.startsWith("http") ? raw : `https://${raw}`;
+}
+
 export function useAuthFlow() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
@@ -27,7 +32,7 @@ export function useAuthFlow() {
     setError(null);
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: import.meta.env.VITE_APP_URL || window.location.origin },
+      options: { emailRedirectTo: redirectUrl() },
     });
     if (error) setError(toFriendlyError(error.message));
     else setSent(true);
@@ -54,7 +59,7 @@ export function useAuthFlow() {
     setOtpCode("");
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: import.meta.env.VITE_APP_URL || window.location.origin },
+      options: { emailRedirectTo: redirectUrl() },
     });
     if (error) setError(error.message);
     setLoading(false);
