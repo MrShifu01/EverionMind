@@ -1,6 +1,7 @@
 import { type JSX } from "react";
 import { Brain, RefreshCw } from "lucide-react";
 import { useAuthFlow } from "./hooks/useAuthFlow";
+import { EverionLogo } from "./components/ui/EverionLogo";
 
 interface Feature {
   emoji: string;
@@ -98,17 +99,20 @@ export default function LoginScreen(): JSX.Element {
             >
               <Brain size={24} style={{ color: "var(--color-primary)" }} />
             </div>
-            <h1
-              style={{
-                fontFamily: "'Lora', Georgia, serif",
-                fontSize: "clamp(2rem, 3.5vw, 3rem)",
-                fontWeight: 700, letterSpacing: "-0.02em",
-                margin: "0 0 12px", lineHeight: 1.1,
-                color: "var(--color-on-surface)",
-              }}
-            >
-              Everion
-            </h1>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+              <EverionLogo size={32} />
+              <h1
+                style={{
+                  fontFamily: "'Lora', Georgia, serif",
+                  fontSize: "clamp(2rem, 3.5vw, 3rem)",
+                  fontWeight: 700, letterSpacing: "-0.02em",
+                  margin: 0, lineHeight: 1.1,
+                  color: "var(--color-on-surface)",
+                }}
+              >
+                Everion
+              </h1>
+            </div>
             <p style={{ fontSize: 16, fontWeight: 500, color: "var(--color-primary)", margin: "0 0 8px" }}>
               Your second brain — for you, your family, your business.
             </p>

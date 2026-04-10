@@ -129,12 +129,12 @@ export function setUserModel(model: string | null): void {
 
 export function getUserProvider(): string {
   const stored = localStorage.getItem(KEYS.AI_PROVIDER);
-  if (!stored) return "openrouter";
+  if (!stored) return "google";
   return stored;
 }
 export function setUserProvider(provider: string | null): void {
-  localStorage.setItem(KEYS.AI_PROVIDER, provider || "openrouter");
-  syncToSupabase({ ai_provider: provider || "openrouter" });
+  localStorage.setItem(KEYS.AI_PROVIDER, provider || "google");
+  syncToSupabase({ ai_provider: provider || "google" });
 }
 
 // ── OpenRouter ──
@@ -336,16 +336,18 @@ export function getEmbedHeaders(): {
   }
   const provider = getEmbedProvider();
   const key = getEmbedKey();
-  if (!key) return null;
+  // Google embed: server falls back to GEMINI_API_KEY env var — no user key required.
+  if (!key && provider !== "google") return null;
   const h: { "X-Embed-Provider": string; "X-Embed-Key": string; "X-Embed-Model"?: string } = {
     "X-Embed-Provider": provider,
-    "X-Embed-Key": key,
+    "X-Embed-Key": key || "",
   };
   if (provider === "openrouter") h["X-Embed-Model"] = getEmbedOrModel();
   return h;
 }
 
-/** Returns true if the user has configured at least one AI provider key. */
+/** Returns true if the user has configured at least one AI provider key, or if using Google (server-side key). */
 export function isAIConfigured(): boolean {
+  if (getUserProvider() === "google") return true; // server has GEMINI_API_KEY
   return !!(getUserApiKey() || getOpenRouterKey() || getGroqKey() || getGeminiKey());
 }

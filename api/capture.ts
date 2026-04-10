@@ -144,8 +144,9 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
   let embedError: string | null = null;
 
   if (response.ok && data?.id) {
-    const embedProvider = ((req.headers["x-embed-provider"] as string) || "").toLowerCase();
-    const embedKey = ((req.headers["x-embed-key"] as string) || "").trim();
+    const embedProvider = ((req.headers["x-embed-provider"] as string) || "google").toLowerCase();
+    const embedKey = ((req.headers["x-embed-key"] as string) || "").trim() ||
+      (embedProvider === "google" ? (process.env.GEMINI_API_KEY || "").trim() : "");
     const embedModel = ((req.headers["x-embed-model"] as string) || "").trim() || undefined;
     if (embedKey && ["openai", "google", "openrouter"].includes(embedProvider)) {
       const entryForEmbed = { title: safeBody.p_title, content: safeBody.p_content, tags: safeBody.p_tags };
@@ -244,8 +245,9 @@ export async function handleEmbed(req: ApiRequest, res: ApiResponse): Promise<vo
   const user: any = await verifyAuth(req);
   if (!user) return res.status(401).json({ error: "Unauthorized" });
 
-  const provider = ((req.headers["x-embed-provider"] as string) || "openai").toLowerCase();
-  const apiKey = ((req.headers["x-embed-key"] as string) || "").trim();
+  const provider = ((req.headers["x-embed-provider"] as string) || "google").toLowerCase();
+  const apiKey = ((req.headers["x-embed-key"] as string) || "").trim() ||
+    (provider === "google" ? (process.env.GEMINI_API_KEY || "").trim() : "");
   if (!apiKey) return res.status(400).json({ error: "X-Embed-Key header required" });
   if (!["openai", "google", "openrouter"].includes(provider)) return res.status(400).json({ error: "X-Embed-Provider must be openai, google, or openrouter" });
   const embedModel = ((req.headers["x-embed-model"] as string) || "").trim() || undefined;

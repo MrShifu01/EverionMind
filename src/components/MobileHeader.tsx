@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { EverionLogo } from "./ui/EverionLogo";
 
 interface MobileHeaderProps {
   brainName: string;
@@ -31,22 +32,7 @@ export default function MobileHeader({
     >
       {/* Left — Everion wordmark */}
       <div className="flex min-w-0 items-center gap-2">
-        {/* Brand mark: espresso square + ivory E + bronze dot */}
-        <svg
-          width="26"
-          height="26"
-          viewBox="0 0 48 48"
-          fill="none"
-          aria-hidden="true"
-          style={{ flexShrink: 0 }}
-        >
-          <rect width="48" height="48" rx="10" fill="var(--color-on-surface)" />
-          <rect x="12" y="12" width="4" height="24" rx="1.5" fill="var(--color-background)" />
-          <rect x="12" y="12" width="22" height="4" rx="1.5" fill="var(--color-background)" />
-          <rect x="12" y="22" width="16" height="4" rx="1.5" fill="var(--color-background)" />
-          <rect x="12" y="32" width="22" height="4" rx="1.5" fill="var(--color-background)" />
-          <circle cx="38" cy="38" r="5" fill="var(--color-primary)" />
-        </svg>
+        <EverionLogo size={22} />
         <h1
           className="truncate text-base font-bold tracking-tight"
           style={{ fontFamily: "'Lora', Georgia, serif", color: "var(--color-on-surface)" }}

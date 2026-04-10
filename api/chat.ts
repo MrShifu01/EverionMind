@@ -58,12 +58,14 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   const user: any = await verifyAuth(req);
   if (!user) return res.status(401).json({ error: "Unauthorized" });
 
-  const embedProvider = ((req.headers["x-embed-provider"] as string) || "openai").toLowerCase();
-  const embedKey = ((req.headers["x-embed-key"] as string) || "").trim();
+  const embedProvider = ((req.headers["x-embed-provider"] as string) || "google").toLowerCase();
+  const embedKey = ((req.headers["x-embed-key"] as string) || "").trim() ||
+    (embedProvider === "google" ? (process.env.GEMINI_API_KEY || "").trim() : "");
   if (!embedKey) return res.status(400).json({ error: "X-Embed-Key header required" });
 
   const genKey = ((req.headers["x-user-api-key"] as string) || "").trim();
-  if (!genKey) return res.status(400).json({ error: "X-User-Api-Key header required" });
+  // genKey may be empty for google provider — handleGoogle falls back to GEMINI_API_KEY env var.
+  if (!genKey && !process.env.GEMINI_API_KEY) return res.status(400).json({ error: "X-User-Api-Key header required" });
 
   const { message, brain_id, brain_ids, history = [], provider = "anthropic", model, secrets = [], fallback_entries = [] } = req.body || {};
 

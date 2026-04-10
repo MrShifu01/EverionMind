@@ -25,6 +25,12 @@ const OPENAI_MODELS = [
 // and OpenRouter validates model names itself.
 const OPENROUTER_DEFAULT_MODEL = "google/gemini-2.0-flash-lite:free";
 
+// Google AI Studio model — hardcoded server-side; frontend model selection is ignored.
+const GOOGLE_AISTUDIO_MODEL = "gemma-4-31b-it";
+
+// Groq transcription model — hardcoded server-side.
+const GROQ_TRANSCRIPTION_MODEL = "whisper-large-v3-turbo";
+
 interface LlmParams {
   model: string;
   messages: any[];
@@ -79,15 +85,19 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     return res.status(400).json({ error: "Invalid max_tokens" });
   }
 
-  // SEC-2: x-user-api-key is mandatory. No fallback to server key allowed.
+  // SEC-2: x-user-api-key is mandatory for BYO providers.
+  // Exception: "google" falls back to GEMINI_API_KEY server env var.
   const apiKey = ((req.headers["x-user-api-key"] as string) || "").trim();
-  if (!apiKey) return res.status(400).json({ error: "x-user-api-key header is required" });
+  if (!apiKey && provider !== "google") return res.status(400).json({ error: "x-user-api-key header is required" });
 
   if (provider === "openai") {
     return handleOpenAI(req, res, { model, messages, max_tokens, system, apiKey });
   }
   if (provider === "openrouter") {
     return handleOpenRouter(req, res, { model, messages, max_tokens, system, apiKey });
+  }
+  if (provider === "google") {
+    return handleGoogle(req, res, { model, messages, max_tokens, system, apiKey });
   }
   // Default: anthropic
   return handleAnthropic(req, res, { model, messages, max_tokens, system, apiKey });
@@ -198,6 +208,50 @@ async function handleOpenRouter(_req: ApiRequest, res: ApiResponse, { model, mes
   res.status(response.status).json(data);
 }
 
+async function handleGoogle(_req: ApiRequest, res: ApiResponse, { messages, max_tokens, system, apiKey }: LlmParams): Promise<void> {
+  // Model hardcoded — GOOGLE_AISTUDIO_MODEL; frontend model selection is ignored.
+  // Key: use user-supplied key or fall back to server env var.
+  const effectiveKey = apiKey || (process.env.GEMINI_API_KEY || "").trim();
+  if (!effectiveKey) return res.status(400).json({ error: "No API key — set GEMINI_API_KEY env var or provide x-user-api-key" });
+
+  const contents = messages.map((m: any) => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: [{ text: m.content }],
+  }));
+
+  const body: Record<string, any> = {
+    contents,
+    generationConfig: { maxOutputTokens: max_tokens || 1000 },
+  };
+  if (system && typeof system === "string") {
+    body.systemInstruction = { parts: [{ text: system.slice(0, 10000) }] };
+  }
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GOOGLE_AISTUDIO_MODEL}:generateContent?key=${encodeURIComponent(effectiveKey)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }
+  );
+
+  const data: any = await response.json();
+
+  if (!response.ok) {
+    console.error("[llm/google] error", response.status, JSON.stringify(data));
+    return res.status(response.status).json(data);
+  }
+
+  // Normalize to Anthropic shape
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  return res.status(200).json({
+    content: [{ type: "text", text }],
+    model: GOOGLE_AISTUDIO_MODEL,
+    usage: data.usageMetadata,
+  });
+}
+
 // ── File extraction ──────────────────────────────────────────────────────────
 
 const MAX_FILE_B64 = 20 * 1024 * 1024;
@@ -253,7 +307,7 @@ async function handleExtractFile(req: ApiRequest, res: ApiResponse): Promise<voi
 const MAX_AUDIO_BYTES = 24 * 1024 * 1024; // 24 MB
 
 async function handleTranscribe(req: ApiRequest, res: ApiResponse): Promise<void> {
-  const groqKey = ((req.headers["x-groq-api-key"] as string) || "").trim();
+  const groqKey = ((req.headers["x-groq-api-key"] as string) || "").trim() || (process.env.GROQ_API_KEY || "").trim();
   const openAIKey = ((req.headers["x-user-api-key"] as string) || "").trim();
 
   if (!groqKey && !openAIKey) {
@@ -285,7 +339,7 @@ async function handleTranscribe(req: ApiRequest, res: ApiResponse): Promise<void
   const apiUrl = useGroq
     ? "https://api.groq.com/openai/v1/audio/transcriptions"
     : "https://api.openai.com/v1/audio/transcriptions";
-  const model = useGroq ? "whisper-large-v3-turbo" : "whisper-1";
+  const model = useGroq ? GROQ_TRANSCRIPTION_MODEL : "whisper-1";
 
   const ext = _mimeToExt(mimeType) || "webm";
   const boundary = `----WebKitFormBoundary${Math.random().toString(36).slice(2)}`;

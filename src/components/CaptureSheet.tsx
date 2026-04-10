@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { useCaptureSheetParse } from "../hooks/useCaptureSheetParse";
 import { CANONICAL_TYPES } from "../types";
@@ -11,6 +11,40 @@ interface CaptureSheetProps {
   brainId?: string;
   cryptoKey?: CryptoKey | null;
   isOnline?: boolean;
+  entries?: Entry[];
+}
+
+const TYPE_KEYWORDS: Record<string, RegExp> = {
+  note:     /\b(note|memo|thought|write|jot)\b/,
+  task:     /\b(task|todo|do|complete|finish|action)\b/,
+  reminder: /\b(remind|alarm|schedule|meeting|appointment)\b/,
+  document: /\b(doc|file|contract|agreement|insurance|report|certificate|form)\b/,
+  person:   /\b(person|staff|employee|manager|owner|director)\b/,
+  contact:  /\b(contact|supplier|vendor|shop|store|phone|email|number)\b/,
+  event:    /\b(event|party|birthday|wedding|ceremony|function)\b/,
+  finance:  /\b(price|cost|pay|money|invoice|bank|finance|budget|expense)\b/,
+  health:   /\b(health|medical|doctor|medicine|hospital|clinic)\b/,
+  place:    /\b(place|location|address|map|restaurant|office)\b/,
+  idea:     /\b(idea|concept|brainstorm|innovation|thought)\b/,
+  decision: /\b(decide|decision|choose|choice|option|select)\b/,
+};
+
+function useSmartTypes(entries: Entry[] | undefined, previewType: string, preview: any) {
+  return useMemo(() => {
+    const freq: Record<string, number> = {};
+    for (const e of entries ?? []) freq[e.type] = (freq[e.type] || 0) + 1;
+
+    const text = (((preview?.title ?? "") + " " + (preview?.content ?? "")).toLowerCase());
+    const kwScore = (t: string) => TYPE_KEYWORDS[t]?.test(text) ? 2 : 0;
+
+    return [...CANONICAL_TYPES]
+      .filter((t) => t !== "secret")
+      .sort((a, b) => {
+        if (a === previewType) return -1;
+        if (b === previewType) return 1;
+        return (freq[b] || 0) + kwScore(b) - ((freq[a] || 0) + kwScore(a));
+      });
+  }, [entries, previewType, preview]);
 }
 
 export default function CaptureSheet({
@@ -19,6 +53,7 @@ export default function CaptureSheet({
   onCreated,
   brainId,
   isOnline = true,
+  entries,
 }: CaptureSheetProps) {
   const [text, setText] = useState("");
 
@@ -51,6 +86,7 @@ export default function CaptureSheet({
   });
 
   const [typeOpen, setTypeOpen] = useState(false);
+  const smartTypes = useSmartTypes(entries, previewType, preview);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -558,18 +594,21 @@ export default function CaptureSheet({
                     maxHeight: "200px",
                   }}
                 >
-                  {CANONICAL_TYPES.filter((t) => t !== "secret").map((t) => (
+                  {smartTypes.map((t, i) => (
                     <button
                       key={t}
                       type="button"
                       onClick={() => { setPreviewType(t); setTypeOpen(false); }}
-                      className="w-full px-3 py-2.5 text-left text-sm transition-colors hover:bg-white/10"
+                      className="flex w-full items-center justify-between px-3 py-2.5 text-left text-sm transition-colors hover:bg-white/10"
                       style={{
                         color: "var(--color-on-surface)",
                         background: previewType === t ? "var(--color-primary-container)" : undefined,
                       }}
                     >
-                      {t.charAt(0).toUpperCase() + t.slice(1)}
+                      <span>{t.charAt(0).toUpperCase() + t.slice(1)}</span>
+                      {i === 0 && t === previewType && (
+                        <span className="rounded-md px-1.5 py-0.5 text-[10px] font-bold" style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}>AI</span>
+                      )}
                     </button>
                   ))}
                 </div>

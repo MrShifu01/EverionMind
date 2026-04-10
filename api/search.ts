@@ -86,8 +86,9 @@ async function handleSearch(req: ApiRequest, res: ApiResponse): Promise<void> {
   }
   if (query.length > 500) return res.status(400).json({ error: "Query too long" });
 
-  const embedKey = ((req.headers["x-embed-key"] as string) || "").trim();
-  const embedProvider = ((req.headers["x-embed-provider"] as string) || "openai").toLowerCase();
+  const embedProvider = ((req.headers["x-embed-provider"] as string) || "google").toLowerCase();
+  const embedKey = ((req.headers["x-embed-key"] as string) || "").trim() ||
+    (embedProvider === "google" ? (process.env.GEMINI_API_KEY || "").trim() : "");
 
   // No embed key → graceful fallback
   if (!embedKey) return res.status(200).json({ fallback: true });

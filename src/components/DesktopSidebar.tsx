@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "../lib/cn";
 import { NavIcon } from "./icons/NavIcons";
+import { EverionLogo } from "./ui/EverionLogo";
 
 interface NavView {
   id: string;
@@ -148,12 +149,15 @@ export default function DesktopSidebar({
     >
       {/* ── Brand row ── */}
       <div className="mb-6 px-2">
-        <h1
-          className="text-primary text-2xl font-bold tracking-tight"
-          style={{ fontFamily: "'Lora', Georgia, serif" }}
-        >
-          Everion
-        </h1>
+        <div className="mb-1 flex items-center gap-2">
+          <EverionLogo size={22} />
+          <h1
+            className="text-primary text-2xl font-bold tracking-tight"
+            style={{ fontFamily: "'Lora', Georgia, serif" }}
+          >
+            Everion
+          </h1>
+        </div>
         <p className="text-on-surface-variant/50 mt-0.5 text-xs">Your thinking, preserved.</p>
       </div>
 

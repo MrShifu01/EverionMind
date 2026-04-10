@@ -2,22 +2,18 @@ import { useMemo, useRef, memo, useState, useEffect } from "react";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { fmtD } from "../data/constants";
 import type { Entry } from "../types";
+import { Badge } from "./ui/badge";
+import type { VariantProps } from "class-variance-authority";
+import { badgeVariants } from "./ui/badge";
 
-// All colors reference CSS variables so they respond correctly to light/dark mode.
-const TYPE_THEME: Record<string, { bg: string; text: string }> = {
-  note: { bg: "var(--color-primary-container)", text: "var(--color-primary)" },
-  person: { bg: "var(--color-primary-container)", text: "var(--color-primary)" },
-  document: { bg: "var(--color-secondary-container)", text: "var(--color-secondary)" },
-  secret: {
-    bg: "color-mix(in oklch, var(--color-error) 12%, var(--color-surface-container))",
-    text: "var(--color-error)",
-  },
-  reminder: {
-    bg: "color-mix(in oklch, var(--color-error) 12%, var(--color-surface-container))",
-    text: "var(--color-error)",
-  },
-  supplier: { bg: "var(--color-secondary-container)", text: "var(--color-secondary)" },
-  default: { bg: "var(--color-primary-container)", text: "var(--color-primary)" },
+// Maps entry types to Badge variant
+const TYPE_VARIANT: Record<string, VariantProps<typeof badgeVariants>["variant"]> = {
+  note: "default",
+  person: "default",
+  document: "secondary",
+  supplier: "secondary",
+  secret: "destructive",
+  reminder: "destructive",
 };
 
 const EntryCard = memo(function EntryCard({
@@ -43,7 +39,7 @@ const EntryCard = memo(function EntryCard({
   const imp = ({ 1: "Important", 2: "Critical" } as Record<number, string>)[importance];
   const isPinned = !!(e as any).pinned;
   const isCritical = importance === 2;
-  const colors = TYPE_THEME[e.type] || TYPE_THEME.default;
+  const typeVariant = TYPE_VARIANT[e.type] ?? "default";
 
   return (
     <article
@@ -59,7 +55,7 @@ const EntryCard = memo(function EntryCard({
       aria-selected={selectMode ? selected : undefined}
       {...(isPinned ? { "data-pinned": "true" } : {})}
       {...(importance > 0 ? { "data-importance": String(importance) } : {})}
-      className={`entry-card${isCritical ? "entry-card--critical" : isPinned ? "entry-card--pinned" : ""} group press-scale relative cursor-pointer rounded-2xl border p-5 transition-all duration-200`}
+      className={`entry-card ${isCritical ? "entry-card--critical" : isPinned ? "entry-card--pinned" : ""} group press-scale relative cursor-pointer rounded-2xl border p-5 transition-all duration-200`}
       style={selected ? { outline: "2px solid var(--color-primary)", outlineOffset: "2px" } : undefined}
     >
       {selectMode && (
@@ -79,31 +75,18 @@ const EntryCard = memo(function EntryCard({
       )}
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <p
-            className="rounded-lg px-2 py-0.5 text-xs font-medium"
-            style={{ background: colors.bg, color: colors.text }}
-          >
+          <Badge variant={typeVariant}>
             {e.type.charAt(0).toUpperCase() + e.type.slice(1)}
-          </p>
+          </Badge>
         </div>
         <div className="flex items-center gap-1.5">
           {(e as any).pinned && (
-            <span style={{ color: "var(--color-primary)", fontSize: 12 }}>📌</span>
+            <span className="text-primary text-xs">📌</span>
           )}
           {imp && (
-            <span
-              className="rounded-full px-2 py-0.5 text-xs font-medium"
-              style={{
-                background:
-                  imp === "Critical"
-                    ? "color-mix(in oklch, var(--color-error) 14%, var(--color-surface-container))"
-                    : "var(--color-primary-container)",
-                color:
-                  imp === "Critical" ? "var(--color-error)" : "var(--color-on-primary-container)",
-              }}
-            >
+            <Badge variant={imp === "Critical" ? "destructive" : "default"} size="pill">
               {imp}
-            </span>
+            </Badge>
           )}
         </div>
       </div>
@@ -125,19 +108,12 @@ const EntryCard = memo(function EntryCard({
       {(e as any).tags?.length > 0 && (
         <div className="mt-auto flex flex-wrap gap-1.5">
           {(e as any).tags.slice(0, 3).map((tag: string) => (
-            <span
-              key={tag}
-              className="rounded-full px-2 py-0.5 text-xs font-medium"
-              style={{
-                background: "var(--color-secondary-container)",
-                color: "var(--color-secondary)",
-              }}
-            >
+            <Badge key={tag} variant="secondary" size="pill">
               {tag}
-            </span>
+            </Badge>
           ))}
           {(e as any).tags.length > 3 && (
-            <span className="px-1 text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
+            <span className="px-1 text-xs text-on-surface-variant">
               +{(e as any).tags.length - 3}
             </span>
           )}
@@ -225,7 +201,7 @@ const EntryRow = memo(function EntryRow({
   selected?: boolean;
   onToggleSelect?: (id: string) => void;
 }) {
-  const colors = TYPE_THEME[e.type] || TYPE_THEME.default;
+  const rowTypeVariant = TYPE_VARIANT[e.type] ?? "default";
   const isPinned = !!(e as any).pinned;
   return (
     <article
@@ -234,13 +210,12 @@ const EntryRow = memo(function EntryRow({
       onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); selectMode ? onToggleSelect?.(e.id) : onSelect(e); } }}
       aria-label={e.title}
       {...(isPinned ? { "data-pinned": "true" } : {})}
-      className="group press-scale flex w-full cursor-pointer items-center gap-3 overflow-hidden rounded-xl border px-4 py-3 transition-all duration-200"
-      style={{ borderColor: selected ? "var(--color-primary)" : "var(--color-outline-variant)", background: "var(--color-surface-container)", outline: selected ? "2px solid var(--color-primary)" : undefined, outlineOffset: selected ? "2px" : undefined }}
+      className={`group press-scale flex w-full cursor-pointer items-center gap-3 overflow-hidden rounded-xl border bg-surface-container px-4 py-3 transition-all duration-200 ${selected ? "border-primary outline outline-2 outline-offset-2 outline-primary" : "border-outline-variant"}`}
     >
-      <span className="flex-shrink-0 rounded-lg px-2 py-0.5 text-xs font-medium" style={{ background: colors.bg, color: colors.text }}>
+      <Badge variant={rowTypeVariant}>
         {e.type.charAt(0).toUpperCase() + e.type.slice(1)}
-      </span>
-      {isPinned && <span style={{ color: "var(--color-primary)", fontSize: 11, flexShrink: 0 }}>📌</span>}
+      </Badge>
+      {isPinned && <span className="flex-shrink-0 text-[11px] text-primary">📌</span>}
       <span className="text-on-surface min-w-0 flex-1 truncate text-sm font-medium">{e.title}</span>
       <span className="flex-shrink-0 text-xs" style={{ color: "var(--color-on-surface-variant)" }}>{e.created_at ? fmtD(e.created_at) : ""}</span>
       {(onPin || onDelete) && (

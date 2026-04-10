@@ -101,22 +101,29 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
         style={{ WebkitOverflowScrolling: "touch" }}
       >
         <div className="flex min-w-max gap-2 pb-0 md:min-w-full md:flex-wrap">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className="px-4 py-3 text-sm font-medium whitespace-nowrap transition-all"
-              style={{
-                color:
-                  activeTab === tab.id ? "var(--color-primary)" : "var(--color-on-surface-variant)",
-                borderBottom:
-                  activeTab === tab.id ? "2px solid var(--color-primary)" : "2px solid transparent",
-              }}
-            >
-              <span className="mr-1">{tab.icon}</span>
-              {tab.label}
-            </button>
-          ))}
+          {tabs.map((tab) => {
+            const isMuted = tab.id === "intelligence";
+            return (
+              <button
+                key={tab.id}
+                onClick={() => !isMuted && setActiveTab(tab.id)}
+                disabled={isMuted}
+                className="px-4 py-3 text-sm font-medium whitespace-nowrap transition-all"
+                style={{
+                  color: isMuted
+                    ? "var(--color-on-surface-variant)"
+                    : activeTab === tab.id ? "var(--color-primary)" : "var(--color-on-surface-variant)",
+                  borderBottom:
+                    !isMuted && activeTab === tab.id ? "2px solid var(--color-primary)" : "2px solid transparent",
+                  opacity: isMuted ? 0.35 : 1,
+                  cursor: isMuted ? "not-allowed" : "pointer",
+                }}
+              >
+                <span className="mr-1">{tab.icon}</span>
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 

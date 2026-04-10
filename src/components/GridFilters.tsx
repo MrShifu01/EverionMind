@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { TC } from "../data/constants";
 import type { DateFilter, SortOrder, EntryFilterState } from "../lib/entryFilters";
+import { Chip } from "./ui/chip";
+import { ActivePill } from "./ui/active-pill";
 
 const DATE_OPTIONS: { id: DateFilter; label: string }[] = [
   { id: "all", label: "All time" },
@@ -27,43 +29,9 @@ interface GridFiltersProps {
   onViewModeChange?: (mode: "grid" | "list") => void;
 }
 
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="press-scale flex flex-shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors duration-150"
-      style={
-        active
-          ? {
-              background: "var(--color-primary)",
-              color: "var(--color-on-primary)",
-            }
-          : {
-              background: "var(--color-surface-container)",
-              color: "var(--color-on-surface-variant)",
-              border: "1px solid var(--color-outline-variant)",
-            }
-      }
-    >
-      {children}
-    </button>
-  );
-}
-
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <span
-      className="flex-shrink-0 text-xs font-semibold tracking-widest uppercase select-none"
-      style={{ color: "var(--color-on-surface-variant)", opacity: 0.5, letterSpacing: "0.08em" }}
-    >
+    <span className="flex-shrink-0 select-none text-xs font-semibold tracking-[0.08em] uppercase text-on-surface-variant opacity-50">
       {children}
     </span>
   );
@@ -110,34 +78,16 @@ export default function GridFilters({
       {/* Toggle row */}
       <div className="flex items-center justify-between gap-2">
         {onSelectModeToggle && (
-          <button
-            onClick={onSelectModeToggle}
-            className="press-scale flex flex-shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors duration-150"
-            style={selectMode ? {
-              background: "var(--color-primary)",
-              color: "var(--color-on-primary)",
-            } : {
-              background: "var(--color-surface-container)",
-              color: "var(--color-on-surface-variant)",
-              border: "1px solid var(--color-outline-variant)",
-            }}
-          >
+          <Chip active={selectMode} onClick={onSelectModeToggle}>
             {selectMode ? "Done" : "Select"}
-          </button>
+          </Chip>
         )}
-        <button
+        <Chip
+          active={open || hasActive}
           onClick={() => setOpen((o) => !o)}
-          className="press-scale flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors duration-150"
-          style={{
-            background:
-              open || hasActive
-                ? "var(--color-primary-container)"
-                : "var(--color-surface-container)",
-            color: open || hasActive ? "var(--color-primary)" : "var(--color-on-surface-variant)",
-            border: "1px solid var(--color-outline-variant)",
-          }}
           aria-expanded={open}
           aria-label="Toggle filters"
+          className={open || hasActive ? "bg-primary-container text-primary border-primary/20" : ""}
         >
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
             <path
@@ -149,20 +99,11 @@ export default function GridFilters({
           </svg>
           <span>Filters</span>
           {hasActive && (
-            <span
-              className="inline-flex items-center justify-center rounded-full text-[10px] font-bold tabular-nums"
-              style={{
-                minWidth: "16px",
-                height: "16px",
-                padding: "0 4px",
-                background: "var(--color-primary)",
-                color: "var(--color-on-primary)",
-              }}
-            >
+            <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold tabular-nums text-primary-foreground">
               {activeCount}
             </span>
           )}
-        </button>
+        </Chip>
 
         {/* Active filter pills — always visible for quick-clear */}
         <div
@@ -189,9 +130,9 @@ export default function GridFilters({
           )}
           {hasActive && (
             <button
+              type="button"
               onClick={() => onChange({ type: "all", date: "all", sort: "newest" })}
-              className="press-scale flex-shrink-0 text-xs"
-              style={{ color: "var(--color-on-surface-variant)", opacity: 0.6 }}
+              className="press-scale flex-shrink-0 text-xs text-on-surface-variant opacity-60 hover:opacity-100 transition-opacity"
             >
               Clear all
             </button>
@@ -200,15 +141,12 @@ export default function GridFilters({
 
         {/* Grid / List toggle */}
         {onViewModeChange && (
-          <div
-            className="flex flex-shrink-0 items-center rounded-full border overflow-hidden"
-            style={{ borderColor: "var(--color-outline-variant)" }}
-          >
+          <div className="flex flex-shrink-0 items-center overflow-hidden rounded-full border border-outline-variant">
             <button
+              type="button"
               onClick={() => onViewModeChange("grid")}
               aria-label="Grid view"
-              className="press-scale flex items-center justify-center px-2.5 py-1.5 transition-colors duration-150"
-              style={viewMode === "grid" ? { background: "var(--color-primary-container)", color: "var(--color-primary)" } : { background: "transparent", color: "var(--color-on-surface-variant)" }}
+              className={`press-scale flex items-center justify-center px-2.5 py-1.5 transition-colors duration-150 ${viewMode === "grid" ? "bg-primary-container text-primary" : "bg-transparent text-on-surface-variant"}`}
             >
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
                 <rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.75" />
@@ -218,10 +156,10 @@ export default function GridFilters({
               </svg>
             </button>
             <button
+              type="button"
               onClick={() => onViewModeChange("list")}
               aria-label="List view"
-              className="press-scale flex items-center justify-center px-2.5 py-1.5 transition-colors duration-150"
-              style={viewMode === "list" ? { background: "var(--color-primary-container)", color: "var(--color-primary)" } : { background: "transparent", color: "var(--color-on-surface-variant)" }}
+              className={`press-scale flex items-center justify-center px-2.5 py-1.5 transition-colors duration-150 ${viewMode === "list" ? "bg-primary-container text-primary" : "bg-transparent text-on-surface-variant"}`}
             >
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
                 <path d="M1 3h14M1 8h14M1 13h14" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
@@ -240,20 +178,11 @@ export default function GridFilters({
         }}
       >
         <div className="overflow-hidden">
-          <div
-            className="mt-3 flex flex-col gap-4 rounded-2xl p-3"
-            style={{
-              background: "var(--color-surface-container-low)",
-              border: "1px solid var(--color-outline-variant)",
-            }}
-          >
+          <div className="mt-3 flex flex-col gap-4 rounded-2xl border border-outline-variant bg-surface-container-low p-3">
             {/* Type */}
             <div className="flex flex-col gap-2">
               <SectionLabel>Type</SectionLabel>
-              <div
-                className="flex gap-1.5 overflow-x-auto pb-0.5"
-                style={{ scrollbarWidth: "none" }}
-              >
+              <div className="scrollbar-hide flex gap-1.5 overflow-x-auto pb-0.5">
                 <Chip active={filters.type === "all"} onClick={() => set({ type: "all" })}>
                   All types
                 </Chip>
@@ -269,14 +198,12 @@ export default function GridFilters({
             </div>
 
             {/* Separator */}
-            <div
-              style={{ height: "1px", background: "var(--color-outline-variant)", opacity: 0.5 }}
-            />
+            <div className="h-px bg-outline-variant opacity-50" />
 
             {/* Date */}
             <div className="flex flex-wrap items-center gap-3">
               <SectionLabel>Date</SectionLabel>
-              <div className="flex gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+              <div className="scrollbar-hide flex gap-1.5 overflow-x-auto">
                 {DATE_OPTIONS.map((d) => (
                   <Chip
                     key={d.id}
@@ -290,9 +217,7 @@ export default function GridFilters({
             </div>
 
             {/* Separator */}
-            <div
-              style={{ height: "1px", background: "var(--color-outline-variant)", opacity: 0.5 }}
-            />
+            <div className="h-px bg-outline-variant opacity-50" />
 
             {/* Sort */}
             <div className="flex flex-wrap items-center gap-3">
@@ -319,24 +244,3 @@ export default function GridFilters({
   );
 }
 
-function ActivePill({ label, onClear }: { label: string; onClear: () => void }) {
-  return (
-    <span
-      className="flex flex-shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs"
-      style={{
-        background: "var(--color-primary-container)",
-        color: "var(--color-primary)",
-        border: "1px solid color-mix(in oklch, var(--color-primary) 25%, transparent)",
-      }}
-    >
-      {label}
-      <button
-        onClick={onClear}
-        className="press-scale ml-0.5 leading-none opacity-60 transition-opacity hover:opacity-100"
-        aria-label={`Remove ${label} filter`}
-      >
-        ×
-      </button>
-    </span>
-  );
-}

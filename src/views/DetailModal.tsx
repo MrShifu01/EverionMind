@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { BrainTypeIcon } from "../components/icons/BrainTypeIcon";
 import { TC } from "../data/constants";
 import { resolveIcon } from "../lib/typeIcons";
 import { extractPhone, toWaUrl } from "../lib/phone";
 import { useEntryEdit } from "../hooks/useEntryEdit";
+import { useTypeSuggestions } from "../hooks/useTypeSuggestions";
 import type { Entry, Brain, EntryType } from "../types";
 
 interface DetailLink {
@@ -61,6 +62,48 @@ export default function DetailModal({
   const [editContent, setEditContent] = useState(entry.content ?? "");
   const [editType, setEditType] = useState<string>(entry.type);
   const [editTags, setEditTags] = useState((entry.tags || []).join(", "));
+  const [typePickerOpen, setTypePickerOpen] = useState(false);
+  const typePickerRef = useRef<HTMLDivElement>(null);
+  const { suggestions: aiTypeSuggestions, loading: aiTypeLoading, suggest: suggestTypes, clear: clearTypeSuggestions } = useTypeSuggestions();
+
+  const { smartTypes, brainTypeFreq } = useMemo(() => {
+    const freq: Record<string, number> = {};
+    for (const e of entries) freq[e.type] = (freq[e.type] || 0) + 1;
+    const known = Array.from(new Set([
+      ...Object.keys(freq),
+      "note", "person", "contact", "document", "reminder",
+      "task", "event", "finance", "health", "place", "idea", "decision",
+    ]));
+    return {
+      brainTypeFreq: freq,
+      smartTypes: known.sort((a, b) => {
+        if (a === editType) return -1;
+        if (b === editType) return 1;
+        return (freq[b] || 0) - (freq[a] || 0);
+      }),
+    };
+  }, [entries, editType]);
+
+  // Trigger AI suggestions when type picker opens
+  useEffect(() => {
+    if (typePickerOpen) {
+      suggestTypes(
+        `${entry.title} ${entry.content ?? ""}`,
+        Object.keys(brainTypeFreq),
+      );
+    }
+  }, [typePickerOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!typePickerOpen) return;
+    function handler(e: MouseEvent) {
+      if (typePickerRef.current && !typePickerRef.current.contains(e.target as Node)) {
+        setTypePickerOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [typePickerOpen]);
   const [secretRevealed, setSecretRevealed] = useState(false);
 
   const {
@@ -485,45 +528,100 @@ export default function DetailModal({
                 >
                   Type
                 </label>
-                {/* Free-form type input — AI can use any label; datalist shows known types */}
-                <datalist id="entry-types-list">
-                  {Array.from(
-                    new Set([
-                      ...entries.map((e) => e.type).filter(Boolean),
-                      "note",
-                      "person",
-                      "place",
-                      "idea",
-                      "contact",
-                      "document",
-                      "reminder",
-                      "decision",
-                      "secret",
-                    ]),
-                  ).map((typ) => (
-                    <option key={typ} value={typ} />
-                  ))}
-                </datalist>
-                <input
-                  type="text"
-                  list="entry-types-list"
-                  value={editType}
-                  onChange={(e) => setEditType(e.target.value.toLowerCase().trim())}
-                  placeholder="e.g. recipe, supplier, director…"
-                  className="text-on-surface min-h-[44px] w-full rounded-xl px-4 py-3 text-sm transition-all focus:outline-none"
-                  style={{
-                    background: "var(--color-surface-container)",
-                    border: "1px solid var(--color-outline-variant)",
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = "var(--color-primary)";
-                    e.currentTarget.style.boxShadow = "0 0 0 3px var(--color-primary-container)";
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = "var(--color-outline-variant)";
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
-                />
+                {/* Free-form type input + smart dropdown picker */}
+                <div ref={typePickerRef} className="relative">
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      value={editType}
+                      onChange={(e) => setEditType(e.target.value.toLowerCase().trim())}
+                      placeholder="e.g. recipe, supplier…"
+                      className="text-on-surface min-h-[44px] flex-1 rounded-xl px-4 py-3 text-sm transition-all focus:outline-none"
+                      style={{
+                        background: "var(--color-surface-container)",
+                        border: "1px solid var(--color-outline-variant)",
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = "var(--color-primary)";
+                        e.currentTarget.style.boxShadow = "0 0 0 3px var(--color-primary-container)";
+                        setTypePickerOpen(true);
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = "var(--color-outline-variant)";
+                        e.currentTarget.style.boxShadow = "none";
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setTypePickerOpen((p) => !p)}
+                      className="flex min-h-[44px] items-center rounded-xl px-3 text-sm transition-colors"
+                      style={{
+                        background: "var(--color-surface-container)",
+                        border: "1px solid var(--color-outline-variant)",
+                        color: "var(--color-on-surface-variant)",
+                      }}
+                    >
+                      <svg className={`h-4 w-4 transition-transform ${typePickerOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  </div>
+                  {typePickerOpen && (
+                    <div
+                      className="absolute top-full left-0 right-0 z-[200] mt-1 overflow-y-auto rounded-xl border shadow-lg"
+                      style={{
+                        background: "var(--color-surface-container-high)",
+                        borderColor: "var(--color-outline-variant)",
+                        maxHeight: "220px",
+                      }}
+                    >
+                      {/* AI suggestions at top */}
+                      {aiTypeLoading && (
+                        <div className="flex items-center gap-2 px-4 py-2.5 text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
+                          <span className="flex gap-0.5"><span className="typing-dot"/><span className="typing-dot"/><span className="typing-dot"/></span>
+                          AI thinking…
+                        </div>
+                      )}
+                      {!aiTypeLoading && aiTypeSuggestions.length > 0 && (
+                        <>
+                          {aiTypeSuggestions.map((t) => (
+                            <button
+                              key={`ai-${t}`}
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => { setEditType(t); setTypePickerOpen(false); clearTypeSuggestions(); }}
+                              className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition-colors hover:bg-white/10"
+                              style={{
+                                color: "var(--color-on-surface)",
+                                background: editType === t ? "var(--color-primary-container)" : undefined,
+                              }}
+                            >
+                              <span>{t.charAt(0).toUpperCase() + t.slice(1)}</span>
+                              <span className="rounded-md px-1.5 py-0.5 text-[10px] font-bold" style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}>AI</span>
+                            </button>
+                          ))}
+                          <div className="mx-3 my-1 border-t" style={{ borderColor: "var(--color-outline-variant)" }} />
+                        </>
+                      )}
+                      {/* Frequency-sorted brain types */}
+                      {smartTypes.map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { setEditType(t); setTypePickerOpen(false); }}
+                          className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition-colors hover:bg-white/10"
+                          style={{
+                            color: "var(--color-on-surface)",
+                            background: editType === t ? "var(--color-primary-container)" : undefined,
+                          }}
+                        >
+                          <span>{t.charAt(0).toUpperCase() + t.slice(1)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
               <div>
                 <label

@@ -91,35 +91,29 @@ async function generateOpenAIEmbedding(inputs: string[], apiKey: string): Promis
   return data.data.map((d: any) => d.embedding);
 }
 
+const GOOGLE_EMBED_MODEL = "text-embedding-004";
+
 async function generateGoogleEmbedding(text: string, apiKey: string): Promise<number[]> {
-  // Try models in order: text-embedding-004, then gemini-embedding-001
-  const models = ["text-embedding-004", "gemini-embedding-001"];
-  for (const model of models) {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:embedContent?key=${encodeURIComponent(apiKey)}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: `models/${model}`,
-          content: { parts: [{ text }] },
-          outputDimensionality: 768,
-        }),
-      }
-    );
-    if (res.ok) {
-      const data: any = await res.json();
-      const values: number[] = data.embedding.values;
-      // Verify dimension matches our vector(768) column
-      if (values.length !== 768) {
-        throw new Error(`${model} returned ${values.length} dims, expected 768`);
-      }
-      return values;
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GOOGLE_EMBED_MODEL}:embedContent?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: `models/${GOOGLE_EMBED_MODEL}`,
+        content: { parts: [{ text }] },
+        outputDimensionality: 768,
+      }),
     }
-    if (res.status !== 404) {
-      const err = await res.text().catch(() => String(res.status));
-      throw new Error(`Google embedding error ${res.status}: ${err}`);
-    }
+  );
+  if (!res.ok) {
+    const err = await res.text().catch(() => String(res.status));
+    throw new Error(`Google embedding error ${res.status}: ${err}`);
   }
-  throw new Error("No supported Google embedding model found (tried text-embedding-004, gemini-embedding-001)");
+  const data: any = await res.json();
+  const values: number[] = data.embedding.values;
+  if (values.length !== 768) {
+    throw new Error(`${GOOGLE_EMBED_MODEL} returned ${values.length} dims, expected 768`);
+  }
+  return values;
 }

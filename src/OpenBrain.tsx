@@ -809,6 +809,7 @@ export default function OpenBrain() {
                 onCreated={handleCreated}
                 brainId={activeBrain?.id}
                 isOnline={isOnline}
+                entries={entries}
               />
               <MobileMoreMenu
                 isOpen={navOpen}
