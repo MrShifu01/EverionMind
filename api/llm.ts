@@ -258,7 +258,7 @@ async function handleExtractFile(req: ApiRequest, res: ApiResponse): Promise<voi
       // Native generateContent API — supports images and all Gemma/Gemini models
       const usedModel = model || GEMINI_MODEL;
       const parts: any[] = [];
-      if (mimeType.startsWith("image/")) {
+      if (mimeType.startsWith("image/") || mimeType === "application/pdf") {
         parts.push({ inlineData: { mimeType, data: fileData } });
       }
       parts.push({ text: EXTRACT_PROMPT });
