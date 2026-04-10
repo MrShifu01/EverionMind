@@ -105,7 +105,7 @@ const SCORE_WEIGHTS: Record<string, number> = {
 function computeHealthScore(allSuggestions: any[]): number {
   let score = 100;
   for (const s of allSuggestions) score -= (SCORE_WEIGHTS[s.type] ?? 2);
-  return Math.max(0, Math.min(100, score));
+  return Math.max(35, Math.min(100, score));
 }
 
 function scoreColor(score: number) {
@@ -274,7 +274,7 @@ export default function RefineView({
                   {embedLoading ? "Refreshing…" : "Refresh Brain"}
                 </p>
                 <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-                  Update your brain with the latest changes
+                  Strengthen connections between your new memories
                 </p>
               </div>
               {embedLoading && (
@@ -398,7 +398,7 @@ export default function RefineView({
           <button
             onClick={() => embedBrain(false)}
             disabled={embedLoading || !activeBrain}
-            title="Update your brain with the latest changes"
+            title="Strengthen connections between your new memories"
             className="flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-medium transition-all"
             style={{
               background: "var(--color-surface-container-high)",

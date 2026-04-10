@@ -307,7 +307,7 @@ export function useRefineAnalysis({
           tags: e.tags || [],
         }));
         try {
-          const res = await callAI({
+          const res = await callAI({ task: "refine",
             max_tokens: 1500,
             system: PROMPTS.ENTRY_AUDIT,
             brainId: activeBrain?.id,
@@ -364,7 +364,7 @@ export function useRefineAnalysis({
             .filter(Boolean);
           if (candidates.length === 0) return;
           try {
-            const res = await callAI({
+            const res = await callAI({ task: "refine",
               max_tokens: 1200,
               system: PROMPTS.LINK_DISCOVERY_PAIRS,
               brainId: activeBrain?.id,
@@ -395,7 +395,7 @@ export function useRefineAnalysis({
           id: e.id, title: e.title, type: e.type,
           content: (e.content || "").slice(0, 200), tags: (e.tags || []).slice(0, 6),
         }));
-        const res = await callAI({
+        const res = await callAI({ task: "refine",
           max_tokens: 1200,
           system: PROMPTS.LINK_DISCOVERY,
           brainId: activeBrain?.id,
@@ -437,7 +437,7 @@ export function useRefineAnalysis({
         .filter(Boolean);
       if (candidates.length > 0) {
         try {
-          const res = await callAI({
+          const res = await callAI({ task: "refine",
             max_tokens: 800,
             system: PROMPTS.WEAK_LABEL_RENAME,
             brainId: activeBrain?.id,
@@ -481,7 +481,7 @@ export function useRefineAnalysis({
         duplicateContent: (b.content || "").slice(0, 150),
       }));
       try {
-        const res = await callAI({
+        const res = await callAI({ task: "refine",
           max_tokens: 800,
           system: PROMPTS.DUPLICATE_NAMES,
           brainId: activeBrain?.id,
@@ -517,7 +517,7 @@ export function useRefineAnalysis({
     const clusters = detectClusters(entries, links || []);
     if (clusters.length > 0) {
       try {
-        const res = await callAI({
+        const res = await callAI({ task: "refine",
           max_tokens: 800,
           system: PROMPTS.CLUSTER_NAMING,
           brainId: activeBrain?.id,

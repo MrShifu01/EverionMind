@@ -84,8 +84,10 @@ export async function callAI({
         simpleFallbacks = SIMPLE_AI_FALLBACKS;
       }
     } else {
+      const taskDefault = task === "refine" ? "google/gemini-2.5-flash-lite" : null;
       model =
         (task ? getModelForTask(task) : null) ||
+        taskDefault ||
         getOpenRouterModel() ||
         SIMPLE_AI_MODEL;
     }
