@@ -19,7 +19,7 @@ interface VaultData {
 }
 
 interface UseVaultOpsOptions {
-  entries: Entry[];
+  entries?: Entry[]; // kept for backward compat (legacy secrets in entries table)
   cryptoKey: CryptoKey | null;
   onVaultUnlock: (key: CryptoKey | null) => void;
   brainId?: string;
@@ -27,7 +27,7 @@ interface UseVaultOpsOptions {
 }
 
 export function useVaultOps({
-  entries,
+  entries = [],
   cryptoKey,
   onVaultUnlock,
   brainId,
@@ -57,24 +57,45 @@ export function useVaultOps({
   const [addError, setAddError] = useState("");
   const [addBusy, setAddBusy] = useState(false);
 
-  const secrets = entries.filter(
+  // Vault entries from the dedicated vault_entries table
+  const [vaultEntries, setVaultEntries] = useState<Entry[]>([]);
+
+  const fetchVaultEntries = useCallback(async () => {
+    try {
+      const r = await authFetch("/api/vault-entries");
+      if (r.ok) {
+        const data: any[] = await r.json();
+        setVaultEntries(data.map((e) => ({ ...e, type: "secret" as const })));
+      }
+    } catch {}
+  }, []);
+
+  // Legacy: secrets still in the entries table (before migration)
+  const legacySecrets = entries.filter(
     (e: Entry) => e.type === "secret" || (e as any).encrypted === true,
   );
+
+  // Combined — vault_entries takes precedence; legacy fills gap
+  const secrets = [
+    ...vaultEntries,
+    ...legacySecrets.filter((ls) => !vaultEntries.find((ve) => ve.id === ls.id)),
+  ];
 
   useEffect(() => {
     if (cryptoKey) {
       setStatus("unlocked");
+      fetchVaultEntries();
       return;
     }
     authFetch("/api/vault")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!data) { setStatus("setup"); return; }
-        if (data.exists) { setVaultData(data); setStatus("locked"); }
+        if (data.exists) { setVaultData(data); setStatus("locked"); fetchVaultEntries(); }
         else setStatus("setup");
       })
       .catch(() => setStatus("setup"));
-  }, [cryptoKey]);
+  }, [cryptoKey, fetchVaultEntries]);
 
   useEffect(() => {
     if (status !== "unlocked" || !cryptoKey || secrets.length === 0) {
@@ -189,16 +210,15 @@ export function useVaultOps({
       }
       const plain = { title: addTitle.trim(), content: addContent, type: "secret" as const, tags: tagList, metadata };
       const encrypted = await encryptEntry(plain as any, cryptoKey);
-      const res = await authFetch("/api/capture", {
+      const res = await authFetch("/api/vault-entries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          p_title: plain.title,
-          p_content: encrypted.content,
-          p_type: "secret",
-          p_metadata: encrypted.metadata,
-          p_tags: tagList,
-          ...(brainId ? { p_brain_id: brainId } : {}),
+          title: plain.title,
+          content: encrypted.content,
+          metadata: typeof encrypted.metadata === "string" ? encrypted.metadata : "",
+          tags: tagList,
+          ...(brainId ? { brain_id: brainId } : {}),
         }),
       });
       if (!res.ok) {
@@ -227,15 +247,21 @@ export function useVaultOps({
   const bulkDelete = useCallback(async () => {
     if (!confirm(`Permanently delete ${selectedIds.size} selected secret${selectedIds.size !== 1 ? "s" : ""}? This cannot be undone.`)) return;
     const ids = Array.from(selectedIds);
+    const legacyIds = new Set(legacySecrets.map((e) => e.id));
     for (const id of ids) {
-      const res = await authFetch(`/api/entries?id=${id}`, { method: "DELETE" }).catch(() => null);
+      // Delete from appropriate table based on origin
+      const endpoint = legacyIds.has(id)
+        ? `/api/entries?id=${id}`
+        : `/api/vault-entries?id=${id}`;
+      const res = await authFetch(endpoint, { method: "DELETE" }).catch(() => null);
       if (res?.ok) {
         setDecryptedSecrets((prev) => prev.filter((e) => e.id !== id));
+        setVaultEntries((prev) => prev.filter((e) => e.id !== id));
         setSelectedIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
       }
     }
     setBulkMode(false);
-  }, [selectedIds]);
+  }, [selectedIds, legacySecrets]);
 
   const lockVault = () => {
     setStatus("locked");
@@ -308,5 +334,6 @@ export function useVaultOps({
     goToRecovery,
     backToPassphrase,
     dismissRecoveryKey,
+    refetchVaultEntries: fetchVaultEntries,
   };
 }

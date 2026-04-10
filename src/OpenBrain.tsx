@@ -818,6 +818,7 @@ export default function OpenBrain() {
                 onClose={() => setShowCapture(false)}
                 onCreated={handleCreated}
                 brainId={activeBrain?.id}
+                cryptoKey={cryptoKey}
                 isOnline={isOnline}
                 onBackgroundFiles={(files) => bgProcessFiles(files, activeBrain?.id, handleCreated)}
               />

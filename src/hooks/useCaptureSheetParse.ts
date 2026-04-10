@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { callAI } from "../lib/ai";
 import { authFetch } from "../lib/authFetch";
 import { getEmbedHeaders } from "../lib/aiSettings";
+import { encryptEntry } from "../lib/crypto";
 import { extractTextFromFile } from "../lib/fileExtract";
 import { parseAISplitResponse } from "../lib/fileSplitter";
 import { PROMPTS } from "../config/prompts";
@@ -26,6 +27,7 @@ export interface UploadedFile {
 interface UseCaptureSheetParseOptions {
   brainId?: string;
   isOnline: boolean;
+  cryptoKey?: CryptoKey | null;
   onCreated: (entry: Entry) => void;
   onClose: () => void;
 }
@@ -33,6 +35,7 @@ interface UseCaptureSheetParseOptions {
 export function useCaptureSheetParse({
   brainId,
   isOnline,
+  cryptoKey,
   onCreated,
   onClose,
 }: UseCaptureSheetParseOptions) {
@@ -83,10 +86,44 @@ export function useCaptureSheetParse({
       setStatus("saving");
       setErrorDetail(null);
       try {
+        // ── Secret → encrypted vault_entries table ──
+        if (parsed.type === "secret") {
+          if (!cryptoKey) {
+            setErrorDetail("Vault is locked — unlock your vault first, then try again");
+            setStatus("error");
+            setLoading(false);
+            return;
+          }
+          const encrypted = await encryptEntry(
+            { content: parsed.content || "", metadata: parsed.metadata || {} },
+            cryptoKey,
+          );
+          const res = await authFetch("/api/vault-entries", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: parsed.title,
+              content: encrypted.content,
+              metadata: typeof encrypted.metadata === "string" ? encrypted.metadata : "",
+              tags: parsed.tags || [],
+              ...(brainId ? { brain_id: brainId } : {}),
+            }),
+          });
+          if (res.ok) {
+            setUploadedFiles([]);
+            setStatus("saved");
+            setTimeout(() => { setStatus(null); onClose(); }, 700);
+          } else {
+            const errBody = await res.text().catch(() => "(no body)");
+            setErrorDetail(`[vault] HTTP ${res.status} — ${errBody}`);
+            setStatus("error");
+          }
+          setLoading(false);
+          return;
+        }
+
+        // ── Regular entry → entries table ──
         const embedHeaders = getEmbedHeaders();
-        console.log("[capture:embed] headers →", embedHeaders
-          ? { provider: embedHeaders["X-Embed-Provider"], model: embedHeaders["X-Embed-Model"] ?? "(default)", hasKey: !!embedHeaders["X-Embed-Key"] }
-          : "none — embedding will be skipped");
         const res = await authFetch("/api/capture", {
           method: "POST",
           headers: { "Content-Type": "application/json", ...(embedHeaders || {}) },
@@ -101,11 +138,7 @@ export function useCaptureSheetParse({
         });
         if (res.ok) {
           const result = await res.json();
-          if (result.embed_error) {
-            console.error("[capture:embed] failed →", result.embed_error);
-          } else {
-            console.log("[capture:embed] success");
-          }
+          if (result.embed_error) console.error("[capture:embed] failed →", result.embed_error);
           const newEntry: Entry = {
             id: result?.id || Date.now().toString(),
             title: parsed.title,
@@ -136,7 +169,7 @@ export function useCaptureSheetParse({
       }
       setLoading(false);
     },
-    [brainId, onCreated, onClose],
+    [brainId, cryptoKey, onCreated, onClose],
   );
 
   const capture = useCallback(

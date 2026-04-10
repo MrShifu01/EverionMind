@@ -19,6 +19,7 @@ export default function CaptureSheet({
   onClose,
   onCreated,
   brainId,
+  cryptoKey,
   isOnline = true,
   onBackgroundFiles,
 }: CaptureSheetProps) {
@@ -42,7 +43,7 @@ export default function CaptureSheet({
     confirmSave,
     handleImageFile,
     handleDocFiles,
-  } = useCaptureSheetParse({ brainId, isOnline, onCreated, onClose });
+  } = useCaptureSheetParse({ brainId, isOnline, cryptoKey, onCreated, onClose });
 
   // Voice
   const { listening, startVoice, resetListening } = useVoiceRecorder({
