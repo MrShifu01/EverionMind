@@ -195,7 +195,19 @@ export function useCaptureSheetParse({
           console.error("[useCaptureSheetParse] parse error:", parseError);
         }
 
-        if (Array.isArray(parsedRaw) && parsedRaw.length > 0) {
+        if (Array.isArray(parsedRaw) && parsedRaw.length === 1) {
+          // Single entry from file — show preview so user can confirm before saving
+          const single = parsedRaw[0];
+          setLoading(false);
+          setStatus(null);
+          setPreviewTitle(single.title || "");
+          setPreviewTags((single.tags || []).join(", "));
+          setPreviewType(single.type || "note");
+          setPreview({ ...single, _raw: input });
+          return;
+        }
+
+        if (Array.isArray(parsedRaw) && parsedRaw.length > 1) {
           setLoading(false);
           setStatus(`Saving ${parsedRaw.length} entries…`);
           for (const entry of parsedRaw) {
