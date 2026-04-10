@@ -44,8 +44,8 @@ function computeCompletenessScore(title: string, content: string, type: string, 
 // The only reserved type is "secret" (triggers E2E encryption).
 // We sanitise the value but impose no whitelist.
 
-// SEC-15: Whitelist allowed rel values
-const ALLOWED_RELS = ['related', 'mentions', 'links-to', 'contradicts'];
+// SEC-15: Validate rel values — short alphanumeric phrases only (no injection)
+const REL_PATTERN = /^[a-zA-Z0-9 _\-']{1,50}$/;
 
 // Dispatched via rewrite: /api/save-links → /api/capture?action=links
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
@@ -242,14 +242,14 @@ async function handleSaveLinks(req: ApiRequest, res: ApiResponse): Promise<void>
   const valid = links.filter((l: any) => {
     if (!l.from || !l.to || !l.rel) return false;
     if (typeof l.from !== "string" || typeof l.to !== "string" || typeof l.rel !== "string") return false;
-    if (!ALLOWED_RELS.includes(l.rel)) return false;
+    if (!REL_PATTERN.test(l.rel)) return false;
     return true;
   });
 
   if (valid.length === 0) {
-    const hasInvalidRel = links.some((l: any) => l.rel && !ALLOWED_RELS.includes(l.rel));
+    const hasInvalidRel = links.some((l: any) => l.rel && !REL_PATTERN.test(l.rel));
     if (hasInvalidRel) {
-      return res.status(400).json({ error: `rel must be one of: ${ALLOWED_RELS.join(', ')}` });
+      return res.status(400).json({ error: "rel must be 1-50 alphanumeric characters" });
     }
     return res.status(400).json({ error: "No valid links" });
   }

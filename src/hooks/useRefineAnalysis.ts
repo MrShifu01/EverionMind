@@ -396,13 +396,7 @@ export function useRefineAnalysis({
       .slice(0, 40)
       .map((e: Entry) => `- [${e.type}] ${e.title} (id:${e.id}): ${(e.content || "").slice(0, 100)}`);
 
-    console.log("[Improve Brain] weakest 3 entries:", weakest3.map(e => ({ id: e.id, title: e.title, score: (e.metadata as any)?.completeness_score })));
-    console.log("[Improve Brain] all entries count:", allSlim.length);
-    console.log("[Improve Brain] existing link keys:", existingLinkKeys.size);
-    console.log("[Improve Brain] pure-logic results:", { orphans: orphanSuggestions.length, stale: staleSuggestions.length, deadUrls: deadUrlSuggestions.length });
     const userMessage = `WEAKEST ENTRIES TO AUDIT:\n${JSON.stringify(weakSlim)}\n\nALL ENTRIES (${entries.length} total, for link/gap analysis):\n${allSlim.join("\n")}\n\nEXISTING LINKS (do NOT re-suggest):\n${JSON.stringify([...existingLinkKeys])}`;
-    console.log("[Improve Brain] AI payload size:", userMessage.length, "chars");
-    console.log("[Improve Brain] AI payload preview:", userMessage.slice(0, 500));
 
     try {
       const res = await throttledCallAI({
@@ -413,12 +407,9 @@ export function useRefineAnalysis({
         messages: [{ role: "user", content: userMessage }],
       });
       const data = await res.json();
-      console.log("[Improve Brain] AI raw response:", JSON.stringify(data).slice(0, 1000));
       const raw = extractJSON(data.content?.[0]?.text || "{}");
-      console.log("[Improve Brain] extracted JSON:", raw.slice(0, 500));
       try {
         const p = JSON.parse(raw);
-        console.log("[Improve Brain] parsed result:", { entries: p.entries?.length ?? 0, links: p.links?.length ?? 0, gaps: p.gaps?.length ?? 0 });
         if (p.entries && Array.isArray(p.entries)) entrySuggestions.push(...p.entries);
         if (p.links && Array.isArray(p.links)) {
           linkSuggestions = p.links
