@@ -136,7 +136,12 @@ async function handleGoogle(res: ApiResponse, { messages, max_tokens, system }: 
   );
   const data: any = await response.json();
   if (response.ok) {
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    // Gemma 4 uses thinking mode — parts[0] is the reasoning chain (thought:true),
+    // the actual answer is in the non-thought parts. Always read non-thought parts.
+    const parts: any[] = data.candidates?.[0]?.content?.parts || [];
+    const answerParts = parts.filter((p: any) => !p.thought);
+    const text = answerParts.map((p: any) => p.text || "").join("").trim()
+      || parts.map((p: any) => p.text || "").join("").trim(); // fallback: all parts
     return res.status(200).json({ content: [{ type: "text", text }], model: GEMINI_MODEL });
   }
   console.error("[google]", response.status, JSON.stringify(data));
@@ -267,7 +272,10 @@ async function handleExtractFile(req: ApiRequest, res: ApiResponse): Promise<voi
       );
       const d: any = await r.json();
       if (!r.ok) { console.error("[extract-file/google]", r.status, JSON.stringify(d)); return res.status(r.status).json(d); }
-      return res.status(200).json({ text: d.candidates?.[0]?.content?.parts?.[0]?.text || "" });
+      const xParts: any[] = d.candidates?.[0]?.content?.parts || [];
+      const xAnswer = xParts.filter((p: any) => !p.thought).map((p: any) => p.text || "").join("").trim()
+        || xParts.map((p: any) => p.text || "").join("").trim();
+      return res.status(200).json({ text: xAnswer });
     }
 
     if (provider === "anthropic") {
