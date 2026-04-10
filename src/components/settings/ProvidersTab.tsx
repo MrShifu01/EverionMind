@@ -64,12 +64,14 @@ const label = (s: Status) => {
   return "Not tested";
 };
 
-export default function ProvidersTab(_props?: { activeBrain?: unknown }) {
+export default function ProvidersTab(props?: { activeBrain?: any }) {
   const [gemini, setGemini] = useState<Status>("idle");
   const [geminiModel, setGeminiModel] = useState("");
   const [groq, setGroq] = useState<Status>("idle");
   const [db, setDb] = useState<Status>("idle");
   const [testing, setTesting] = useState(false);
+  const [reembedding, setReembedding] = useState(false);
+  const [reembedProgress, setReembedProgress] = useState<{ processed: number; failed: number; remaining: number } | null>(null);
 
   const [llmTesting, setLlmTesting] = useState(false);
   const [llmResult, setLlmResult] = useState<{ ok: boolean; text: string } | null>(null);
@@ -178,6 +180,33 @@ export default function ProvidersTab(_props?: { activeBrain?: unknown }) {
     clearAISettingsCache();
     setClearMsg(error ? `Error: ${error}` : "All frontend API keys removed.");
     setClearing(false);
+  }
+
+  async function reembedAll() {
+    const brainId = (props?.activeBrain as any)?.id;
+    if (!brainId || reembedding) return;
+    setReembedding(true);
+    setReembedProgress({ processed: 0, failed: 0, remaining: 1 });
+    let totalProcessed = 0;
+    let totalFailed = 0;
+    let remaining = 1;
+    while (remaining > 0) {
+      try {
+        const res = await authFetch("/api/embed", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Embed-Provider": "google", "X-Embed-Key": "" },
+          body: JSON.stringify({ brain_id: brainId, batch: true, force: true }),
+        });
+        const data = await res.json();
+        if (!res.ok) { console.error("[re-embed]", data); break; }
+        totalProcessed += data.processed ?? 0;
+        totalFailed += data.failed ?? 0;
+        remaining = data.remaining ?? 0;
+        setReembedProgress({ processed: totalProcessed, failed: totalFailed, remaining });
+        if ((data.processed ?? 0) === 0) break;
+      } catch (err) { console.error("[re-embed]", err); break; }
+    }
+    setReembedding(false);
   }
 
   return (
@@ -301,6 +330,34 @@ export default function ProvidersTab(_props?: { activeBrain?: unknown }) {
         {clearMsg && (
           <p className="text-xs text-center" style={{ color: clearMsg.startsWith("Error") ? "var(--color-error)" : "var(--color-primary)" }}>
             {clearMsg}
+          </p>
+        )}
+      </div>
+
+      {/* Re-embed all entries */}
+      <div
+        className="rounded-xl p-4 space-y-3"
+        style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)" }}
+      >
+        <div>
+          <p className="text-sm font-semibold" style={{ color: "var(--color-on-surface)" }}>Re-embed all entries</p>
+          <p className="text-xs mt-0.5" style={{ color: "var(--color-on-surface-variant)" }}>
+            Force re-generate all embeddings with the current model (gemini-embedding-001). Use after switching embedding models.
+          </p>
+        </div>
+        <button
+          onClick={reembedAll}
+          disabled={reembedding || !props?.activeBrain}
+          className="w-full rounded-xl py-2 text-xs font-semibold transition-all disabled:opacity-50"
+          style={{ background: "var(--color-secondary-container)", color: "var(--color-on-secondary-container)" }}
+        >
+          {reembedding ? "Re-embedding…" : "Re-embed all entries"}
+        </button>
+        {reembedProgress !== null && (
+          <p className="text-xs text-center" style={{ color: "var(--color-on-surface-variant)" }}>
+            {reembedding
+              ? `Processing… ${reembedProgress.processed} done${reembedProgress.failed > 0 ? `, ${reembedProgress.failed} failed` : ""}${reembedProgress.remaining > 0 ? `, ${reembedProgress.remaining} remaining` : ""}`
+              : `Done — ${reembedProgress.processed} embedded${reembedProgress.failed > 0 ? `, ${reembedProgress.failed} failed` : ""}`}
           </p>
         )}
       </div>
