@@ -44,11 +44,25 @@ import OmniSearch from "./components/OmniSearch";
 import SettingsView from "./views/SettingsView";
 import type { Brain, Entry } from "./types";
 
-const RefineView = lazy(() => import("./views/RefineView"));
-const TodoView = lazy(() => import("./views/TodoView"));
-const DetailModal = lazy(() => import("./views/DetailModal"));
-const VaultView = lazy(() => import("./views/VaultView"));
-const ChatView = lazy(() => import("./views/ChatView"));
+// Retry dynamic imports once on failure (stale chunk hash after deploy)
+function lazyRetry(fn: () => Promise<any>) {
+  return lazy(() =>
+    fn().catch(() => {
+      const key = "chunk_reload";
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, "1");
+        window.location.reload();
+      }
+      return fn();
+    })
+  );
+}
+
+const RefineView = lazyRetry(() => import("./views/RefineView"));
+const TodoView = lazyRetry(() => import("./views/TodoView"));
+const DetailModal = lazyRetry(() => import("./views/DetailModal"));
+const VaultView = lazyRetry(() => import("./views/VaultView"));
+const ChatView = lazyRetry(() => import("./views/ChatView"));
 
 function Loader() {
   return (
