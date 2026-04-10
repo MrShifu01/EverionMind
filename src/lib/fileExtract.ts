@@ -80,7 +80,15 @@ export async function extractTextFromFile(file: File): Promise<string> {
   }
 
   const buffer = await file.arrayBuffer();
-  if (name.endsWith(".pdf") || file.type === "application/pdf") return extractPDF(buffer);
+  if (name.endsWith(".pdf") || file.type === "application/pdf") {
+    try {
+      const text = await extractPDF(buffer);
+      if (text.trim()) return text;
+    } catch {
+      // pdfjs failed — fall through to AI extraction
+    }
+    return extractViaAI(file);
+  }
   if (name.endsWith(".docx")) return extractDocx(buffer);
   if (name.endsWith(".xlsx") || name.endsWith(".xls")) return extractExcel(buffer);
   return new TextDecoder().decode(buffer);
