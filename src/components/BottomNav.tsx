@@ -4,7 +4,7 @@ import { NavIcon } from "./icons/NavIcons";
 
 const NAV_ITEMS = [
   { id: "capture", label: "Home", icon: NavIcon.capture },
-  { id: "refine", label: "Fix Issues", icon: NavIcon.refine },
+  { id: "refine", label: "Improve", icon: NavIcon.refine },
   { id: "_capture_fab", label: "Capture", isFAB: true, icon: NavIcon.add },
   { id: "todos", label: "Todos", icon: NavIcon.todos },
   { id: "more", label: "More", icon: NavIcon.more },

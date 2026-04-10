@@ -66,11 +66,11 @@ const NAV_VIEWS = [
   { id: "grid", l: "Grid", ic: "▦" },
   { id: "todos", l: "Todos", ic: "✓" },
   { id: "suggest", l: "Fill Brain", ic: "✦" },
-  { id: "refine", l: "Fix Issues", ic: "✦" },
+  { id: "refine", l: "Improve Brain", ic: "✦" },
   { id: "chat", l: "Ask", ic: "◈" },
 ];
 
-export default function OpenBrain() {
+export default function OpenBrain({ initialShowCapture }: { initialShowCapture?: boolean } = {}) {
   const [entries, setEntries] = useState<Entry[]>(() => {
     try {
       const cached = localStorage.getItem("openbrain_entries");
@@ -172,7 +172,7 @@ export default function OpenBrain() {
   );
   const [showBrainTip, setShowBrainTip] = useState<Brain | null>(null);
   const [showCreateBrain, setShowCreateBrain] = useState(false);
-  const [showCapture, setShowCapture] = useState(false);
+  const [showCapture, setShowCapture] = useState(!!initialShowCapture);
   const [vaultExists, setVaultExists] = useState(false);
 
   useEffect(() => {
@@ -316,7 +316,19 @@ export default function OpenBrain() {
     [activeBrain, brains, refresh, canInvite, canManageMembers, deleteBrain],
   );
 
-  if (brainsLoading) return <LoadingScreen />;
+  if (brainsLoading) return (
+    <>
+      <LoadingScreen />
+      <button
+        onClick={() => setShowCapture(true)}
+        aria-label="New entry"
+        className="press-scale fixed bottom-5 left-1/2 z-[60] flex h-14 w-14 -translate-x-1/2 items-center justify-center rounded-full lg:hidden"
+        style={{ background: "var(--color-primary)", color: "var(--color-on-primary)", boxShadow: "var(--shadow-lg)" }}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+    </>
+  );
 
   return (
     <EntriesContext.Provider value={entriesValue}>
@@ -377,27 +389,6 @@ export default function OpenBrain() {
                 )}
               </MobileHeader>
 
-              {!isAIConfigured() && (
-                <div
-                  className="mx-4 mt-3 flex items-start gap-3 rounded-2xl border px-4 py-3"
-                  style={{
-                    background: "color-mix(in oklch, var(--color-secondary) 8%, var(--color-surface))",
-                    borderColor: "color-mix(in oklch, var(--color-secondary) 20%, transparent)",
-                  }}
-                >
-                  <span className="text-lg">🧠</span>
-                  <p className="text-on-surface-variant flex-1 text-sm">
-                    Add an AI key in{" "}
-                    <button
-                      onClick={() => setView("settings")}
-                      className="text-primary underline"
-                    >
-                      Settings → Intelligence
-                    </button>{" "}
-                    to unlock smart features — parsing, chat, suggestions, and more.
-                  </p>
-                </div>
-              )}
 
               {showBrainTip && (
                 <BrainTipCard
@@ -599,67 +590,121 @@ export default function OpenBrain() {
                   </Suspense>
                 )}
                 {view === "settings" && <SettingsView onNavigate={setView} />}
-                {view === "capture" && (
-                  <div className="space-y-5">
-                    <button
-                      onClick={() => setView("suggest")}
-                      className="press-scale group flex w-full items-center gap-4 rounded-3xl border p-5 transition-all"
-                      style={{
-                        background: "var(--color-surface-container-low)",
-                        borderColor: "var(--color-outline-variant)",
-                      }}
-                    >
-                      <div
-                        className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl"
-                        style={{ background: "var(--color-primary-container)" }}
-                      >
-                        <svg
-                          className="h-6 w-6"
-                          style={{ color: "var(--color-primary)" }}
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.75"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
-                          />
-                        </svg>
-                      </div>
-                      <div className="flex-1 text-left">
-                        <div className="text-on-surface mb-0.5 font-bold">Fill Your Brain</div>
-                        <div className="text-on-surface-variant text-sm">
-                          Answer guided questions to build your memory
+                {view === "capture" && (() => {
+                  if (!entriesLoaded) return (
+                    <div className="space-y-6">
+                      {/* Welcome skeleton */}
+                      <div className="h-16 animate-pulse rounded-3xl" style={{ background: "var(--color-surface-container)" }} />
+                      {/* Grid skeleton */}
+                      <div>
+                        <div className="mb-3 h-3 w-24 animate-pulse rounded-full" style={{ background: "var(--color-surface-container)" }} />
+                        <div className="grid grid-cols-2 gap-3">
+                          {[0,1,2,3].map(i => (
+                            <div key={i} className="h-20 animate-pulse rounded-2xl" style={{ background: "var(--color-surface-container)" }} />
+                          ))}
                         </div>
                       </div>
-                    </button>
-                    <div className="grid grid-cols-2 gap-3">
-                      {(
-                        [
-                          { id: "grid", l: "Memory Grid", icon: NavIcon.grid },
-                          { id: "chat", l: "Ask Brain", icon: NavIcon.chat },
-                          { id: "refine", l: "Fix Issues", icon: NavIcon.refine },
-                          { id: "todos", l: "Todos", icon: NavIcon.todos },
-                        ] as { id: string; l: string; icon: ReactNode }[]
-                      ).map((v) => (
-                        <button
-                          key={v.id}
-                          onClick={() => setView(v.id)}
-                          className="press-scale flex flex-col items-start gap-2 rounded-2xl border p-4 text-left transition-all"
-                          style={{
-                            background: "var(--color-surface-container-low)",
-                            borderColor: "var(--color-outline-variant)",
-                          }}
-                        >
-                          <div className="text-on-surface-variant">{v.icon}</div>
-                          <div className="text-on-surface text-sm font-bold">{v.l}</div>
-                        </button>
-                      ))}
+                      {/* List skeleton */}
+                      <div>
+                        <div className="mb-3 h-3 w-28 animate-pulse rounded-full" style={{ background: "var(--color-surface-container)" }} />
+                        <div className="overflow-hidden rounded-2xl border" style={{ borderColor: "var(--color-outline-variant)" }}>
+                          {[0,1,2].map((i) => (
+                            <div key={i} className="flex items-center gap-3 px-4 py-3" style={{ borderTop: i > 0 ? "1px solid var(--color-outline-variant)" : undefined }}>
+                              <div className="h-5 w-5 animate-pulse rounded-full" style={{ background: "var(--color-surface-container)" }} />
+                              <div className="h-3 flex-1 animate-pulse rounded-full" style={{ background: "var(--color-surface-container)" }} />
+                              <div className="h-3 w-12 animate-pulse rounded-full" style={{ background: "var(--color-surface-container)" }} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                  const recentEntries = [...entries]
+                    .sort((a, b) => new Date(b.updated_at ?? b.created_at ?? 0).getTime() - new Date(a.updated_at ?? a.created_at ?? 0).getTime())
+                    .slice(0, 5);
+                  const quickActions = [
+                    { id: "chat", label: "Ask Brain", icon: NavIcon.chat },
+                    { id: "todos", label: "Todos", icon: NavIcon.todos },
+                    { id: "refine", label: "Improve Brain", icon: NavIcon.refine },
+                    { id: "grid", label: "Memory Grid", icon: NavIcon.grid },
+                  ] as { id: string; label: string; icon: ReactNode }[];
+                  return (
+                    <div className="space-y-6">
+                      {/* Welcome */}
+                      <div
+                        className="rounded-3xl border px-5 py-4"
+                        style={{
+                          background: "color-mix(in oklch, var(--color-primary) 8%, var(--color-surface))",
+                          borderColor: "color-mix(in oklch, var(--color-primary) 18%, transparent)",
+                        }}
+                      >
+                        <p className="text-base font-bold" style={{ color: "var(--color-on-surface)" }}>
+                          👋 Welcome back
+                        </p>
+                        <p className="mt-0.5 text-sm" style={{ color: "var(--color-on-surface-variant)" }}>
+                          {activeBrain?.name ?? "Your brain"} is active · {entries.length} {entries.length === 1 ? "memory" : "memories"}
+                        </p>
+                      </div>
+
+                      {/* Quick actions grid */}
+                      <div>
+                        <p className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: "var(--color-on-surface-variant)" }}>
+                          Quick Nav
+                        </p>
+                        <div className="grid grid-cols-2 gap-3">
+                          {quickActions.map((v) => (
+                            <button
+                              key={v.id}
+                              onClick={() => setView(v.id)}
+                              className="press-scale flex flex-col items-start gap-3 rounded-2xl border p-4 text-left transition-all"
+                              style={{
+                                background: "var(--color-surface-container-low)",
+                                borderColor: "var(--color-outline-variant)",
+                              }}
+                            >
+                              <div style={{ color: "var(--color-primary)" }}>{v.icon}</div>
+                              <div className="text-sm font-bold" style={{ color: "var(--color-on-surface)" }}>{v.label}</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Recent activity */}
+                      {recentEntries.length > 0 && (
+                        <div>
+                          <p className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: "var(--color-on-surface-variant)" }}>
+                            Recent Activity
+                          </p>
+                          <div
+                            className="overflow-hidden rounded-2xl border"
+                            style={{ borderColor: "var(--color-outline-variant)", background: "var(--color-surface-container-low)" }}
+                          >
+                            {recentEntries.map((entry, i) => (
+                              <button
+                                key={entry.id}
+                                onClick={() => setSelected(entry)}
+                                className="press-scale flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:brightness-95"
+                                style={{
+                                  borderTop: i > 0 ? `1px solid var(--color-outline-variant)` : undefined,
+                                }}
+                              >
+                                <span className="text-base leading-none">
+                                  {typeIcons[entry.type]?.i ?? "📝"}
+                                </span>
+                                <span className="flex-1 truncate text-sm font-medium" style={{ color: "var(--color-on-surface)" }}>
+                                  {entry.title}
+                                </span>
+                                <span className="flex-shrink-0 text-xs capitalize" style={{ color: "var(--color-on-surface-variant)" }}>
+                                  {entry.type}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               <Suspense fallback={null}>

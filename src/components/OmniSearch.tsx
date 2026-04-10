@@ -114,7 +114,7 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
       >
         {/* Search input */}
         <div
-          className="flex items-center gap-3 border-b px-4 py-3"
+          className="flex items-center gap-3 border-b px-4 py-5"
           style={{ borderColor: "var(--color-outline-variant)" }}
         >
           <svg className="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" style={{ color: "var(--color-primary)" }}>
@@ -204,7 +204,7 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
                     setOpen(false);
                   }}
                 >
-                  {view === "refine" ? "Fix Issues" : view === "suggest" ? "Fill Brain" : view.charAt(0).toUpperCase() + view.slice(1)}
+                  {view === "refine" ? "Improve Brain" :view === "suggest" ? "Fill Brain" : view.charAt(0).toUpperCase() + view.slice(1)}
                 </button>
               ))}
             </div>

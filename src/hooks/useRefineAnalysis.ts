@@ -775,7 +775,7 @@ export function useRefineAnalysis({
   const keyOf = (s: RefineSuggestion): string => {
     if (s.type === "LINK_SUGGESTED") return `link:${(s as LinkSuggestion).fromId}:${(s as LinkSuggestion).toId}`;
     if (s.type === "WEAK_LABEL") return `weak:${(s as WeakLabelSuggestion).fromId}:${(s as WeakLabelSuggestion).toId}`;
-    return `entry:${(s as EntrySuggestion).entryId}:${(s as EntrySuggestion).field}`;
+    return `entry:${(s as EntrySuggestion).entryId}:${(s as EntrySuggestion).type}:${(s as EntrySuggestion).field}`;
   };
 
   const visible = sortBySuggestionPriority(

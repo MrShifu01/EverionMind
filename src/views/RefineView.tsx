@@ -1,4 +1,4 @@
-import { type ReactNode, useState, useCallback } from "react";
+import { type ReactNode, useState, useCallback, useEffect } from "react";
 import { getDecisionCount } from "../lib/learningEngine";
 import { useRefineAnalysis } from "../hooks/useRefineAnalysis";
 import { authFetch } from "../lib/authFetch";
@@ -54,7 +54,6 @@ interface RefineViewProps {
 }
 
 /* ─── Suggestion type metadata ─── */
-// variant: "primary" = warm amber accent | "neutral" = muted on-surface
 function SvgRefresh() { return <svg className="inline h-3 w-3 align-middle" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>; }
 function SvgPhone() { return <svg className="inline h-3 w-3 align-middle" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" /></svg>; }
 function SvgEnvelope() { return <svg className="inline h-3 w-3 align-middle" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>; }
@@ -70,32 +69,57 @@ function SvgLock() { return <svg className="inline h-3 w-3 align-middle" fill="n
 function SvgCluster() { return <svg className="inline h-3 w-3 align-middle" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>; }
 
 const LABELS: Record<string, { label: string; icon: ReactNode; variant: string }> = {
-  TYPE_MISMATCH: { label: "Wrong type", icon: <SvgRefresh />, variant: "neutral" },
-  PHONE_FOUND: { label: "Phone number", icon: <SvgPhone />, variant: "primary" },
-  EMAIL_FOUND: { label: "Email address", icon: <SvgEnvelope />, variant: "primary" },
-  URL_FOUND: { label: "URL / link", icon: <SvgLink />, variant: "neutral" },
-  DATE_FOUND: { label: "Date / deadline", icon: <SvgCalendar />, variant: "primary" },
-  TITLE_POOR: { label: "Better title", icon: <SvgPencil />, variant: "neutral" },
-  SPLIT_SUGGESTED: { label: "Split entry", icon: <SvgScissors />, variant: "neutral" },
-  MERGE_SUGGESTED: { label: "Merge entries", icon: <SvgArrows />, variant: "neutral" },
-  CONTENT_WEAK: { label: "Needs content", icon: <SvgDocument />, variant: "neutral" },
-  TAG_SUGGESTED: { label: "Add tags", icon: <SvgTag />, variant: "neutral" },
-  LINK_SUGGESTED: { label: "Relationship", icon: <SvgArrowsLR />, variant: "primary" },
-  SENSITIVE_DATA: { label: "Sensitive data", icon: <SvgLock />, variant: "primary" },
-  ORPHAN_DETECTED: { label: "No connections", icon: <SvgTag />, variant: "neutral" },
-  STALE_REMINDER: { label: "Overdue", icon: <SvgCalendar />, variant: "primary" },
-  DEAD_URL: { label: "Dead link", icon: <SvgLink />, variant: "primary" },
-  WEAK_LABEL: { label: "Vague relationship", icon: <SvgArrowsLR />, variant: "neutral" },
-  DUPLICATE_ENTRY: { label: "Duplicate", icon: <SvgArrows />, variant: "primary" },
-  CLUSTER_SUGGESTED: { label: "Create hub entry", icon: <SvgCluster />, variant: "primary" },
+  TYPE_MISMATCH:     { label: "Miscategorised",         icon: <SvgRefresh />,   variant: "neutral" },
+  PHONE_FOUND:       { label: "Phone number",            icon: <SvgPhone />,     variant: "primary" },
+  EMAIL_FOUND:       { label: "Email address",           icon: <SvgEnvelope />,  variant: "primary" },
+  URL_FOUND:         { label: "URL to save",             icon: <SvgLink />,      variant: "neutral" },
+  DATE_FOUND:        { label: "Date / deadline",         icon: <SvgCalendar />,  variant: "primary" },
+  TITLE_POOR:        { label: "Clearer title",           icon: <SvgPencil />,    variant: "neutral" },
+  SPLIT_SUGGESTED:   { label: "Split memory",            icon: <SvgScissors />,  variant: "neutral" },
+  MERGE_SUGGESTED:   { label: "Merge memories",          icon: <SvgArrows />,    variant: "neutral" },
+  CONTENT_WEAK:      { label: "Add more detail",         icon: <SvgDocument />,  variant: "neutral" },
+  TAG_SUGGESTED:     { label: "Add tags",                icon: <SvgTag />,       variant: "neutral" },
+  LINK_SUGGESTED:    { label: "New connection",          icon: <SvgArrowsLR />,  variant: "primary" },
+  SENSITIVE_DATA:    { label: "Sensitive data",          icon: <SvgLock />,      variant: "primary" },
+  ORPHAN_DETECTED:   { label: "No connections yet",      icon: <SvgTag />,       variant: "neutral" },
+  STALE_REMINDER:    { label: "Overdue",                 icon: <SvgCalendar />,  variant: "primary" },
+  DEAD_URL:          { label: "Broken link",             icon: <SvgLink />,      variant: "primary" },
+  WEAK_LABEL:        { label: "Strengthen connection",   icon: <SvgArrowsLR />,  variant: "neutral" },
+  DUPLICATE_ENTRY:   { label: "Possible duplicate",      icon: <SvgArrows />,    variant: "primary" },
+  CLUSTER_SUGGESTED: { label: "Group into hub",          icon: <SvgCluster />,   variant: "primary" },
 };
 
 function labelColors(variant: string) {
-  if (variant === "primary") {
-    return { bg: "var(--color-primary-container)", text: "var(--color-primary)" };
-  }
+  if (variant === "primary") return { bg: "var(--color-primary-container)", text: "var(--color-primary)" };
   return { bg: "var(--color-surface-container-high)", text: "var(--color-on-surface-variant)" };
 }
+
+// Deduct points per suggestion type
+const SCORE_WEIGHTS: Record<string, number> = {
+  SENSITIVE_DATA: 7, MERGE_SUGGESTED: 7, DUPLICATE_ENTRY: 7, TYPE_MISMATCH: 7,
+  CONTENT_WEAK: 5, ORPHAN_DETECTED: 5, TITLE_POOR: 5, TAG_SUGGESTED: 5, STALE_REMINDER: 5, DEAD_URL: 5,
+  WEAK_LABEL: 3, LINK_SUGGESTED: 3,
+  URL_FOUND: 2, DATE_FOUND: 2, PHONE_FOUND: 2, EMAIL_FOUND: 2, SPLIT_SUGGESTED: 2, CLUSTER_SUGGESTED: 2,
+};
+
+function computeHealthScore(allSuggestions: any[]): number {
+  let score = 100;
+  for (const s of allSuggestions) score -= (SCORE_WEIGHTS[s.type] ?? 2);
+  return Math.max(0, Math.min(100, score));
+}
+
+function scoreColor(score: number) {
+  if (score >= 80) return "var(--color-primary)";
+  if (score >= 55) return "var(--color-secondary)";
+  return "var(--color-error)";
+}
+
+const ANALYSIS_STEPS = [
+  "Mapping your memories…",
+  "Finding missing connections…",
+  "Detecting gaps and opportunities…",
+  "Scoring your brain health…",
+];
 
 export default function RefineView({
   entries,
@@ -108,6 +132,7 @@ export default function RefineView({
 }: RefineViewProps) {
   const [embedLoading, setEmbedLoading] = useState(false);
   const [embedProgress, setEmbedProgress] = useState<{ processed: number; failed: number; remaining: number } | null>(null);
+  const [analysisStep, setAnalysisStep] = useState(0);
 
   const embedBrain = useCallback(async (force: boolean) => {
     if (!activeBrain?.id || embedLoading) return;
@@ -120,11 +145,7 @@ export default function RefineView({
       try {
         const res = await authFetch("/api/embed", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Embed-Provider": "google",
-            "X-Embed-Key": "",
-          },
+          headers: { "Content-Type": "application/json", "X-Embed-Provider": "google", "X-Embed-Key": "" },
           body: JSON.stringify({ brain_id: activeBrain.id, batch: true, force }),
         });
         const data = await res.json();
@@ -133,7 +154,7 @@ export default function RefineView({
         totalFailed += data.failed ?? 0;
         remaining = data.remaining ?? 0;
         setEmbedProgress({ processed: totalProcessed, failed: totalFailed, remaining });
-        if ((data.processed ?? 0) === 0) break; // no progress, stop
+        if ((data.processed ?? 0) === 0) break;
       } catch (err) { console.error("[embed]", err); break; }
     }
     setEmbedLoading(false);
@@ -155,277 +176,290 @@ export default function RefineView({
     keyOf,
   } = useRefineAnalysis({ entries, links, activeBrain, setEntries, addLinks });
 
+  // Cycle through analysis steps while loading
+  useEffect(() => {
+    if (!loading) { setAnalysisStep(0); return; }
+    const id = setInterval(() => setAnalysisStep((s) => Math.min(s + 1, ANALYSIS_STEPS.length - 1)), 2200);
+    return () => clearInterval(id);
+  }, [loading]);
+
   const isSharedBrain = activeBrain && activeBrain.type !== "personal";
   const isOwner = !activeBrain || activeBrain.myRole === "owner";
-  const brainEmoji =
-    activeBrain?.type === "business" ? "🏪" : activeBrain?.type === "family" ? "🏠" : "🧠";
+  const brainEmoji = activeBrain?.type === "business" ? "🏪" : activeBrain?.type === "family" ? "🏠" : "🧠";
 
+  // Compute health score from all suggestions (including dismissed)
+  const allSuggestions = suggestions ?? [];
+  const healthScore = computeHealthScore(allSuggestions);
+  const gaps = allSuggestions.filter((s) => ["CONTENT_WEAK","ORPHAN_DETECTED","TITLE_POOR","TAG_SUGGESTED","STALE_REMINDER","DEAD_URL"].includes(s.type)).length;
+  const weakConnections = allSuggestions.filter((s) => ["LINK_SUGGESTED","WEAK_LABEL"].includes(s.type)).length;
+
+  // ── Owner gate ──
   if (isSharedBrain && !isOwner) {
     return (
-      <div
-        className="space-y-4 px-4 py-4"
-        style={{ background: "var(--color-background)", minHeight: "100%" }}
-      >
-        <div
-          className="space-y-3 rounded-2xl p-8 text-center"
-          style={{
-            background: "var(--color-surface-container)",
-            border: "1px solid var(--color-outline-variant)",
-          }}
-        >
+      <div className="space-y-4 px-4 py-4" style={{ background: "var(--color-background)", minHeight: "100%" }}>
+        <div className="space-y-3 rounded-2xl p-8 text-center" style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)" }}>
           <div className="text-4xl">{brainEmoji}</div>
-          <h2
-            className="text-xl font-semibold text-[var(--color-on-surface)]"
-            style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}
-          >
-            Refine — Owner Only
+          <h2 className="text-xl font-semibold" style={{ color: "var(--color-on-surface)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+            Improve Brain — Owner Only
           </h2>
-          <p
-            style={{ color: "var(--color-on-surface-variant)" }}
-            className="text-sm leading-relaxed"
-          >
-            Only the owner of{" "}
-            <strong className="text-[var(--color-on-surface)]">{activeBrain.name}</strong> can run
-            the Refine analysis.
-            <br />
-            Members can view and add entries, but AI auditing is reserved for the brain owner.
+          <p className="text-sm leading-relaxed" style={{ color: "var(--color-on-surface-variant)" }}>
+            Only the owner of <strong style={{ color: "var(--color-on-surface)" }}>{activeBrain.name}</strong> can run brain analysis.
+            Members can add memories, but improvements are reserved for the brain owner.
           </p>
-          <div
-            className="mt-2 inline-block rounded-xl px-4 py-2 text-xs"
-            style={{ background: "var(--color-primary-container)", color: "var(--color-primary)" }}
-          >
-            Ask the brain owner to run Refine and review the suggestions.
+          <div className="mt-2 inline-block rounded-xl px-4 py-2 text-xs" style={{ background: "var(--color-primary-container)", color: "var(--color-primary)" }}>
+            Ask the brain owner to run Improve Brain
           </div>
         </div>
       </div>
     );
   }
 
-  const BRAIN_EMOJI: Record<string, string> = { personal: "🧠", business: "🏪", family: "🏠" };
-
-  return (
-    <div
-      className="space-y-4 px-4 py-4"
-      style={{ background: "var(--color-background)", minHeight: "100%" }}
-    >
-      {/* Header */}
-      <div className="space-y-3">
-        <h2
-          className="text-xl font-semibold text-[var(--color-on-surface)]"
-          style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}
-        >
-          Refine{isSharedBrain ? ` — ${activeBrain.name}` : ""}
-        </h2>
-        <p className="text-sm" style={{ color: "var(--color-on-surface-variant)" }}>
-          AI skeptically audits every entry — and discovers missing relationships between them.
-        </p>
-        {activeBrain?.id && getDecisionCount(activeBrain.id) > 0 && (
-          <div
-            className="flex items-center gap-2 text-xs"
-            style={{ color: "var(--color-primary)" }}
-          >
-            <span
-              className="inline-block h-2 w-2 rounded-full"
-              style={{ background: "var(--color-primary)" }}
-            />
-            Learning from {getDecisionCount(activeBrain.id)} past decisions
+  // ── STATE 1: Not yet analyzed ──
+  if (suggestions === null && !loading) {
+    return (
+      <div className="px-4 py-4" style={{ background: "var(--color-background)", minHeight: "100%" }}>
+        <div className="space-y-6">
+          {/* Title */}
+          <div className="space-y-1">
+            <h2 className="text-xl font-semibold" style={{ color: "var(--color-on-surface)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+              Brain Health
+            </h2>
+            <p className="text-sm" style={{ color: "var(--color-on-surface-variant)" }}>
+              {activeBrain?.name ?? "Your brain"} · {entries.length} {entries.length === 1 ? "memory" : "memories"}
+            </p>
           </div>
-        )}
-        {activeBrain && (
-          <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-            Analysing{" "}
-            <strong className="text-on-surface">
-              {BRAIN_EMOJI[activeBrain.type || "personal"] || "🧠"} {activeBrain.name}
-            </strong>
-          </p>
-        )}
-      </div>
 
-      {/* Analyze button */}
-      <button
-        onClick={analyze}
-        disabled={loading}
-        className="w-full rounded-xl py-3 text-sm font-semibold tracking-wide transition-all"
-        style={{
-          background: loading ? "var(--color-surface-container-high)" : "var(--color-primary)",
-          color: loading ? "var(--color-on-surface-variant)" : "var(--color-on-primary)",
-          opacity: loading ? 0.6 : 1,
-          border: "none",
-          cursor: loading ? "not-allowed" : "pointer",
-          fontFamily: "'DM Sans', system-ui, sans-serif",
-        }}
-      >
-        {loading ? "Analyzing…" : suggestions === null ? "✶ Analyze my brain" : "✶ Re-analyze"}
-      </button>
-
-      {/* Embed buttons */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => embedBrain(false)}
-          disabled={embedLoading || !activeBrain}
-          className="flex-1 rounded-xl py-2.5 text-xs font-semibold tracking-wide transition-all"
-          style={{
-            background: embedLoading ? "var(--color-surface-container-high)" : "var(--color-secondary-container)",
-            color: embedLoading ? "var(--color-on-surface-variant)" : "var(--color-on-secondary-container)",
-            border: "none",
-            cursor: embedLoading || !activeBrain ? "not-allowed" : "pointer",
-            opacity: embedLoading || !activeBrain ? 0.6 : 1,
-            fontFamily: "'DM Sans', system-ui, sans-serif",
-          }}
-        >
-          {embedLoading ? "Embedding…" : "◈ Embed new"}
-        </button>
-        <button
-          onClick={() => embedBrain(true)}
-          disabled={embedLoading || !activeBrain}
-          className="flex-1 rounded-xl py-2.5 text-xs font-semibold tracking-wide transition-all"
-          style={{
-            background: embedLoading ? "var(--color-surface-container-high)" : "var(--color-surface-container-high)",
-            color: embedLoading ? "var(--color-on-surface-variant)" : "var(--color-on-surface-variant)",
-            border: "1px solid var(--color-outline-variant)",
-            cursor: embedLoading || !activeBrain ? "not-allowed" : "pointer",
-            opacity: embedLoading || !activeBrain ? 0.6 : 1,
-            fontFamily: "'DM Sans', system-ui, sans-serif",
-          }}
-        >
-          Re-embed all
-        </button>
-      </div>
-
-      {/* Embed progress */}
-      {embedProgress !== null && (
-        <div
-          className="rounded-xl px-4 py-3 text-xs"
-          style={{
-            background: "var(--color-surface-container)",
-            border: "1px solid var(--color-outline-variant)",
-            color: "var(--color-on-surface-variant)",
-          }}
-        >
-          {embedLoading
-            ? `Embedding… ${embedProgress.processed} done${embedProgress.remaining > 0 ? `, ${embedProgress.remaining} remaining` : ""}${embedProgress.failed > 0 ? `, ${embedProgress.failed} failed` : ""}`
-            : `Done — ${embedProgress.processed} embedded${embedProgress.failed > 0 ? `, ${embedProgress.failed} failed` : ""}${embedProgress.remaining > 0 ? ` (${embedProgress.remaining} still pending)` : ""}`}
-        </div>
-      )}
-
-      {/* Loading */}
-      {loading && (
-        <div
-          className="space-y-3 rounded-2xl p-8 text-center"
-          style={{
-            background: "var(--color-surface-container)",
-            border: "1px solid var(--color-outline-variant)",
-          }}
-        >
+          {/* Not-yet-analyzed card */}
           <div
-            className="text-3xl"
-            style={{
-              color: "var(--color-primary)",
-              animation: "typing-dot 2s ease-in-out infinite",
-            }}
+            className="flex flex-col items-center gap-5 rounded-3xl border px-6 py-10 text-center"
+            style={{ background: "var(--color-surface-container-low)", borderColor: "var(--color-outline-variant)" }}
           >
-            ✶
+            <div className="text-5xl">🧠</div>
+            <div>
+              <p className="text-base font-semibold" style={{ color: "var(--color-on-surface)" }}>
+                Your brain hasn't been analyzed yet
+              </p>
+              <p className="mt-1 text-sm" style={{ color: "var(--color-on-surface-variant)" }}>
+                Find gaps, missing connections, and opportunities to strengthen your knowledge.
+              </p>
+            </div>
+            <button
+              onClick={analyze}
+              className="w-full rounded-2xl py-3.5 text-sm font-semibold tracking-wide transition-all"
+              style={{ background: "var(--color-primary)", color: "var(--color-on-primary)", border: "none" }}
+            >
+              Analyze & Improve
+            </button>
           </div>
-          <p className="text-on-surface-variant text-sm font-medium">
-            Auditing {entries.length} entries + mapping relationships…
-          </p>
-          <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-            Running entry quality + link discovery in parallel
-          </p>
-        </div>
-      )}
 
-      {/* Stats */}
-      {suggestions !== null && !loading && (
-        <div
-          className="flex items-start gap-6 border-b py-3"
-          style={{ borderColor: "var(--color-outline-variant)" }}
-        >
-          {[
-            { l: "Entries", v: entries.length },
-            {
-              l: "Fixes",
-              v:
-                visible.filter((s) => s.type !== "LINK_SUGGESTED").length +
-                dismissed.size -
-                linkCount,
-            },
-            { l: "Links", v: linkCount },
-            { l: "Remaining", v: visible.length },
-          ].map((s) => (
-            <div key={s.l} className="flex flex-col gap-0.5">
-              <span
-                className="text-xl font-semibold text-[var(--color-on-surface)]"
-                style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}
-              >
-                {s.v}
-              </span>
-              <span
-                className="text-[10px] tracking-[0.1em] uppercase"
-                style={{ color: "var(--color-on-surface-variant)" }}
-              >
-                {s.l}
+          {/* Refresh Brain */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold tracking-widest uppercase" style={{ color: "var(--color-on-surface-variant)" }}>
+              Keep Up To Date
+            </p>
+            <button
+              onClick={() => embedBrain(false)}
+              disabled={embedLoading || !activeBrain}
+              className="flex w-full items-center gap-3 rounded-2xl border px-4 py-3.5 text-left transition-all"
+              style={{
+                background: "var(--color-surface-container-low)",
+                borderColor: "var(--color-outline-variant)",
+                opacity: embedLoading || !activeBrain ? 0.5 : 1,
+                cursor: embedLoading || !activeBrain ? "not-allowed" : "pointer",
+              }}
+            >
+              <span className="text-xl">🔄</span>
+              <div className="flex-1">
+                <p className="text-sm font-semibold" style={{ color: "var(--color-on-surface)" }}>
+                  {embedLoading ? "Refreshing…" : "Refresh Brain"}
+                </p>
+                <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
+                  Update your brain with the latest changes
+                </p>
+              </div>
+              {embedLoading && (
+                <svg className="h-4 w-4 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24" style={{ color: "var(--color-primary)" }}>
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              )}
+            </button>
+            {embedProgress !== null && (
+              <p className="px-1 text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
+                {embedLoading
+                  ? `Refreshing… ${embedProgress.processed} done${embedProgress.remaining > 0 ? `, ${embedProgress.remaining} remaining` : ""}`
+                  : `Done — ${embedProgress.processed} memories refreshed${embedProgress.failed > 0 ? `, ${embedProgress.failed} failed` : ""}`}
+              </p>
+            )}
+          </div>
+
+          {activeBrain?.id && getDecisionCount(activeBrain.id) > 0 && (
+            <p className="flex items-center gap-2 text-xs" style={{ color: "var(--color-primary)" }}>
+              <span className="inline-block h-2 w-2 rounded-full" style={{ background: "var(--color-primary)" }} />
+              Learning from {getDecisionCount(activeBrain.id)} past decisions
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── STATE 2: Analyzing ──
+  if (loading) {
+    return (
+      <div className="px-4 py-4" style={{ background: "var(--color-background)", minHeight: "100%" }}>
+        <div className="space-y-6">
+          <div className="space-y-1">
+            <h2 className="text-xl font-semibold" style={{ color: "var(--color-on-surface)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+              Brain Health
+            </h2>
+            <p className="text-sm" style={{ color: "var(--color-on-surface-variant)" }}>
+              {activeBrain?.name ?? "Your brain"} · {entries.length} {entries.length === 1 ? "memory" : "memories"}
+            </p>
+          </div>
+
+          <div
+            className="flex flex-col gap-5 rounded-3xl border px-6 py-8"
+            style={{ background: "var(--color-surface-container-low)", borderColor: "var(--color-outline-variant)" }}
+          >
+            <div className="flex items-center gap-3">
+              <svg className="h-5 w-5 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24" style={{ color: "var(--color-primary)" }}>
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <span className="text-sm font-semibold" style={{ color: "var(--color-on-surface)" }}>
+                Analyzing your brain…
               </span>
             </div>
-          ))}
-        </div>
-      )}
-
-      {/* Nothing found */}
-      {noneFound && !loading && (
-        <div
-          className="space-y-2 rounded-2xl p-8 text-center"
-          style={{
-            background: "var(--color-surface-container)",
-            border: "1px solid var(--color-outline-variant)",
-          }}
-        >
-          <div className="text-3xl" style={{ color: "var(--color-primary)" }}>
-            ✓
+            <div className="space-y-3">
+              {ANALYSIS_STEPS.map((step, i) => (
+                <div key={step} className="flex items-center gap-3 transition-opacity duration-500" style={{ opacity: i <= analysisStep ? 1 : 0.25 }}>
+                  <div
+                    className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[10px]"
+                    style={{
+                      background: i < analysisStep ? "var(--color-primary)" : i === analysisStep ? "var(--color-primary-container)" : "var(--color-surface-container-high)",
+                      color: i < analysisStep ? "var(--color-on-primary)" : "var(--color-primary)",
+                    }}
+                  >
+                    {i < analysisStep ? "✓" : "·"}
+                  </div>
+                  <span className="text-sm" style={{ color: i <= analysisStep ? "var(--color-on-surface)" : "var(--color-on-surface-variant)" }}>
+                    {step}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
-          <p className="text-sm font-medium text-[var(--color-on-surface)]">
-            Everything looks clean
-          </p>
-          <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-            No high-confidence improvements or missing links found
-          </p>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {/* All done */}
-      {allDone && !loading && (
-        <div
-          className="space-y-2 rounded-2xl p-8 text-center"
-          style={{
-            background: "var(--color-surface-container)",
-            border: "1px solid var(--color-outline-variant)",
-          }}
-        >
-          <div className="text-3xl" style={{ color: "var(--color-secondary)" }}>
-            ✶
+  // ── STATE 3: Analyzed ──
+  return (
+    <div className="space-y-5 px-4 py-4" style={{ background: "var(--color-background)", minHeight: "100%" }}>
+      {/* Header */}
+      <div className="space-y-1">
+        <h2 className="text-xl font-semibold" style={{ color: "var(--color-on-surface)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+          Brain Health
+        </h2>
+        <p className="text-sm" style={{ color: "var(--color-on-surface-variant)" }}>
+          {activeBrain?.name ?? "Your brain"} · {entries.length} {entries.length === 1 ? "memory" : "memories"}
+        </p>
+      </div>
+
+      {/* Health score card */}
+      <div
+        className="rounded-3xl border px-5 py-5"
+        style={{ background: "var(--color-surface-container-low)", borderColor: "var(--color-outline-variant)" }}
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-4xl font-bold" style={{ color: scoreColor(healthScore) }}>
+              {healthScore}%
+            </div>
+            <div className="mt-0.5 text-sm" style={{ color: "var(--color-on-surface-variant)" }}>Brain Health</div>
           </div>
-          <p className="text-sm font-medium text-[var(--color-on-surface)]">
-            All suggestions resolved
+          <div className="text-right space-y-1">
+            {gaps > 0 && <div className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}><span className="font-semibold" style={{ color: "var(--color-on-surface)" }}>{gaps}</span> gap{gaps !== 1 ? "s" : ""}</div>}
+            {weakConnections > 0 && <div className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}><span className="font-semibold" style={{ color: "var(--color-on-surface)" }}>{weakConnections}</span> weak connection{weakConnections !== 1 ? "s" : ""}</div>}
+            {visible.length > 0 && <div className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}><span className="font-semibold" style={{ color: "var(--color-on-surface)" }}>{visible.length}</span> to review</div>}
+          </div>
+        </div>
+
+        <div className="mt-4 flex gap-2">
+          <button
+            onClick={analyze}
+            className="flex-1 rounded-xl py-2.5 text-sm font-semibold tracking-wide transition-all"
+            style={{ background: "var(--color-primary)", color: "var(--color-on-primary)", border: "none" }}
+          >
+            Improve Now
+          </button>
+          <button
+            onClick={() => embedBrain(false)}
+            disabled={embedLoading || !activeBrain}
+            title="Update your brain with the latest changes"
+            className="flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-medium transition-all"
+            style={{
+              background: "var(--color-surface-container-high)",
+              color: embedLoading ? "var(--color-on-surface-variant)" : "var(--color-on-surface-variant)",
+              border: "1px solid var(--color-outline-variant)",
+              opacity: embedLoading || !activeBrain ? 0.5 : 1,
+              cursor: embedLoading || !activeBrain ? "not-allowed" : "pointer",
+            }}
+          >
+            {embedLoading
+              ? <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+              : "🔄"}
+            {embedLoading ? "Refreshing…" : "Refresh Brain"}
+          </button>
+        </div>
+
+        {embedProgress !== null && (
+          <p className="mt-2 text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
+            {embedLoading
+              ? `Refreshing… ${embedProgress.processed} done${embedProgress.remaining > 0 ? `, ${embedProgress.remaining} remaining` : ""}`
+              : `Done — ${embedProgress.processed} memories refreshed`}
           </p>
-          <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-            Re-analyze to check again
-          </p>
+        )}
+      </div>
+
+      {activeBrain?.id && getDecisionCount(activeBrain.id) > 0 && (
+        <div className="flex items-center gap-2 text-xs" style={{ color: "var(--color-primary)" }}>
+          <span className="inline-block h-2 w-2 rounded-full" style={{ background: "var(--color-primary)" }} />
+          Learning from {getDecisionCount(activeBrain.id)} past decisions
         </div>
       )}
 
+      {/* All clean */}
+      {noneFound && (
+        <div className="space-y-2 rounded-2xl p-8 text-center" style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)" }}>
+          <div className="text-3xl" style={{ color: "var(--color-primary)" }}>✓</div>
+          <p className="text-sm font-medium" style={{ color: "var(--color-on-surface)" }}>Your brain is in great shape</p>
+          <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>No improvements found — keep adding memories</p>
+        </div>
+      )}
+
+      {/* All applied */}
+      {allDone && (
+        <div className="space-y-2 rounded-2xl p-8 text-center" style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)" }}>
+          <div className="text-3xl" style={{ color: "var(--color-secondary)" }}>✶</div>
+          <p className="text-sm font-medium" style={{ color: "var(--color-on-surface)" }}>All improvements applied</p>
+          <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>Analyze again to find new opportunities</p>
+        </div>
+      )}
+
+      {/* Improvements section label */}
       {!loading && entryCount > 0 && (
-        <p
-          className="pt-2 text-[10px] font-semibold tracking-widest uppercase"
-          style={{ color: "var(--color-on-surface-variant)" }}
-        >
-          Entry fixes ({entryCount})
+        <p className="pt-1 text-[10px] font-semibold tracking-widest uppercase" style={{ color: "var(--color-on-surface-variant)" }}>
+          Improvements ({entryCount})
         </p>
       )}
 
       {/* Suggestion cards */}
       {visible.map((s) => {
         const key = keyOf(s);
-        const meta = LABELS[s.type] || { label: s.type, icon: <span>•</span>, variant: "neutral" };
+        const meta = LABELS[s.type] || { label: s.type, icon: <span>·</span>, variant: "neutral" };
         const { bg: metaBg, text: metaText } = labelColors(meta.variant);
         const busy = applying.has(key);
         const isEdit = editingKey === key;
@@ -441,42 +475,23 @@ export default function RefineView({
         return (
           <div key={key}>
             {showDivider && (
-              <p
-                className="pt-4 pb-1 text-[10px] font-semibold tracking-widest uppercase"
-                style={{ color: "var(--color-on-surface-variant)" }}
-              >
-                Missing relationships ({linkCount})
+              <p className="pt-2 pb-1 text-[10px] font-semibold tracking-widest uppercase" style={{ color: "var(--color-on-surface-variant)" }}>
+                Connections to Strengthen ({linkCount})
               </p>
             )}
-            <div
-              className="space-y-3 rounded-2xl p-4"
-              style={{
-                background: "var(--color-surface-container)",
-                border: "1px solid var(--color-outline-variant)",
-              }}
-            >
+            <div className="space-y-3 rounded-2xl p-4" style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)" }}>
               {isLink ? (
                 <>
                   <div className="flex items-center justify-end">
-                    <span
-                      className="rounded-full px-2.5 py-0.5 text-[11px] font-medium"
-                      style={{ background: metaBg, color: metaText }}
-                    >
+                    <span className="rounded-full px-2.5 py-0.5 text-[11px] font-medium" style={{ background: metaBg, color: metaText }}>
                       {meta.icon} {meta.label}
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="min-w-0 flex-1">
-                      <div
-                        className="mb-1 text-[10px] tracking-widest uppercase"
-                        style={{ color: "var(--color-on-surface-variant)" }}
-                      >
-                        From
-                      </div>
-                      <div className="truncate text-sm text-[var(--color-on-surface)]">
-                        {(TC as Record<string, any>)[
-                          entries.find((e) => e.id === (isLink && s.type === "WEAK_LABEL" ? ws.fromId : ls.fromId))?.type || "note"
-                        ]?.i || "📝"}{" "}
+                      <div className="mb-1 text-[10px] tracking-widest uppercase" style={{ color: "var(--color-on-surface-variant)" }}>From</div>
+                      <div className="truncate text-sm" style={{ color: "var(--color-on-surface)" }}>
+                        {(TC as Record<string, any>)[entries.find((e) => e.id === (isLink && s.type === "WEAK_LABEL" ? ws.fromId : ls.fromId))?.type || "note"]?.i || "📝"}{" "}
                         {s.type === "WEAK_LABEL" ? ws.fromTitle : ls.fromTitle}
                       </div>
                     </div>
@@ -494,17 +509,10 @@ export default function RefineView({
                           placeholder="relationship…"
                           maxLength={50}
                           className="w-32 rounded-lg px-2 py-1 text-center text-xs outline-none"
-                          style={{
-                            background: "var(--color-surface)",
-                            border: "1px solid var(--color-primary)",
-                            color: "var(--color-on-surface)",
-                          }}
+                          style={{ background: "var(--color-surface)", border: "1px solid var(--color-primary)", color: "var(--color-on-surface)" }}
                         />
                       ) : (
-                        <span
-                          className="text-xs font-medium"
-                          style={{ color: "var(--color-primary)" }}
-                        >
+                        <span className="text-xs font-medium" style={{ color: "var(--color-primary)" }}>
                           {s.type === "WEAK_LABEL"
                             ? <><s style={{ opacity: 0.5 }}>{ws.currentRel}</s> → {ws.rel}</>
                             : <>⟶ {ls.rel} ⟶</>}
@@ -512,108 +520,27 @@ export default function RefineView({
                       )}
                     </div>
                     <div className="min-w-0 flex-1 text-right">
-                      <div
-                        className="mb-1 text-[10px] tracking-widest uppercase"
-                        style={{ color: "var(--color-on-surface-variant)" }}
-                      >
-                        To
-                      </div>
-                      <div className="truncate text-sm text-[var(--color-on-surface)]">
-                        {(TC as Record<string, any>)[
-                          entries.find((e) => e.id === (s.type === "WEAK_LABEL" ? ws.toId : ls.toId))?.type || "note"
-                        ]?.i || "📝"}{" "}
+                      <div className="mb-1 text-[10px] tracking-widest uppercase" style={{ color: "var(--color-on-surface-variant)" }}>To</div>
+                      <div className="truncate text-sm" style={{ color: "var(--color-on-surface)" }}>
+                        {(TC as Record<string, any>)[entries.find((e) => e.id === (s.type === "WEAK_LABEL" ? ws.toId : ls.toId))?.type || "note"]?.i || "📝"}{" "}
                         {s.type === "WEAK_LABEL" ? ws.toTitle : ls.toTitle}
                       </div>
                     </div>
                   </div>
-                  <p
-                    className="text-xs leading-relaxed"
-                    style={{ color: "var(--color-on-surface-variant)" }}
-                  >
+                  <p className="text-xs leading-relaxed" style={{ color: "var(--color-on-surface-variant)" }}>
                     {s.type === "WEAK_LABEL" ? ws.reason : ls.reason}
                   </p>
                   <div className="flex items-center gap-2 pt-1">
                     {isEdit ? (
                       <>
-                        <button
-                          onClick={() => setEditingKey(null)}
-                          className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
-                          style={{
-                            background: "transparent",
-                            border: "1px solid var(--color-outline-variant)",
-                            color: "var(--color-on-surface-variant)",
-                          }}
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={() => editValue.trim() && (s.type === "WEAK_LABEL" ? applyWeakLabel(ws, editValue.trim()) : applyLink(ls, editValue.trim()))}
-                          disabled={!editValue.trim() || busy}
-                          className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
-                          style={{
-                            background:
-                              !editValue.trim() || busy
-                                ? "var(--color-surface-container-highest)"
-                                : "var(--color-primary)",
-                            color:
-                              !editValue.trim() || busy
-                                ? "var(--color-on-surface-variant)"
-                                : "var(--color-on-primary)",
-                            border: "none",
-                            opacity: !editValue.trim() || busy ? 0.5 : 1,
-                          }}
-                        >
-                          Apply
-                        </button>
+                        <button onClick={() => setEditingKey(null)} className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all" style={{ background: "transparent", border: "1px solid var(--color-outline-variant)", color: "var(--color-on-surface-variant)" }}>Cancel</button>
+                        <button onClick={() => editValue.trim() && (s.type === "WEAK_LABEL" ? applyWeakLabel(ws, editValue.trim()) : applyLink(ls, editValue.trim()))} disabled={!editValue.trim() || busy} className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all" style={{ background: !editValue.trim() || busy ? "var(--color-surface-container-highest)" : "var(--color-primary)", color: !editValue.trim() || busy ? "var(--color-on-surface-variant)" : "var(--color-on-primary)", border: "none", opacity: !editValue.trim() || busy ? 0.5 : 1 }}>Apply</button>
                       </>
                     ) : (
                       <>
-                        <button
-                          onClick={() => reject(key, s)}
-                          disabled={busy}
-                          className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
-                          style={{
-                            background: "transparent",
-                            border: "1px solid var(--color-outline-variant)",
-                            color: "var(--color-error)",
-                            opacity: busy ? 0.5 : 1,
-                          }}
-                        >
-                          ✗ Reject
-                        </button>
-                        <button
-                          onClick={() => {
-                            setEditingKey(key);
-                            setEditValue(s.type === "WEAK_LABEL" ? ws.rel : ls.rel);
-                          }}
-                          disabled={busy}
-                          className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
-                          style={{
-                            background: "transparent",
-                            border: "1px solid var(--color-outline-variant)",
-                            color: "var(--color-on-surface-variant)",
-                            opacity: busy ? 0.5 : 1,
-                          }}
-                        >
-                          ✎ Edit
-                        </button>
-                        <button
-                          onClick={() => s.type === "WEAK_LABEL" ? applyWeakLabel(ws) : applyLink(ls)}
-                          disabled={busy}
-                          className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
-                          style={{
-                            background: busy
-                              ? "var(--color-surface-container-highest)"
-                              : "var(--color-primary)",
-                            color: busy
-                              ? "var(--color-on-surface-variant)"
-                              : "var(--color-on-primary)",
-                            border: "none",
-                            opacity: busy ? 0.5 : 1,
-                          }}
-                        >
-                          {busy ? "Saving…" : "✓ Accept"}
-                        </button>
+                        <button onClick={() => reject(key, s)} disabled={busy} className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all" style={{ background: "transparent", border: "1px solid var(--color-outline-variant)", color: "var(--color-error)", opacity: busy ? 0.5 : 1 }}>✗ Skip</button>
+                        <button onClick={() => { setEditingKey(key); setEditValue(s.type === "WEAK_LABEL" ? ws.rel : ls.rel); }} disabled={busy} className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all" style={{ background: "transparent", border: "1px solid var(--color-outline-variant)", color: "var(--color-on-surface-variant)", opacity: busy ? 0.5 : 1 }}>✎ Edit</button>
+                        <button onClick={() => s.type === "WEAK_LABEL" ? applyWeakLabel(ws) : applyLink(ls)} disabled={busy} className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all" style={{ background: busy ? "var(--color-surface-container-highest)" : "var(--color-primary)", color: busy ? "var(--color-on-surface-variant)" : "var(--color-on-primary)", border: "none", opacity: busy ? 0.5 : 1 }}>{busy ? "Saving…" : "✓ Accept"}</button>
                       </>
                     )}
                   </div>
@@ -622,72 +549,50 @@ export default function RefineView({
                 <>
                   <div className="flex items-center gap-2">
                     <span className="text-base">
-                      {(TC as Record<string, any>)[
-                        entries.find((e) => e.id === es.entryId)?.type || "note"
-                      ]?.i || "📝"}
+                      {(TC as Record<string, any>)[entries.find((e) => e.id === es.entryId)?.type || "note"]?.i || "📝"}
                     </span>
-                    <span className="flex-1 truncate text-sm font-medium text-[var(--color-on-surface)]">
-                      {es.entryTitle ||
-                        entries.find((e) => e.id === es.entryId)?.title ||
-                        es.entryId}
+                    <span className="flex-1 truncate text-sm font-medium" style={{ color: "var(--color-on-surface)" }}>
+                      {es.entryTitle || entries.find((e) => e.id === es.entryId)?.title || es.entryId}
                     </span>
-                    <span
-                      className="flex-shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium"
-                      style={{ background: metaBg, color: metaText }}
-                    >
+                    <span className="flex-shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium" style={{ background: metaBg, color: metaText }}>
                       {meta.icon} {meta.label}
                     </span>
                   </div>
-                  <div className="flex items-start gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div
-                        className="mb-1 text-[10px] tracking-widest uppercase"
-                        style={{ color: "var(--color-on-surface-variant)" }}
-                      >
-                        Current
+                  {(() => {
+                    // Resolve UUID suggestedValue to a human-readable label
+                    let displaySuggested = es.suggestedValue;
+                    if ((es.type === "MERGE_SUGGESTED" || es.type === "DUPLICATE_ENTRY") && es.suggestedValue) {
+                      const target = entries.find((e) => e.id === es.suggestedValue);
+                      displaySuggested = target ? `Merge with "${target.title}"` : "Merge with duplicate";
+                    } else if (!es.suggestedValue) {
+                      const EMPTY_LABELS: Record<string, string> = {
+                        ORPHAN_DETECTED: "Add tags or link to other memories",
+                        STALE_REMINDER: "Update or remove this reminder",
+                        DEAD_URL: "Remove or replace this link",
+                        SENSITIVE_DATA: "Move to Vault for safe keeping",
+                        CLUSTER_SUGGESTED: "Create a hub memory for this group",
+                      };
+                      displaySuggested = EMPTY_LABELS[es.type] ?? "See reason below";
+                    }
+                    return (
+                      <div className="flex items-start gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="mb-1 text-[10px] tracking-widest uppercase" style={{ color: "var(--color-on-surface-variant)" }}>Current</div>
+                          <div className="rounded-lg px-2.5 py-1.5 text-xs break-words" style={{ background: "var(--color-surface-container)", color: "var(--color-on-surface-variant)" }}>
+                            {es.currentValue || <em style={{ color: "var(--color-on-surface-variant)" }}>empty</em>}
+                          </div>
+                        </div>
+                        <span className="mt-5 flex-shrink-0 text-sm" style={{ color: "var(--color-on-surface-variant)" }}>→</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="mb-1 text-[10px] tracking-widest uppercase" style={{ color: "var(--color-on-surface-variant)" }}>Suggested</div>
+                          <div className="rounded-lg px-2.5 py-1.5 text-xs break-words" style={{ background: "var(--color-primary-container)", color: "var(--color-primary)" }}>
+                            {displaySuggested}
+                          </div>
+                        </div>
                       </div>
-                      <div
-                        className="rounded-lg px-2.5 py-1.5 text-xs break-words"
-                        style={{
-                          background: "var(--color-surface-container)",
-                          color: "var(--color-on-surface-variant)",
-                        }}
-                      >
-                        {es.currentValue || (
-                          <em style={{ color: "var(--color-on-surface-variant)" }}>empty</em>
-                        )}
-                      </div>
-                    </div>
-                    <span
-                      className="mt-5 flex-shrink-0 text-sm"
-                      style={{ color: "var(--color-on-surface-variant)" }}
-                    >
-                      →
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div
-                        className="mb-1 text-[10px] tracking-widest uppercase"
-                        style={{ color: "var(--color-on-surface-variant)" }}
-                      >
-                        Suggested
-                      </div>
-                      <div
-                        className="rounded-lg px-2.5 py-1.5 text-xs break-words"
-                        style={{
-                          background: "var(--color-primary-container)",
-                          color: "var(--color-primary)",
-                        }}
-                      >
-                        {es.suggestedValue}
-                      </div>
-                    </div>
-                  </div>
-                  <p
-                    className="text-xs leading-relaxed"
-                    style={{ color: "var(--color-on-surface-variant)" }}
-                  >
-                    {es.reason}
-                  </p>
+                    );
+                  })()}
+                  <p className="text-xs leading-relaxed" style={{ color: "var(--color-on-surface-variant)" }}>{es.reason}</p>
                   {isEdit && (
                     <input
                       autoFocus
@@ -699,95 +604,20 @@ export default function RefineView({
                       }}
                       maxLength={50}
                       className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-                      style={{
-                        background: "var(--color-surface)",
-                        border: "1px solid var(--color-primary)",
-                        color: "var(--color-on-surface)",
-                      }}
+                      style={{ background: "var(--color-surface)", border: "1px solid var(--color-primary)", color: "var(--color-on-surface)" }}
                     />
                   )}
                   <div className="flex items-center gap-2 pt-1">
                     {isEdit ? (
                       <>
-                        <button
-                          onClick={() => setEditingKey(null)}
-                          className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
-                          style={{
-                            background: "transparent",
-                            border: "1px solid var(--color-outline-variant)",
-                            color: "var(--color-on-surface-variant)",
-                          }}
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={() => editValue.trim() && applyEntry(es, editValue.trim())}
-                          disabled={!editValue.trim() || busy}
-                          className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
-                          style={{
-                            background:
-                              !editValue.trim() || busy
-                                ? "var(--color-surface-container-highest)"
-                                : "var(--color-primary)",
-                            color:
-                              !editValue.trim() || busy
-                                ? "var(--color-on-surface-variant)"
-                                : "var(--color-on-primary)",
-                            border: "none",
-                            opacity: !editValue.trim() || busy ? 0.5 : 1,
-                          }}
-                        >
-                          Apply
-                        </button>
+                        <button onClick={() => setEditingKey(null)} className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all" style={{ background: "transparent", border: "1px solid var(--color-outline-variant)", color: "var(--color-on-surface-variant)" }}>Cancel</button>
+                        <button onClick={() => editValue.trim() && applyEntry(es, editValue.trim())} disabled={!editValue.trim() || busy} className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all" style={{ background: !editValue.trim() || busy ? "var(--color-surface-container-highest)" : "var(--color-primary)", color: !editValue.trim() || busy ? "var(--color-on-surface-variant)" : "var(--color-on-primary)", border: "none", opacity: !editValue.trim() || busy ? 0.5 : 1 }}>Apply</button>
                       </>
                     ) : (
                       <>
-                        <button
-                          onClick={() => reject(key, s)}
-                          disabled={busy}
-                          className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
-                          style={{
-                            background: "transparent",
-                            border: "1px solid var(--color-outline-variant)",
-                            color: "var(--color-error)",
-                            opacity: busy ? 0.5 : 1,
-                          }}
-                        >
-                          ✗ Reject
-                        </button>
-                        <button
-                          onClick={() => {
-                            setEditingKey(key);
-                            setEditValue(es.suggestedValue);
-                          }}
-                          disabled={busy}
-                          className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
-                          style={{
-                            background: "transparent",
-                            border: "1px solid var(--color-outline-variant)",
-                            color: "var(--color-on-surface-variant)",
-                            opacity: busy ? 0.5 : 1,
-                          }}
-                        >
-                          ✎ Edit
-                        </button>
-                        <button
-                          onClick={() => applyEntry(es)}
-                          disabled={busy}
-                          className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
-                          style={{
-                            background: busy
-                              ? "var(--color-surface-container-highest)"
-                              : "var(--color-primary)",
-                            color: busy
-                              ? "var(--color-on-surface-variant)"
-                              : "var(--color-on-primary)",
-                            border: "none",
-                            opacity: busy ? 0.5 : 1,
-                          }}
-                        >
-                          {busy ? "Saving…" : "✓ Accept"}
-                        </button>
+                        <button onClick={() => reject(key, s)} disabled={busy} className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all" style={{ background: "transparent", border: "1px solid var(--color-outline-variant)", color: "var(--color-error)", opacity: busy ? 0.5 : 1 }}>✗ Skip</button>
+                        <button onClick={() => { setEditingKey(key); setEditValue(es.suggestedValue); }} disabled={busy} className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all" style={{ background: "transparent", border: "1px solid var(--color-outline-variant)", color: "var(--color-on-surface-variant)", opacity: busy ? 0.5 : 1 }}>✎ Edit</button>
+                        <button onClick={() => applyEntry(es)} disabled={busy} className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all" style={{ background: busy ? "var(--color-surface-container-highest)" : "var(--color-primary)", color: busy ? "var(--color-on-surface-variant)" : "var(--color-on-primary)", border: "none", opacity: busy ? 0.5 : 1 }}>{busy ? "Saving…" : "✓ Accept"}</button>
                       </>
                     )}
                   </div>

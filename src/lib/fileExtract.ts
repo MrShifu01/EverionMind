@@ -1,7 +1,5 @@
 import { authFetch } from "./authFetch";
 import { getUserProvider, getUserModel, getUserApiKey, getOpenRouterKey, getOpenRouterModel } from "./aiSettings";
-import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
-
 function getAIHeaders(): Record<string, string> {
   const provider = getUserProvider();
   const apiKey = provider === "openrouter" ? getOpenRouterKey() : getUserApiKey();
@@ -41,7 +39,7 @@ async function extractPDF(buffer: ArrayBuffer): Promise<string> {
   const mod = await import("pdfjs-dist");
   const pdfjsLib = (mod as any).default ?? mod;
   if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.mjs", import.meta.url).href;
   }
   const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer), useWorkerFetch: false, isEvalSupported: false, useSystemFonts: true }).promise;
   const pages: string[] = [];

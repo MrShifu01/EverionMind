@@ -22,6 +22,7 @@ function getHashTokens(): { access_token: string; refresh_token: string } | null
 export default function App(): JSX.Element {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [inviteMsg, setInviteMsg] = useState<string | null>(null);
+  const [earlyCapture, setEarlyCapture] = useState(false);
 
   // Accept a brain invite token from the URL (?invite=<hex64>)
   useEffect(() => {
@@ -100,6 +101,21 @@ export default function App(): JSX.Element {
     return (
       <ThemeProvider>
         <LoadingScreen />
+        <button
+          onClick={() => setEarlyCapture(true)}
+          aria-label="New entry"
+          className="press-scale fixed bottom-5 left-1/2 z-[60] flex h-14 w-14 -translate-x-1/2 items-center justify-center rounded-full lg:hidden"
+          style={{ background: "var(--color-primary)", color: "var(--color-on-primary)", boxShadow: "var(--shadow-lg)" }}
+        >
+          {earlyCapture ? (
+            <svg className="h-5 w-5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          )}
+        </button>
       </ThemeProvider>
     );
   if (!session)
@@ -132,7 +148,7 @@ export default function App(): JSX.Element {
               {inviteMsg}
             </div>
           )}
-          <OpenBrain />
+          <OpenBrain initialShowCapture={earlyCapture} />
         </MemoryProvider>
       </ErrorBoundary>
     </ThemeProvider>
