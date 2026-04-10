@@ -21,7 +21,8 @@ function daysAgo(n: number, from: Date): Date {
 
 export function applyEntryFilters(entries: Entry[], filters: EntryFilterState): Entry[] {
   const now = new Date();
-  let result = [...entries];
+  // Secrets live in the Vault — always exclude from the main grid
+  let result = entries.filter((e) => e.type !== "secret");
 
   // ── Type filter ──
   if (filters.type !== "all") {
