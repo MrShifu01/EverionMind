@@ -252,9 +252,14 @@ export default function LoginScreen(): JSX.Element {
             {/* ── Password signup success ── */}
             {usePassword && signupSuccess && (
               <div>
-                <h2 style={{ fontFamily: "'Lora', Georgia, serif", fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em", margin: "0 0 8px", color: "var(--color-on-surface)" }}>Account created! 🎉</h2>
-                <p style={{ fontSize: 13, color: "var(--color-on-surface-variant)", lineHeight: 1.6, margin: "0 0 24px" }}>Your account has been created successfully. You can now sign in with your email and password.</p>
-                <button onClick={goBackFromSuccess} style={{ width: "100%", height: 48, borderRadius: 8, border: "none", background: "var(--color-primary)", color: "var(--color-on-primary)", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", transition: "background 150ms" }}>Sign in to your account</button>
+                <h2 style={{ fontFamily: "'Lora', Georgia, serif", fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em", margin: "0 0 8px", color: "var(--color-on-surface)" }}>Check your email ✉️</h2>
+                <p style={{ fontSize: 13, color: "var(--color-on-surface-variant)", lineHeight: 1.6, margin: "0 0 12px" }}>
+                  We've sent a confirmation link to <strong style={{ color: "var(--color-on-surface)" }}>{email}</strong>.
+                </p>
+                <p style={{ fontSize: 13, color: "var(--color-on-surface-variant)", lineHeight: 1.6, margin: "0 0 24px" }}>
+                  <strong style={{ color: "var(--color-on-surface)" }}>You must click that link before you can sign in.</strong> If you don't see it, check your spam folder.
+                </p>
+                <button onClick={goBackFromSuccess} style={{ width: "100%", height: 48, borderRadius: 8, border: "none", background: "var(--color-primary)", color: "var(--color-on-primary)", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", transition: "background 150ms" }}>Back to sign in</button>
               </div>
             )}
 
