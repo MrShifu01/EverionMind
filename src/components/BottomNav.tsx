@@ -6,11 +6,11 @@ const NAV_ITEMS = [
   { id: "capture", label: "Home", icon: NavIcon.capture },
   { id: "refine", label: "Improve", icon: NavIcon.refine },
   { id: "_capture_fab", label: "Capture", isFAB: true, icon: NavIcon.add },
-  { id: "todos", label: "Todos", icon: NavIcon.todos },
+  { id: "chat", label: "Ask", icon: NavIcon.chat },
   { id: "more", label: "More", icon: NavIcon.more },
 ];
 
-const MORE_IDS = new Set(["vault", "settings", "grid", "chat", "timeline"]);
+const MORE_IDS = new Set(["vault", "settings", "grid", "todos", "timeline"]);
 
 interface BottomNavProps {
   activeView: string;
