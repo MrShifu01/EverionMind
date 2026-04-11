@@ -190,8 +190,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     let emailSent = false;
     let emailError: string | null = null;
     if (resendKey) {
+      const hostHdr = req.headers["x-forwarded-host"] || req.headers.host;
+      const host = Array.isArray(hostHdr) ? hostHdr[0] : hostHdr;
       const appUrl = process.env.APP_URL
-        || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://open-brain-ib4e.vercel.app");
+        || (host ? `https://${host}` : (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://open-brain-ib4e.vercel.app"));
       const fromAddr = process.env.RESEND_FROM || "OpenBrain <onboarding@resend.dev>";
       const canonicalToken = invite?.token || token;
       const acceptUrl = `${appUrl}/?invite=${canonicalToken}`;
@@ -249,8 +251,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
       return res.status(500).json({ error: "Email service not configured" });
     }
 
+    const hostHdr = req.headers["x-forwarded-host"] || req.headers.host;
+    const host = Array.isArray(hostHdr) ? hostHdr[0] : hostHdr;
     const appUrl = process.env.APP_URL
-      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://open-brain-ib4e.vercel.app");
+      || (host ? `https://${host}` : (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://open-brain-ib4e.vercel.app"));
     const fromAddr = process.env.RESEND_FROM || "Everion <onboarding@resend.dev>";
     const signupUrl = appUrl;
     const toEmail = email.trim().toLowerCase();

@@ -1,4 +1,4 @@
-import { type JSX } from "react";
+import { type JSX, useMemo } from "react";
 import { Brain, RefreshCw } from "lucide-react";
 import { useAuthFlow } from "./hooks/useAuthFlow";
 import { EverionLogo } from "./components/ui/EverionLogo";
@@ -15,7 +15,18 @@ const FEATURES: Feature[] = [
   { emoji: "🏢", label: "Business brain", desc: "Suppliers, staff, SOPs, licences — your whole operation in one place" },
 ];
 
+function hasInvite(): boolean {
+  try {
+    const fromUrl = new URLSearchParams(window.location.search).get("invite");
+    if (fromUrl && /^[0-9a-f]{64}$/i.test(fromUrl)) return true;
+    return !!sessionStorage.getItem("ob_pending_invite");
+  } catch {
+    return false;
+  }
+}
+
 export default function LoginScreen(): JSX.Element {
+  const isInvited = useMemo(hasInvite, []);
   const {
     email, setEmail,
     sent,
@@ -148,6 +159,26 @@ export default function LoginScreen(): JSX.Element {
           }}
         >
           <div style={{ width: "100%", maxWidth: 360 }}>
+
+            {/* ── Invite banner ── */}
+            {isInvited && (
+              <div
+                style={{
+                  borderRadius: 10,
+                  border: "1px solid var(--color-primary-container)",
+                  background: "color-mix(in oklch, var(--color-primary) 10%, transparent)",
+                  padding: "12px 14px",
+                  marginBottom: 16,
+                  fontSize: 13,
+                  lineHeight: 1.55,
+                  color: "var(--color-on-surface)",
+                }}
+              >
+                <strong style={{ color: "var(--color-primary)" }}>You're invited to a brain.</strong>
+                <br />
+                Create your Everion account below — you'll be added automatically.
+              </div>
+            )}
 
             {/* ── CTA (pre-form) ── */}
             {!showForm && !sent && !usePassword && (

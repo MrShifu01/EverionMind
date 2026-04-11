@@ -2,7 +2,7 @@
 
 ## Communication
 
-Responses must be brutally concise. One sentence where possible. No preamble, no summary, no restating what was done. Lead with the result only. No filler phrases like "Great!", "Done!", "Sure!", or "I'll now...". Never explain what you're about to do — just do it. After a push, one line: branch + commit message. Nothing else.
+Responses must be brutally concise. One sentence where possible. No preamble, no summary, no restating what was done. Lead with the result only. No filler phrases like "Great!", "Done!", "Sure!", or "I'll now...". Never explain what you're about to do — just do it. After a push, one line: branch + commit message. Nothing else. Do not narrate file edits, do not explain plans, do not describe what each step will do — the user reviews the diff, not the prose.
 
 
 # HARD RULE:

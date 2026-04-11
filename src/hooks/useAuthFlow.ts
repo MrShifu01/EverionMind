@@ -10,10 +10,33 @@ function toFriendlyError(msg: string): string {
 
 function redirectUrl(): string {
   const raw = import.meta.env.VITE_APP_URL || window.location.origin;
-  return raw.startsWith("http") ? raw : `https://${raw}`;
+  const base = raw.startsWith("http") ? raw : `https://${raw}`;
+  // Preserve ?invite=<token> through the magic-link / email-confirm round-trip
+  // so the App.tsx accept flow still fires after sign-up.
+  try {
+    const invite = new URLSearchParams(window.location.search).get("invite");
+    if (invite && /^[0-9a-f]{64}$/i.test(invite)) {
+      return `${base.replace(/\/$/, "")}/?invite=${invite}`;
+    }
+  } catch { /* ignore */ }
+  return base;
+}
+
+function hasPendingInvite(): boolean {
+  try {
+    const fromUrl = new URLSearchParams(window.location.search).get("invite");
+    if (fromUrl) return true;
+    return !!sessionStorage.getItem("ob_pending_invite");
+  } catch {
+    return false;
+  }
 }
 
 export function useAuthFlow() {
+  // If the user arrived via an invite link, default straight into the
+  // "Create account" password flow — most invitees don't have an account yet.
+  const invitePending = hasPendingInvite();
+
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -21,7 +44,7 @@ export function useAuthFlow() {
   const [showForm, setShowForm] = useState(false);
   const [otpCode, setOtpCode] = useState("");
   const [verifying, setVerifying] = useState(false);
-  const [usePassword, setUsePassword] = useState(false);
+  const [usePassword, setUsePassword] = useState(invitePending);
   const [password, setPassword] = useState("");
   const [isSigningUp, setIsSigningUp] = useState(true);
   const [signupSuccess, setSignupSuccess] = useState(false);
@@ -70,7 +93,11 @@ export function useAuthFlow() {
     setLoading(true);
     setError(null);
     try {
-      const { error, data } = await supabase.auth.signUp({ email, password });
+      const { error, data } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: redirectUrl() },
+      });
       if (error) setError(error.message);
       else if (data?.user) setSignupSuccess(true);
     } catch (err) {

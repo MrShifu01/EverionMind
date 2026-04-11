@@ -1,6 +1,7 @@
 import { useState, useEffect, type JSX } from "react";
 import { supabase } from "./lib/supabase";
 import { loadUserAISettings } from "./lib/aiSettings";
+import { authFetch } from "./lib/authFetch";
 import OpenBrain from "./OpenBrain";
 import LoginScreen from "./LoginScreen";
 import ErrorBoundary from "./ErrorBoundary";
@@ -8,6 +9,8 @@ import { MemoryProvider } from "./MemoryContext";
 import { ThemeProvider } from "./ThemeContext";
 import LoadingScreen from "./components/LoadingScreen";
 import type { Session } from "@supabase/supabase-js";
+
+const PENDING_INVITE_KEY = "ob_pending_invite";
 
 function getHashTokens(): { access_token: string; refresh_token: string } | null {
   const hash = window.location.hash.substring(1);
@@ -24,15 +27,26 @@ export default function App(): JSX.Element {
   const [inviteMsg, setInviteMsg] = useState<string | null>(null);
   const [earlyCapture, setEarlyCapture] = useState(false);
 
-  // Accept a brain invite token from the URL (?invite=<hex64>)
+  // Stash any ?invite=<token> from the URL before auth so it survives the
+  // magic-link / email-confirm round-trip. LoginScreen reads the same key to
+  // become invite-aware (banner + default to signup).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tok = params.get("invite");
+    if (tok && /^[0-9a-f]{64}$/i.test(tok)) {
+      sessionStorage.setItem(PENDING_INVITE_KEY, tok);
+    }
+  }, []);
+
+  // Once signed in, accept any pending invite (from URL or sessionStorage).
   useEffect(() => {
     if (!session) return;
     const params = new URLSearchParams(window.location.search);
-    const inviteToken = params.get("invite");
+    const inviteToken = params.get("invite") || sessionStorage.getItem(PENDING_INVITE_KEY);
     if (!inviteToken) return;
-    // Clear the token from the URL immediately
+    sessionStorage.removeItem(PENDING_INVITE_KEY);
     window.history.replaceState(null, "", window.location.pathname);
-    fetch("/api/brains?action=accept", {
+    authFetch("/api/brains?action=accept", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token: inviteToken }),
