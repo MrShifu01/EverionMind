@@ -239,24 +239,55 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   // ── POST /api/brains?action=invite-platform — invite someone to sign up for OpenBrain ──
   if (method === "POST" && action === "invite-platform") {
     const { email } = req.body;
-    if (!email || typeof email !== "string" || !email.includes("@")) {
+    if (!email || typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       return res.status(400).json({ error: "Valid email required" });
     }
-    const invRes = await fetch(`${SB_URL}/auth/v1/invite`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "apikey": SB_KEY!,
-        "Authorization": `Bearer ${SB_KEY}`,
-      },
-      body: JSON.stringify({ email: email.trim().toLowerCase() }),
-    });
-    if (!invRes.ok) {
-      const detail = await invRes.text().catch(() => "");
-      console.error("[brains:invite-platform] Failed:", detail);
-      return res.status(502).json({ error: "Failed to send platform invite" });
+
+    const resendKey = process.env.RESEND_API_KEY;
+    if (!resendKey) {
+      console.error("[brains:invite-platform] RESEND_API_KEY not configured");
+      return res.status(500).json({ error: "Email service not configured" });
     }
-    console.log(`[audit] INVITE_PLATFORM email=${email} by=${user.id}`);
+
+    const appUrl = process.env.APP_URL
+      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://open-brain-ib4e.vercel.app");
+    const fromAddr = process.env.RESEND_FROM || "Everion <onboarding@resend.dev>";
+    const signupUrl = appUrl;
+    const toEmail = email.trim().toLowerCase();
+
+    try {
+      const emailRes = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${resendKey}` },
+        body: JSON.stringify({
+          from: fromAddr,
+          to: [toEmail],
+          subject: "You've been invited to join Everion",
+          html: `
+            <div style="font-family:'DM Sans',sans-serif;max-width:480px;margin:auto;padding:32px;background:#111;color:#eee;border-radius:12px">
+              <h2 style="color:#72eff5;margin-top:0;font-family:Georgia,serif">Everion</h2>
+              <p style="font-size:15px;line-height:1.6">You've been invited to join <strong>Everion</strong>, a private brain for your thoughts, notes and knowledge.</p>
+              <p style="margin:24px 0">
+                <a href="${signupUrl}" style="background:#72eff5;color:#111;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:bold;display:inline-block;font-size:15px">
+                  Create your account
+                </a>
+              </p>
+              <p style="color:#888;font-size:12px">Or copy this link: ${signupUrl}</p>
+              <p style="color:#555;font-size:11px">If you didn't expect this, you can safely ignore it.</p>
+            </div>`,
+        }),
+      });
+      if (!emailRes.ok) {
+        const detail = await emailRes.text().catch(() => String(emailRes.status));
+        console.error("[brains:invite-platform] Resend failed:", emailRes.status, detail);
+        return res.status(502).json({ error: "Failed to send invite email", detail });
+      }
+    } catch (err: any) {
+      console.error("[brains:invite-platform] Resend network error:", err.message);
+      return res.status(502).json({ error: "Failed to send invite email", detail: err.message });
+    }
+
+    console.log(`[audit] INVITE_PLATFORM email=${toEmail} by=${user.id}`);
     return res.status(200).json({ ok: true });
   }
 

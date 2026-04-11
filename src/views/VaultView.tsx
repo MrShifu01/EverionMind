@@ -384,8 +384,8 @@ export default function VaultView({
         fontFamily: "'DM Sans', system-ui, sans-serif",
       }}
     >
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h2 className="text-on-surface text-lg font-bold">🔐 Vault</h2>
           <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
             {decryptedSecrets.length} secret {decryptedSecrets.length === 1 ? "entry" : "entries"}
@@ -394,37 +394,39 @@ export default function VaultView({
         <div className="flex items-center gap-2">
           <button
             onClick={startAddSecret}
-            className="rounded-xl px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-90"
+            className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold whitespace-nowrap transition-opacity hover:opacity-90 sm:flex-none"
             style={{
               background: "var(--color-primary)",
               color: "var(--color-on-primary)",
+              minHeight: 40,
             }}
           >
-            ➕ Add Secret
+            + Add Secret
           </button>
           <button
             onClick={() => {
               setBulkMode((b) => !b);
               setSelectedIds(new Set());
             }}
-            className="rounded-xl border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-white/5"
+            className="rounded-xl border px-3 py-2 text-xs font-medium whitespace-nowrap transition-colors hover:bg-white/5"
             style={{
               color: bulkMode ? "var(--color-primary)" : "var(--color-on-surface-variant)",
               borderColor: bulkMode ? "var(--color-primary)" : "var(--color-outline-variant)",
-              minHeight: 44,
+              minHeight: 40,
             }}
           >
             {bulkMode ? "Cancel" : "Select"}
           </button>
           <button
             onClick={lockVault}
-            className="rounded-xl border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-white/5"
+            className="rounded-xl border px-3 py-2 text-xs font-medium whitespace-nowrap transition-colors hover:bg-white/5"
             style={{
               color: "var(--color-on-surface-variant)",
               borderColor: "var(--color-outline-variant)",
+              minHeight: 40,
             }}
           >
-            🔒 Lock
+            Lock
           </button>
         </div>
       </div>

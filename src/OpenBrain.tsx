@@ -872,6 +872,10 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
                 cryptoKey={cryptoKey}
                 isOnline={isOnline}
                 onBackgroundFiles={(files) => bgProcessFiles(files, activeBrain?.id, handleCreated)}
+                onNavigate={(id) => {
+                  setShowCapture(false);
+                  setView(id);
+                }}
               />
               <MobileMoreMenu
                 isOpen={navOpen}

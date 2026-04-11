@@ -15,6 +15,7 @@ interface CaptureSheetProps {
   cryptoKey?: CryptoKey | null;
   isOnline?: boolean;
   onBackgroundFiles?: (files: File[]) => void;
+  onNavigate?: (id: string) => void;
 }
 
 export default function CaptureSheet({
@@ -25,6 +26,7 @@ export default function CaptureSheet({
   cryptoKey,
   isOnline = true,
   onBackgroundFiles,
+  onNavigate,
 }: CaptureSheetProps) {
   const [text, setText] = useState("");
   const [activeTab, setActiveTab] = useState<"entry" | "secret">("entry");
@@ -394,7 +396,10 @@ export default function CaptureSheet({
                   </p>
                 </div>
                 <button
-                  onClick={onClose}
+                  onClick={() => {
+                    if (onNavigate) onNavigate("vault");
+                    else onClose();
+                  }}
                   className="mt-1 rounded-xl px-5 py-2 text-sm font-semibold transition-opacity hover:opacity-90"
                   style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
                 >
