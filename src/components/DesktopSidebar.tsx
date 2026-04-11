@@ -127,7 +127,7 @@ export default function DesktopSidebar({
   onToggleTheme,
   isOnline,
   pendingCount,
-  entryCount,
+  entryCount: _entryCount,
   onShowCreateBrain,
   navViews,
   children,

@@ -6,6 +6,7 @@ const baseProps = {
   activeBrainName: "Test Brain",
   view: "capture",
   onNavigate: vi.fn(),
+  onCapture: vi.fn(),
   isDark: false,
   onToggleTheme: vi.fn(),
   isOnline: true,

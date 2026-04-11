@@ -42,7 +42,6 @@ function ErrorIcon() {
 export function BackgroundTaskToast({ tasks, onDismiss, onDismissAll }: Props) {
   if (tasks.length === 0) return null;
 
-  const active = tasks.filter((t) => t.status !== "done" && t.status !== "error");
   const finished = tasks.filter((t) => t.status === "done" || t.status === "error");
 
   return (

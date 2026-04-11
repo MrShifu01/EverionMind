@@ -225,7 +225,6 @@ export default function RefineView({
   const {
     loading,
     suggestions,
-    dismissed,
     accepted,
     applying,
     editingKey, setEditingKey,

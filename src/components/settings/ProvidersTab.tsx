@@ -426,8 +426,8 @@ function ParseTestBlock({ num, label, input, loading, result, onRun }: ParseTest
           {result.ok && isArray && (result.parsed as any[]).map((entry: any, i: number) => (
             <EntryCard key={i} index={i + 1} entry={entry} />
           ))}
-          {result.ok && !isArray && result.parsed && (
-            <EntryCard index={0} entry={result.parsed as any} />
+          {result.ok && !isArray && result.parsed != null && (
+            <EntryCard index={0} entry={result.parsed as Record<string, any>} />
           )}
 
           {/* Raw AI text (collapsed) */}

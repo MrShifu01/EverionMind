@@ -77,7 +77,7 @@ beforeEach(() => {
 describe("embed handler — retry on transient failure (S3-5)", () => {
   it("succeeds on first attempt when no error", async () => {
     mockGenerateEmbedding.mockResolvedValue([0.1, 0.2, 0.3]);
-    const handler = (await import("../../api/embed")).default;
+    const handler = (await import("../../api/capture")).handleEmbed;
     const req = makeReq();
     const res = makeRes();
     await handler(req as any, res as any);
@@ -92,7 +92,7 @@ describe("embed handler — retry on transient failure (S3-5)", () => {
       .mockRejectedValueOnce(new Error("rate limit"))
       .mockResolvedValue([0.1, 0.2, 0.3]);
 
-    const handler = (await import("../../api/embed")).default;
+    const handler = (await import("../../api/capture")).handleEmbed;
     const req = makeReq();
     const res = makeRes();
     await handler(req as any, res as any);
@@ -104,7 +104,7 @@ describe("embed handler — retry on transient failure (S3-5)", () => {
   it("returns 502 after all 3 attempts fail", async () => {
     mockGenerateEmbedding.mockRejectedValue(new Error("persistent error"));
 
-    const handler = (await import("../../api/embed")).default;
+    const handler = (await import("../../api/capture")).handleEmbed;
     const req = makeReq();
     const res = makeRes();
     await handler(req as any, res as any);

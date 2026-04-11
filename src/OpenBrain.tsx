@@ -3,7 +3,7 @@ import { NavIcon } from "./components/icons/NavIcons";
 import { useTheme } from "./ThemeContext";
 import { authFetch } from "./lib/authFetch";
 import { callAI } from "./lib/ai";
-import { getEmbedHeaders, isAIConfigured } from "./lib/aiSettings";
+import { getEmbedHeaders } from "./lib/aiSettings";
 import { decryptEntry } from "./lib/crypto";
 import { PROMPTS } from "./config/prompts";
 import { LINKS } from "./data/constants";
@@ -154,11 +154,7 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
 
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
-  const [workspace, setWorkspaceFilter] = useState(() => localStorage.getItem("openbrain_workspace") || "all");
-  const setWorkspace = useCallback((w: string) => {
-    setWorkspaceFilter(w);
-    localStorage.setItem("openbrain_workspace", w);
-  }, []);
+  const [workspace] = useState(() => localStorage.getItem("openbrain_workspace") || "all");
   const [gridFilters, setGridFilters] = useState<EntryFilterState>({
     type: "all",
     date: "all",
@@ -586,7 +582,7 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
                       cryptoKey={cryptoKey}
                       onVaultUnlock={handleVaultUnlock}
                       brainId={activeBrain?.id}
-                      onEntryCreated={(e) => setEntries((prev) => [e, ...prev])}
+                      onEntryCreated={(e: Entry) => setEntries((prev) => [e, ...prev])}
                     />
                   </Suspense>
                 )}
@@ -695,7 +691,7 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
                                 }}
                               >
                                 <span className="text-base leading-none">
-                                  {typeIcons[entry.type]?.i ?? "📝"}
+                                  {typeIcons[entry.type] ?? "📝"}
                                 </span>
                                 <span className="flex-1 truncate text-sm font-medium" style={{ color: "var(--color-on-surface)" }}>
                                   {entry.title}

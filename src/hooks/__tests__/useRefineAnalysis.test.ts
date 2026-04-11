@@ -31,7 +31,7 @@ describe("sortBySuggestionPriority", () => {
       { type: "TAG_SUGGESTED", entryId: "a", field: "tags", suggestedValue: "x", reason: "" },
       { type: "TAG_SUGGESTED", entryId: "b", field: "tags", suggestedValue: "y", reason: "" },
     ];
-    const sorted = sortBySuggestionPriority(suggestions as any);
+    const sorted = sortBySuggestionPriority(suggestions as any) as any[];
     expect(sorted[0].entryId).toBe("a");
     expect(sorted[1].entryId).toBe("b");
   });
