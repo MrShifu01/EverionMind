@@ -139,6 +139,86 @@ interface EnrichmentResult {
 - User can bulk-refresh via the existing bulk-accept flow.
 - Useful for restaurants that have changed hours, companies that moved, etc.
 
+### v0.6 — Discovery queries (RAG + web search fusion)
+
+**The one legitimate chat-time use of web search.** Not silent auto-enrichment during capture — a deliberate recommendation mode triggered by the user asking the chat for something new.
+
+**The pattern**
+
+User in Ask Brain:
+
+> "What series would I enjoy?"
+> "What's a good book to read next based on what I've liked?"
+> "Recommend me a restaurant to try this weekend."
+> "What kind of holiday destination would suit me?"
+
+These are **discovery queries** — the answer isn't in the user's brain (by definition, they're asking about things they haven't captured yet). Pure RAG returns nothing useful. This is where web search earns its place.
+
+**Why it's OK here when silent capture enrichment was rejected**
+
+1. **User explicitly asked.** The whole query is a request to go look things up. There's no surprise cost, no silent privacy leak — the user pressed send on "search the web for me".
+2. **Results go to chat, not saved to brain.** No pollution of the brain's source-of-truth data. If the recommendation is wrong, nothing has to be un-done.
+3. **Low stakes.** A wrong recommendation is "meh, try another", not "my address book got corrupted".
+4. **Bounded cost.** One user query = one grounded call. No multiplication per capture.
+5. **RAG provides the taste, web provides the catalog.** This is the pattern structured APIs can't replicate alone.
+
+**Flow**
+
+1. **Intent classification.** Cheap LLM call decides: is this a `retrieval` query (answer should come from brain only) or a `discovery` query (answer needs external catalog)? If unsure, default to retrieval and offer a "Search the web for options?" button — user consent, not silent escalation.
+2. **Taste profile extraction from the brain.** For a "what series would I enjoy?" query:
+   - RAG retrieves all entries tagged/typed around series, movies, books, any media the user has captured opinions on.
+   - LLM summarises them into a structured taste profile: `{loved_genres, loved_themes, disliked, favourite_creators, recency_preference, tone: "slow-burn" | "binge" | ..., content_rating}`.
+3. **Candidate generation.** Depends on the domain:
+   - **Series / movies** → TMDB Discover API, filtered by the taste profile's genres + year range, returns 50 candidates.
+   - **Books** → Google Books / OpenLibrary search filtered by genre + rating.
+   - **Restaurants nearby** → Google Places Nearby filtered by cuisine + price tier.
+   - **Travel** → Gemini grounded search (no single good structured API for holiday destinations).
+4. **Ranking.** LLM receives `{taste_profile, candidate_list}` and ranks top 3–5 with a one-line "because you loved X, you'll probably like Y" reason for each.
+5. **Respond in chat.** Show ranked recommendations with:
+   - Title + short blurb (from the catalog source)
+   - The "because you..." reason tied to specific brain entries (clickable, opens the entry)
+   - Source attribution chip (TMDB / Google Books / etc.)
+   - A "Save to brain" action on each recommendation — one tap adds it as a new entry in the right type, pre-filled from the catalog data.
+
+**Example: "What series would I enjoy?"**
+
+- **Retrieve:** entries typed `movie`/`tv`/`book` plus anything tagged with `watched`, `loved`, `rewatched`.
+- **Profile built:** `{loved: ["The Bear", "Severance", "Succession"], themes: ["workplace", "cerebral", "slow-burn", "character-driven"], disliked: ["superhero", "procedurals"], tone: "prestige drama"}`.
+- **TMDB Discover call:** `genre=drama, keywords=workplace|psychological, sort=popularity.desc, min_rating=7.5, year≥2022`, 50 results.
+- **LLM ranks:** returns top 3.
+- **Chat reply:**
+
+  > Based on your love of **The Bear**, **Severance**, and **Succession** — all prestige dramas about high-pressure workplaces with psychologically rich characters — I'd recommend:
+  >
+  > 1. **Industry** (HBO) — brutal, fast-talking young bankers at a London investment firm. Same workplace-as-warzone energy as The Bear. [Save to brain]
+  > 2. **Slow Horses** (Apple TV+) — a failing MI5 unit run by a brilliant slob. Cerebral, slow-burn, character-first — close to Severance tonally. [Save to brain]
+  > 3. **Bad Sisters** (Apple TV+) — darkly funny family drama with the same sibling-rivalry texture as Succession. [Save to brain]
+  >
+  > _Sources: TMDB, grounded on user entries `e_0x42`, `e_0x1c`, `e_0x7e`._
+
+**Scope**
+
+- New intent classifier: `classifyQueryIntent(message, history): "retrieval" | "discovery" | "mixed"`.
+- New handler `api/discover.ts` that runs the flow above.
+- Candidate sources behind the same `src/lib/enrich/*` modules from v0.2 — reuse the router.
+- Chat UI additions: "Save to brain" button on recommendation cards, attribution chips, links back to supporting brain entries.
+
+**Guardrails**
+
+- Discovery mode is **opt-in per query** (user can prompt explicitly) **or** triggered by intent classification with an "OK to search the web?" one-tap confirmation the first few times, then silent once user has confirmed 3× in a session.
+- Never triggers on Vault-only brains or when the active brain is community-type.
+- Respects the same spend cap from v0.3.
+- Gemini grounded fallback only used when no structured catalog matches the domain.
+
+**Why not just do this immediately**
+
+- Needs v0.1 enrichment infrastructure (source modules, cache, router) before v0.6 has anything to call.
+- Needs the intent classifier, which is a new moving part.
+- Needs UI for "Save to brain" from chat, which doesn't exist yet.
+- Ships cleanly after v0.2 once the catalog sources are all wired up.
+
+**Ship position**: after v0.2, before or alongside v0.3. It's the most user-visible payoff of the whole enrichment track and the one that "sells" the feature.
+
 ---
 
 ## Non-goals
@@ -147,7 +227,7 @@ interface EnrichmentResult {
 - **No scraping.** If an API doesn't expose a field, we don't have that field. Period.
 - **No automatic enrichment of Vault entries, ever.** Hard DB-level check.
 - **No enrichment of community-brain entries.** Community entries are curated by humans.
-- **No chat-time enrichment.** RAG chat uses only what's already in the brain. Enrichment is a capture-time / edit-time operation, not a query-time one.
+- **No _silent_ chat-time enrichment.** Regular RAG retrieval questions ("what's the wifi password?", "who is my accountant?") must only read the brain — never call the web mid-query without the user knowing. Explicit **discovery queries** ("what series would I enjoy?") are the one exception and are handled by v0.6 below, always with user consent before any external call.
 
 ---
 
@@ -184,9 +264,10 @@ Tempting pattern: every capture goes through Gemini 2.5 Flash Lite with the `goo
 
 1. **v0.1** — manual ✨ button with Places + Wikipedia + Gemini fallback. One sprint. Ship, measure hit rate and user acceptance rate per source.
 2. **v0.2** — fill in Books, TMDB, and refine the router. Half a sprint.
-3. Measure for a month. If users are tapping ✨ frequently and accepting most fields, move to v0.3.
-4. **v0.3** — suggest mode with opt-in and spend cap. One sprint.
-5. **v0.4** — auto-merge for high-confidence results, but only per-source and only after telemetry shows sub-5% undo rate. Stretch.
-6. **v0.5** — batch re-enrichment via Improve Brain. Opportunistic.
+3. **v0.6** — discovery queries in chat (RAG + web search fusion). Most user-visible payoff. One sprint. Uses the v0.2 router so depends on it, not on v0.3+.
+4. Measure for a month. If users are tapping ✨ frequently and accepting most fields, move to v0.3.
+5. **v0.3** — suggest mode with opt-in and spend cap. One sprint.
+6. **v0.4** — auto-merge for high-confidence results, but only per-source and only after telemetry shows sub-5% undo rate. Stretch.
+7. **v0.5** — batch re-enrichment via Improve Brain. Opportunistic.
 
 Each step is reversible: if v0.3 surfaces accuracy problems, fall back to v0.1 behavior by flipping the settings default. No step bakes in a dependency on the next.
