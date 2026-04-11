@@ -1,7 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { authFetch } from "../lib/authFetch";
 import { CANONICAL_TYPES } from "../types";
-import { getUserProvider, getUserApiKey, getOpenRouterKey, getOpenRouterModel, getUserModel } from "../lib/aiSettings";
+import {
+  getUserProvider,
+  getUserApiKey,
+  getOpenRouterKey,
+  getOpenRouterModel,
+  getUserModel,
+} from "../lib/aiSettings";
 import type { Brain, Entry } from "../types";
 
 interface Props {
@@ -12,7 +18,13 @@ interface Props {
   onCancel: () => void;
 }
 
-export default function BulkActionBar({ selectedIds, entries: _entries, brains, onDone, onCancel }: Props) {
+export default function BulkActionBar({
+  selectedIds,
+  entries: _entries,
+  brains,
+  onDone,
+  onCancel,
+}: Props) {
   const [targetType, setTargetType] = useState("");
   const [targetBrainIds, setTargetBrainIds] = useState<Set<string>>(new Set());
   const [progress, setProgress] = useState<string | null>(null);
@@ -37,16 +49,28 @@ export default function BulkActionBar({ selectedIds, entries: _entries, brains, 
   async function suggestType() {
     setAiTyping(true);
     try {
-      const selected = _entries.filter(e => selectedIds.has(e.id)).slice(0, 5);
-      const sample = selected.map(e => `- ${e.title}: ${(e.content || "").slice(0, 120)}`).join("\n");
+      const selected = _entries.filter((e) => selectedIds.has(e.id)).slice(0, 5);
+      const sample = selected
+        .map((e) => `- ${e.title}: ${(e.content || "").slice(0, 120)}`)
+        .join("\n");
       const provider = getUserProvider();
       const apiKey = provider === "openrouter" ? getOpenRouterKey() : getUserApiKey();
-      const model = provider === "openrouter" ? (getOpenRouterModel() || "") : getUserModel();
-      const endpoint = provider === "openai" ? "/api/openai" : provider === "openrouter" ? "/api/openrouter" : "/api/anthropic";
-      const types = CANONICAL_TYPES.filter(t => t !== "secret");
+      const model = provider === "openrouter" ? getOpenRouterModel() || "" : getUserModel();
+      const endpoint =
+        provider === "openai"
+          ? "/api/openai"
+          : provider === "openrouter"
+            ? "/api/openrouter"
+            : "/api/anthropic";
+      const types = CANONICAL_TYPES.filter((t) => t !== "secret");
       const res = await authFetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-api-key": apiKey || "", "x-provider": provider, "x-model": model },
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-api-key": apiKey || "",
+          "x-provider": provider,
+          "x-model": model,
+        },
         body: JSON.stringify({
           system: `Reply with ONE word only — the best category for these entries. Pick from: ${types.join(", ")}. No explanation.`,
           messages: [{ role: "user", content: `Entries:\n${sample}` }],
@@ -55,12 +79,14 @@ export default function BulkActionBar({ selectedIds, entries: _entries, brains, 
       });
       if (res.ok) {
         const data = await res.json();
-        const full = (data.content?.[0]?.text || data.choices?.[0]?.message?.content || "").trim().toLowerCase();
+        const full = (data.content?.[0]?.text || data.choices?.[0]?.message?.content || "")
+          .trim()
+          .toLowerCase();
         const raw = full.replace(/[^a-z]/g, " ");
         // Find whichever type appears EARLIEST in the response
         const match = types
-          .map(t => ({ t, idx: raw.search(new RegExp(`\\b${t}\\b`)) }))
-          .filter(m => m.idx >= 0)
+          .map((t) => ({ t, idx: raw.search(new RegExp(`\\b${t}\\b`)) }))
+          .filter((m) => m.idx >= 0)
           .sort((a, b) => a.idx - b.idx)[0]?.t;
         if (match) setTargetType(match);
         else console.warn("[bulkSuggestType] no match, got:", full);
@@ -100,7 +126,9 @@ export default function BulkActionBar({ selectedIds, entries: _entries, brains, 
             body: JSON.stringify({ id, type: targetType }),
           });
           if (res.ok) updated.push(await res.json());
-        } catch { /* skip */ }
+        } catch {
+          /* skip */
+        }
       }
 
       for (const brain_id of targetBrainIds) {
@@ -110,7 +138,9 @@ export default function BulkActionBar({ selectedIds, entries: _entries, brains, 
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ entry_id: id, brain_id }),
           });
-        } catch { /* skip */ }
+        } catch {
+          /* skip */
+        }
       }
 
       done++;
@@ -162,7 +192,7 @@ export default function BulkActionBar({ selectedIds, entries: _entries, brains, 
           <div ref={typeRef} className="relative flex flex-1 flex-col gap-1">
             <div className="flex items-center justify-between">
               <label
-                className="text-[10px] font-semibold uppercase tracking-wide"
+                className="text-[10px] font-semibold tracking-wide uppercase"
                 style={{ color: "var(--color-on-surface-variant)" }}
               >
                 Change type
@@ -172,33 +202,48 @@ export default function BulkActionBar({ selectedIds, entries: _entries, brains, 
                 onClick={suggestType}
                 disabled={aiTyping}
                 className="rounded-md px-1.5 py-0.5 text-[9px] font-semibold transition-all disabled:opacity-50"
-                style={{ background: "var(--color-primary-container)", color: "var(--color-primary)" }}
+                style={{
+                  background: "var(--color-primary-container)",
+                  color: "var(--color-primary)",
+                }}
               >
                 {aiTyping ? "…" : "✦ AI"}
               </button>
             </div>
             <button
-              onClick={() => { setTypeOpen((p) => !p); setBrainsOpen(false); }}
+              onClick={() => {
+                setTypeOpen((p) => !p);
+                setBrainsOpen(false);
+              }}
               className="flex w-full items-center justify-between rounded-xl border bg-transparent px-2.5 py-1.5 text-left text-xs outline-none"
-              style={{ borderColor: "var(--color-outline-variant)", color: "var(--color-on-surface)" }}
+              style={{
+                borderColor: "var(--color-outline-variant)",
+                color: "var(--color-on-surface)",
+              }}
             >
               <span className="truncate">
                 {targetType ? targetType.charAt(0).toUpperCase() + targetType.slice(1) : "— keep —"}
               </span>
               <svg
                 className={`h-3 w-3 flex-shrink-0 transition-transform ${typeOpen ? "rotate-180" : ""}`}
-                fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
               >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
             </button>
             {typeOpen && (
               <div
-                className="absolute bottom-full left-0 right-0 z-10 mb-1 overflow-y-auto rounded-xl border shadow-lg"
+                className="absolute right-0 bottom-full left-0 z-10 mb-1 overflow-y-auto rounded-xl border shadow-lg"
                 style={dropdownStyle}
               >
                 <button
-                  onClick={() => { setTargetType(""); setTypeOpen(false); }}
+                  onClick={() => {
+                    setTargetType("");
+                    setTypeOpen(false);
+                  }}
                   className="w-full px-3 py-2 text-left text-xs transition-colors hover:bg-white/10"
                   style={{ color: "var(--color-on-surface-variant)" }}
                 >
@@ -207,7 +252,10 @@ export default function BulkActionBar({ selectedIds, entries: _entries, brains, 
                 {CANONICAL_TYPES.map((t) => (
                   <button
                     key={t}
-                    onClick={() => { setTargetType(t); setTypeOpen(false); }}
+                    onClick={() => {
+                      setTargetType(t);
+                      setTypeOpen(false);
+                    }}
                     className="w-full px-3 py-2 text-left text-xs transition-colors hover:bg-white/10"
                     style={{
                       color: "var(--color-on-surface)",
@@ -224,29 +272,38 @@ export default function BulkActionBar({ selectedIds, entries: _entries, brains, 
           {/* Brain multi-picker */}
           <div ref={brainsRef} className="relative flex flex-1 flex-col gap-1">
             <label
-              className="text-[10px] font-semibold uppercase tracking-wide"
+              className="text-[10px] font-semibold tracking-wide uppercase"
               style={{ color: "var(--color-on-surface-variant)" }}
             >
               Add to brains
             </label>
             <button
-              onClick={() => { setBrainsOpen((p) => !p); setTypeOpen(false); }}
+              onClick={() => {
+                setBrainsOpen((p) => !p);
+                setTypeOpen(false);
+              }}
               className="flex w-full items-center justify-between rounded-xl border bg-transparent px-2.5 py-1.5 text-left text-xs outline-none"
-              style={{ borderColor: "var(--color-outline-variant)", color: "var(--color-on-surface)" }}
+              style={{
+                borderColor: "var(--color-outline-variant)",
+                color: "var(--color-on-surface)",
+              }}
             >
               <span className="truncate">
                 {targetBrainIds.size === 0 ? "— none —" : selectedBrainNames.join(", ")}
               </span>
               <svg
                 className={`h-3 w-3 flex-shrink-0 transition-transform ${brainsOpen ? "rotate-180" : ""}`}
-                fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
               >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
             </button>
             {brainsOpen && (
               <div
-                className="absolute bottom-full left-0 right-0 z-10 mb-1 overflow-y-auto rounded-xl border shadow-lg"
+                className="absolute right-0 bottom-full left-0 z-10 mb-1 overflow-y-auto rounded-xl border shadow-lg"
                 style={dropdownStyle}
               >
                 {brains.map((b) => (
@@ -260,11 +317,19 @@ export default function BulkActionBar({ selectedIds, entries: _entries, brains, 
                       className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded"
                       style={{
                         border: `2px solid ${targetBrainIds.has(b.id) ? "var(--color-primary)" : "var(--color-outline-variant)"}`,
-                        background: targetBrainIds.has(b.id) ? "var(--color-primary)" : "transparent",
+                        background: targetBrainIds.has(b.id)
+                          ? "var(--color-primary)"
+                          : "transparent",
                       }}
                     >
                       {targetBrainIds.has(b.id) && (
-                        <svg className="h-2.5 w-2.5" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2">
+                        <svg
+                          className="h-2.5 w-2.5"
+                          viewBox="0 0 12 12"
+                          fill="none"
+                          stroke="white"
+                          strokeWidth="2"
+                        >
                           <path strokeLinecap="round" strokeLinejoin="round" d="M2 6l3 3 5-5" />
                         </svg>
                       )}

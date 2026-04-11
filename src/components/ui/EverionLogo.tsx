@@ -12,8 +12,8 @@
  */
 
 interface EverionLogoProps {
-  size?: number
-  className?: string
+  size?: number;
+  className?: string;
 }
 
 export function EverionLogo({ size = 24, className }: EverionLogoProps) {
@@ -50,12 +50,7 @@ export function EverionLogo({ size = 24, className }: EverionLogoProps) {
       />
 
       {/* Captured thought — filled center dot */}
-      <circle
-        cx="14"
-        cy="14"
-        r="2.75"
-        fill="var(--color-primary)"
-      />
+      <circle cx="14" cy="14" r="2.75" fill="var(--color-primary)" />
     </svg>
-  )
+  );
 }

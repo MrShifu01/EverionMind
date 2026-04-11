@@ -133,7 +133,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
             onChange={(e) => setName(e.target.value)}
             placeholder="Your name"
             maxLength={60}
-            className="w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors"
+            className="w-full rounded-xl border px-4 py-2.5 text-sm transition-colors outline-none"
             style={{
               background: "var(--color-surface-container-low)",
               borderColor: "var(--color-outline-variant)",
@@ -199,15 +199,19 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
         {/* Vault teaser */}
         <div
           className="mb-5 flex items-start gap-3 rounded-xl border px-4 py-3"
-          style={{ borderColor: "var(--color-outline-variant)", background: "var(--color-surface-container-low)" }}
+          style={{
+            borderColor: "var(--color-outline-variant)",
+            background: "var(--color-surface-container-low)",
+          }}
         >
-          <span className="text-xl shrink-0">🔐</span>
+          <span className="shrink-0 text-xl">🔐</span>
           <div>
             <p className="text-sm font-medium" style={{ color: "var(--color-on-surface)" }}>
               Your Vault — for sensitive data
             </p>
             <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-              Passwords, PINs, keys and card details go here. Everything is end-to-end encrypted — AI never reads vault contents. Set up your vault from the Vault tab anytime.
+              Passwords, PINs, keys and card details go here. Everything is end-to-end encrypted —
+              AI never reads vault contents. Set up your vault from the Vault tab anytime.
             </p>
           </div>
         </div>

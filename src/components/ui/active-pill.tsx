@@ -1,13 +1,13 @@
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 /**
  * Active filter pill — shows an applied filter with a × clear button.
  * Lives in the filter bar to give users a quick-remove affordance.
  */
 interface ActivePillProps {
-  label: string
-  onClear: () => void
-  className?: string
+  label: string;
+  onClear: () => void;
+  className?: string;
 }
 
 function ActivePill({ label, onClear, className }: ActivePillProps) {
@@ -29,7 +29,7 @@ function ActivePill({ label, onClear, className }: ActivePillProps) {
         ×
       </button>
     </span>
-  )
+  );
 }
 
-export { ActivePill }
+export { ActivePill };

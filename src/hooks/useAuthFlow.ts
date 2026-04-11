@@ -18,7 +18,9 @@ function redirectUrl(): string {
     if (invite && /^[0-9a-f]{64}$/i.test(invite)) {
       return `${base.replace(/\/$/, "")}/?invite=${invite}`;
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return base;
 }
 
@@ -168,15 +170,18 @@ export function useAuthFlow() {
 
   return {
     // state
-    email, setEmail,
+    email,
+    setEmail,
     sent,
     loading,
     error,
     showForm,
-    otpCode, setOtpCode,
+    otpCode,
+    setOtpCode,
     verifying,
     usePassword,
-    password, setPassword,
+    password,
+    setPassword,
     isSigningUp,
     signupSuccess,
     // derived

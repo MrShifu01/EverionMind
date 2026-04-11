@@ -18,7 +18,13 @@ describe("sortBySuggestionPriority", () => {
     const suggestions = [
       { type: "TAG_SUGGESTED", entryId: "a", field: "tags", suggestedValue: "", reason: "" },
       { type: "SENSITIVE_DATA", entryId: "b", field: "type", suggestedValue: "secret", reason: "" },
-      { type: "STALE_REMINDER", entryId: "c", field: "metadata.due_date", suggestedValue: "", reason: "" },
+      {
+        type: "STALE_REMINDER",
+        entryId: "c",
+        field: "metadata.due_date",
+        suggestedValue: "",
+        reason: "",
+      },
     ];
     const sorted = sortBySuggestionPriority(suggestions as any);
     expect(sorted[0].type).toBe("SENSITIVE_DATA");
@@ -38,11 +44,24 @@ describe("sortBySuggestionPriority", () => {
 
   it("PRIORITY_WEIGHTS has entries for all known types", () => {
     const known = [
-      "SENSITIVE_DATA", "MERGE_SUGGESTED", "STALE_REMINDER", "DEAD_URL",
-      "DUPLICATE_ENTRY", "TYPE_MISMATCH", "PHONE_FOUND", "EMAIL_FOUND",
-      "DATE_FOUND", "LINK_SUGGESTED", "CLUSTER_SUGGESTED", "CONTENT_WEAK",
-      "TAG_SUGGESTED", "TITLE_POOR", "ORPHAN_DETECTED", "SPLIT_SUGGESTED",
-      "URL_FOUND", "WEAK_LABEL",
+      "SENSITIVE_DATA",
+      "MERGE_SUGGESTED",
+      "STALE_REMINDER",
+      "DEAD_URL",
+      "DUPLICATE_ENTRY",
+      "TYPE_MISMATCH",
+      "PHONE_FOUND",
+      "EMAIL_FOUND",
+      "DATE_FOUND",
+      "LINK_SUGGESTED",
+      "CLUSTER_SUGGESTED",
+      "CONTENT_WEAK",
+      "TAG_SUGGESTED",
+      "TITLE_POOR",
+      "ORPHAN_DETECTED",
+      "SPLIT_SUGGESTED",
+      "URL_FOUND",
+      "WEAK_LABEL",
     ];
     known.forEach((t) => expect(PRIORITY_WEIGHTS).toHaveProperty(t));
   });
@@ -81,7 +100,14 @@ describe("detectOrphans", () => {
 
 describe("detectStaleReminders", () => {
   it("flags entry whose due_date is in the past", () => {
-    const entry = { id: "r1", title: "Pay invoice", type: "reminder", metadata: { due_date: "2020-01-01" }, tags: [], content: "" };
+    const entry = {
+      id: "r1",
+      title: "Pay invoice",
+      type: "reminder",
+      metadata: { due_date: "2020-01-01" },
+      tags: [],
+      content: "",
+    };
     const result = detectStaleReminders([entry as any]);
     expect(result).toHaveLength(1);
     expect(result[0].type).toBe("STALE_REMINDER");
@@ -89,7 +115,14 @@ describe("detectStaleReminders", () => {
   });
 
   it("does not flag entry with future due_date", () => {
-    const entry = { id: "r2", title: "Future", type: "reminder", metadata: { due_date: "2099-12-31" }, tags: [], content: "" };
+    const entry = {
+      id: "r2",
+      title: "Future",
+      type: "reminder",
+      metadata: { due_date: "2099-12-31" },
+      tags: [],
+      content: "",
+    };
     expect(detectStaleReminders([entry as any])).toHaveLength(0);
   });
 
@@ -99,7 +132,15 @@ describe("detectStaleReminders", () => {
   });
 
   it("does not flag encrypted entries", () => {
-    const entry = { id: "r4", title: "Secret", type: "reminder", metadata: { due_date: "2020-01-01" }, encrypted: true, tags: [], content: "" };
+    const entry = {
+      id: "r4",
+      title: "Secret",
+      type: "reminder",
+      metadata: { due_date: "2020-01-01" },
+      encrypted: true,
+      tags: [],
+      content: "",
+    };
     expect(detectStaleReminders([entry as any])).toHaveLength(0);
   });
 });
@@ -195,7 +236,15 @@ describe("findNameCandidates", () => {
 
   it("does not pair encrypted entries", () => {
     const entries = [
-      { id: "a", title: "John Smith", type: "person", encrypted: true, content: "", tags: [], metadata: {} },
+      {
+        id: "a",
+        title: "John Smith",
+        type: "person",
+        encrypted: true,
+        content: "",
+        tags: [],
+        metadata: {},
+      },
       { id: "b", title: "J. Smith", type: "person", content: "", tags: [], metadata: {} },
     ];
     expect(findNameCandidates(entries as any)).toHaveLength(0);

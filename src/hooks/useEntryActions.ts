@@ -165,10 +165,13 @@ export function useEntryActions({
     setLastAction(null);
   }, [lastAction, setEntries, setSelected]);
 
-  const handleCreated = useCallback((newEntry: Entry) => {
-    setEntries((prev) => [newEntry, ...prev]);
-    setLastAction({ type: "create", id: newEntry.id });
-  }, [setEntries]);
+  const handleCreated = useCallback(
+    (newEntry: Entry) => {
+      setEntries((prev) => [newEntry, ...prev]);
+      setLastAction({ type: "create", id: newEntry.id });
+    },
+    [setEntries],
+  );
 
   return {
     lastAction,

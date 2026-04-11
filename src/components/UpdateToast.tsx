@@ -69,8 +69,19 @@ export default function UpdateToast() {
             background: "color-mix(in oklch, var(--color-primary) 10%, transparent)",
           }}
         >
-          <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" style={{ color: "var(--color-primary)" }}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12a7.5 7.5 0 0013.386 4.664M19.5 12a7.5 7.5 0 00-13.386-4.664M19.5 4.5v4.5h-4.5M4.5 19.5v-4.5h4.5" />
+          <svg
+            className="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            viewBox="0 0 24 24"
+            style={{ color: "var(--color-primary)" }}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M4.5 12a7.5 7.5 0 0013.386 4.664M19.5 12a7.5 7.5 0 00-13.386-4.664M19.5 4.5v4.5h-4.5M4.5 19.5v-4.5h4.5"
+            />
           </svg>
         </div>
         <div className="flex-1">

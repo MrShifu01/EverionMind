@@ -16,7 +16,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 function Spinner() {
   return (
-    <svg className="h-4 w-4 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+    <svg className="h-4 w-4 shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
     </svg>
@@ -25,7 +25,13 @@ function Spinner() {
 
 function CheckIcon() {
   return (
-    <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+    <svg
+      className="h-4 w-4 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      viewBox="0 0 24 24"
+    >
       <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
     </svg>
   );
@@ -33,8 +39,18 @@ function CheckIcon() {
 
 function ErrorIcon() {
   return (
-    <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+    <svg
+      className="h-4 w-4 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+      />
     </svg>
   );
 }
@@ -63,8 +79,8 @@ export function BackgroundTaskToast({ tasks, onDismiss, onDismissAll }: Props) {
               borderColor: isError
                 ? "var(--color-error)"
                 : isDone
-                ? "var(--color-primary)"
-                : "var(--color-outline-variant)",
+                  ? "var(--color-primary)"
+                  : "var(--color-outline-variant)",
             }}
           >
             {/* Icon */}
@@ -73,8 +89,8 @@ export function BackgroundTaskToast({ tasks, onDismiss, onDismissAll }: Props) {
                 color: isError
                   ? "var(--color-error)"
                   : isDone
-                  ? "var(--color-primary)"
-                  : "var(--color-on-surface-variant)",
+                    ? "var(--color-primary)"
+                    : "var(--color-on-surface-variant)",
               }}
               className="mt-0.5"
             >
@@ -93,9 +109,19 @@ export function BackgroundTaskToast({ tasks, onDismiss, onDismissAll }: Props) {
               </p>
               <p
                 className="text-xs break-all"
-                style={{ color: isError ? "var(--color-error)" : task.warning ? "var(--color-error)" : "var(--color-on-surface-variant)" }}
+                style={{
+                  color: isError
+                    ? "var(--color-error)"
+                    : task.warning
+                      ? "var(--color-error)"
+                      : "var(--color-on-surface-variant)",
+                }}
               >
-                {isError ? (task.error || "Error") : task.warning ? `AI failed: ${task.warning}` : STATUS_LABEL[task.status]}
+                {isError
+                  ? task.error || "Error"
+                  : task.warning
+                    ? `AI failed: ${task.warning}`
+                    : STATUS_LABEL[task.status]}
               </p>
             </div>
 
@@ -107,7 +133,13 @@ export function BackgroundTaskToast({ tasks, onDismiss, onDismissAll }: Props) {
                 className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/10"
                 style={{ color: "var(--color-on-surface-variant)" }}
               >
-                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <svg
+                  className="h-3.5 w-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  viewBox="0 0 24 24"
+                >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>

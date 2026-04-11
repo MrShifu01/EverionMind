@@ -5,7 +5,13 @@ import { resolveIcon } from "../lib/typeIcons";
 import { extractPhone, toWaUrl } from "../lib/phone";
 import { useEntryEdit } from "../hooks/useEntryEdit";
 import { authFetch } from "../lib/authFetch";
-import { getUserProvider, getUserApiKey, getOpenRouterKey, getOpenRouterModel, getUserModel } from "../lib/aiSettings";
+import {
+  getUserProvider,
+  getUserApiKey,
+  getOpenRouterKey,
+  getOpenRouterModel,
+  getUserModel,
+} from "../lib/aiSettings";
 import { CANONICAL_TYPES } from "../types";
 import type { Entry, Brain, EntryType } from "../types";
 
@@ -85,35 +91,58 @@ export default function DetailModal({
     try {
       const provider = getUserProvider();
       const apiKey = provider === "openrouter" ? getOpenRouterKey() : getUserApiKey();
-      const model = provider === "openrouter" ? (getOpenRouterModel() || "") : getUserModel();
-      const endpoint = provider === "openai" ? "/api/openai" : provider === "openrouter" ? "/api/openrouter" : "/api/anthropic";
-      const types = CANONICAL_TYPES.filter(t => t !== "secret");
+      const model = provider === "openrouter" ? getOpenRouterModel() || "" : getUserModel();
+      const endpoint =
+        provider === "openai"
+          ? "/api/openai"
+          : provider === "openrouter"
+            ? "/api/openrouter"
+            : "/api/anthropic";
+      const types = CANONICAL_TYPES.filter((t) => t !== "secret");
       // Put 'person' near the end so model doesn't default to first-in-list
-      const orderedTypes = [...types.filter(t => t !== "person"), "person"];
+      const orderedTypes = [...types.filter((t) => t !== "person"), "person"];
       const res = await authFetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-api-key": apiKey || "", "x-provider": provider, "x-model": model },
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-api-key": apiKey || "",
+          "x-provider": provider,
+          "x-model": model,
+        },
         body: JSON.stringify({
           system: `Reply with ONE word only — the single best category for this entry. Pick from: ${orderedTypes.join(", ")}. No explanation, no punctuation, just one word.`,
-          messages: [{ role: "user", content: `Title: ${editTitle}\nContent: ${(editContent || "").slice(0, 300)}` }],
+          messages: [
+            {
+              role: "user",
+              content: `Title: ${editTitle}\nContent: ${(editContent || "").slice(0, 300)}`,
+            },
+          ],
           max_tokens: 20,
         }),
       });
       if (res.ok) {
         const data = await res.json();
         const usedModel: string = data.model || "unknown model";
-        const full = (data.content?.[0]?.text || data.choices?.[0]?.message?.content || "").trim().toLowerCase();
+        const full = (data.content?.[0]?.text || data.choices?.[0]?.message?.content || "")
+          .trim()
+          .toLowerCase();
         const raw = full.replace(/[^a-z]/g, " ");
         // Find whichever type appears EARLIEST in the response (not first in list order)
         const match = types
-          .map(t => ({ t, idx: raw.search(new RegExp(`\\b${t}\\b`)) }))
-          .filter(m => m.idx >= 0)
+          .map((t) => ({ t, idx: raw.search(new RegExp(`\\b${t}\\b`)) }))
+          .filter((m) => m.idx >= 0)
           .sort((a, b) => a.idx - b.idx)[0]?.t;
         if (match) {
           setEditType(match);
-          setAiMsg({ text: `✓ ${match} · model: ${usedModel} · raw: "${full.slice(0, 60)}"`, ok: true });
+          setAiMsg({
+            text: `✓ ${match} · model: ${usedModel} · raw: "${full.slice(0, 60)}"`,
+            ok: true,
+          });
         } else {
-          setAiMsg({ text: `No match · model: ${usedModel} · raw: "${full.slice(0, 80)}"`, ok: false });
+          setAiMsg({
+            text: `No match · model: ${usedModel} · raw: "${full.slice(0, 80)}"`,
+            ok: false,
+          });
         }
       } else {
         const errData = await res.json().catch(() => ({}));
@@ -130,7 +159,8 @@ export default function DetailModal({
     saving,
     editExtraBrainIds,
     extraBrainsLoaded,
-    shareMsg, setShareMsg,
+    shareMsg,
+    setShareMsg,
     editBrainId,
     handleSave,
     handleShare,
@@ -341,8 +371,18 @@ export default function DetailModal({
         }}
         onClick={() => onReorder({ ...entry, _renewalMode: true })}
       >
-        <svg className="inline h-3.5 w-3.5 align-middle" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+        <svg
+          className="inline h-3.5 w-3.5 align-middle"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.75"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"
+          />
         </svg>{" "}
         Set renewal reminder
       </button>,
@@ -556,14 +596,22 @@ export default function DetailModal({
                   </label>
                   <div className="flex items-center gap-1.5">
                     {aiMsg && (
-                      <span className="text-[9px] break-all" style={{ color: aiMsg.ok ? "var(--color-primary)" : "var(--color-error)" }}>{aiMsg.text}</span>
+                      <span
+                        className="text-[9px] break-all"
+                        style={{ color: aiMsg.ok ? "var(--color-primary)" : "var(--color-error)" }}
+                      >
+                        {aiMsg.text}
+                      </span>
                     )}
                     <button
                       type="button"
                       onClick={suggestType}
                       disabled={aiTyping}
                       className="rounded-lg px-2 py-0.5 text-[10px] font-semibold transition-all disabled:opacity-50"
-                      style={{ background: "var(--color-primary-container)", color: "var(--color-primary)" }}
+                      style={{
+                        background: "var(--color-primary-container)",
+                        color: "var(--color-primary)",
+                      }}
                     >
                       {aiTyping ? "Thinking…" : "✦ AI pick"}
                     </button>
@@ -571,7 +619,7 @@ export default function DetailModal({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setTypeOpen(p => !p)}
+                  onClick={() => setTypeOpen((p) => !p)}
                   className="flex min-h-[44px] w-full items-center justify-between rounded-xl px-4 py-3 text-sm transition-all"
                   style={{
                     background: "var(--color-surface-container)",
@@ -580,20 +628,33 @@ export default function DetailModal({
                   }}
                 >
                   <span>{editType.charAt(0).toUpperCase() + editType.slice(1)}</span>
-                  <svg className={`h-4 w-4 flex-shrink-0 transition-transform ${typeOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <svg
+                    className={`h-4 w-4 flex-shrink-0 transition-transform ${typeOpen ? "rotate-180" : ""}`}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                  >
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>
                 {typeOpen && (
                   <div
-                    className="absolute top-full left-0 right-0 z-20 mt-1 overflow-y-auto rounded-xl border shadow-lg"
-                    style={{ background: "var(--color-surface-container-high)", borderColor: "var(--color-outline-variant)", maxHeight: "200px" }}
+                    className="absolute top-full right-0 left-0 z-20 mt-1 overflow-y-auto rounded-xl border shadow-lg"
+                    style={{
+                      background: "var(--color-surface-container-high)",
+                      borderColor: "var(--color-outline-variant)",
+                      maxHeight: "200px",
+                    }}
                   >
-                    {CANONICAL_TYPES.map(t => (
+                    {CANONICAL_TYPES.map((t) => (
                       <button
                         key={t}
                         type="button"
-                        onClick={() => { setEditType(t); setTypeOpen(false); }}
+                        onClick={() => {
+                          setEditType(t);
+                          setTypeOpen(false);
+                        }}
                         className="w-full px-4 py-2.5 text-left text-sm transition-colors hover:bg-white/10"
                         style={{
                           color: "var(--color-on-surface)",
@@ -743,7 +804,11 @@ export default function DetailModal({
                         : "var(--color-on-primary)",
                     fontFamily: "'DM Sans', system-ui, sans-serif",
                   }}
-                  onClick={() => handleSave({ editTitle, editContent, editType, editTags }).then(() => setEditing(false))}
+                  onClick={() =>
+                    handleSave({ editTitle, editContent, editType, editTags }).then(() =>
+                      setEditing(false),
+                    )
+                  }
                   disabled={saving || !editTitle.trim()}
                 >
                   {saving ? "Saving..." : "Save changes"}

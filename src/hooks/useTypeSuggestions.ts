@@ -22,7 +22,10 @@ export function useTypeSuggestions() {
       if (res.ok) {
         const data = await res.json();
         const raw: string = data.content?.[0]?.text || data.choices?.[0]?.message?.content || "";
-        const winner = raw.trim().toLowerCase().replace(/[^a-z]/g, "");
+        const winner = raw
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z]/g, "");
         if (winner && winner !== "secret" && winner.length > 0) {
           setSuggestions([winner]);
         }

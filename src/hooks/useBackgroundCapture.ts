@@ -26,9 +26,18 @@ function extractJSON(text: string): string {
   return m ? m[1] : cleaned;
 }
 
-type ParsedEntry = { title: string; content?: string; type?: string; tags?: string[]; metadata?: Record<string, unknown> };
+type ParsedEntry = {
+  title: string;
+  content?: string;
+  type?: string;
+  tags?: string[];
+  metadata?: Record<string, unknown>;
+};
 
-function parseAIEntries(aiText: string, baseName: string): { entries: ParsedEntry[]; parseError: string } {
+function parseAIEntries(
+  aiText: string,
+  baseName: string,
+): { entries: ParsedEntry[]; parseError: string } {
   let parseError = "";
   try {
     const jsonStr = extractJSON(aiText);
@@ -97,7 +106,10 @@ export function useBackgroundCapture() {
           try {
             rawText = await extractTextFromFile(file);
           } catch (e: any) {
-            updateTask(taskId, { status: "error", error: `Extract failed: ${e?.message || String(e)}` });
+            updateTask(taskId, {
+              status: "error",
+              error: `Extract failed: ${e?.message || String(e)}`,
+            });
             continue;
           }
           if (!rawText.trim()) {
@@ -105,9 +117,10 @@ export function useBackgroundCapture() {
             continue;
           }
 
-          const truncated = rawText.length > FILE_CONTENT_LIMIT
-            ? rawText.slice(0, FILE_CONTENT_LIMIT) + "\n…[truncated]"
-            : rawText;
+          const truncated =
+            rawText.length > FILE_CONTENT_LIMIT
+              ? rawText.slice(0, FILE_CONTENT_LIMIT) + "\n…[truncated]"
+              : rawText;
           const input = `[File: ${file.name}]\n${truncated}`;
 
           // Step 2: AI classify — always try, fall back gracefully on failure
@@ -127,7 +140,8 @@ export function useBackgroundCapture() {
             if (!aiRes.ok) {
               classifyWarning = aiData?.error?.message || `AI error ${aiRes.status}`;
             } else {
-              const aiText: string = aiData.content?.[0]?.text || aiData.choices?.[0]?.message?.content || "";
+              const aiText: string =
+                aiData.content?.[0]?.text || aiData.choices?.[0]?.message?.content || "";
               if (!aiText) {
                 classifyWarning = "AI returned empty response";
               } else {

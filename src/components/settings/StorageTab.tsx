@@ -67,7 +67,9 @@ function UsagePanel() {
         const arr = JSON.parse(cached);
         if (Array.isArray(arr)) setEntryCount(arr.length);
       }
-    } catch (err) { console.error("[StorageTab]", err); }
+    } catch (err) {
+      console.error("[StorageTab]", err);
+    }
   }, []);
 
   // Supabase size estimate: ~3 KB embedding + ~2 KB content per entry

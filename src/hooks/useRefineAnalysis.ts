@@ -173,8 +173,14 @@ export function getChangedEntries(entries: Entry[], lastScannedAt: string | null
 }
 
 const WEAK_LABELS = new Set([
-  "relates to", "related", "related to", "similar",
-  "connected", "linked", "link", "connection",
+  "relates to",
+  "related",
+  "related to",
+  "similar",
+  "connected",
+  "linked",
+  "link",
+  "connection",
 ]);
 
 export function findWeakLinks(links: RefineLink[]): RefineLink[] {
@@ -182,7 +188,10 @@ export function findWeakLinks(links: RefineLink[]): RefineLink[] {
 }
 
 export function normalizeName(title: string): string {
-  return title.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .trim();
 }
 
 export function findNameCandidates(entries: Entry[]): [Entry, Entry][] {
@@ -306,19 +315,25 @@ export function useRefineAnalysis({
     try {
       const raw = sessionStorage.getItem(suggestionsKey(activeBrain?.id ?? "default"));
       return raw ? JSON.parse(raw) : null;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   });
   const [dismissed, setDismissed] = useState<Set<string>>(() => {
     try {
       const raw = sessionStorage.getItem(dismissedKey(activeBrain?.id ?? "default"));
       return raw ? new Set(JSON.parse(raw)) : new Set();
-    } catch { return new Set(); }
+    } catch {
+      return new Set();
+    }
   });
   const [accepted, setAccepted] = useState<Set<string>>(() => {
     try {
       const raw = sessionStorage.getItem(acceptedKey(activeBrain?.id ?? "default"));
       return raw ? new Set(JSON.parse(raw)) : new Set();
-    } catch { return new Set(); }
+    } catch {
+      return new Set();
+    }
   });
   const [applying, setApplying] = useState<Set<string>>(new Set());
   const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -327,15 +342,27 @@ export function useRefineAnalysis({
   // Persist suggestions and dismissed across page refreshes
   useEffect(() => {
     if (suggestions === null) return;
-    try { sessionStorage.setItem(suggestionsKey(brainId), JSON.stringify(suggestions)); } catch { /* quota */ }
+    try {
+      sessionStorage.setItem(suggestionsKey(brainId), JSON.stringify(suggestions));
+    } catch {
+      /* quota */
+    }
   }, [suggestions, brainId]);
 
   useEffect(() => {
-    try { sessionStorage.setItem(dismissedKey(brainId), JSON.stringify([...dismissed])); } catch { /* quota */ }
+    try {
+      sessionStorage.setItem(dismissedKey(brainId), JSON.stringify([...dismissed]));
+    } catch {
+      /* quota */
+    }
   }, [dismissed, brainId]);
 
   useEffect(() => {
-    try { sessionStorage.setItem(acceptedKey(brainId), JSON.stringify([...accepted])); } catch { /* quota */ }
+    try {
+      sessionStorage.setItem(acceptedKey(brainId), JSON.stringify([...accepted]));
+    } catch {
+      /* quota */
+    }
   }, [accepted, brainId]);
 
   const analyze = useCallback(async () => {
@@ -345,10 +372,18 @@ export function useRefineAnalysis({
     setDismissed(new Set());
     setAccepted(new Set());
     setEditingKey(null);
-    try { sessionStorage.removeItem(suggestionsKey(brainId)); sessionStorage.removeItem(dismissedKey(brainId)); sessionStorage.removeItem(acceptedKey(brainId)); } catch { /* ignore */ }
+    try {
+      sessionStorage.removeItem(suggestionsKey(brainId));
+      sessionStorage.removeItem(dismissedKey(brainId));
+      sessionStorage.removeItem(acceptedKey(brainId));
+    } catch {
+      /* ignore */
+    }
 
     // Score any unscored entries client-side and persist via API
-    const unscored = entries.filter((e) => !e.encrypted && typeof (e.metadata as any)?.completeness_score !== "number");
+    const unscored = entries.filter(
+      (e) => !e.encrypted && typeof (e.metadata as any)?.completeness_score !== "number",
+    );
     for (const e of unscored) {
       const score = computeCompletenessScore(e);
       const newMeta = { ...(e.metadata || {}), completeness_score: score };
@@ -363,7 +398,11 @@ export function useRefineAnalysis({
     // Sort entries by completeness score (lowest first) — pick 3 weakest for AI
     const scoredEntries = entries
       .filter((e) => !e.encrypted)
-      .sort((a, b) => ((a.metadata as any)?.completeness_score ?? 0) - ((b.metadata as any)?.completeness_score ?? 0));
+      .sort(
+        (a, b) =>
+          ((a.metadata as any)?.completeness_score ?? 0) -
+          ((b.metadata as any)?.completeness_score ?? 0),
+      );
     const weakest3 = scoredEntries.slice(0, 3);
 
     const existingLinkKeys = new Set((links || []).map((l: RefineLink) => `${l.from}-${l.to}`));
@@ -387,14 +426,19 @@ export function useRefineAnalysis({
           : "personal knowledge base";
 
     const weakSlim = weakest3.map((e: Entry) => ({
-      id: e.id, title: e.title, type: e.type,
+      id: e.id,
+      title: e.title,
+      type: e.type,
       content: (e.content || "").slice(0, 400),
-      metadata: e.metadata || {}, tags: e.tags || [],
+      metadata: e.metadata || {},
+      tags: e.tags || [],
     }));
     const allSlim = entries
       .filter((e) => !e.encrypted)
       .slice(0, 40)
-      .map((e: Entry) => `- [${e.type}] ${e.title} (id:${e.id}): ${(e.content || "").slice(0, 100)}`);
+      .map(
+        (e: Entry) => `- [${e.type}] ${e.title} (id:${e.id}): ${(e.content || "").slice(0, 100)}`,
+      );
 
     const userMessage = `WEAKEST ENTRIES TO AUDIT:\n${JSON.stringify(weakSlim)}\n\nALL ENTRIES (${entries.length} total, for link/gap analysis):\n${allSlim.join("\n")}\n\nEXISTING LINKS (do NOT re-suggest):\n${JSON.stringify([...existingLinkKeys])}`;
 
@@ -413,10 +457,12 @@ export function useRefineAnalysis({
         if (p.entries && Array.isArray(p.entries)) entrySuggestions.push(...p.entries);
         if (p.links && Array.isArray(p.links)) {
           linkSuggestions = p.links
-            .filter((l: any) =>
-              l.fromId && l.toId &&
-              !existingLinkKeys.has(`${l.fromId}-${l.toId}`) &&
-              !existingLinkKeys.has(`${l.toId}-${l.fromId}`),
+            .filter(
+              (l: any) =>
+                l.fromId &&
+                l.toId &&
+                !existingLinkKeys.has(`${l.fromId}-${l.toId}`) &&
+                !existingLinkKeys.has(`${l.toId}-${l.fromId}`),
             )
             .map((l: any) => ({ ...l, type: "LINK_SUGGESTED" as const }));
         }
@@ -431,13 +477,20 @@ export function useRefineAnalysis({
             reason: g.q,
           }));
         }
-      } catch (err) { console.error("[Improve Brain] JSON parse failed:", err, "raw:", raw); }
-    } catch (err) { console.error("[Improve Brain] AI call failed (429?):", err); }
+      } catch (err) {
+        console.error("[Improve Brain] JSON parse failed:", err, "raw:", raw);
+      }
+    } catch (err) {
+      console.error("[Improve Brain] AI call failed (429?):", err);
+    }
 
     // Cap at 3 improvement suggestions + 3 gap suggestions (6 total max)
     const improvementPool = [
-      ...entrySuggestions, ...linkSuggestions,
-      ...orphanSuggestions, ...staleSuggestions, ...deadUrlSuggestions,
+      ...entrySuggestions,
+      ...linkSuggestions,
+      ...orphanSuggestions,
+      ...staleSuggestions,
+      ...deadUrlSuggestions,
     ];
     const cappedImprovements = sortBySuggestionPriority(improvementPool).slice(0, 3);
     const cappedGaps = gapSuggestions.slice(0, 3);
@@ -456,15 +509,23 @@ export function useRefineAnalysis({
 
       if (activeBrain?.id) {
         recordDecision(activeBrain.id, {
-          source: "refine", type: s.type,
+          source: "refine",
+          type: s.type,
           action: override ? "edit" : "accept",
-          field: s.field, originalValue: s.suggestedValue, finalValue: value, reason: s.reason,
+          field: s.field,
+          originalValue: s.suggestedValue,
+          finalValue: value,
+          reason: s.reason,
         });
       }
 
       const entry = entries.find((e: Entry) => e.id === s.entryId);
       if (!entry) {
-        setApplying((p) => { const n = new Set(p); n.delete(key); return n; });
+        setApplying((p) => {
+          const n = new Set(p);
+          n.delete(key);
+          return n;
+        });
         return;
       }
 
@@ -476,13 +537,23 @@ export function useRefineAnalysis({
             max_tokens: 200,
             system: `You are a knowledge base organizer. Given an entry, suggest 2-4 short, useful tags that would help categorize and find it later. Return ONLY a valid JSON array of tag strings, e.g. ["health","supplements"]. No markdown, no explanation.`,
             brainId: activeBrain?.id,
-            messages: [{ role: "user", content: `Entry title: ${entry.title}\nEntry content: ${entry.content || "(empty)"}\nEntry type: ${entry.type}` }],
+            messages: [
+              {
+                role: "user",
+                content: `Entry title: ${entry.title}\nEntry content: ${entry.content || "(empty)"}\nEntry type: ${entry.type}`,
+              },
+            ],
           });
           const data = await res.json();
           const raw = extractJSON(data.content?.[0]?.text || "[]");
           const tags = JSON.parse(raw);
           if (Array.isArray(tags) && tags.length > 0) {
-            const mergedTags = [...new Set([...(entry.tags || []), ...tags.map((t: string) => t.toLowerCase().trim())])];
+            const mergedTags = [
+              ...new Set([
+                ...(entry.tags || []),
+                ...tags.map((t: string) => t.toLowerCase().trim()),
+              ]),
+            ];
             await authFetch("/api/update-entry", {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
@@ -492,10 +563,16 @@ export function useRefineAnalysis({
               prev.map((e) => (e.id === entry.id ? { ...e, tags: mergedTags } : e)),
             );
           }
-        } catch (err) { console.error("[useRefineAnalysis] orphan tag gen", err); }
+        } catch (err) {
+          console.error("[useRefineAnalysis] orphan tag gen", err);
+        }
         setAccepted((p) => new Set(p).add(key));
         setDismissed((p) => new Set(p).add(key));
-        setApplying((p) => { const n = new Set(p); n.delete(key); return n; });
+        setApplying((p) => {
+          const n = new Set(p);
+          n.delete(key);
+          return n;
+        });
         setEditingKey(null);
         return;
       }
@@ -514,10 +591,16 @@ export function useRefineAnalysis({
               brain_id: activeBrain?.id,
             }),
           });
-        } catch (err) { console.error("[useRefineAnalysis]", err); }
+        } catch (err) {
+          console.error("[useRefineAnalysis]", err);
+        }
         setAccepted((p) => new Set(p).add(key));
         setDismissed((p) => new Set(p).add(key));
-        setApplying((p) => { const n = new Set(p); n.delete(key); return n; });
+        setApplying((p) => {
+          const n = new Set(p);
+          n.delete(key);
+          return n;
+        });
         setEditingKey(null);
         return;
       }
@@ -529,13 +612,17 @@ export function useRefineAnalysis({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id: entry.id, type: "secret" }),
           });
-          setEntries((prev) =>
-            prev.map((e) => (e.id === entry.id ? { ...e, type: "secret" } : e)),
-          );
-        } catch (err) { console.error("[useRefineAnalysis]", err); }
+          setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, type: "secret" } : e)));
+        } catch (err) {
+          console.error("[useRefineAnalysis]", err);
+        }
         setAccepted((p) => new Set(p).add(key));
         setDismissed((p) => new Set(p).add(key));
-        setApplying((p) => { const n = new Set(p); n.delete(key); return n; });
+        setApplying((p) => {
+          const n = new Set(p);
+          n.delete(key);
+          return n;
+        });
         setEditingKey(null);
         return;
       }
@@ -550,7 +637,12 @@ export function useRefineAnalysis({
             await authFetch("/api/update-entry", {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ id: entry.id, content: combinedContent, tags: combinedTags, metadata: combinedMeta }),
+              body: JSON.stringify({
+                id: entry.id,
+                content: combinedContent,
+                tags: combinedTags,
+                metadata: combinedMeta,
+              }),
             });
             await authFetch("/api/delete-entry", {
               method: "DELETE",
@@ -558,17 +650,27 @@ export function useRefineAnalysis({
               body: JSON.stringify({ id: s.suggestedValue }),
             });
             setEntries((prev) =>
-              prev.map((e) =>
-                e.id === entry.id ? { ...e, content: combinedContent, tags: combinedTags, metadata: combinedMeta } : e,
-              ).filter((e) => e.id !== s.suggestedValue),
+              prev
+                .map((e) =>
+                  e.id === entry.id
+                    ? { ...e, content: combinedContent, tags: combinedTags, metadata: combinedMeta }
+                    : e,
+                )
+                .filter((e) => e.id !== s.suggestedValue),
             );
-          } catch (err) { console.error("[useRefineAnalysis]", err); }
+          } catch (err) {
+            console.error("[useRefineAnalysis]", err);
+          }
         }
       } else {
         const body: Record<string, any> = { id: entry.id };
         if (s.field === "type") body.type = value;
         else if (s.field === "title") body.title = value;
-        else if (s.field === "tags") body.tags = value.split(",").map((t: string) => t.trim()).filter(Boolean);
+        else if (s.field === "tags")
+          body.tags = value
+            .split(",")
+            .map((t: string) => t.trim())
+            .filter(Boolean);
         else if (s.field === "content") body.content = value;
         else if (s.field.startsWith("metadata.")) {
           const k = s.field.slice("metadata.".length);
@@ -585,7 +687,14 @@ export function useRefineAnalysis({
               if (e.id !== entry.id) return e;
               if (s.field === "type") return { ...e, type: value as any };
               if (s.field === "title") return { ...e, title: value };
-              if (s.field === "tags") return { ...e, tags: value.split(",").map((t: string) => t.trim()).filter(Boolean) };
+              if (s.field === "tags")
+                return {
+                  ...e,
+                  tags: value
+                    .split(",")
+                    .map((t: string) => t.trim())
+                    .filter(Boolean),
+                };
               if (s.field === "content") return { ...e, content: value };
               if (s.field.startsWith("metadata.")) {
                 const k = s.field.slice("metadata.".length);
@@ -594,12 +703,18 @@ export function useRefineAnalysis({
               return e;
             }),
           );
-        } catch (err) { console.error("[useRefineAnalysis]", err); }
+        } catch (err) {
+          console.error("[useRefineAnalysis]", err);
+        }
       }
 
       setAccepted((p) => new Set(p).add(key));
       setDismissed((p) => new Set(p).add(key));
-      setApplying((p) => { const n = new Set(p); n.delete(key); return n; });
+      setApplying((p) => {
+        const n = new Set(p);
+        n.delete(key);
+        return n;
+      });
       setEditingKey(null);
     },
     [entries, setEntries, activeBrain],
@@ -613,9 +728,12 @@ export function useRefineAnalysis({
 
       if (activeBrain?.id) {
         recordDecision(activeBrain.id, {
-          source: "refine", type: "LINK_SUGGESTED",
+          source: "refine",
+          type: "LINK_SUGGESTED",
           action: relOverride ? "edit" : "accept",
-          originalValue: s.rel, finalValue: rel, reason: s.reason,
+          originalValue: s.rel,
+          finalValue: rel,
+          reason: s.reason,
         });
       }
 
@@ -627,11 +745,17 @@ export function useRefineAnalysis({
           body: JSON.stringify({ links: [newLink] }),
         });
         addLinks?.([newLink]);
-      } catch (err) { console.error("[useRefineAnalysis]", err); }
+      } catch (err) {
+        console.error("[useRefineAnalysis]", err);
+      }
 
       setAccepted((p) => new Set(p).add(key));
       setDismissed((p) => new Set(p).add(key));
-      setApplying((p) => { const n = new Set(p); n.delete(key); return n; });
+      setApplying((p) => {
+        const n = new Set(p);
+        n.delete(key);
+        return n;
+      });
       setEditingKey(null);
     },
     [addLinks, activeBrain],
@@ -645,9 +769,12 @@ export function useRefineAnalysis({
 
       if (activeBrain?.id) {
         recordDecision(activeBrain.id, {
-          source: "refine", type: "WEAK_LABEL",
+          source: "refine",
+          type: "WEAK_LABEL",
           action: relOverride ? "edit" : "accept",
-          originalValue: s.currentRel, finalValue: rel, reason: s.reason,
+          originalValue: s.currentRel,
+          finalValue: rel,
+          reason: s.reason,
         });
       }
 
@@ -657,11 +784,17 @@ export function useRefineAnalysis({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ links: [{ from: s.fromId, to: s.toId, rel }] }),
         });
-      } catch (err) { console.error("[useRefineAnalysis]", err); }
+      } catch (err) {
+        console.error("[useRefineAnalysis]", err);
+      }
 
       setAccepted((p) => new Set(p).add(key));
       setDismissed((p) => new Set(p).add(key));
-      setApplying((p) => { const n = new Set(p); n.delete(key); return n; });
+      setApplying((p) => {
+        const n = new Set(p);
+        n.delete(key);
+        return n;
+      });
       setEditingKey(null);
     },
     [activeBrain],
@@ -674,13 +807,32 @@ export function useRefineAnalysis({
       if (s && activeBrain?.id) {
         if (s.type === "LINK_SUGGESTED") {
           const ls = s as LinkSuggestion;
-          recordDecision(activeBrain.id, { source: "refine", type: s.type, action: "reject", originalValue: ls.rel, reason: ls.reason });
+          recordDecision(activeBrain.id, {
+            source: "refine",
+            type: s.type,
+            action: "reject",
+            originalValue: ls.rel,
+            reason: ls.reason,
+          });
         } else if (s.type === "WEAK_LABEL") {
           const ws = s as WeakLabelSuggestion;
-          recordDecision(activeBrain.id, { source: "refine", type: s.type, action: "reject", originalValue: ws.currentRel, reason: ws.reason });
+          recordDecision(activeBrain.id, {
+            source: "refine",
+            type: s.type,
+            action: "reject",
+            originalValue: ws.currentRel,
+            reason: ws.reason,
+          });
         } else {
           const es = s as EntrySuggestion;
-          recordDecision(activeBrain.id, { source: "refine", type: s.type, action: "reject", field: es.field, originalValue: es.suggestedValue, reason: es.reason });
+          recordDecision(activeBrain.id, {
+            source: "refine",
+            type: s.type,
+            action: "reject",
+            field: es.field,
+            originalValue: es.suggestedValue,
+            reason: es.reason,
+          });
         }
       }
     },
@@ -688,16 +840,22 @@ export function useRefineAnalysis({
   );
 
   const keyOf = (s: RefineSuggestion): string => {
-    if (s.type === "LINK_SUGGESTED") return `link:${(s as LinkSuggestion).fromId}:${(s as LinkSuggestion).toId}`;
-    if (s.type === "WEAK_LABEL") return `weak:${(s as WeakLabelSuggestion).fromId}:${(s as WeakLabelSuggestion).toId}`;
+    if (s.type === "LINK_SUGGESTED")
+      return `link:${(s as LinkSuggestion).fromId}:${(s as LinkSuggestion).toId}`;
+    if (s.type === "WEAK_LABEL")
+      return `weak:${(s as WeakLabelSuggestion).fromId}:${(s as WeakLabelSuggestion).toId}`;
     return `entry:${(s as EntrySuggestion).entryId}:${(s as EntrySuggestion).type}:${(s as EntrySuggestion).field}`;
   };
 
   const visible = sortBySuggestionPriority(
     (suggestions ?? []).filter((s) => !dismissed.has(keyOf(s))),
   );
-  const linkCount = visible.filter((s) => s.type === "LINK_SUGGESTED" || s.type === "WEAK_LABEL").length;
-  const entryCount = visible.filter((s) => s.type !== "LINK_SUGGESTED" && s.type !== "WEAK_LABEL").length;
+  const linkCount = visible.filter(
+    (s) => s.type === "LINK_SUGGESTED" || s.type === "WEAK_LABEL",
+  ).length;
+  const entryCount = visible.filter(
+    (s) => s.type !== "LINK_SUGGESTED" && s.type !== "WEAK_LABEL",
+  ).length;
   const allDone = suggestions !== null && suggestions.length > 0 && visible.length === 0;
   const noneFound = suggestions !== null && suggestions.length === 0;
 
@@ -707,9 +865,15 @@ export function useRefineAnalysis({
     dismissed,
     accepted,
     applying,
-    editingKey, setEditingKey,
-    editValue, setEditValue,
-    visible, linkCount, entryCount, allDone, noneFound,
+    editingKey,
+    setEditingKey,
+    editValue,
+    setEditValue,
+    visible,
+    linkCount,
+    entryCount,
+    allDone,
+    noneFound,
     analyze,
     applyEntry,
     applyLink,

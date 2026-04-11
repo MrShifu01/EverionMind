@@ -82,7 +82,9 @@ export function useEntryEdit({
           authFetch(
             `/api/entry-brains?entry_id=${encodeURIComponent(entry.id)}&brain_id=${encodeURIComponent(brain_id)}`,
             { method: "DELETE" },
-          ).catch((err) => console.error("[useEntryEdit] entry-brains remove failed", brain_id, err)),
+          ).catch((err) =>
+            console.error("[useEntryEdit] entry-brains remove failed", brain_id, err),
+          ),
         ),
       ]);
       setExtraBrainIds([...nextSet]);
@@ -109,7 +111,9 @@ export function useEntryEdit({
     if (navigator.share) {
       try {
         await navigator.share({ title: entryToShare.title, text });
-      } catch (err) { console.error("[useEntryEdit]", err); }
+      } catch (err) {
+        console.error("[useEntryEdit]", err);
+      }
     } else {
       await navigator.clipboard.writeText(text);
       setShareMsg("Copied to clipboard");
@@ -129,7 +133,8 @@ export function useEntryEdit({
     extraBrainIds,
     editExtraBrainIds,
     extraBrainsLoaded,
-    shareMsg, setShareMsg,
+    shareMsg,
+    setShareMsg,
     editBrainId,
     handleSave,
     handleShare,

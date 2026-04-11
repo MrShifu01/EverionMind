@@ -1,9 +1,15 @@
 import { authFetch } from "./authFetch";
-import { getUserProvider, getUserModel, getUserApiKey, getOpenRouterKey, getOpenRouterModel } from "./aiSettings";
+import {
+  getUserProvider,
+  getUserModel,
+  getUserApiKey,
+  getOpenRouterKey,
+  getOpenRouterModel,
+} from "./aiSettings";
 function getAIHeaders(): Record<string, string> {
   const provider = getUserProvider();
   const apiKey = provider === "openrouter" ? getOpenRouterKey() : getUserApiKey();
-  const model = provider === "openrouter" ? (getOpenRouterModel() || "") : getUserModel();
+  const model = provider === "openrouter" ? getOpenRouterModel() || "" : getUserModel();
   return {
     "x-user-api-key": apiKey || "",
     "x-provider": provider || "openrouter",
@@ -25,7 +31,11 @@ async function extractViaAI(file: File): Promise<string> {
   const res = await authFetch("/api/extract-file", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAIHeaders() },
-    body: JSON.stringify({ filename: file.name, fileData, mimeType: file.type || "application/octet-stream" }),
+    body: JSON.stringify({
+      filename: file.name,
+      fileData,
+      mimeType: file.type || "application/octet-stream",
+    }),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -39,9 +49,17 @@ async function extractPDF(buffer: ArrayBuffer): Promise<string> {
   const mod = await import("pdfjs-dist");
   const pdfjsLib = (mod as any).default ?? mod;
   if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.mjs", import.meta.url).href;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+      "pdfjs-dist/build/pdf.worker.mjs",
+      import.meta.url,
+    ).href;
   }
-  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer), useWorkerFetch: false, isEvalSupported: false, useSystemFonts: true }).promise;
+  const pdf = await pdfjsLib.getDocument({
+    data: new Uint8Array(buffer),
+    useWorkerFetch: false,
+    isEvalSupported: false,
+    useSystemFonts: true,
+  }).promise;
   const pages: string[] = [];
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
@@ -63,10 +81,12 @@ async function extractExcel(buffer: ArrayBuffer): Promise<string> {
   const mod = await import("xlsx");
   const XLSX = (mod as any).default ?? mod;
   const wb = XLSX.read(buffer, { type: "array" });
-  return (wb.SheetNames as string[]).map((name: string) => {
-    const csv = XLSX.utils.sheet_to_csv(wb.Sheets[name]);
-    return `[Sheet: ${name}]\n${csv}`;
-  }).join("\n\n");
+  return (wb.SheetNames as string[])
+    .map((name: string) => {
+      const csv = XLSX.utils.sheet_to_csv(wb.Sheets[name]);
+      return `[Sheet: ${name}]\n${csv}`;
+    })
+    .join("\n\n");
 }
 
 export async function extractTextFromFile(file: File): Promise<string> {

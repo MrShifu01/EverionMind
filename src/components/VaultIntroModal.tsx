@@ -10,7 +10,7 @@ export function VaultIntroModal({ onDismiss }: VaultIntroModalProps) {
       onClick={onDismiss}
     >
       <div
-        className="w-full max-w-sm rounded-t-3xl border px-6 pt-6 pb-24 sm:rounded-3xl sm:p-6 max-h-[90vh] overflow-y-auto"
+        className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-t-3xl border px-6 pt-6 pb-24 sm:rounded-3xl sm:p-6"
         style={{
           background: "var(--color-surface)",
           borderColor: "var(--color-outline-variant)",
@@ -18,11 +18,16 @@ export function VaultIntroModal({ onDismiss }: VaultIntroModalProps) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-5 flex flex-col items-center gap-2 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl text-3xl"
-            style={{ background: "color-mix(in oklch, var(--color-primary) 12%, transparent)" }}>
+          <div
+            className="flex h-14 w-14 items-center justify-center rounded-2xl text-3xl"
+            style={{ background: "color-mix(in oklch, var(--color-primary) 12%, transparent)" }}
+          >
             🔐
           </div>
-          <h2 className="text-on-surface text-lg font-semibold" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+          <h2
+            className="text-on-surface text-lg font-semibold"
+            style={{ fontFamily: "'Lora', Georgia, serif" }}
+          >
             Your Private Vault
           </h2>
           <p className="text-sm" style={{ color: "var(--color-on-surface-variant)" }}>
@@ -54,10 +59,14 @@ export function VaultIntroModal({ onDismiss }: VaultIntroModalProps) {
             },
           ].map((item) => (
             <div key={item.title} className="flex gap-3">
-              <span className="text-xl leading-none shrink-0 mt-0.5">{item.icon}</span>
+              <span className="mt-0.5 shrink-0 text-xl leading-none">{item.icon}</span>
               <div>
-                <p className="text-sm font-medium" style={{ color: "var(--color-on-surface)" }}>{item.title}</p>
-                <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>{item.desc}</p>
+                <p className="text-sm font-medium" style={{ color: "var(--color-on-surface)" }}>
+                  {item.title}
+                </p>
+                <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
+                  {item.desc}
+                </p>
               </div>
             </div>
           ))}

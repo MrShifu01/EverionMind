@@ -60,7 +60,13 @@ export function parseAISplitResponse(raw: string): SplitEntry[] {
     const parsed = JSON.parse(jsonMatch ? jsonMatch[1] : cleaned);
     // Gemma may return a single object instead of array — wrap it
     if (!Array.isArray(parsed)) {
-      if (parsed && typeof parsed === "object" && typeof parsed.title === "string" && parsed.title.trim()) return [parsed];
+      if (
+        parsed &&
+        typeof parsed === "object" &&
+        typeof parsed.title === "string" &&
+        parsed.title.trim()
+      )
+        return [parsed];
       return [];
     }
     return parsed

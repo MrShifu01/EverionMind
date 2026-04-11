@@ -44,7 +44,7 @@ const EntryCard = memo(function EntryCard({
   return (
     <article
       tabIndex={0}
-      onClick={() => selectMode ? onToggleSelect?.(e.id) : onSelect(e)}
+      onClick={() => (selectMode ? onToggleSelect?.(e.id) : onSelect(e))}
       onKeyDown={(ev) => {
         if (ev.key === "Enter" || ev.key === " ") {
           ev.preventDefault();
@@ -56,7 +56,9 @@ const EntryCard = memo(function EntryCard({
       {...(isPinned ? { "data-pinned": "true" } : {})}
       {...(importance > 0 ? { "data-importance": String(importance) } : {})}
       className={`entry-card ${isCritical ? "entry-card--critical" : isPinned ? "entry-card--pinned" : ""} group press-scale relative cursor-pointer rounded-2xl border p-5 transition-all duration-200`}
-      style={selected ? { outline: "2px solid var(--color-primary)", outlineOffset: "2px" } : undefined}
+      style={
+        selected ? { outline: "2px solid var(--color-primary)", outlineOffset: "2px" } : undefined
+      }
     >
       {selectMode && (
         <div
@@ -75,14 +77,10 @@ const EntryCard = memo(function EntryCard({
       )}
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <Badge variant={typeVariant}>
-            {e.type.charAt(0).toUpperCase() + e.type.slice(1)}
-          </Badge>
+          <Badge variant={typeVariant}>{e.type.charAt(0).toUpperCase() + e.type.slice(1)}</Badge>
         </div>
         <div className="flex items-center gap-1.5">
-          {(e as any).pinned && (
-            <span className="text-primary text-xs">📌</span>
-          )}
+          {(e as any).pinned && <span className="text-primary text-xs">📌</span>}
           {imp && (
             <Badge variant={imp === "Critical" ? "destructive" : "default"} size="pill">
               {imp}
@@ -113,7 +111,7 @@ const EntryCard = memo(function EntryCard({
             </Badge>
           ))}
           {(e as any).tags.length > 3 && (
-            <span className="px-1 text-xs text-on-surface-variant">
+            <span className="text-on-surface-variant px-1 text-xs">
               +{(e as any).tags.length - 3}
             </span>
           )}
@@ -206,28 +204,73 @@ const EntryRow = memo(function EntryRow({
   return (
     <article
       tabIndex={0}
-      onClick={() => selectMode ? onToggleSelect?.(e.id) : onSelect(e)}
-      onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); selectMode ? onToggleSelect?.(e.id) : onSelect(e); } }}
+      onClick={() => (selectMode ? onToggleSelect?.(e.id) : onSelect(e))}
+      onKeyDown={(ev) => {
+        if (ev.key === "Enter" || ev.key === " ") {
+          ev.preventDefault();
+          selectMode ? onToggleSelect?.(e.id) : onSelect(e);
+        }
+      }}
       aria-label={e.title}
       {...(isPinned ? { "data-pinned": "true" } : {})}
-      className={`group press-scale flex w-full cursor-pointer items-center gap-3 overflow-hidden rounded-xl border bg-surface-container px-4 py-3 transition-all duration-200 ${selected ? "border-primary outline outline-2 outline-offset-2 outline-primary" : "border-outline-variant"}`}
+      className={`group press-scale bg-surface-container flex w-full cursor-pointer items-center gap-3 overflow-hidden rounded-xl border px-4 py-3 transition-all duration-200 ${selected ? "border-primary outline-primary outline outline-2 outline-offset-2" : "border-outline-variant"}`}
     >
-      <Badge variant={rowTypeVariant}>
-        {e.type.charAt(0).toUpperCase() + e.type.slice(1)}
-      </Badge>
-      {isPinned && <span className="flex-shrink-0 text-[11px] text-primary">📌</span>}
+      <Badge variant={rowTypeVariant}>{e.type.charAt(0).toUpperCase() + e.type.slice(1)}</Badge>
+      {isPinned && <span className="text-primary flex-shrink-0 text-[11px]">📌</span>}
       <span className="text-on-surface min-w-0 flex-1 truncate text-sm font-medium">{e.title}</span>
-      <span className="flex-shrink-0 text-xs" style={{ color: "var(--color-on-surface-variant)" }}>{e.created_at ? fmtD(e.created_at) : ""}</span>
+      <span className="flex-shrink-0 text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
+        {e.created_at ? fmtD(e.created_at) : ""}
+      </span>
       {(onPin || onDelete) && (
         <div className="flex flex-shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
           {onPin && (
-            <button onClick={(ev) => { ev.stopPropagation(); onPin(e); }} aria-label={isPinned ? "Unpin" : "Pin"} className="press-scale rounded-lg p-1.5 transition-colors hover:bg-white/10" style={{ color: "var(--color-on-surface-variant)" }}>
-              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" /></svg>
+            <button
+              onClick={(ev) => {
+                ev.stopPropagation();
+                onPin(e);
+              }}
+              aria-label={isPinned ? "Unpin" : "Pin"}
+              className="press-scale rounded-lg p-1.5 transition-colors hover:bg-white/10"
+              style={{ color: "var(--color-on-surface-variant)" }}
+            >
+              <svg
+                className="h-3.5 w-3.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z"
+                />
+              </svg>
             </button>
           )}
           {onDelete && (
-            <button onClick={(ev) => { ev.stopPropagation(); onDelete(e); }} aria-label="Delete" className="entry-card__delete press-scale rounded-lg p-1.5 transition-colors hover:bg-white/10" style={{ color: "var(--color-on-surface-variant)" }}>
-              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
+            <button
+              onClick={(ev) => {
+                ev.stopPropagation();
+                onDelete(e);
+              }}
+              aria-label="Delete"
+              className="entry-card__delete press-scale rounded-lg p-1.5 transition-colors hover:bg-white/10"
+              style={{ color: "var(--color-on-surface-variant)" }}
+            >
+              <svg
+                className="h-3.5 w-3.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                />
+              </svg>
             </button>
           )}
         </div>
@@ -289,7 +332,7 @@ export function VirtualGrid({
   // eslint-disable-next-line react-hooks/refs
   const virtualizer = useWindowVirtualizer({
     count: rows.length,
-    estimateSize: () => isList ? 60 : 190 + ROW_GAP,
+    estimateSize: () => (isList ? 60 : 190 + ROW_GAP),
     overscan: 4,
     scrollMargin: listRef.current?.offsetTop ?? 0, // eslint-disable-line react-hooks/refs
     measureElement: (el) => el.getBoundingClientRect().height,
@@ -315,10 +358,29 @@ export function VirtualGrid({
           >
             {rows[vRow.index].map((e) =>
               isList ? (
-                <EntryRow key={e.id} entry={e} onSelect={setSelected} onPin={selectMode ? undefined : onPin} onDelete={selectMode ? undefined : onDelete} selectMode={selectMode} selected={selectedIds?.has(e.id) ?? false} onToggleSelect={onToggleSelect} />
+                <EntryRow
+                  key={e.id}
+                  entry={e}
+                  onSelect={setSelected}
+                  onPin={selectMode ? undefined : onPin}
+                  onDelete={selectMode ? undefined : onDelete}
+                  selectMode={selectMode}
+                  selected={selectedIds?.has(e.id) ?? false}
+                  onToggleSelect={onToggleSelect}
+                />
               ) : (
-                <EntryCard key={e.id} entry={e} onSelect={setSelected} typeIcons={typeIcons} onPin={selectMode ? undefined : onPin} onDelete={selectMode ? undefined : onDelete} selectMode={selectMode} selected={selectedIds?.has(e.id) ?? false} onToggleSelect={onToggleSelect} />
-              )
+                <EntryCard
+                  key={e.id}
+                  entry={e}
+                  onSelect={setSelected}
+                  typeIcons={typeIcons}
+                  onPin={selectMode ? undefined : onPin}
+                  onDelete={selectMode ? undefined : onDelete}
+                  selectMode={selectMode}
+                  selected={selectedIds?.has(e.id) ?? false}
+                  onToggleSelect={onToggleSelect}
+                />
+              ),
             )}
           </div>
         ))}

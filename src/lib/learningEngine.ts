@@ -97,7 +97,9 @@ export function recordDecision(brainId: string, decision: Omit<LearningDecision,
       const k = "openbrain_refine_rejected";
       localStorage.setItem(k, String((parseInt(localStorage.getItem(k) || "0", 10) || 0) + 1));
     }
-  } catch { /* quota */ }
+  } catch {
+    /* quota */
+  }
 
   if (decisions.length % SUMMARIZE_EVERY === 0) {
     summarizeLearnings(brainId, decisions);

@@ -31,7 +31,7 @@ interface GridFiltersProps {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <span className="flex-shrink-0 select-none text-xs font-semibold tracking-[0.08em] uppercase text-on-surface-variant opacity-50">
+    <span className="text-on-surface-variant flex-shrink-0 text-xs font-semibold tracking-[0.08em] uppercase opacity-50 select-none">
       {children}
     </span>
   );
@@ -99,7 +99,7 @@ export default function GridFilters({
           </svg>
           <span>Filters</span>
           {hasActive && (
-            <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold tabular-nums text-primary-foreground">
+            <span className="bg-primary text-primary-foreground inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums">
               {activeCount}
             </span>
           )}
@@ -132,7 +132,7 @@ export default function GridFilters({
             <button
               type="button"
               onClick={() => onChange({ type: "all", date: "all", sort: "newest" })}
-              className="press-scale flex-shrink-0 text-xs text-on-surface-variant opacity-60 hover:opacity-100 transition-opacity"
+              className="press-scale text-on-surface-variant flex-shrink-0 text-xs opacity-60 transition-opacity hover:opacity-100"
             >
               Clear all
             </button>
@@ -141,28 +141,65 @@ export default function GridFilters({
 
         {/* Grid / List toggle */}
         {onViewModeChange && (
-          <div className="flex flex-shrink-0 items-center overflow-hidden rounded-full border border-outline-variant">
+          <div className="border-outline-variant flex flex-shrink-0 items-center overflow-hidden rounded-full border">
             <button
               type="button"
               onClick={() => onViewModeChange("grid")}
               aria-label="Grid view"
-              className={`press-scale flex items-center justify-center px-2.5 py-1.5 transition-colors duration-150 ${viewMode === "grid" ? "bg-primary-container text-primary" : "bg-transparent text-on-surface-variant"}`}
+              className={`press-scale flex items-center justify-center px-2.5 py-1.5 transition-colors duration-150 ${viewMode === "grid" ? "bg-primary-container text-primary" : "text-on-surface-variant bg-transparent"}`}
             >
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
-                <rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.75" />
-                <rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.75" />
-                <rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.75" />
-                <rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.75" />
+                <rect
+                  x="1"
+                  y="1"
+                  width="6"
+                  height="6"
+                  rx="1.5"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                />
+                <rect
+                  x="9"
+                  y="1"
+                  width="6"
+                  height="6"
+                  rx="1.5"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                />
+                <rect
+                  x="1"
+                  y="9"
+                  width="6"
+                  height="6"
+                  rx="1.5"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                />
+                <rect
+                  x="9"
+                  y="9"
+                  width="6"
+                  height="6"
+                  rx="1.5"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                />
               </svg>
             </button>
             <button
               type="button"
               onClick={() => onViewModeChange("list")}
               aria-label="List view"
-              className={`press-scale flex items-center justify-center px-2.5 py-1.5 transition-colors duration-150 ${viewMode === "list" ? "bg-primary-container text-primary" : "bg-transparent text-on-surface-variant"}`}
+              className={`press-scale flex items-center justify-center px-2.5 py-1.5 transition-colors duration-150 ${viewMode === "list" ? "bg-primary-container text-primary" : "text-on-surface-variant bg-transparent"}`}
             >
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
-                <path d="M1 3h14M1 8h14M1 13h14" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+                <path
+                  d="M1 3h14M1 8h14M1 13h14"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                />
               </svg>
             </button>
           </div>
@@ -178,7 +215,7 @@ export default function GridFilters({
         }}
       >
         <div className="overflow-hidden">
-          <div className="mt-3 flex flex-col gap-4 rounded-2xl border border-outline-variant bg-surface-container-low p-3">
+          <div className="border-outline-variant bg-surface-container-low mt-3 flex flex-col gap-4 rounded-2xl border p-3">
             {/* Type */}
             <div className="flex flex-col gap-2">
               <SectionLabel>Type</SectionLabel>
@@ -198,7 +235,7 @@ export default function GridFilters({
             </div>
 
             {/* Separator */}
-            <div className="h-px bg-outline-variant opacity-50" />
+            <div className="bg-outline-variant h-px opacity-50" />
 
             {/* Date */}
             <div className="flex flex-wrap items-center gap-3">
@@ -217,7 +254,7 @@ export default function GridFilters({
             </div>
 
             {/* Separator */}
-            <div className="h-px bg-outline-variant opacity-50" />
+            <div className="bg-outline-variant h-px opacity-50" />
 
             {/* Sort */}
             <div className="flex flex-wrap items-center gap-3">
@@ -243,4 +280,3 @@ export default function GridFilters({
     </div>
   );
 }
-

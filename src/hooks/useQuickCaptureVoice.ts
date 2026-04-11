@@ -193,7 +193,14 @@ export function useQuickCaptureVoice({
         _startSpeechRecognitionFallback();
       }
     }
-  }, [listening, _startSpeechRecognitionFallback, stopWhisperRecording, onTranscript, onStatus, onLoading]);
+  }, [
+    listening,
+    _startSpeechRecognitionFallback,
+    stopWhisperRecording,
+    onTranscript,
+    onStatus,
+    onLoading,
+  ]);
 
   return { listening, startVoice, stopWhisperRecording };
 }

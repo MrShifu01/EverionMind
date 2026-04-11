@@ -1,4 +1,13 @@
-import { useState, useMemo, useRef, useEffect, useCallback, lazy, Suspense, type ReactNode } from "react";
+import {
+  useState,
+  useMemo,
+  useRef,
+  useEffect,
+  useCallback,
+  lazy,
+  Suspense,
+  type ReactNode,
+} from "react";
 import { NavIcon } from "./components/icons/NavIcons";
 import { useTheme } from "./ThemeContext";
 import { authFetch } from "./lib/authFetch";
@@ -47,17 +56,19 @@ import type { Brain, Entry } from "./types";
 // Retry dynamic imports once on failure (stale chunk hash after deploy)
 function lazyRetry(fn: () => Promise<any>) {
   return lazy(() =>
-    fn().then((mod) => {
-      sessionStorage.removeItem("chunk_reload");
-      return mod;
-    }).catch(() => {
-      if (!sessionStorage.getItem("chunk_reload")) {
-        sessionStorage.setItem("chunk_reload", "1");
-        window.location.reload();
-        return new Promise(() => {}); // never resolves — page is reloading
-      }
-      return fn(); // second attempt after reload
-    })
+    fn()
+      .then((mod) => {
+        sessionStorage.removeItem("chunk_reload");
+        return mod;
+      })
+      .catch(() => {
+        if (!sessionStorage.getItem("chunk_reload")) {
+          sessionStorage.setItem("chunk_reload", "1");
+          window.location.reload();
+          return new Promise(() => {}); // never resolves — page is reloading
+        }
+        return fn(); // second attempt after reload
+      }),
   );
 }
 
@@ -94,7 +105,9 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
         if (Array.isArray(parsed) && parsed.every((e) => e && typeof e.id === "string"))
           return parsed;
       }
-    } catch (err) { console.error("[OpenBrain]", err); }
+    } catch (err) {
+      console.error("[OpenBrain]", err);
+    }
     return [];
   });
   const [entriesLoaded, setEntriesLoaded] = useState(false);
@@ -160,16 +173,24 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
     date: "all",
     sort: "newest",
   });
-  const [gridViewMode, setGridViewMode] = useState<"grid" | "list">(() =>
-    (localStorage.getItem("openbrain_viewmode") as "grid" | "list") || "grid"
+  const [gridViewMode, setGridViewMode] = useState<"grid" | "list">(
+    () => (localStorage.getItem("openbrain_viewmode") as "grid" | "list") || "grid",
   );
   const [view, setView] = useState("capture");
   const [navOpen, setNavOpen] = useState(false);
   const [selected, setSelected] = useState<Entry | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const toggleSelectMode = () => { setSelectMode((v) => !v); setSelectedIds(new Set()); };
-  const toggleSelectId = (id: string) => setSelectedIds((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleSelectMode = () => {
+    setSelectMode((v) => !v);
+    setSelectedIds(new Set());
+  };
+  const toggleSelectId = (id: string) =>
+    setSelectedIds((prev) => {
+      const n = new Set(prev);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
   const addLinks = useCallback((newLinks: any[]) => setLinks((prev) => [...prev, ...newLinks]), []);
   const [typeIcons, setTypeIcons] = useState<Record<string, string>>({});
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
@@ -264,7 +285,12 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
     cryptoKey,
   });
 
-  const { tasks: bgTasks, processFiles: bgProcessFiles, dismissTask: bgDismissTask, dismissAll: bgDismissAll } = useBackgroundCapture();
+  const {
+    tasks: bgTasks,
+    processFiles: bgProcessFiles,
+    dismissTask: bgDismissTask,
+    dismissAll: bgDismissAll,
+  } = useBackgroundCapture();
 
   useEffect(() => {
     const flush = () => commitPendingDelete();
@@ -323,23 +349,49 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
     [entries, setEntries, entriesLoaded, selected, setSelected, handleDelete, handleUpdate],
   );
   const brainValue = useMemo(
-    () => ({ activeBrain, brains, setActiveBrain, refresh, canInvite, canManageMembers, deleteBrain }),
+    () => ({
+      activeBrain,
+      brains,
+      setActiveBrain,
+      refresh,
+      canInvite,
+      canManageMembers,
+      deleteBrain,
+    }),
     [activeBrain, brains, setActiveBrain, refresh, canInvite, canManageMembers, deleteBrain],
   );
 
-  if (brainsLoading) return (
-    <>
-      <LoadingScreen />
-      <button
-        onClick={() => setShowCapture(true)}
-        aria-label="New entry"
-        className="press-scale fixed bottom-5 left-1/2 z-[60] flex h-14 w-14 -translate-x-1/2 items-center justify-center rounded-full lg:hidden"
-        style={{ background: "var(--color-primary)", color: "var(--color-on-primary)", boxShadow: "var(--shadow-lg)" }}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      </button>
-    </>
-  );
+  if (brainsLoading)
+    return (
+      <>
+        <LoadingScreen />
+        <button
+          onClick={() => setShowCapture(true)}
+          aria-label="New entry"
+          className="press-scale fixed bottom-5 left-1/2 z-[60] flex h-14 w-14 -translate-x-1/2 items-center justify-center rounded-full lg:hidden"
+          style={{
+            background: "var(--color-primary)",
+            color: "var(--color-on-primary)",
+            boxShadow: "var(--shadow-lg)",
+          }}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        </button>
+      </>
+    );
 
   return (
     <EntriesContext.Provider value={entriesValue}>
@@ -384,7 +436,11 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
                 isDark={isDark}
                 isOnline={isOnline}
                 pendingCount={pendingCount}
-                onSearch={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }))}
+                onSearch={() =>
+                  window.dispatchEvent(
+                    new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }),
+                  )
+                }
               >
                 {brains.length > 0 && (
                   <BrainSwitcher
@@ -399,7 +455,6 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
                   />
                 )}
               </MobileHeader>
-
 
               {showBrainTip && (
                 <BrainTipCard
@@ -453,11 +508,7 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
                 />
               )}
 
-              <OmniSearch
-                entries={entries}
-                onSelect={setSelected}
-                onNavigate={setView}
-              />
+              <OmniSearch entries={entries} onSelect={setSelected} onNavigate={setView} />
 
               <div className="mx-auto max-w-6xl px-4 pt-4 pb-32 sm:px-6 lg:pb-8">
                 {view === "grid" && (
@@ -516,29 +567,31 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
                       </div>
                     ) : filtered.length > 0 ? (
                       <>
-                      <VirtualGrid
-                        filtered={filtered}
-                        setSelected={selectMode ? () => {} : setSelected}
-                        typeIcons={typeIcons}
-                        onPin={(e) => handleUpdate(e.id, { pinned: !e.pinned })}
-                        onDelete={(e) => handleDelete(e.id)}
-                        selectMode={selectMode}
-                        selectedIds={selectedIds}
-                        onToggleSelect={toggleSelectId}
-                        viewMode={gridViewMode}
-                      />
-                      {selectMode && selectedIds.size > 0 && (
-                        <BulkActionBar
+                        <VirtualGrid
+                          filtered={filtered}
+                          setSelected={selectMode ? () => {} : setSelected}
+                          typeIcons={typeIcons}
+                          onPin={(e) => handleUpdate(e.id, { pinned: !e.pinned })}
+                          onDelete={(e) => handleDelete(e.id)}
+                          selectMode={selectMode}
                           selectedIds={selectedIds}
-                          entries={entries}
-                          brains={brains}
-                          onDone={(updated) => {
-                            setEntries((prev) => prev.map((e) => updated.find((u) => u.id === e.id) ?? e));
-                            toggleSelectMode();
-                          }}
-                          onCancel={toggleSelectMode}
+                          onToggleSelect={toggleSelectId}
+                          viewMode={gridViewMode}
                         />
-                      )}
+                        {selectMode && selectedIds.size > 0 && (
+                          <BulkActionBar
+                            selectedIds={selectedIds}
+                            entries={entries}
+                            brains={brains}
+                            onDone={(updated) => {
+                              setEntries((prev) =>
+                                prev.map((e) => updated.find((u) => u.id === e.id) ?? e),
+                              );
+                              toggleSelectMode();
+                            }}
+                            onCancel={toggleSelectMode}
+                          />
+                        )}
                       </>
                     ) : (
                       <div className="flex flex-col items-center justify-center gap-3 py-20">
@@ -592,121 +645,189 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
                   </Suspense>
                 )}
                 {view === "settings" && <SettingsView onNavigate={setView} />}
-                {view === "capture" && (() => {
-                  if (!entriesLoaded) return (
-                    <div className="space-y-6">
-                      {/* Welcome skeleton */}
-                      <div className="h-16 animate-pulse rounded-3xl" style={{ background: "var(--color-surface-container)" }} />
-                      {/* Grid skeleton */}
-                      <div>
-                        <div className="mb-3 h-3 w-24 animate-pulse rounded-full" style={{ background: "var(--color-surface-container)" }} />
-                        <div className="grid grid-cols-2 gap-3">
-                          {[0,1,2,3].map(i => (
-                            <div key={i} className="h-20 animate-pulse rounded-2xl" style={{ background: "var(--color-surface-container)" }} />
-                          ))}
-                        </div>
-                      </div>
-                      {/* List skeleton */}
-                      <div>
-                        <div className="mb-3 h-3 w-28 animate-pulse rounded-full" style={{ background: "var(--color-surface-container)" }} />
-                        <div className="overflow-hidden rounded-2xl border" style={{ borderColor: "var(--color-outline-variant)" }}>
-                          {[0,1,2].map((i) => (
-                            <div key={i} className="flex items-center gap-3 px-4 py-3" style={{ borderTop: i > 0 ? "1px solid var(--color-outline-variant)" : undefined }}>
-                              <div className="h-5 w-5 animate-pulse rounded-full" style={{ background: "var(--color-surface-container)" }} />
-                              <div className="h-3 flex-1 animate-pulse rounded-full" style={{ background: "var(--color-surface-container)" }} />
-                              <div className="h-3 w-12 animate-pulse rounded-full" style={{ background: "var(--color-surface-container)" }} />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                  const recentEntries = [...entries]
-                    .sort((a, b) => new Date(b.updated_at ?? b.created_at ?? 0).getTime() - new Date(a.updated_at ?? a.created_at ?? 0).getTime())
-                    .slice(0, 5);
-                  const quickActions = [
-                    { id: "chat", label: "Ask Brain", icon: NavIcon.chat },
-                    { id: "todos", label: "Todos", icon: NavIcon.todos },
-                    { id: "refine", label: "Improve Brain", icon: NavIcon.refine },
-                    { id: "grid", label: "Memory Grid", icon: NavIcon.grid },
-                  ] as { id: string; label: string; icon: ReactNode }[];
-                  return (
-                    <div className="space-y-6">
-                      {/* Welcome */}
-                      <div
-                        className="rounded-3xl border px-5 py-4"
-                        style={{
-                          background: "color-mix(in oklch, var(--color-primary) 8%, var(--color-surface))",
-                          borderColor: "color-mix(in oklch, var(--color-primary) 18%, transparent)",
-                        }}
-                      >
-                        <p className="text-base font-bold" style={{ color: "var(--color-on-surface)" }}>
-                          👋 Welcome back
-                        </p>
-                        <p className="mt-0.5 text-sm" style={{ color: "var(--color-on-surface-variant)" }}>
-                          {activeBrain?.name ?? "Your brain"} is active · {entries.length} {entries.length === 1 ? "memory" : "memories"}
-                        </p>
-                      </div>
-
-                      {/* Quick actions grid */}
-                      <div>
-                        <p className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: "var(--color-on-surface-variant)" }}>
-                          Quick Nav
-                        </p>
-                        <div className="grid grid-cols-2 gap-3">
-                          {quickActions.map((v) => (
-                            <button
-                              key={v.id}
-                              onClick={() => setView(v.id)}
-                              className="press-scale flex flex-col items-start gap-3 rounded-2xl border p-4 text-left transition-all"
-                              style={{
-                                background: "var(--color-surface-container-low)",
-                                borderColor: "var(--color-outline-variant)",
-                              }}
-                            >
-                              <div style={{ color: "var(--color-primary)" }}>{v.icon}</div>
-                              <div className="text-sm font-bold" style={{ color: "var(--color-on-surface)" }}>{v.label}</div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Recent activity */}
-                      {recentEntries.length > 0 && (
-                        <div>
-                          <p className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: "var(--color-on-surface-variant)" }}>
-                            Recent Activity
-                          </p>
+                {view === "capture" &&
+                  (() => {
+                    if (!entriesLoaded)
+                      return (
+                        <div className="space-y-6">
+                          {/* Welcome skeleton */}
                           <div
-                            className="overflow-hidden rounded-2xl border"
-                            style={{ borderColor: "var(--color-outline-variant)", background: "var(--color-surface-container-low)" }}
+                            className="h-16 animate-pulse rounded-3xl"
+                            style={{ background: "var(--color-surface-container)" }}
+                          />
+                          {/* Grid skeleton */}
+                          <div>
+                            <div
+                              className="mb-3 h-3 w-24 animate-pulse rounded-full"
+                              style={{ background: "var(--color-surface-container)" }}
+                            />
+                            <div className="grid grid-cols-2 gap-3">
+                              {[0, 1, 2, 3].map((i) => (
+                                <div
+                                  key={i}
+                                  className="h-20 animate-pulse rounded-2xl"
+                                  style={{ background: "var(--color-surface-container)" }}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                          {/* List skeleton */}
+                          <div>
+                            <div
+                              className="mb-3 h-3 w-28 animate-pulse rounded-full"
+                              style={{ background: "var(--color-surface-container)" }}
+                            />
+                            <div
+                              className="overflow-hidden rounded-2xl border"
+                              style={{ borderColor: "var(--color-outline-variant)" }}
+                            >
+                              {[0, 1, 2].map((i) => (
+                                <div
+                                  key={i}
+                                  className="flex items-center gap-3 px-4 py-3"
+                                  style={{
+                                    borderTop:
+                                      i > 0 ? "1px solid var(--color-outline-variant)" : undefined,
+                                  }}
+                                >
+                                  <div
+                                    className="h-5 w-5 animate-pulse rounded-full"
+                                    style={{ background: "var(--color-surface-container)" }}
+                                  />
+                                  <div
+                                    className="h-3 flex-1 animate-pulse rounded-full"
+                                    style={{ background: "var(--color-surface-container)" }}
+                                  />
+                                  <div
+                                    className="h-3 w-12 animate-pulse rounded-full"
+                                    style={{ background: "var(--color-surface-container)" }}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    const recentEntries = [...entries]
+                      .sort(
+                        (a, b) =>
+                          new Date(b.updated_at ?? b.created_at ?? 0).getTime() -
+                          new Date(a.updated_at ?? a.created_at ?? 0).getTime(),
+                      )
+                      .slice(0, 5);
+                    const quickActions = [
+                      { id: "chat", label: "Ask Brain", icon: NavIcon.chat },
+                      { id: "todos", label: "Todos", icon: NavIcon.todos },
+                      { id: "refine", label: "Improve Brain", icon: NavIcon.refine },
+                      { id: "grid", label: "Memory Grid", icon: NavIcon.grid },
+                    ] as { id: string; label: string; icon: ReactNode }[];
+                    return (
+                      <div className="space-y-6">
+                        {/* Welcome */}
+                        <div
+                          className="rounded-3xl border px-5 py-4"
+                          style={{
+                            background:
+                              "color-mix(in oklch, var(--color-primary) 8%, var(--color-surface))",
+                            borderColor:
+                              "color-mix(in oklch, var(--color-primary) 18%, transparent)",
+                          }}
+                        >
+                          <p
+                            className="text-base font-bold"
+                            style={{ color: "var(--color-on-surface)" }}
                           >
-                            {recentEntries.map((entry, i) => (
+                            👋 Welcome back
+                          </p>
+                          <p
+                            className="mt-0.5 text-sm"
+                            style={{ color: "var(--color-on-surface-variant)" }}
+                          >
+                            {activeBrain?.name ?? "Your brain"} is active · {entries.length}{" "}
+                            {entries.length === 1 ? "memory" : "memories"}
+                          </p>
+                        </div>
+
+                        {/* Quick actions grid */}
+                        <div>
+                          <p
+                            className="mb-3 text-xs font-semibold tracking-widest uppercase"
+                            style={{ color: "var(--color-on-surface-variant)" }}
+                          >
+                            Quick Nav
+                          </p>
+                          <div className="grid grid-cols-2 gap-3">
+                            {quickActions.map((v) => (
                               <button
-                                key={entry.id}
-                                onClick={() => setSelected(entry)}
-                                className="press-scale flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:brightness-95"
+                                key={v.id}
+                                onClick={() => setView(v.id)}
+                                className="press-scale flex flex-col items-start gap-3 rounded-2xl border p-4 text-left transition-all"
                                 style={{
-                                  borderTop: i > 0 ? `1px solid var(--color-outline-variant)` : undefined,
+                                  background: "var(--color-surface-container-low)",
+                                  borderColor: "var(--color-outline-variant)",
                                 }}
                               >
-                                <span className="text-base leading-none">
-                                  {typeIcons[entry.type] ?? "📝"}
-                                </span>
-                                <span className="flex-1 truncate text-sm font-medium" style={{ color: "var(--color-on-surface)" }}>
-                                  {entry.title}
-                                </span>
-                                <span className="flex-shrink-0 text-xs capitalize" style={{ color: "var(--color-on-surface-variant)" }}>
-                                  {entry.type}
-                                </span>
+                                <div style={{ color: "var(--color-primary)" }}>{v.icon}</div>
+                                <div
+                                  className="text-sm font-bold"
+                                  style={{ color: "var(--color-on-surface)" }}
+                                >
+                                  {v.label}
+                                </div>
                               </button>
                             ))}
                           </div>
                         </div>
-                      )}
-                    </div>
-                  );
-                })()}
+
+                        {/* Recent activity */}
+                        {recentEntries.length > 0 && (
+                          <div>
+                            <p
+                              className="mb-3 text-xs font-semibold tracking-widest uppercase"
+                              style={{ color: "var(--color-on-surface-variant)" }}
+                            >
+                              Recent Activity
+                            </p>
+                            <div
+                              className="overflow-hidden rounded-2xl border"
+                              style={{
+                                borderColor: "var(--color-outline-variant)",
+                                background: "var(--color-surface-container-low)",
+                              }}
+                            >
+                              {recentEntries.map((entry, i) => (
+                                <button
+                                  key={entry.id}
+                                  onClick={() => setSelected(entry)}
+                                  className="press-scale flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:brightness-95"
+                                  style={{
+                                    borderTop:
+                                      i > 0 ? `1px solid var(--color-outline-variant)` : undefined,
+                                  }}
+                                >
+                                  <span className="text-base leading-none">
+                                    {typeIcons[entry.type] ?? "📝"}
+                                  </span>
+                                  <span
+                                    className="flex-1 truncate text-sm font-medium"
+                                    style={{ color: "var(--color-on-surface)" }}
+                                  >
+                                    {entry.title}
+                                  </span>
+                                  <span
+                                    className="flex-shrink-0 text-xs capitalize"
+                                    style={{ color: "var(--color-on-surface-variant)" }}
+                                  >
+                                    {entry.type}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
               </div>
 
               <Suspense fallback={null}>
@@ -794,7 +915,9 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
                         const ex = new Set(JSON.parse(localStorage.getItem(key) || "[]"));
                         answeredItems.forEach((i: any) => ex.add(i.q));
                         localStorage.setItem(key, JSON.stringify([...ex]));
-                      } catch (err) { console.error("[OpenBrain]", err); }
+                      } catch (err) {
+                        console.error("[OpenBrain]", err);
+                      }
                       answeredItems.forEach((item: any) => {
                         callAI({
                           max_tokens: 800,
@@ -813,7 +936,9 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
                                   .replace(/```json|```/g, "")
                                   .trim(),
                               );
-                            } catch (err) { console.error("[OpenBrain]", err); }
+                            } catch (err) {
+                              console.error("[OpenBrain]", err);
+                            }
                             if (parsed.title && activeBrain?.id) {
                               authFetch("/api/capture", {
                                 method: "POST",
@@ -852,7 +977,9 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
                           "openbrain_onboarding_skipped",
                           JSON.stringify(merged),
                         );
-                      } catch (err) { console.error("[OpenBrain]", err); }
+                      } catch (err) {
+                        console.error("[OpenBrain]", err);
+                      }
                     }
                     setShowOnboarding(false);
                     setView("capture");

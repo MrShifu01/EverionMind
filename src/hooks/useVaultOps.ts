@@ -90,9 +90,15 @@ export function useVaultOps({
     authFetch("/api/vault")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (!data) { setStatus("setup"); return; }
-        if (data.exists) { setVaultData(data); setStatus("locked"); fetchVaultEntries(); }
-        else setStatus("setup");
+        if (!data) {
+          setStatus("setup");
+          return;
+        }
+        if (data.exists) {
+          setVaultData(data);
+          setStatus("locked");
+          fetchVaultEntries();
+        } else setStatus("setup");
       })
       .catch(() => setStatus("setup"));
   }, [cryptoKey, fetchVaultEntries]);
@@ -114,8 +120,14 @@ export function useVaultOps({
   }, [status]);
 
   const handleSetup = useCallback(async () => {
-    if (passphrase.length < 8) { setError("Passphrase must be at least 8 characters"); return; }
-    if (passphrase !== confirmPhrase) { setError("Passphrases don't match"); return; }
+    if (passphrase.length < 8) {
+      setError("Passphrase must be at least 8 characters");
+      return;
+    }
+    if (passphrase !== confirmPhrase) {
+      setError("Passphrases don't match");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -146,7 +158,11 @@ export function useVaultOps({
     setError("");
     try {
       const key = await unlockVault(passphrase, vaultData!.salt, vaultData!.verify_token);
-      if (!key) { setError("Wrong passphrase"); setBusy(false); return; }
+      if (!key) {
+        setError("Wrong passphrase");
+        setBusy(false);
+        return;
+      }
       onVaultUnlock(key);
       setStatus("unlocked");
     } catch {
@@ -162,7 +178,11 @@ export function useVaultOps({
     setError("");
     try {
       const key = await decryptVaultKeyFromRecovery(vaultData!.recovery_blob, cleaned);
-      if (!key) { setError("Invalid recovery key"); setBusy(false); return; }
+      if (!key) {
+        setError("Invalid recovery key");
+        setBusy(false);
+        return;
+      }
       onVaultUnlock(key);
       setStatus("unlocked");
     } catch {
@@ -196,19 +216,34 @@ export function useVaultOps({
   };
 
   const handleAddSecret = useCallback(async () => {
-    if (!cryptoKey) { setAddError("Vault is locked"); return; }
-    if (!addTitle.trim() || !addContent.trim()) { setAddError("Title and content are required"); return; }
+    if (!cryptoKey) {
+      setAddError("Vault is locked");
+      return;
+    }
+    if (!addTitle.trim() || !addContent.trim()) {
+      setAddError("Title and content are required");
+      return;
+    }
     setAddBusy(true);
     setAddError("");
     try {
-      const tagList = addTags.split(",").map((t) => t.trim()).filter(Boolean);
+      const tagList = addTags
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
       const metadata: Record<string, string> = {};
       for (const row of addMetaRows) {
         const k = row.key.trim();
         const v = row.value.trim();
         if (k && v) metadata[k] = v;
       }
-      const plain = { title: addTitle.trim(), content: addContent, type: "secret" as const, tags: tagList, metadata };
+      const plain = {
+        title: addTitle.trim(),
+        content: addContent,
+        type: "secret" as const,
+        tags: tagList,
+        metadata,
+      };
       const encrypted = await encryptEntry(plain as any, cryptoKey);
       const res = await authFetch("/api/vault-entries", {
         method: "POST",
@@ -245,19 +280,26 @@ export function useVaultOps({
   }, [addTitle, addContent, addTags, addMetaRows, cryptoKey, brainId, onEntryCreated]);
 
   const bulkDelete = useCallback(async () => {
-    if (!confirm(`Permanently delete ${selectedIds.size} selected secret${selectedIds.size !== 1 ? "s" : ""}? This cannot be undone.`)) return;
+    if (
+      !confirm(
+        `Permanently delete ${selectedIds.size} selected secret${selectedIds.size !== 1 ? "s" : ""}? This cannot be undone.`,
+      )
+    )
+      return;
     const ids = Array.from(selectedIds);
     const legacyIds = new Set(legacySecrets.map((e) => e.id));
     for (const id of ids) {
       // Delete from appropriate table based on origin
-      const endpoint = legacyIds.has(id)
-        ? `/api/entries?id=${id}`
-        : `/api/vault-entries?id=${id}`;
+      const endpoint = legacyIds.has(id) ? `/api/entries?id=${id}` : `/api/vault-entries?id=${id}`;
       const res = await authFetch(endpoint, { method: "DELETE" }).catch(() => null);
       if (res?.ok) {
         setDecryptedSecrets((prev) => prev.filter((e) => e.id !== id));
         setVaultEntries((prev) => prev.filter((e) => e.id !== id));
-        setSelectedIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
       }
     }
     setBulkMode(false);
@@ -297,27 +339,41 @@ export function useVaultOps({
 
   return {
     // state
-    status, setStatus,
-    passphrase, setPassphrase,
-    confirmPhrase, setConfirmPhrase,
-    recoveryInput, setRecoveryInput,
-    error, setError,
+    status,
+    setStatus,
+    passphrase,
+    setPassphrase,
+    confirmPhrase,
+    setConfirmPhrase,
+    recoveryInput,
+    setRecoveryInput,
+    error,
+    setError,
     busy,
     vaultData,
     generatedRecoveryKey,
-    recoveryCopied, setRecoveryCopied,
+    recoveryCopied,
+    setRecoveryCopied,
     decryptedSecrets,
     revealedIds,
     copyMsg,
-    bulkMode, setBulkMode,
-    selectedIds, setSelectedIds,
+    bulkMode,
+    setBulkMode,
+    selectedIds,
+    setSelectedIds,
     inputRef,
-    showAddSecret, setShowAddSecret,
-    addTitle, setAddTitle,
-    addContent, setAddContent,
-    addTags, setAddTags,
-    addMetaRows, setAddMetaRows,
-    addError, setAddError,
+    showAddSecret,
+    setShowAddSecret,
+    addTitle,
+    setAddTitle,
+    addContent,
+    setAddContent,
+    addTags,
+    setAddTags,
+    addMetaRows,
+    setAddMetaRows,
+    addError,
+    setAddError,
     addBusy,
     secrets,
     // handlers

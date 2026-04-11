@@ -69,9 +69,10 @@ export function useCaptureSheetParse({
       const parts: string[] = [];
       if (text.trim()) parts.push(text.trim());
       for (const f of uploadedFiles) {
-        const content = f.content.length > FILE_CONTENT_LIMIT
-          ? f.content.slice(0, FILE_CONTENT_LIMIT) + "\n…[truncated]"
-          : f.content;
+        const content =
+          f.content.length > FILE_CONTENT_LIMIT
+            ? f.content.slice(0, FILE_CONTENT_LIMIT) + "\n…[truncated]"
+            : f.content;
         parts.push(`[File: ${f.name}]\n${content}`);
       }
       return parts.join("\n\n");
@@ -112,7 +113,10 @@ export function useCaptureSheetParse({
           if (res.ok) {
             setUploadedFiles([]);
             setStatus("saved");
-            setTimeout(() => { setStatus(null); onClose(); }, 700);
+            setTimeout(() => {
+              setStatus(null);
+              onClose();
+            }, 700);
           } else {
             const errBody = await res.text().catch(() => "(no body)");
             setErrorDetail(`[vault] HTTP ${res.status} — ${errBody}`);
@@ -153,7 +157,10 @@ export function useCaptureSheetParse({
           onCreated(newEntry);
           setUploadedFiles([]);
           setStatus("saved");
-          setTimeout(() => { setStatus(null); onClose(); }, 700);
+          setTimeout(() => {
+            setStatus(null);
+            onClose();
+          }, 700);
         } else {
           const errBody = await res.text().catch(() => "(no body)");
           const msg = `[capture] HTTP ${res.status} — ${errBody}`;
@@ -182,7 +189,13 @@ export function useCaptureSheetParse({
       setErrorDetail(null);
 
       if (!isOnline) {
-        await doSave({ title: input.slice(0, 60), content: input, type: "note", tags: [], metadata: {} });
+        await doSave({
+          title: input.slice(0, 60),
+          content: input,
+          type: "note",
+          tags: [],
+          metadata: {},
+        });
         return;
       }
 
@@ -197,7 +210,10 @@ export function useCaptureSheetParse({
         const data = await res.json();
 
         if (!res.ok) {
-          const errMsg = data?.error?.message || (typeof data?.error === "string" ? data.error : null) || `AI error ${res.status}`;
+          const errMsg =
+            data?.error?.message ||
+            (typeof data?.error === "string" ? data.error : null) ||
+            `AI error ${res.status}`;
           console.error("[useCaptureSheetParse] AI error:", errMsg);
           // Always show edit preview on AI failure so user can save manually
           setLoading(false);
@@ -206,7 +222,14 @@ export function useCaptureSheetParse({
           setPreviewTitle("");
           setPreviewTags("");
           setPreviewType("note");
-          setPreview({ title: "", content: input, type: "note", tags: [], metadata: {}, _raw: input });
+          setPreview({
+            title: "",
+            content: input,
+            type: "note",
+            tags: [],
+            metadata: {},
+            _raw: input,
+          });
           return;
         }
 
@@ -278,11 +301,16 @@ export function useCaptureSheetParse({
                   created_at: new Date().toISOString(),
                 } as Entry);
               }
-            } catch (err) { console.error("[useCaptureSheetParse]", err); }
+            } catch (err) {
+              console.error("[useCaptureSheetParse]", err);
+            }
           }
           setUploadedFiles([]);
           setStatus("saved");
-          setTimeout(() => { setStatus(null); onClose(); }, 700);
+          setTimeout(() => {
+            setStatus(null);
+            onClose();
+          }, 700);
           return;
         }
 
@@ -306,7 +334,14 @@ export function useCaptureSheetParse({
         setPreviewTitle("");
         setPreviewTags("");
         setPreviewType("note");
-        setPreview({ title: "", content: input, type: "note", tags: [], metadata: {}, _raw: input });
+        setPreview({
+          title: "",
+          content: input,
+          type: "note",
+          tags: [],
+          metadata: {},
+          _raw: input,
+        });
       } catch (e: any) {
         const msg = `[ai] ${e?.message || String(e)}`;
         console.error(msg);
@@ -326,7 +361,10 @@ export function useCaptureSheetParse({
         ...preview,
         title: previewTitle.trim(),
         type: previewType,
-        tags: previewTags.split(",").map((t) => t.trim()).filter(Boolean),
+        tags: previewTags
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean),
       });
       void onRestoreText;
     },
@@ -334,31 +372,28 @@ export function useCaptureSheetParse({
   );
 
   // Extract text from image via configured AI model — stores as uploaded file chip
-  const handleImageFile = useCallback(
-    async (file: File) => {
-      if (!file) return;
-      if (file.size > IMAGE_MAX_BYTES) {
-        setErrorDetail("Image too large (max 5 MB)");
-        return;
+  const handleImageFile = useCallback(async (file: File) => {
+    if (!file) return;
+    if (file.size > IMAGE_MAX_BYTES) {
+      setErrorDetail("Image too large (max 5 MB)");
+      return;
+    }
+    setLoading(true);
+    setStatus("reading");
+    setErrorDetail(null);
+    try {
+      const extracted = await extractTextFromFile(file);
+      if (extracted.trim()) {
+        setUploadedFiles((prev) => [...prev, { name: file.name, content: extracted.trim() }]);
+      } else {
+        setErrorDetail("[image] No text extracted");
       }
-      setLoading(true);
-      setStatus("reading");
-      setErrorDetail(null);
-      try {
-        const extracted = await extractTextFromFile(file);
-        if (extracted.trim()) {
-          setUploadedFiles((prev) => [...prev, { name: file.name, content: extracted.trim() }]);
-        } else {
-          setErrorDetail("[image] No text extracted");
-        }
-      } catch (e: any) {
-        setErrorDetail(`[image] ${e?.message || String(e)}`);
-      }
-      setLoading(false);
-      setStatus(null);
-    },
-    [],
-  );
+    } catch (e: any) {
+      setErrorDetail(`[image] ${e?.message || String(e)}`);
+    }
+    setLoading(false);
+    setStatus(null);
+  }, []);
 
   // Extract text from doc/pdf/excel — stores as uploaded file chip
   const handleDocFiles = useCallback(
@@ -390,14 +425,22 @@ export function useCaptureSheetParse({
   );
 
   return {
-    loading, setLoading,
-    status, setStatus,
-    errorDetail, setErrorDetail,
-    preview, setPreview,
-    previewTitle, setPreviewTitle,
-    previewTags, setPreviewTags,
-    previewType, setPreviewType,
-    uploadedFiles, removeUploadedFile,
+    loading,
+    setLoading,
+    status,
+    setStatus,
+    errorDetail,
+    setErrorDetail,
+    preview,
+    setPreview,
+    previewTitle,
+    setPreviewTitle,
+    previewTags,
+    setPreviewTags,
+    previewType,
+    setPreviewType,
+    uploadedFiles,
+    removeUploadedFile,
     resetState,
     capture,
     doSave,

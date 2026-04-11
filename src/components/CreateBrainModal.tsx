@@ -89,9 +89,7 @@ export default function CreateBrainModal({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ brain_id: brain.id, email: invite.email, role: invite.role }),
-        }).catch((err) =>
-          console.error("[CreateBrain] pending invite failed", invite.email, err),
-        );
+        }).catch((err) => console.error("[CreateBrain] pending invite failed", invite.email, err));
       }
       await onCreate(brain, brainType);
     } catch (err: any) {

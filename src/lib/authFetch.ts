@@ -32,7 +32,9 @@ export async function authFetch(url: string, options: RequestInit = {}): Promise
           });
         })
         .catch((err) => console.error("[authFetch] background refresh failed", err));
-    } catch (err) { console.error("[authFetch]", err); }
+    } catch (err) {
+      console.error("[authFetch]", err);
+    }
   }
 
   return response;

@@ -30,7 +30,8 @@ export function computeCompletenessScore(entry: Entry): number {
   // Metadata richness (0-20)
   const meta = entry.metadata || {};
   const meaningfulKeys = Object.entries(meta).filter(
-    ([k, v]) => v !== null && v !== undefined && v !== "" && k !== "workspace" && k !== "completeness_score",
+    ([k, v]) =>
+      v !== null && v !== undefined && v !== "" && k !== "workspace" && k !== "completeness_score",
   );
   if (meaningfulKeys.length >= 1) score += 5;
   if (meaningfulKeys.length >= 2) score += 5;

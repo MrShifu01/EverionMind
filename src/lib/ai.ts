@@ -24,7 +24,6 @@ export interface CallAIOptions {
   brainId?: string;
 }
 
-
 export async function callAI({
   messages = [],
   system,

@@ -50,14 +50,22 @@ export default function CaptureSheet({
   const [visible, setVisible] = useState(false);
 
   const {
-    loading, setLoading,
-    status, setStatus,
-    errorDetail, setErrorDetail,
-    preview, setPreview,
-    previewTitle, setPreviewTitle,
-    previewTags, setPreviewTags,
-    previewType, setPreviewType,
-    uploadedFiles, removeUploadedFile,
+    loading,
+    setLoading,
+    status,
+    setStatus,
+    errorDetail,
+    setErrorDetail,
+    preview,
+    setPreview,
+    previewTitle,
+    setPreviewTitle,
+    previewTags,
+    setPreviewTags,
+    previewType,
+    setPreviewType,
+    uploadedFiles,
+    removeUploadedFile,
     resetState,
     capture,
     doSave,
@@ -279,8 +287,10 @@ export default function CaptureSheet({
             const f = e.target.files?.[0];
             e.target.value = "";
             if (!f) return;
-            if (onBackgroundFiles) { onBackgroundFiles([f]); onClose(); }
-            else handleImageFile(f);
+            if (onBackgroundFiles) {
+              onBackgroundFiles([f]);
+              onClose();
+            } else handleImageFile(f);
           }}
         />
         <input
@@ -293,8 +303,10 @@ export default function CaptureSheet({
             const f = e.target.files?.[0];
             e.target.value = "";
             if (!f) return;
-            if (onBackgroundFiles) { onBackgroundFiles([f]); onClose(); }
-            else handleImageFile(f);
+            if (onBackgroundFiles) {
+              onBackgroundFiles([f]);
+              onClose();
+            } else handleImageFile(f);
           }}
         />
         <input
@@ -307,8 +319,10 @@ export default function CaptureSheet({
             const files = Array.from(e.target.files ?? []);
             e.target.value = "";
             if (!files.length) return;
-            if (onBackgroundFiles) { onBackgroundFiles(files); onClose(); }
-            else handleDocFiles(files).catch((err) => console.error("[docInput]", err));
+            if (onBackgroundFiles) {
+              onBackgroundFiles(files);
+              onClose();
+            } else handleDocFiles(files).catch((err) => console.error("[docInput]", err));
           }}
         />
 
@@ -321,10 +335,12 @@ export default function CaptureSheet({
         </div>
 
         {showVaultIntro && (
-          <VaultIntroModal onDismiss={() => {
-            localStorage.setItem(VAULT_INTRO_KEY, "1");
-            setShowVaultIntro(false);
-          }} />
+          <VaultIntroModal
+            onDismiss={() => {
+              localStorage.setItem(VAULT_INTRO_KEY, "1");
+              setShowVaultIntro(false);
+            }}
+          />
         )}
 
         <div className="mb-4 flex items-center justify-between">
@@ -336,15 +352,20 @@ export default function CaptureSheet({
               Before saving
             </h2>
           ) : (
-            <div className="flex flex-1 rounded-xl border overflow-hidden lg:mr-3"
-              style={{ borderColor: "var(--color-outline-variant)" }}>
+            <div
+              className="flex flex-1 overflow-hidden rounded-xl border lg:mr-3"
+              style={{ borderColor: "var(--color-outline-variant)" }}
+            >
               <button
                 type="button"
                 onClick={() => setActiveTab("entry")}
                 className="flex-1 py-2 text-sm font-medium transition-colors"
                 style={{
                   background: activeTab === "entry" ? "var(--color-primary)" : "transparent",
-                  color: activeTab === "entry" ? "var(--color-on-primary)" : "var(--color-on-surface-variant)",
+                  color:
+                    activeTab === "entry"
+                      ? "var(--color-on-primary)"
+                      : "var(--color-on-surface-variant)",
                 }}
               >
                 New Entry
@@ -352,14 +373,27 @@ export default function CaptureSheet({
               <button
                 type="button"
                 onClick={handleSecretTab}
-                className="flex-1 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-1.5"
+                className="flex flex-1 items-center justify-center gap-1.5 py-2 text-sm font-medium transition-colors"
                 style={{
                   background: activeTab === "secret" ? "var(--color-primary)" : "transparent",
-                  color: activeTab === "secret" ? "var(--color-on-primary)" : "var(--color-on-surface-variant)",
+                  color:
+                    activeTab === "secret"
+                      ? "var(--color-on-primary)"
+                      : "var(--color-on-surface-variant)",
                 }}
               >
-                <svg className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                <svg
+                  className="h-3.5 w-3.5 shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
+                  />
                 </svg>
                 Add Secret
               </button>
@@ -438,7 +472,11 @@ export default function CaptureSheet({
                   strokeWidth="2.5"
                   viewBox="0 0 24 24"
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+                  />
                 </svg>
               )}
             </button>
@@ -465,7 +503,9 @@ export default function CaptureSheet({
                     <span className="text-on-surface-variant flex-shrink-0">
                       <BrainTypeIcon type={b.type ?? "personal"} className="h-4 w-4" />
                     </span>
-                    <span className="text-on-surface flex-1 truncate text-sm font-medium">{b.name}</span>
+                    <span className="text-on-surface flex-1 truncate text-sm font-medium">
+                      {b.name}
+                    </span>
                     {b.id === ctxActiveBrain.id && (
                       <svg
                         className="text-primary h-3.5 w-3.5 flex-shrink-0"
@@ -474,7 +514,11 @@ export default function CaptureSheet({
                         strokeWidth="2.5"
                         viewBox="0 0 24 24"
                       >
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M4.5 12.75l6 6 9-13.5"
+                        />
                       </svg>
                     )}
                   </button>
@@ -489,8 +533,12 @@ export default function CaptureSheet({
           <div className="space-y-3">
             {!cryptoKey ? (
               <div className="flex flex-col items-center gap-3 py-6 text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl text-3xl"
-                  style={{ background: "color-mix(in oklch, var(--color-outline) 15%, transparent)" }}>
+                <div
+                  className="flex h-14 w-14 items-center justify-center rounded-2xl text-3xl"
+                  style={{
+                    background: "color-mix(in oklch, var(--color-outline) 15%, transparent)",
+                  }}
+                >
                   🔒
                 </div>
                 <div>
@@ -498,7 +546,8 @@ export default function CaptureSheet({
                     Vault is locked
                   </p>
                   <p className="mt-1 text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-                    Go to the Vault tab and unlock with your passphrase, then come back to add a secret.
+                    Go to the Vault tab and unlock with your passphrase, then come back to add a
+                    secret.
                   </p>
                 </div>
                 <button
@@ -513,85 +562,116 @@ export default function CaptureSheet({
                 </button>
               </div>
             ) : (
-            <>
-            <div className="flex items-center gap-2 rounded-xl px-3 py-2"
-              style={{ background: "color-mix(in oklch, var(--color-primary) 8%, transparent)" }}>
-              <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
-                style={{ color: "var(--color-primary)" }}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-              </svg>
-              <p className="text-xs" style={{ color: "var(--color-primary)" }}>
-                AI never reads this. Encrypted on your device before saving.
-              </p>
-            </div>
+              <>
+                <div
+                  className="flex items-center gap-2 rounded-xl px-3 py-2"
+                  style={{
+                    background: "color-mix(in oklch, var(--color-primary) 8%, transparent)",
+                  }}
+                >
+                  <svg
+                    className="h-4 w-4 shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                    style={{ color: "var(--color-primary)" }}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
+                    />
+                  </svg>
+                  <p className="text-xs" style={{ color: "var(--color-primary)" }}>
+                    AI never reads this. Encrypted on your device before saving.
+                  </p>
+                </div>
 
-            <div>
-              <label className="text-on-surface-variant mb-1.5 block text-xs font-medium">Label</label>
-              <input
-                ref={secretTitleRef}
-                value={secretTitle}
-                onChange={(e) => setSecretTitle(e.target.value)}
-                placeholder="e.g. Netflix Password, Visa Card, SSH Key…"
-                className="text-on-surface placeholder:text-on-surface-variant/40 w-full rounded-xl border bg-transparent px-3 py-2.5 text-sm outline-none transition-colors"
-                style={{ borderColor: "var(--color-outline-variant)" }}
-              />
-            </div>
+                <div>
+                  <label className="text-on-surface-variant mb-1.5 block text-xs font-medium">
+                    Label
+                  </label>
+                  <input
+                    ref={secretTitleRef}
+                    value={secretTitle}
+                    onChange={(e) => setSecretTitle(e.target.value)}
+                    placeholder="e.g. Netflix Password, Visa Card, SSH Key…"
+                    className="text-on-surface placeholder:text-on-surface-variant/40 w-full rounded-xl border bg-transparent px-3 py-2.5 text-sm transition-colors outline-none"
+                    style={{ borderColor: "var(--color-outline-variant)" }}
+                  />
+                </div>
 
-            <div>
-              <label className="text-on-surface-variant mb-1.5 block text-xs font-medium">Secret</label>
-              <textarea
-                value={secretContent}
-                onChange={(e) => setSecretContent(e.target.value)}
-                placeholder="Paste or type your password, PIN, key, card details…"
-                rows={5}
-                className="text-on-surface placeholder:text-on-surface-variant/40 w-full resize-none rounded-xl border bg-transparent px-3 py-2.5 text-sm leading-relaxed outline-none transition-colors"
-                style={{ borderColor: "var(--color-outline-variant)" }}
-              />
-            </div>
+                <div>
+                  <label className="text-on-surface-variant mb-1.5 block text-xs font-medium">
+                    Secret
+                  </label>
+                  <textarea
+                    value={secretContent}
+                    onChange={(e) => setSecretContent(e.target.value)}
+                    placeholder="Paste or type your password, PIN, key, card details…"
+                    rows={5}
+                    className="text-on-surface placeholder:text-on-surface-variant/40 w-full resize-none rounded-xl border bg-transparent px-3 py-2.5 text-sm leading-relaxed transition-colors outline-none"
+                    style={{ borderColor: "var(--color-outline-variant)" }}
+                  />
+                </div>
 
-            {secretError && (
-              <p className="font-mono text-xs break-all" style={{ color: "var(--color-error)" }}>
-                {secretError}
-              </p>
-            )}
+                {secretError && (
+                  <p
+                    className="font-mono text-xs break-all"
+                    style={{ color: "var(--color-error)" }}
+                  >
+                    {secretError}
+                  </p>
+                )}
 
-            <div className="flex gap-3 border-t pt-3" style={{ borderColor: "var(--color-outline-variant)" }}>
-              <button
-                onClick={onClose}
-                className="text-on-surface-variant press-scale flex-1 rounded-xl border py-2.5 text-sm transition-colors"
-                style={{ borderColor: "var(--color-outline-variant)" }}
-              >
-                Cancel
-              </button>
-              <button
-                disabled={!secretTitle.trim() || !secretContent.trim() || secretSaving}
-                onClick={async () => {
-                  if (!secretTitle.trim() || !secretContent.trim()) return;
-                  setSecretSaving(true);
-                  setSecretError("");
-                  await doSave({
-                    title: secretTitle.trim(),
-                    content: secretContent,
-                    type: "secret",
-                    tags: [],
-                    metadata: {},
-                  });
-                  setSecretSaving(false);
-                  // If doSave set an error, it's in errorDetail
-                  if (errorDetail) setSecretError(errorDetail);
-                  else { setSecretTitle(""); setSecretContent(""); }
-                }}
-                className="press-scale flex-[2] rounded-xl py-2.5 text-sm font-bold transition-colors disabled:opacity-40"
-                style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
-              >
-                {secretSaving ? (
-                  <span className="flex justify-center gap-1">
-                    <span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />
-                  </span>
-                ) : "Save to Vault"}
-              </button>
-            </div>
-            </>
+                <div
+                  className="flex gap-3 border-t pt-3"
+                  style={{ borderColor: "var(--color-outline-variant)" }}
+                >
+                  <button
+                    onClick={onClose}
+                    className="text-on-surface-variant press-scale flex-1 rounded-xl border py-2.5 text-sm transition-colors"
+                    style={{ borderColor: "var(--color-outline-variant)" }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    disabled={!secretTitle.trim() || !secretContent.trim() || secretSaving}
+                    onClick={async () => {
+                      if (!secretTitle.trim() || !secretContent.trim()) return;
+                      setSecretSaving(true);
+                      setSecretError("");
+                      await doSave({
+                        title: secretTitle.trim(),
+                        content: secretContent,
+                        type: "secret",
+                        tags: [],
+                        metadata: {},
+                      });
+                      setSecretSaving(false);
+                      // If doSave set an error, it's in errorDetail
+                      if (errorDetail) setSecretError(errorDetail);
+                      else {
+                        setSecretTitle("");
+                        setSecretContent("");
+                      }
+                    }}
+                    className="press-scale flex-[2] rounded-xl py-2.5 text-sm font-bold transition-colors disabled:opacity-40"
+                    style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
+                  >
+                    {secretSaving ? (
+                      <span className="flex justify-center gap-1">
+                        <span className="typing-dot" />
+                        <span className="typing-dot" />
+                        <span className="typing-dot" />
+                      </span>
+                    ) : (
+                      "Save to Vault"
+                    )}
+                  </button>
+                </div>
+              </>
             )}
           </div>
         )}
@@ -622,10 +702,24 @@ export default function CaptureSheet({
                   <span
                     key={f.name}
                     className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium"
-                    style={{ borderColor: "var(--color-outline-variant)", color: "var(--color-on-surface-variant)", background: "var(--color-surface-container)" }}
+                    style={{
+                      borderColor: "var(--color-outline-variant)",
+                      color: "var(--color-on-surface-variant)",
+                      background: "var(--color-surface-container)",
+                    }}
                   >
-                    <svg className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                    <svg
+                      className="h-3 w-3 shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
+                      />
                     </svg>
                     <span className="max-w-[140px] truncate">{f.name}</span>
                     <button
@@ -633,8 +727,18 @@ export default function CaptureSheet({
                       className="hover:text-on-surface ml-0.5 transition-colors"
                       aria-label={`Remove ${f.name}`}
                     >
-                      <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      <svg
+                        className="h-3 w-3"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M6 18L18 6M6 6l12 12"
+                        />
                       </svg>
                     </button>
                   </span>
@@ -718,7 +822,7 @@ export default function CaptureSheet({
                   disabled={loading}
                   aria-label="Take photo"
                   title="Take photo"
-                  className="lg:hidden flex h-9 w-9 items-center justify-center rounded-xl transition-colors hover:bg-white/10 disabled:opacity-40"
+                  className="flex h-9 w-9 items-center justify-center rounded-xl transition-colors hover:bg-white/10 disabled:opacity-40 lg:hidden"
                   style={{ color: "var(--color-on-surface-variant)" }}
                 >
                   <svg
@@ -747,7 +851,7 @@ export default function CaptureSheet({
                   disabled={loading}
                   aria-label="Upload image"
                   title="Upload image"
-                  className="lg:hidden flex h-9 w-9 items-center justify-center rounded-xl transition-colors hover:bg-white/10 disabled:opacity-40"
+                  className="flex h-9 w-9 items-center justify-center rounded-xl transition-colors hover:bg-white/10 disabled:opacity-40 lg:hidden"
                   style={{ color: "var(--color-on-surface-variant)" }}
                 >
                   <svg
@@ -850,14 +954,17 @@ export default function CaptureSheet({
                 <span>{previewType.charAt(0).toUpperCase() + previewType.slice(1)}</span>
                 <svg
                   className={`h-4 w-4 flex-shrink-0 transition-transform ${typeOpen ? "rotate-180" : ""}`}
-                  fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
               {typeOpen && (
                 <div
-                  className="absolute bottom-full left-0 right-0 z-20 mb-1 overflow-y-auto rounded-xl border shadow-lg"
+                  className="absolute right-0 bottom-full left-0 z-20 mb-1 overflow-y-auto rounded-xl border shadow-lg"
                   style={{
                     background: "var(--color-surface-container-high)",
                     borderColor: "var(--color-outline-variant)",
@@ -868,11 +975,15 @@ export default function CaptureSheet({
                     <button
                       key={t}
                       type="button"
-                      onClick={() => { setPreviewType(t); setTypeOpen(false); }}
+                      onClick={() => {
+                        setPreviewType(t);
+                        setTypeOpen(false);
+                      }}
                       className="w-full px-3 py-2.5 text-left text-sm transition-colors hover:bg-white/10"
                       style={{
                         color: "var(--color-on-surface)",
-                        background: previewType === t ? "var(--color-primary-container)" : undefined,
+                        background:
+                          previewType === t ? "var(--color-primary-container)" : undefined,
                       }}
                     >
                       {t.charAt(0).toUpperCase() + t.slice(1)}
@@ -939,8 +1050,18 @@ export default function CaptureSheet({
                   className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-2 text-xs transition-colors hover:bg-white/5"
                   style={{ color: "var(--color-on-surface-variant)", opacity: 0.6 }}
                 >
-                  <svg className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                  <svg
+                    className="h-3.5 w-3.5 shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
+                    />
                   </svg>
                   Save to Vault instead
                 </button>

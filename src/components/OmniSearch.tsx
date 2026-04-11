@@ -90,11 +90,26 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
           background: "var(--color-surface-container-low)",
         }}
       >
-        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+        <svg
+          className="h-4 w-4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+          />
         </svg>
         <span>Search</span>
-        <kbd className="ml-2 rounded px-1.5 py-0.5 text-[10px]" style={{ background: "var(--color-surface-container-high)" }}>⌘K</kbd>
+        <kbd
+          className="ml-2 rounded px-1.5 py-0.5 text-[10px]"
+          style={{ background: "var(--color-surface-container-high)" }}
+        >
+          ⌘K
+        </kbd>
       </button>
     );
   }
@@ -117,8 +132,19 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
           className="flex items-center gap-3 border-b px-4 py-4 lg:py-5"
           style={{ borderColor: "var(--color-outline-variant)" }}
         >
-          <svg className="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" style={{ color: "var(--color-primary)" }}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+          <svg
+            className="h-5 w-5 flex-shrink-0"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            viewBox="0 0 24 24"
+            style={{ color: "var(--color-primary)" }}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+            />
           </svg>
           <input
             ref={inputRef}
@@ -152,7 +178,13 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
               background: "var(--color-surface-container)",
             }}
           >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+            >
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -166,7 +198,8 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
                 <button
                   className="flex w-full items-start gap-3 px-4 py-2.5 text-left transition-colors"
                   style={{
-                    background: i === highlighted ? "var(--color-surface-container)" : "transparent",
+                    background:
+                      i === highlighted ? "var(--color-surface-container)" : "transparent",
                   }}
                   onClick={() => {
                     onSelect(entry);
@@ -200,12 +233,18 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
             ))}
           </ul>
         ) : query.trim() ? (
-          <div className="flex-1 px-4 py-8 text-center text-sm lg:flex-none" style={{ color: "var(--color-on-surface-variant)" }}>
+          <div
+            className="flex-1 px-4 py-8 text-center text-sm lg:flex-none"
+            style={{ color: "var(--color-on-surface-variant)" }}
+          >
             No results for "{query}"
           </div>
         ) : (
           <div className="flex-1 px-4 py-6 lg:flex-none">
-            <p className="mb-3 text-xs font-semibold uppercase" style={{ color: "var(--color-on-surface-variant)" }}>
+            <p
+              className="mb-3 text-xs font-semibold uppercase"
+              style={{ color: "var(--color-on-surface-variant)" }}
+            >
               Quick Nav
             </p>
             <div className="flex flex-wrap gap-2">
@@ -222,7 +261,9 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
                     setOpen(false);
                   }}
                 >
-                  {view === "refine" ? "Improve Brain" : view.charAt(0).toUpperCase() + view.slice(1)}
+                  {view === "refine"
+                    ? "Improve Brain"
+                    : view.charAt(0).toUpperCase() + view.slice(1)}
                 </button>
               ))}
             </div>

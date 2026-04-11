@@ -180,7 +180,7 @@ function PreviewModal({ preview, entries, onSave, onUpdate, onCancel }: PreviewM
               value={body}
               onChange={(e) => setBody(e.target.value)}
               rows={3}
-              className="text-on-surface w-full rounded-xl border bg-transparent px-3 py-2.5 text-sm transition-colors outline-none focus:border-[var(--color-primary)] resize-none"
+              className="text-on-surface w-full resize-none rounded-xl border bg-transparent px-3 py-2.5 text-sm transition-colors outline-none focus:border-[var(--color-primary)]"
               style={{ borderColor: "var(--color-outline-variant)" }}
             />
           </div>
@@ -796,7 +796,9 @@ export default function QuickCapture({
         parsedRaw = JSON.parse(
           (data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim(),
         );
-      } catch (err) { console.error("[QuickCapture]", err); }
+      } catch (err) {
+        console.error("[QuickCapture]", err);
+      }
       // Array response: AI split input into multiple entries
       if (Array.isArray(parsedRaw) && parsedRaw.length > 0) {
         setLoading(false);

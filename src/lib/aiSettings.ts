@@ -260,14 +260,14 @@ export async function loadUserAISettings(userId: string): Promise<void> {
 // ── Simple mode free model constants ──
 export const SIMPLE_AI_MODEL = "openrouter/free";
 export const SIMPLE_AI_FALLBACKS = [
-  "google/gemini-2.0-flash-001",  // cheap paid — ultimate fallback
+  "google/gemini-2.0-flash-001", // cheap paid — ultimate fallback
 ];
 
 export const SIMPLE_EMBED_MODEL = "nvidia/llama-nemotron-embed-vl-1b-v2:free";
 
 export const SIMPLE_VOICE_MODEL = "openrouter/free";
 export const SIMPLE_VOICE_FALLBACKS = [
-  "google/gemini-2.0-flash-001",  // cheap paid — ultimate fallback
+  "google/gemini-2.0-flash-001", // cheap paid — ultimate fallback
 ];
 
 // ── Embedding settings ──
@@ -332,7 +332,11 @@ export function getEmbedHeaders(): {
   if (getSimpleMode()) {
     const key = getOpenRouterKey();
     if (!key) return null;
-    return { "X-Embed-Provider": "openrouter", "X-Embed-Key": key, "X-Embed-Model": SIMPLE_EMBED_MODEL };
+    return {
+      "X-Embed-Provider": "openrouter",
+      "X-Embed-Key": key,
+      "X-Embed-Model": SIMPLE_EMBED_MODEL,
+    };
   }
   const provider = getEmbedProvider();
   const key = getEmbedKey();

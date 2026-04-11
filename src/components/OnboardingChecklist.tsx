@@ -67,7 +67,9 @@ export default function OnboardingChecklist({
     setDismissed(next);
     try {
       localStorage.setItem(DISMISSED_KEY, JSON.stringify(next));
-    } catch (err) { console.error("[OnboardingChecklist]", err); }
+    } catch (err) {
+      console.error("[OnboardingChecklist]", err);
+    }
   }
 
   function dismissCategory(cat: string): void {
@@ -76,7 +78,9 @@ export default function OnboardingChecklist({
     setDismissed(next);
     try {
       localStorage.setItem(DISMISSED_KEY, JSON.stringify(next));
-    } catch (err) { console.error("[OnboardingChecklist]", err); }
+    } catch (err) {
+      console.error("[OnboardingChecklist]", err);
+    }
   }
 
   return (

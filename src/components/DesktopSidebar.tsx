@@ -213,7 +213,9 @@ export default function DesktopSidebar({
               <>
                 <div
                   className="h-2 w-2 flex-shrink-0 rounded-full"
-                  style={{ background: isOffline ? "var(--color-error)" : "var(--color-secondary)" }}
+                  style={{
+                    background: isOffline ? "var(--color-error)" : "var(--color-secondary)",
+                  }}
                 />
                 <span className="text-on-surface-variant/50 text-xs">{statusText}</span>
               </>

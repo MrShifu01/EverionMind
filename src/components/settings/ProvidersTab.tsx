@@ -53,7 +53,8 @@ function extractJSON(text: string): unknown {
 const dot = (s: Status) => {
   if (s === "ok") return <span style={{ color: "var(--color-success, #4ade80)" }}>●</span>;
   if (s === "fail") return <span style={{ color: "var(--color-error)" }}>●</span>;
-  if (s === "loading") return <span style={{ color: "var(--color-on-surface-variant)", opacity: 0.5 }}>◌</span>;
+  if (s === "loading")
+    return <span style={{ color: "var(--color-on-surface-variant)", opacity: 0.5 }}>◌</span>;
   return <span style={{ color: "var(--color-outline-variant)" }}>○</span>;
 };
 
@@ -71,7 +72,11 @@ export default function ProvidersTab(props?: { activeBrain?: any }) {
   const [db, setDb] = useState<Status>("idle");
   const [testing, setTesting] = useState(false);
   const [reembedding, setReembedding] = useState(false);
-  const [reembedProgress, setReembedProgress] = useState<{ processed: number; failed: number; remaining: number } | null>(null);
+  const [reembedProgress, setReembedProgress] = useState<{
+    processed: number;
+    failed: number;
+    remaining: number;
+  } | null>(null);
 
   const [llmTesting, setLlmTesting] = useState(false);
   const [llmResult, setLlmResult] = useState<{ ok: boolean; text: string } | null>(null);
@@ -90,14 +95,20 @@ export default function ProvidersTab(props?: { activeBrain?: any }) {
       if (res.ok) {
         const data: HealthResult = await res.json();
         setGemini(data.gemini ? "ok" : "fail");
-        setGeminiModel(data.gemini ? (data.geminiModel || "") : (data.geminiError || data.geminiModel || ""));
+        setGeminiModel(
+          data.gemini ? data.geminiModel || "" : data.geminiError || data.geminiModel || "",
+        );
         setGroq(data.groq ? "ok" : "fail");
         setDb(data.db ? "ok" : "fail");
       } else {
-        setGemini("fail"); setGroq("fail"); setDb("fail");
+        setGemini("fail");
+        setGroq("fail");
+        setDb("fail");
       }
     } catch {
-      setGemini("fail"); setGroq("fail"); setDb("fail");
+      setGemini("fail");
+      setGroq("fail");
+      setDb("fail");
     }
     setTesting(false);
   }
@@ -143,10 +154,16 @@ export default function ProvidersTab(props?: { activeBrain?: any }) {
       const data = await res.json();
       if (!res.ok) {
         const err = data?.error?.message || data?.error || JSON.stringify(data);
-        setter({ ok: false, rawText: JSON.stringify(data), parsed: null, error: `HTTP ${res.status}: ${err}` });
+        setter({
+          ok: false,
+          rawText: JSON.stringify(data),
+          parsed: null,
+          error: `HTTP ${res.status}: ${err}`,
+        });
         return;
       }
-      const rawText: string = data.content?.[0]?.text || data.choices?.[0]?.message?.content || "(empty)";
+      const rawText: string =
+        data.content?.[0]?.text || data.choices?.[0]?.message?.content || "(empty)";
       try {
         const parsed = extractJSON(rawText);
         setter({ ok: true, rawText, parsed });
@@ -161,12 +178,22 @@ export default function ProvidersTab(props?: { activeBrain?: any }) {
   }
 
   const cards: { title: string; desc: string; status: Status }[] = [
-    { title: "Gemini AI", desc: geminiModel || "gemma-4-31b-it · text-embedding-004", status: gemini },
+    {
+      title: "Gemini AI",
+      desc: geminiModel || "gemma-4-31b-it · text-embedding-004",
+      status: gemini,
+    },
     { title: "Groq Voice", desc: "whisper-large-v3-turbo", status: groq },
-    { title: "Database",   desc: "Supabase", status: db },
+    { title: "Database", desc: "Supabase", status: db },
   ];
 
-  const hasStoredKeys = !!(getUserApiKey() || getOpenRouterKey() || getGroqKey() || getGeminiKey() || getEmbedOpenAIKey());
+  const hasStoredKeys = !!(
+    getUserApiKey() ||
+    getOpenRouterKey() ||
+    getGroqKey() ||
+    getGeminiKey() ||
+    getEmbedOpenAIKey()
+  );
   const [clearing, setClearing] = useState(false);
   const [clearMsg, setClearMsg] = useState<string | null>(null);
 
@@ -174,8 +201,11 @@ export default function ProvidersTab(props?: { activeBrain?: any }) {
     setClearing(true);
     setClearMsg(null);
     const { error } = await persistKeyToDb({
-      api_key: null, openrouter_key: null, groq_key: null,
-      embed_openai_key: null, gemini_key: null,
+      api_key: null,
+      openrouter_key: null,
+      groq_key: null,
+      embed_openai_key: null,
+      gemini_key: null,
     });
     clearAISettingsCache();
     setClearMsg(error ? `Error: ${error}` : "All frontend API keys removed.");
@@ -194,17 +224,27 @@ export default function ProvidersTab(props?: { activeBrain?: any }) {
       try {
         const res = await authFetch("/api/embed", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "X-Embed-Provider": "google", "X-Embed-Key": "" },
+          headers: {
+            "Content-Type": "application/json",
+            "X-Embed-Provider": "google",
+            "X-Embed-Key": "",
+          },
           body: JSON.stringify({ brain_id: brainId, batch: true, force: true }),
         });
         const data = await res.json();
-        if (!res.ok) { console.error("[re-embed]", data); break; }
+        if (!res.ok) {
+          console.error("[re-embed]", data);
+          break;
+        }
         totalProcessed += data.processed ?? 0;
         totalFailed += data.failed ?? 0;
         remaining = data.remaining ?? 0;
         setReembedProgress({ processed: totalProcessed, failed: totalFailed, remaining });
         if ((data.processed ?? 0) === 0) break;
-      } catch (err) { console.error("[re-embed]", err); break; }
+      } catch (err) {
+        console.error("[re-embed]", err);
+        break;
+      }
     }
     setReembedding(false);
   }
@@ -236,10 +276,17 @@ export default function ProvidersTab(props?: { activeBrain?: any }) {
             }}
           >
             <div>
-              <p className="text-sm font-semibold" style={{ color: "var(--color-on-surface)" }}>{title}</p>
-              <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>{desc}</p>
+              <p className="text-sm font-semibold" style={{ color: "var(--color-on-surface)" }}>
+                {title}
+              </p>
+              <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
+                {desc}
+              </p>
             </div>
-            <div className="flex items-center gap-2 text-xs font-medium" style={{ color: "var(--color-on-surface-variant)" }}>
+            <div
+              className="flex items-center gap-2 text-xs font-medium"
+              style={{ color: "var(--color-on-surface-variant)" }}
+            >
               {dot(status)}
               <span>{label(status)}</span>
             </div>
@@ -249,12 +296,17 @@ export default function ProvidersTab(props?: { activeBrain?: any }) {
 
       {/* Direct LLM pipeline test */}
       <div
-        className="rounded-xl p-4 space-y-3"
-        style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)" }}
+        className="space-y-3 rounded-xl p-4"
+        style={{
+          background: "var(--color-surface-container)",
+          border: "1px solid var(--color-outline-variant)",
+        }}
       >
         <div>
-          <p className="text-sm font-semibold" style={{ color: "var(--color-on-surface)" }}>Live AI test</p>
-          <p className="text-xs mt-0.5" style={{ color: "var(--color-on-surface-variant)" }}>
+          <p className="text-sm font-semibold" style={{ color: "var(--color-on-surface)" }}>
+            Live AI test
+          </p>
+          <p className="mt-0.5 text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
             Tests the exact path the AI features use (no key required).
           </p>
         </div>
@@ -262,12 +314,18 @@ export default function ProvidersTab(props?: { activeBrain?: any }) {
           onClick={testLLM}
           disabled={llmTesting}
           className="w-full rounded-xl py-2 text-xs font-semibold transition-all disabled:opacity-50"
-          style={{ background: "var(--color-secondary-container)", color: "var(--color-on-secondary-container)" }}
+          style={{
+            background: "var(--color-secondary-container)",
+            color: "var(--color-on-secondary-container)",
+          }}
         >
           {llmTesting ? "Calling model…" : "Test AI pipeline"}
         </button>
         {llmResult && (
-          <p className="text-xs font-mono break-all whitespace-pre-wrap" style={{ color: llmResult.ok ? "var(--color-primary)" : "var(--color-error)" }}>
+          <p
+            className="font-mono text-xs break-all whitespace-pre-wrap"
+            style={{ color: llmResult.ok ? "var(--color-primary)" : "var(--color-error)" }}
+          >
             {llmResult.text}
           </p>
         )}
@@ -275,12 +333,17 @@ export default function ProvidersTab(props?: { activeBrain?: any }) {
 
       {/* ── Parse pipeline tests ─────────────────────────────────────────── */}
       <div
-        className="rounded-xl p-4 space-y-4"
-        style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)" }}
+        className="space-y-4 rounded-xl p-4"
+        style={{
+          background: "var(--color-surface-container)",
+          border: "1px solid var(--color-outline-variant)",
+        }}
       >
         <div>
-          <p className="text-sm font-semibold" style={{ color: "var(--color-on-surface)" }}>Parse pipeline tests</p>
-          <p className="text-xs mt-0.5" style={{ color: "var(--color-on-surface-variant)" }}>
+          <p className="text-sm font-semibold" style={{ color: "var(--color-on-surface)" }}>
+            Parse pipeline tests
+          </p>
+          <p className="mt-0.5 text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
             Runs the full CAPTURE prompt through Gemma and shows raw + parsed output.
           </p>
         </div>
@@ -308,13 +371,20 @@ export default function ProvidersTab(props?: { activeBrain?: any }) {
 
       {/* Clear stored frontend keys */}
       <div
-        className="rounded-xl p-4 space-y-3"
-        style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)" }}
+        className="space-y-3 rounded-xl p-4"
+        style={{
+          background: "var(--color-surface-container)",
+          border: "1px solid var(--color-outline-variant)",
+        }}
       >
         <div>
-          <p className="text-sm font-semibold" style={{ color: "var(--color-on-surface)" }}>Frontend API keys</p>
-          <p className="text-xs mt-0.5" style={{ color: "var(--color-on-surface-variant)" }}>
-            {hasStoredKeys ? "Keys stored from previous configuration — no longer needed." : "No frontend keys stored."}
+          <p className="text-sm font-semibold" style={{ color: "var(--color-on-surface)" }}>
+            Frontend API keys
+          </p>
+          <p className="mt-0.5 text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
+            {hasStoredKeys
+              ? "Keys stored from previous configuration — no longer needed."
+              : "No frontend keys stored."}
           </p>
         </div>
         {hasStoredKeys && (
@@ -322,13 +392,21 @@ export default function ProvidersTab(props?: { activeBrain?: any }) {
             onClick={clearAllKeys}
             disabled={clearing}
             className="w-full rounded-xl py-2 text-xs font-semibold transition-all disabled:opacity-50"
-            style={{ background: "var(--color-error-container)", color: "var(--color-on-error-container)" }}
+            style={{
+              background: "var(--color-error-container)",
+              color: "var(--color-on-error-container)",
+            }}
           >
             {clearing ? "Clearing…" : "Remove all stored keys"}
           </button>
         )}
         {clearMsg && (
-          <p className="text-xs text-center" style={{ color: clearMsg.startsWith("Error") ? "var(--color-error)" : "var(--color-primary)" }}>
+          <p
+            className="text-center text-xs"
+            style={{
+              color: clearMsg.startsWith("Error") ? "var(--color-error)" : "var(--color-primary)",
+            }}
+          >
             {clearMsg}
           </p>
         )}
@@ -336,25 +414,34 @@ export default function ProvidersTab(props?: { activeBrain?: any }) {
 
       {/* Re-embed all entries */}
       <div
-        className="rounded-xl p-4 space-y-3"
-        style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)" }}
+        className="space-y-3 rounded-xl p-4"
+        style={{
+          background: "var(--color-surface-container)",
+          border: "1px solid var(--color-outline-variant)",
+        }}
       >
         <div>
-          <p className="text-sm font-semibold" style={{ color: "var(--color-on-surface)" }}>Re-embed all entries</p>
-          <p className="text-xs mt-0.5" style={{ color: "var(--color-on-surface-variant)" }}>
-            Force re-generate all embeddings with the current model (gemini-embedding-001). Use after switching embedding models.
+          <p className="text-sm font-semibold" style={{ color: "var(--color-on-surface)" }}>
+            Re-embed all entries
+          </p>
+          <p className="mt-0.5 text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
+            Force re-generate all embeddings with the current model (gemini-embedding-001). Use
+            after switching embedding models.
           </p>
         </div>
         <button
           onClick={reembedAll}
           disabled={reembedding || !props?.activeBrain}
           className="w-full rounded-xl py-2 text-xs font-semibold transition-all disabled:opacity-50"
-          style={{ background: "var(--color-secondary-container)", color: "var(--color-on-secondary-container)" }}
+          style={{
+            background: "var(--color-secondary-container)",
+            color: "var(--color-on-secondary-container)",
+          }}
         >
           {reembedding ? "Re-embedding…" : "Re-embed all entries"}
         </button>
         {reembedProgress !== null && (
-          <p className="text-xs text-center" style={{ color: "var(--color-on-surface-variant)" }}>
+          <p className="text-center text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
             {reembedding
               ? `Processing… ${reembedProgress.processed} done${reembedProgress.failed > 0 ? `, ${reembedProgress.failed} failed` : ""}${reembedProgress.remaining > 0 ? `, ${reembedProgress.remaining} remaining` : ""}`
               : `Done — ${reembedProgress.processed} embedded${reembedProgress.failed > 0 ? `, ${reembedProgress.failed} failed` : ""}`}
@@ -383,8 +470,14 @@ function ParseTestBlock({ num, label, input, loading, result, onRun }: ParseTest
   const count = isArray ? (result!.parsed as unknown[]).length : null;
 
   return (
-    <div className="space-y-2 border-t pt-3" style={{ borderColor: "var(--color-outline-variant)" }}>
-      <p className="text-[11px] font-semibold leading-snug" style={{ color: "var(--color-on-surface-variant)" }}>
+    <div
+      className="space-y-2 border-t pt-3"
+      style={{ borderColor: "var(--color-outline-variant)" }}
+    >
+      <p
+        className="text-[11px] leading-snug font-semibold"
+        style={{ color: "var(--color-on-surface-variant)" }}
+      >
         {label}
       </p>
 
@@ -397,7 +490,13 @@ function ParseTestBlock({ num, label, input, loading, result, onRun }: ParseTest
       </button>
 
       {showInput && (
-        <p className="text-[10px] font-mono break-all rounded-lg p-2" style={{ background: "var(--color-surface-container-high)", color: "var(--color-on-surface-variant)" }}>
+        <p
+          className="rounded-lg p-2 font-mono text-[10px] break-all"
+          style={{
+            background: "var(--color-surface-container-high)",
+            color: "var(--color-on-surface-variant)",
+          }}
+        >
           {input}
         </p>
       )}
@@ -414,7 +513,10 @@ function ParseTestBlock({ num, label, input, loading, result, onRun }: ParseTest
       {result && (
         <div className="space-y-2">
           {/* Status line */}
-          <p className="text-[11px] font-semibold" style={{ color: result.ok ? "var(--color-primary)" : "var(--color-error)" }}>
+          <p
+            className="text-[11px] font-semibold"
+            style={{ color: result.ok ? "var(--color-primary)" : "var(--color-error)" }}
+          >
             {result.ok
               ? isArray
                 ? `✓ Array with ${count} entr${count === 1 ? "y" : "ies"}`
@@ -423,19 +525,30 @@ function ParseTestBlock({ num, label, input, loading, result, onRun }: ParseTest
           </p>
 
           {/* Parsed output — one card per entry if array */}
-          {result.ok && isArray && (result.parsed as any[]).map((entry: any, i: number) => (
-            <EntryCard key={i} index={i + 1} entry={entry} />
-          ))}
+          {result.ok &&
+            isArray &&
+            (result.parsed as any[]).map((entry: any, i: number) => (
+              <EntryCard key={i} index={i + 1} entry={entry} />
+            ))}
           {result.ok && !isArray && result.parsed != null && (
             <EntryCard index={0} entry={result.parsed as Record<string, any>} />
           )}
 
           {/* Raw AI text (collapsed) */}
           <details>
-            <summary className="text-[10px] cursor-pointer" style={{ color: "var(--color-on-surface-variant)" }}>
+            <summary
+              className="cursor-pointer text-[10px]"
+              style={{ color: "var(--color-on-surface-variant)" }}
+            >
               Raw AI response
             </summary>
-            <p className="text-[10px] font-mono break-all whitespace-pre-wrap mt-1 rounded-lg p-2" style={{ background: "var(--color-surface-container-high)", color: "var(--color-on-surface-variant)" }}>
+            <p
+              className="mt-1 rounded-lg p-2 font-mono text-[10px] break-all whitespace-pre-wrap"
+              style={{
+                background: "var(--color-surface-container-high)",
+                color: "var(--color-on-surface-variant)",
+              }}
+            >
               {result.rawText || "(empty)"}
             </p>
           </details>
@@ -453,38 +566,63 @@ function EntryCard({ index, entry }: { index: number; entry: Record<string, any>
     { key: "content", label: "Content" },
     { key: "workspace", label: "Workspace" },
   ];
-  const meta = entry.metadata && typeof entry.metadata === "object" ? Object.entries(entry.metadata) : [];
+  const meta =
+    entry.metadata && typeof entry.metadata === "object" ? Object.entries(entry.metadata) : [];
 
   return (
     <div
-      className="rounded-xl p-3 space-y-1.5"
-      style={{ background: "var(--color-surface-container-high)", border: "1px solid var(--color-outline-variant)" }}
+      className="space-y-1.5 rounded-xl p-3"
+      style={{
+        background: "var(--color-surface-container-high)",
+        border: "1px solid var(--color-outline-variant)",
+      }}
     >
       {index > 0 && (
-        <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--color-on-surface-variant)" }}>
+        <p
+          className="text-[10px] font-semibold tracking-wide uppercase"
+          style={{ color: "var(--color-on-surface-variant)" }}
+        >
           Entry {index}
         </p>
       )}
       {fields.map(({ key, label, important }) => {
         const val = entry[key];
-        if (val === undefined || val === null || (Array.isArray(val) && val.length === 0)) return null;
+        if (val === undefined || val === null || (Array.isArray(val) && val.length === 0))
+          return null;
         const display = Array.isArray(val) ? val.join(", ") : String(val);
         return (
           <div key={key} className="flex gap-1.5">
-            <span className="text-[10px] font-semibold shrink-0 w-16" style={{ color: "var(--color-on-surface-variant)" }}>{label}</span>
+            <span
+              className="w-16 shrink-0 text-[10px] font-semibold"
+              style={{ color: "var(--color-on-surface-variant)" }}
+            >
+              {label}
+            </span>
             <span
               className="text-[11px] break-all"
-              style={{ color: important ? "var(--color-on-surface)" : "var(--color-on-surface-variant)", fontWeight: important ? 600 : 400 }}
+              style={{
+                color: important ? "var(--color-on-surface)" : "var(--color-on-surface-variant)",
+                fontWeight: important ? 600 : 400,
+              }}
             >
-              {display.slice(0, 120)}{display.length > 120 ? "…" : ""}
+              {display.slice(0, 120)}
+              {display.length > 120 ? "…" : ""}
             </span>
           </div>
         );
       })}
       {meta.length > 0 && (
         <div className="flex gap-1.5">
-          <span className="text-[10px] font-semibold shrink-0 w-16" style={{ color: "var(--color-on-surface-variant)" }}>Meta</span>
-          <span className="text-[10px] font-mono break-all" style={{ color: "var(--color-on-surface-variant)" }}>
+          <span
+            className="w-16 shrink-0 text-[10px] font-semibold"
+            style={{ color: "var(--color-on-surface-variant)" }}
+          >
+            Meta
+          </span>
+          <span
+            className="font-mono text-[10px] break-all"
+            style={{ color: "var(--color-on-surface-variant)" }}
+          >
             {meta.map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(" · ")}
           </span>
         </div>

@@ -473,7 +473,9 @@ export default function SuggestionsView({
         let captureData: any = {};
         try {
           captureData = await rpcRes.json();
-        } catch (err) { console.error("[SuggestionsView]", err); }
+        } catch (err) {
+          console.error("[SuggestionsView]", err);
+        }
         if (captureData.embed_error) {
           console.error(`[embed] ${captureData.embed_error}`);
         }
@@ -508,7 +510,9 @@ export default function SuggestionsView({
         updated.add(current.q);
         try {
           localStorage.setItem(answeredKey, JSON.stringify([...updated]));
-        } catch (err) { console.error("[SuggestionsView]", err); }
+        } catch (err) {
+          console.error("[SuggestionsView]", err);
+        }
         return updated;
       });
       // Remove from skipped onboarding list if it was there
@@ -516,7 +520,9 @@ export default function SuggestionsView({
         const skipped = JSON.parse(localStorage.getItem("openbrain_onboarding_skipped") || "[]");
         const updated = skipped.filter((s: any) => s.q !== current!.q);
         localStorage.setItem("openbrain_onboarding_skipped", JSON.stringify(updated));
-      } catch (err) { console.error("[SuggestionsView]", err); }
+      } catch (err) {
+        console.error("[SuggestionsView]", err);
+      }
     }
 
     setSaving(false);
@@ -915,7 +921,10 @@ export default function SuggestionsView({
                   </span>
                   {s.brain && (
                     <span className="text-on-surface-variant text-[10px]">
-                      <BrainTypeIcon type={s.brain.type ?? "personal"} className="inline h-3 w-3 align-middle" />{" "}
+                      <BrainTypeIcon
+                        type={s.brain.type ?? "personal"}
+                        className="inline h-3 w-3 align-middle"
+                      />{" "}
                       {s.brain.name}
                     </span>
                   )}
