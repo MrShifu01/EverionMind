@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { searchIndex } from "../lib/searchIndex";
 import type { Entry } from "../types";
 
 interface OmniSearchProps {
@@ -40,21 +39,19 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
 
   const runSearch = useCallback(
     (q: string) => {
-      if (!q.trim()) {
+      const trimmed = q.trim().toLowerCase();
+      if (!trimmed) {
         setResults([]);
         return;
       }
-      const ids = searchIndex(q);
-      if (ids) {
-        const matched = entries.filter((e) => ids.has(e.id)).slice(0, 12);
-        setResults(matched);
-      } else {
-        // Fallback: simple title match
-        const lower = q.toLowerCase();
-        setResults(
-          entries.filter((e) => e.title.toLowerCase().includes(lower)).slice(0, 12),
-        );
-      }
+      setResults(
+        entries
+          .filter((e) => {
+            const hay = `${e.title} ${e.content || ""} ${(e.tags || []).join(" ")}`.toLowerCase();
+            return hay.includes(trimmed);
+          })
+          .slice(0, 12),
+      );
       setHighlighted(0);
     },
     [entries],
@@ -104,17 +101,20 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-start justify-center pt-[10vh]"
-      style={{ background: "var(--color-scrim)" }}
+      className="fixed inset-0 z-[200] flex items-start justify-center lg:pt-[10vh]"
+      style={{
+        background: "var(--color-scrim)",
+        paddingTop: "max(0px, env(safe-area-inset-top))",
+      }}
       onClick={(e) => e.target === e.currentTarget && setOpen(false)}
     >
       <div
-        className="w-full max-w-xl overflow-hidden rounded-2xl border shadow-2xl"
+        className="flex h-full w-full flex-col overflow-hidden border shadow-2xl lg:h-auto lg:max-w-xl lg:rounded-2xl"
         style={{ background: "var(--color-surface)", borderColor: "var(--color-outline-variant)" }}
       >
         {/* Search input */}
         <div
-          className="flex items-center gap-3 border-b px-4 py-5"
+          className="flex items-center gap-3 border-b px-4 py-4 lg:py-5"
           style={{ borderColor: "var(--color-outline-variant)" }}
         >
           <svg className="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" style={{ color: "var(--color-primary)" }}>
@@ -126,11 +126,16 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Search all memories…"
-            className="flex-1 border-none bg-transparent text-sm outline-none"
+            type="search"
+            enterKeyHint="search"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            className="flex-1 border-none bg-transparent text-base outline-none lg:text-sm"
             style={{ color: "var(--color-on-surface)" }}
           />
           <kbd
-            className="rounded px-2 py-1 text-xs"
+            className="hidden rounded px-2 py-1 text-xs lg:inline-block"
             style={{
               background: "var(--color-surface-container-high)",
               color: "var(--color-on-surface-variant)",
@@ -138,11 +143,24 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
           >
             Esc
           </kbd>
+          <button
+            onClick={() => setOpen(false)}
+            aria-label="Close search"
+            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full transition-colors lg:hidden"
+            style={{
+              color: "var(--color-on-surface-variant)",
+              background: "var(--color-surface-container)",
+            }}
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         {/* Results */}
         {results.length > 0 ? (
-          <ul className="max-h-96 overflow-y-auto py-2">
+          <ul className="flex-1 overflow-y-auto py-2 lg:max-h-96 lg:flex-none">
             {results.map((entry, i) => (
               <li key={entry.id}>
                 <button
@@ -182,11 +200,11 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
             ))}
           </ul>
         ) : query.trim() ? (
-          <div className="px-4 py-8 text-center text-sm" style={{ color: "var(--color-on-surface-variant)" }}>
+          <div className="flex-1 px-4 py-8 text-center text-sm lg:flex-none" style={{ color: "var(--color-on-surface-variant)" }}>
             No results for "{query}"
           </div>
         ) : (
-          <div className="px-4 py-6">
+          <div className="flex-1 px-4 py-6 lg:flex-none">
             <p className="mb-3 text-xs font-semibold uppercase" style={{ color: "var(--color-on-surface-variant)" }}>
               Quick Nav
             </p>
@@ -212,7 +230,7 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
         )}
 
         <div
-          className="border-t px-4 py-2 text-xs"
+          className="hidden border-t px-4 py-2 text-xs lg:block"
           style={{
             borderColor: "var(--color-outline-variant)",
             color: "var(--color-on-surface-variant)",
