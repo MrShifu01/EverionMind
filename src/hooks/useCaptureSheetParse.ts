@@ -6,6 +6,7 @@ import { encryptEntry } from "../lib/crypto";
 import { extractTextFromFile } from "../lib/fileExtract";
 import { parseAISplitResponse } from "../lib/fileSplitter";
 import { PROMPTS } from "../config/prompts";
+import { showToast } from "../lib/notifications";
 import type { Entry } from "../types";
 
 const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
@@ -219,10 +220,13 @@ export function useCaptureSheetParse({
             (typeof data?.error === "string" ? data.error : null) ||
             `AI error ${res.status}`;
           console.error("[useCaptureSheetParse] AI error:", errMsg);
-          // Always show edit preview on AI failure so user can save manually
+          // Show edit preview on AI failure so user can save manually
           setLoading(false);
           setStatus(null);
-          setErrorDetail(`AI failed: ${errMsg}`);
+          showToast(
+            "AI couldn\u2019t classify this entry. You can edit and save it manually \u2014 it\u2019ll be refined next time you run Improve Brain.",
+            "info",
+          );
           setPreviewTitle("");
           setPreviewTags("");
           setPreviewType("note");
@@ -260,16 +264,22 @@ export function useCaptureSheetParse({
         }
 
         if (Array.isArray(parsedRaw) && parsedRaw.length === 1) {
-          // Single entry from file — show preview so user can confirm before saving
           const single = parsedRaw[0];
+          if (single.title) {
+            // AI classified successfully — save immediately
+            await doSave(single);
+            return;
+          }
+          // No title — fall through to manual preview
           setLoading(false);
           setStatus(null);
-          setPreviewTitle(single.title || "");
+          showToast(
+            "AI couldn\u2019t classify this entry. You can edit and save it manually \u2014 it\u2019ll be refined next time you run Improve Brain.",
+            "info",
+          );
+          setPreviewTitle("");
           setPreviewTags((single.tags || []).join(", "));
           setPreviewType(single.type || "note");
-          if (!single.title) {
-            setErrorDetail(`AI returned no title · raw: "${aiRawText.slice(0, 200)}"`);
-          }
           setPreview({ ...single, _raw: input });
           return;
         }
@@ -323,21 +333,17 @@ export function useCaptureSheetParse({
 
         const parsed = parsedRaw as ParsedEntry;
         if (parsed.title) {
-          setLoading(false);
-          setStatus(null);
-          setPreviewTitle(parsed.title);
-          setPreviewTags((parsed.tags || []).join(", "));
-          setPreviewType(parsed.type || "note");
-          setPreview({ ...parsed, _raw: input });
+          // AI classification succeeded — save immediately, no preview needed
+          await doSave(parsed);
           return;
         }
-        // JSON parsed but no title, or parse failed — show edit preview with full debug info
+        // JSON parsed but no title, or parse failed — show edit preview so user can save manually
         setLoading(false);
         setStatus(null);
-        const debugInfo = parseError
-          ? `Parse error: ${parseError} | Raw: "${aiRawText.slice(0, 120)}"`
-          : `No title in response | Raw: "${aiRawText.slice(0, 120)}"`;
-        setErrorDetail(debugInfo);
+        showToast(
+          "AI couldn\u2019t classify this entry. You can edit and save it manually \u2014 it\u2019ll be refined next time you run Improve Brain.",
+          "info",
+        );
         setPreviewTitle("");
         setPreviewTags("");
         setPreviewType("note");

@@ -282,7 +282,27 @@ function extractJSON(text: string): string {
     if (cleaned[i] === opener) depth++;
     else if (cleaned[i] === closer && --depth === 0) return cleaned.slice(start, i + 1);
   }
-  return cleaned;
+  // Truncated JSON — try to recover by closing open brackets/braces
+  let truncated = cleaned.slice(start);
+  // Strip trailing incomplete string/value (back to last comma, colon, or bracket)
+  truncated = truncated.replace(/,\s*"[^"]*$/, "").replace(/,\s*$/, "");
+  // Count unclosed openers and append closers
+  const opens: string[] = [];
+  let inString = false;
+  let escape = false;
+  for (const ch of truncated) {
+    if (escape) { escape = false; continue; }
+    if (ch === "\\") { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "{" || ch === "[") opens.push(ch);
+    else if (ch === "}" || ch === "]") opens.pop();
+  }
+  while (opens.length) {
+    const o = opens.pop();
+    truncated += o === "[" ? "]" : "}";
+  }
+  return truncated;
 }
 
 // ─── Rate-limit helper ───────────────────────────────────────────────────
@@ -293,6 +313,48 @@ async function throttledCallAI(opts: Parameters<typeof callAI>[0], minGap = 1500
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
   lastCallTime = Date.now();
   return callAI(opts);
+}
+
+// ─── Auto-apply helpers ───────────────────────────────────────────────────
+
+export interface AutoAppliedItem {
+  suggestion: EntrySuggestion;
+  undoBody: Record<string, any>;
+  description: string;
+}
+
+/** Types safe to auto-apply when confidence is NOT ambiguous */
+const AUTO_APPLY_TYPES = new Set([
+  "TAG_SUGGESTED",
+  "PHONE_FOUND",
+  "EMAIL_FOUND",
+  "URL_FOUND",
+  "DATE_FOUND",
+  "TYPE_MISMATCH",
+  "SENSITIVE_DATA",
+  "TITLE_POOR",
+]);
+
+function canAutoApply(s: RefineSuggestion): boolean {
+  if ((s as any).confidence === "ambiguous") return false;
+  if (!AUTO_APPLY_TYPES.has(s.type)) return false;
+  const es = s as EntrySuggestion;
+  return !!(es.entryId && es.suggestedValue);
+}
+
+function describeApplied(es: EntrySuggestion): string {
+  const name = es.entryTitle || "entry";
+  switch (es.type) {
+    case "TAG_SUGGESTED": return `Added tags to ${name}`;
+    case "TYPE_MISMATCH": return `Recategorised ${name} as ${es.suggestedValue}`;
+    case "SENSITIVE_DATA": return `Moved ${name} to Vault`;
+    case "TITLE_POOR": return `Renamed to "${es.suggestedValue}"`;
+    case "PHONE_FOUND": return `Saved phone for ${name}`;
+    case "EMAIL_FOUND": return `Saved email for ${name}`;
+    case "URL_FOUND": return `Saved URL for ${name}`;
+    case "DATE_FOUND": return `Saved date for ${name}`;
+    default: return `Updated ${name}`;
+  }
 }
 
 // ─── Hook ──────────────────────────────────────────────────────────────────
@@ -340,6 +402,7 @@ export function useRefineAnalysis({
     }
   });
   const [applying, setApplying] = useState<Set<string>>(new Set());
+  const [autoApplied, setAutoApplied] = useState<AutoAppliedItem[]>([]);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
@@ -375,6 +438,7 @@ export function useRefineAnalysis({
     setSuggestions(null);
     setDismissed(new Set());
     setAccepted(new Set());
+    setAutoApplied([]);
     setEditingKey(null);
     try {
       sessionStorage.removeItem(suggestionsKey(brainId));
@@ -407,7 +471,7 @@ export function useRefineAnalysis({
           ((a.metadata as any)?.completeness_score ?? 0) -
           ((b.metadata as any)?.completeness_score ?? 0),
       );
-    const weakest3 = scoredEntries.slice(0, 3);
+    const weakest3 = scoredEntries.slice(0, 5);
 
     const existingLinkKeys = new Set((links || []).map((l: RefineLink) => `${l.from}-${l.to}`));
 
@@ -449,7 +513,7 @@ export function useRefineAnalysis({
     try {
       const res = await throttledCallAI({
         task: "refine",
-        max_tokens: 2000,
+        max_tokens: 4096,
         system: `Today's date is ${new Date().toISOString().slice(0, 10)}. Brain type: ${brainContext}. ${PROMPTS.COMBINED_AUDIT}`,
         brainId: activeBrain?.id,
         messages: [{ role: "user", content: userMessage }],
@@ -471,7 +535,7 @@ export function useRefineAnalysis({
             .map((l: any) => ({ ...l, type: "LINK_SUGGESTED" as const }));
         }
         if (p.gaps && Array.isArray(p.gaps)) {
-          gapSuggestions = p.gaps.slice(0, 3).map((g: any, i: number) => ({
+          gapSuggestions = p.gaps.slice(0, 5).map((g: any, i: number) => ({
             type: "GAP_DETECTED",
             entryId: `gap-${i}-${Date.now()}`,
             entryTitle: g.cat || "Missing info",
@@ -500,7 +564,7 @@ export function useRefineAnalysis({
       console.error("[Improve Brain] AI call failed (429?):", err);
     }
 
-    // Cap at 3 improvement suggestions + 3 gap suggestions (6 total max)
+    // Collect all improvements, prioritised
     const improvementPool = [
       ...entrySuggestions,
       ...linkSuggestions,
@@ -508,10 +572,85 @@ export function useRefineAnalysis({
       ...staleSuggestions,
       ...deadUrlSuggestions,
     ];
-    const cappedImprovements = sortBySuggestionPriority(improvementPool).slice(0, 3);
-    const cappedGaps = gapSuggestions.slice(0, 3);
+    const cappedImprovements = sortBySuggestionPriority(improvementPool).slice(0, 8);
+    const cappedGaps = gapSuggestions.slice(0, 5);
 
-    setSuggestions([...cappedImprovements, ...cappedGaps]);
+    // Split: auto-apply high-confidence items, keep ambiguous for review
+    const autoItems: EntrySuggestion[] = [];
+    const manualItems: RefineSuggestion[] = [];
+    for (const s of cappedImprovements) {
+      if (canAutoApply(s)) autoItems.push(s as EntrySuggestion);
+      else manualItems.push(s);
+    }
+
+    // Auto-apply confident suggestions
+    const applied: AutoAppliedItem[] = [];
+    for (const es of autoItems) {
+      const entry = entries.find((e: Entry) => e.id === es.entryId);
+      if (!entry) { manualItems.push(es); continue; }
+
+      const body: Record<string, any> = { id: entry.id };
+      const undoBody: Record<string, any> = { id: entry.id };
+
+      if (es.type === "SENSITIVE_DATA") {
+        body.type = "secret";
+        undoBody.type = entry.type;
+      } else if (es.field === "type") {
+        body.type = es.suggestedValue;
+        undoBody.type = entry.type;
+      } else if (es.field === "title") {
+        body.title = es.suggestedValue;
+        undoBody.title = entry.title;
+      } else if (es.field === "tags") {
+        const newTags = es.suggestedValue.split(",").map((t: string) => t.trim()).filter(Boolean);
+        body.tags = [...new Set([...(entry.tags || []), ...newTags])];
+        undoBody.tags = entry.tags || [];
+      } else if (es.field.startsWith("metadata.")) {
+        const k = es.field.slice("metadata.".length);
+        body.metadata = { ...(entry.metadata || {}), [k]: es.suggestedValue };
+        undoBody.metadata = entry.metadata || {};
+      } else {
+        manualItems.push(es);
+        continue;
+      }
+
+      try {
+        await authFetch("/api/update-entry", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        setEntries((prev) =>
+          prev.map((e) => {
+            if (e.id !== entry.id) return e;
+            const u = { ...e };
+            if ("type" in body) u.type = body.type as any;
+            if ("title" in body) u.title = body.title;
+            if ("tags" in body) u.tags = body.tags;
+            if ("metadata" in body) u.metadata = body.metadata;
+            return u;
+          }),
+        );
+        if (activeBrain?.id) {
+          recordDecision(activeBrain.id, {
+            source: "refine",
+            type: es.type,
+            action: "accept",
+            field: es.field,
+            originalValue: es.currentValue,
+            finalValue: es.suggestedValue,
+            reason: es.reason,
+          });
+        }
+        applied.push({ suggestion: es, undoBody, description: describeApplied(es) });
+      } catch (err) {
+        console.error("[useRefineAnalysis:auto-apply]", err);
+        manualItems.push(es);
+      }
+    }
+
+    setAutoApplied(applied);
+    setSuggestions([...manualItems, ...cappedGaps]);
 
     localStorage.setItem(deltaKey(brainId), new Date().toISOString());
     setLoading(false);
@@ -856,6 +995,49 @@ export function useRefineAnalysis({
     [activeBrain],
   );
 
+  const undoAutoApplied = useCallback(
+    async (index: number) => {
+      const item = autoApplied[index];
+      if (!item) return;
+      const es = item.suggestion;
+
+      try {
+        await authFetch("/api/update-entry", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(item.undoBody),
+        });
+        setEntries((prev) =>
+          prev.map((e) => {
+            if (e.id !== item.undoBody.id) return e;
+            const r = { ...e };
+            if ("type" in item.undoBody) r.type = item.undoBody.type as any;
+            if ("title" in item.undoBody) r.title = item.undoBody.title;
+            if ("tags" in item.undoBody) r.tags = item.undoBody.tags;
+            if ("metadata" in item.undoBody) r.metadata = item.undoBody.metadata;
+            return r;
+          }),
+        );
+      } catch (err) {
+        console.error("[useRefineAnalysis:undo]", err);
+      }
+
+      if (activeBrain?.id) {
+        recordDecision(activeBrain.id, {
+          source: "refine",
+          type: es.type,
+          action: "reject",
+          field: es.field,
+          originalValue: es.suggestedValue,
+          reason: "User undid auto-applied change",
+        });
+      }
+
+      setAutoApplied((prev) => prev.filter((_, i) => i !== index));
+    },
+    [autoApplied, setEntries, activeBrain],
+  );
+
   const keyOf = (s: RefineSuggestion): string => {
     if (s.type === "LINK_SUGGESTED")
       return `link:${(s as LinkSuggestion).fromId}:${(s as LinkSuggestion).toId}`;
@@ -873,8 +1055,8 @@ export function useRefineAnalysis({
   const entryCount = visible.filter(
     (s) => s.type !== "LINK_SUGGESTED" && s.type !== "WEAK_LABEL",
   ).length;
-  const allDone = suggestions !== null && suggestions.length > 0 && visible.length === 0;
-  const noneFound = suggestions !== null && suggestions.length === 0;
+  const allDone = suggestions !== null && suggestions.length > 0 && visible.length === 0 && autoApplied.length === 0;
+  const noneFound = suggestions !== null && suggestions.length === 0 && autoApplied.length === 0;
 
   return {
     loading,
@@ -897,5 +1079,7 @@ export function useRefineAnalysis({
     applyWeakLabel,
     reject,
     keyOf,
+    autoApplied,
+    undoAutoApplied,
   };
 }

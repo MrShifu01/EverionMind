@@ -526,6 +526,8 @@ export default function RefineView({
     applyWeakLabel,
     reject,
     keyOf,
+    autoApplied,
+    undoAutoApplied,
   } = useRefineAnalysis({ entries, links, activeBrain, setEntries, addLinks });
 
   // Cycle through analysis steps while loading
@@ -992,6 +994,52 @@ export default function RefineView({
               </ul>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Auto-applied changes */}
+      {autoApplied.length > 0 && (
+        <div className="space-y-1.5">
+          <p
+            className="pt-1 pb-0.5 text-[10px] font-semibold tracking-widest uppercase"
+            style={{ color: "var(--color-on-surface-variant)" }}
+          >
+            Applied automatically ({autoApplied.length})
+          </p>
+          {autoApplied.map((item, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-2.5 rounded-xl px-3 py-2.5"
+              style={{
+                background: "var(--color-surface-container-low)",
+                border: "1px solid var(--color-outline-variant)",
+              }}
+            >
+              <span
+                className="flex-shrink-0 text-xs font-semibold"
+                style={{ color: "var(--color-primary)" }}
+              >
+                ✓
+              </span>
+              <span
+                className="flex-1 truncate text-xs"
+                style={{ color: "var(--color-on-surface)" }}
+              >
+                {item.description}
+              </span>
+              <button
+                onClick={() => undoAutoApplied(i)}
+                className="flex-shrink-0 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-all active:opacity-60"
+                style={{
+                  background: "transparent",
+                  border: "1px solid var(--color-outline-variant)",
+                  color: "var(--color-on-surface-variant)",
+                }}
+              >
+                Undo
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
