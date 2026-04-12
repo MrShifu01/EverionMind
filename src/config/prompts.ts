@@ -175,7 +175,7 @@ Return empty array if no cluster needs a parent entry: []`,
 TASK 1 — ENTRY IMPROVEMENTS (max 6 total):
 Review the weak entries for these issues ONLY:
 - TYPE_MISMATCH — clearly wrong type (e.g. person saved as "note")
-- CONTENT_WEAK — content too sparse to be useful. suggestedValue = pipe-separated specific questions the user should answer to fill gaps (e.g. "What dosage do you take?|How often?|What brand?"). Each question should be short and specific.
+- CONTENT_WEAK — content too sparse to be useful. suggestedValue = an enriched version of the content that expands it using your general knowledge. Keep the original meaning, add factual details the user likely intended. Write concise, informative prose (not questions). For example if the entry says "Sauerkraut is a component of a recommended diet", enrich it to "Sauerkraut is a fermented cabbage rich in probiotics, vitamin C, and vitamin K. It supports gut health and digestion as part of a balanced diet."
 - TAG_SUGGESTED — missing obvious tags. suggestedValue = comma-separated tags (max 4)
 - TITLE_POOR — title is uselessly vague
 - SENSITIVE_DATA — contains passwords/PINs/keys but type is not "secret". suggestedValue = "secret"

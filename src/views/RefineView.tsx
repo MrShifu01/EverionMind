@@ -506,7 +506,7 @@ export default function RefineView({
   activeBrain,
   brains: _brains,
   onSwitchBrain: _onSwitchBrain,
-  onCapture,
+  onCapture: _onCapture,
 }: RefineViewProps) {
   const [embedLoading, setEmbedLoading] = useState(false);
   const [embedProgress, setEmbedProgress] = useState<{
@@ -516,8 +516,8 @@ export default function RefineView({
   } | null>(null);
   const [analysisStep, setAnalysisStep] = useState(0);
   const improvementsRef = useRef<HTMLDivElement>(null);
-  const [qaKey, setQaKey] = useState<string | null>(null);
-  const [qaAnswers, setQaAnswers] = useState<Record<number, string>>({});
+  const [gapAnswerKey, setGapAnswerKey] = useState<string | null>(null);
+  const [gapAnswer, setGapAnswer] = useState("");
 
   const embedBrain = useCallback(
     async (force: boolean) => {
@@ -604,6 +604,7 @@ export default function RefineView({
     applyEntry,
     applyLink,
     applyWeakLabel,
+    applyGap,
     reject,
     keyOf,
     autoApplied,
@@ -1549,41 +1550,110 @@ export default function RefineView({
                         >
                           {es.suggestedValue}
                         </p>
-                        <div className="flex items-center gap-2 pt-1">
-                          <button
-                            onClick={() => reject(key, s)}
-                            disabled={busy}
-                            className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
-                            style={{
-                              background: "transparent",
-                              border: "1px solid var(--color-outline-variant)",
-                              color: "var(--color-error)",
-                              opacity: busy ? 0.5 : 1,
-                            }}
-                          >
-                            ✗ Skip
-                          </button>
-                          <button
-                            onClick={() => {
-                              reject(key, s);
-                              onCapture?.();
-                            }}
-                            disabled={busy}
-                            className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
-                            style={{
-                              background: busy
-                                ? "var(--color-surface-container-highest)"
-                                : "var(--color-primary)",
-                              color: busy
-                                ? "var(--color-on-surface-variant)"
-                                : "var(--color-on-primary)",
-                              border: "none",
-                              opacity: busy ? 0.5 : 1,
-                            }}
-                          >
-                            + Add Memory
-                          </button>
-                        </div>
+                        {gapAnswerKey === key ? (
+                          <div className="space-y-2 pt-1">
+                            <textarea
+                              autoFocus
+                              value={gapAnswer}
+                              onChange={(e) => setGapAnswer(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey && gapAnswer.trim()) {
+                                  e.preventDefault();
+                                  applyGap(es, gapAnswer.trim());
+                                  setGapAnswerKey(null);
+                                  setGapAnswer("");
+                                }
+                                if (e.key === "Escape") {
+                                  setGapAnswerKey(null);
+                                  setGapAnswer("");
+                                }
+                              }}
+                              placeholder="Type your answer…"
+                              rows={2}
+                              className="w-full rounded-lg px-3 py-2 text-sm outline-none resize-none"
+                              style={{
+                                background: "var(--color-surface)",
+                                border: "1px solid var(--color-outline-variant)",
+                                color: "var(--color-on-surface)",
+                              }}
+                            />
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setGapAnswerKey(null);
+                                  setGapAnswer("");
+                                }}
+                                className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
+                                style={{
+                                  background: "transparent",
+                                  border: "1px solid var(--color-outline-variant)",
+                                  color: "var(--color-on-surface-variant)",
+                                }}
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                disabled={!gapAnswer.trim() || busy}
+                                onClick={() => {
+                                  applyGap(es, gapAnswer.trim());
+                                  setGapAnswerKey(null);
+                                  setGapAnswer("");
+                                }}
+                                className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
+                                style={{
+                                  background:
+                                    !gapAnswer.trim() || busy
+                                      ? "var(--color-surface-container-highest)"
+                                      : "var(--color-primary)",
+                                  color:
+                                    !gapAnswer.trim() || busy
+                                      ? "var(--color-on-surface-variant)"
+                                      : "var(--color-on-primary)",
+                                  border: "none",
+                                  opacity: !gapAnswer.trim() || busy ? 0.5 : 1,
+                                }}
+                              >
+                                {busy ? "Saving…" : "Save"}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 pt-1">
+                            <button
+                              onClick={() => reject(key, s)}
+                              disabled={busy}
+                              className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
+                              style={{
+                                background: "transparent",
+                                border: "1px solid var(--color-outline-variant)",
+                                color: "var(--color-error)",
+                                opacity: busy ? 0.5 : 1,
+                              }}
+                            >
+                              ✗ Skip
+                            </button>
+                            <button
+                              onClick={() => {
+                                setGapAnswerKey(key);
+                                setGapAnswer("");
+                              }}
+                              disabled={busy}
+                              className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
+                              style={{
+                                background: busy
+                                  ? "var(--color-surface-container-highest)"
+                                  : "var(--color-primary)",
+                                color: busy
+                                  ? "var(--color-on-surface-variant)"
+                                  : "var(--color-on-primary)",
+                                border: "none",
+                                opacity: busy ? 0.5 : 1,
+                              }}
+                            >
+                              Answer
+                            </button>
+                          </div>
+                        )}
                       </>
                     ) : (
                       <>
@@ -1685,262 +1755,112 @@ export default function RefineView({
                         >
                           {es.reason}
                         </p>
-                        {/* ── CONTENT_WEAK Q&A mode ── */}
-                        {es.type === "CONTENT_WEAK" && qaKey === key ? (
-                          (() => {
-                            const questions = es.suggestedValue
-                              .split("|")
-                              .map((q) => q.trim())
-                              .filter(Boolean);
-                            const allAnswered = questions.some((_, i) => qaAnswers[i]?.trim());
-                            return (
-                              <div className="space-y-3 pt-1">
-                                {questions.map((q, i) => (
-                                  <div key={i}>
-                                    <label
-                                      className="mb-1 block text-xs font-medium"
-                                      style={{ color: "var(--color-on-surface)" }}
-                                    >
-                                      {q}
-                                    </label>
-                                    <input
-                                      autoFocus={i === 0}
-                                      value={qaAnswers[i] || ""}
-                                      onChange={(e) =>
-                                        setQaAnswers((prev) => ({ ...prev, [i]: e.target.value }))
-                                      }
-                                      onKeyDown={(e) => {
-                                        if (e.key === "Enter" && allAnswered) {
-                                          const combined = questions
-                                            .map((qq, j) =>
-                                              qaAnswers[j]?.trim()
-                                                ? `${qq} ${qaAnswers[j].trim()}`
-                                                : null,
-                                            )
-                                            .filter(Boolean)
-                                            .join(". ");
-                                          const newContent = [
-                                            entries.find((en) => en.id === es.entryId)?.content,
-                                            combined,
-                                          ]
-                                            .filter(Boolean)
-                                            .join("\n\n");
-                                          applyEntry(
-                                            { ...es, field: "content", suggestedValue: newContent },
-                                            newContent,
-                                          );
-                                          setQaKey(null);
-                                          setQaAnswers({});
-                                        }
-                                        if (e.key === "Escape") {
-                                          setQaKey(null);
-                                          setQaAnswers({});
-                                        }
-                                      }}
-                                      placeholder="Type your answer…"
-                                      className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-                                      style={{
-                                        background: "var(--color-surface)",
-                                        border: "1px solid var(--color-outline-variant)",
-                                        color: "var(--color-on-surface)",
-                                      }}
-                                    />
-                                  </div>
-                                ))}
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    onClick={() => {
-                                      setQaKey(null);
-                                      setQaAnswers({});
-                                    }}
-                                    className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
-                                    style={{
-                                      background: "transparent",
-                                      border: "1px solid var(--color-outline-variant)",
-                                      color: "var(--color-on-surface-variant)",
-                                    }}
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    disabled={!allAnswered || busy}
-                                    onClick={() => {
-                                      const combined = questions
-                                        .map((qq, j) =>
-                                          qaAnswers[j]?.trim()
-                                            ? `${qq} ${qaAnswers[j].trim()}`
-                                            : null,
-                                        )
-                                        .filter(Boolean)
-                                        .join(". ");
-                                      const newContent = [
-                                        entries.find((en) => en.id === es.entryId)?.content,
-                                        combined,
-                                      ]
-                                        .filter(Boolean)
-                                        .join("\n\n");
-                                      applyEntry(
-                                        { ...es, field: "content", suggestedValue: newContent },
-                                        newContent,
-                                      );
-                                      setQaKey(null);
-                                      setQaAnswers({});
-                                    }}
-                                    className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
-                                    style={{
-                                      background:
-                                        !allAnswered || busy
-                                          ? "var(--color-surface-container-highest)"
-                                          : "var(--color-primary)",
-                                      color:
-                                        !allAnswered || busy
-                                          ? "var(--color-on-surface-variant)"
-                                          : "var(--color-on-primary)",
-                                      border: "none",
-                                      opacity: !allAnswered || busy ? 0.5 : 1,
-                                    }}
-                                  >
-                                    {busy ? "Saving…" : "Save Answers"}
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })()
-                        ) : (
-                          <>
-                            {isEdit && (
-                              <input
-                                autoFocus
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter" && editValue.trim())
-                                    applyEntry(es, editValue.trim());
-                                  if (e.key === "Escape") setEditingKey(null);
-                                }}
-                                maxLength={50}
-                                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-                                style={{
-                                  background: "var(--color-surface)",
-                                  border: "1px solid var(--color-primary)",
-                                  color: "var(--color-on-surface)",
-                                }}
-                              />
-                            )}
-                            <div className="flex items-center gap-2 pt-1">
-                              {isEdit ? (
-                                <>
-                                  <button
-                                    onClick={() => setEditingKey(null)}
-                                    className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
-                                    style={{
-                                      background: "transparent",
-                                      border: "1px solid var(--color-outline-variant)",
-                                      color: "var(--color-on-surface-variant)",
-                                    }}
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    onClick={() =>
-                                      editValue.trim() && applyEntry(es, editValue.trim())
-                                    }
-                                    disabled={!editValue.trim() || busy}
-                                    className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
-                                    style={{
-                                      background:
-                                        !editValue.trim() || busy
-                                          ? "var(--color-surface-container-highest)"
-                                          : "var(--color-primary)",
-                                      color:
-                                        !editValue.trim() || busy
-                                          ? "var(--color-on-surface-variant)"
-                                          : "var(--color-on-primary)",
-                                      border: "none",
-                                      opacity: !editValue.trim() || busy ? 0.5 : 1,
-                                    }}
-                                  >
-                                    Apply
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  <button
-                                    onClick={() => reject(key, s)}
-                                    disabled={busy}
-                                    className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
-                                    style={{
-                                      background: "transparent",
-                                      border: "1px solid var(--color-outline-variant)",
-                                      color: "var(--color-error)",
-                                      opacity: busy ? 0.5 : 1,
-                                    }}
-                                  >
-                                    ✗ Skip
-                                  </button>
-                                  {es.type === "CONTENT_WEAK" ? (
-                                    <button
-                                      onClick={() => {
-                                        setQaKey(key);
-                                        setQaAnswers({});
-                                      }}
-                                      disabled={busy}
-                                      className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
-                                      style={{
-                                        background: busy
-                                          ? "var(--color-surface-container-highest)"
-                                          : "var(--color-primary)",
-                                        color: busy
-                                          ? "var(--color-on-surface-variant)"
-                                          : "var(--color-on-primary)",
-                                        border: "none",
-                                        opacity: busy ? 0.5 : 1,
-                                      }}
-                                    >
-                                      ✓ Fill In
-                                    </button>
-                                  ) : (
-                                    <>
-                                      <button
-                                        onClick={() => {
-                                          setEditingKey(key);
-                                          setEditValue(es.suggestedValue);
-                                        }}
-                                        disabled={busy}
-                                        className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
-                                        style={{
-                                          background: "transparent",
-                                          border: "1px solid var(--color-outline-variant)",
-                                          color: "var(--color-on-surface-variant)",
-                                          opacity: busy ? 0.5 : 1,
-                                        }}
-                                      >
-                                        ✎ Edit
-                                      </button>
-                                      <button
-                                        onClick={() => applyEntry(es)}
-                                        disabled={busy}
-                                        className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
-                                        style={{
-                                          background: busy
-                                            ? "var(--color-surface-container-highest)"
-                                            : "var(--color-primary)",
-                                          color: busy
-                                            ? "var(--color-on-surface-variant)"
-                                            : "var(--color-on-primary)",
-                                          border: "none",
-                                          opacity: busy ? 0.5 : 1,
-                                        }}
-                                      >
-                                        {busy ? "Saving…" : "✓ Accept"}
-                                      </button>
-                                    </>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          </>
+                        {isEdit && (
+                          <input
+                            autoFocus
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && editValue.trim())
+                                applyEntry(es, editValue.trim());
+                              if (e.key === "Escape") setEditingKey(null);
+                            }}
+                            maxLength={500}
+                            className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                            style={{
+                              background: "var(--color-surface)",
+                              border: "1px solid var(--color-primary)",
+                              color: "var(--color-on-surface)",
+                            }}
+                          />
                         )}
+                        <div className="flex items-center gap-2 pt-1">
+                          {isEdit ? (
+                            <>
+                              <button
+                                onClick={() => setEditingKey(null)}
+                                className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
+                                style={{
+                                  background: "transparent",
+                                  border: "1px solid var(--color-outline-variant)",
+                                  color: "var(--color-on-surface-variant)",
+                                }}
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={() =>
+                                  editValue.trim() && applyEntry(es, editValue.trim())
+                                }
+                                disabled={!editValue.trim() || busy}
+                                className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
+                                style={{
+                                  background:
+                                    !editValue.trim() || busy
+                                      ? "var(--color-surface-container-highest)"
+                                      : "var(--color-primary)",
+                                  color:
+                                    !editValue.trim() || busy
+                                      ? "var(--color-on-surface-variant)"
+                                      : "var(--color-on-primary)",
+                                  border: "none",
+                                  opacity: !editValue.trim() || busy ? 0.5 : 1,
+                                }}
+                              >
+                                Apply
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => reject(key, s)}
+                                disabled={busy}
+                                className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
+                                style={{
+                                  background: "transparent",
+                                  border: "1px solid var(--color-outline-variant)",
+                                  color: "var(--color-error)",
+                                  opacity: busy ? 0.5 : 1,
+                                }}
+                              >
+                                ✗ Skip
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingKey(key);
+                                  setEditValue(es.suggestedValue);
+                                }}
+                                disabled={busy}
+                                className="flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
+                                style={{
+                                  background: "transparent",
+                                  border: "1px solid var(--color-outline-variant)",
+                                  color: "var(--color-on-surface-variant)",
+                                  opacity: busy ? 0.5 : 1,
+                                }}
+                              >
+                                ✎ Edit
+                              </button>
+                              <button
+                                onClick={() => applyEntry(es)}
+                                disabled={busy}
+                                className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
+                                style={{
+                                  background: busy
+                                    ? "var(--color-surface-container-highest)"
+                                    : "var(--color-primary)",
+                                  color: busy
+                                    ? "var(--color-on-surface-variant)"
+                                    : "var(--color-on-primary)",
+                                  border: "none",
+                                  opacity: busy ? 0.5 : 1,
+                                }}
+                              >
+                                {busy ? "Saving…" : "✓ Accept"}
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </>
                     )}
                   </>

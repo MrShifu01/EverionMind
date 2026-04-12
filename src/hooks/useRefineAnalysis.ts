@@ -122,7 +122,7 @@ export function detectStaleReminders(entries: Entry[]): EntrySuggestion[] {
     }));
 }
 
-export async function checkDeadUrls(entries: Entry[]): Promise<EntrySuggestion[]> {
+async function checkDeadUrls(entries: Entry[]): Promise<EntrySuggestion[]> {
   const candidates = entries.filter(
     (e) => !e.encrypted && e.metadata?.url && typeof e.metadata.url === "string",
   );
@@ -317,7 +317,7 @@ async function throttledCallAI(opts: Parameters<typeof callAI>[0], minGap = 1500
 
 // ─── Auto-apply helpers ───────────────────────────────────────────────────
 
-export interface AutoAppliedItem {
+interface AutoAppliedItem {
   suggestion: EntrySuggestion;
   undoBody: Record<string, any>;
   description: string;
@@ -333,6 +333,7 @@ const AUTO_APPLY_TYPES = new Set([
   "TYPE_MISMATCH",
   "SENSITIVE_DATA",
   "TITLE_POOR",
+  "CONTENT_WEAK",
 ]);
 
 function canAutoApply(s: RefineSuggestion): boolean {
@@ -349,6 +350,7 @@ function describeApplied(es: EntrySuggestion): string {
     case "TYPE_MISMATCH": return `Recategorised ${name} as ${es.suggestedValue}`;
     case "SENSITIVE_DATA": return `Moved ${name} to Vault`;
     case "TITLE_POOR": return `Renamed to "${es.suggestedValue}"`;
+    case "CONTENT_WEAK": return `Enriched content for ${name}`;
     case "PHONE_FOUND": return `Saved phone for ${name}`;
     case "EMAIL_FOUND": return `Saved email for ${name}`;
     case "URL_FOUND": return `Saved URL for ${name}`;
@@ -995,6 +997,53 @@ export function useRefineAnalysis({
     [activeBrain],
   );
 
+  const applyGap = useCallback(
+    async (s: EntrySuggestion, answer: string) => {
+      const key = `entry:${s.entryId}:${s.type}:${s.field}`;
+      setApplying((p) => new Set(p).add(key));
+
+      try {
+        const res = await authFetch("/api/create-entry", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: s.entryTitle || "Missing info",
+            type: "note",
+            content: `${s.suggestedValue}\n\n${answer}`,
+            tags: [s.entryTitle?.toLowerCase() || "info"].filter(Boolean),
+            brain_id: activeBrain?.id,
+          }),
+        });
+        const created = await res.json();
+        if (created?.id) {
+          setEntries((prev) => [...prev, created]);
+        }
+      } catch (err) {
+        console.error("[useRefineAnalysis] gap save", err);
+      }
+
+      if (activeBrain?.id) {
+        recordDecision(activeBrain.id, {
+          source: "refine",
+          type: "GAP_DETECTED",
+          action: "accept",
+          field: "content",
+          originalValue: s.suggestedValue,
+          reason: "User answered knowledge gap",
+        });
+      }
+
+      setAccepted((p) => new Set(p).add(key));
+      setDismissed((p) => new Set(p).add(key));
+      setApplying((p) => {
+        const n = new Set(p);
+        n.delete(key);
+        return n;
+      });
+    },
+    [activeBrain, setEntries],
+  );
+
   const undoAutoApplied = useCallback(
     async (index: number) => {
       const item = autoApplied[index];
@@ -1077,6 +1126,7 @@ export function useRefineAnalysis({
     applyEntry,
     applyLink,
     applyWeakLabel,
+    applyGap,
     reject,
     keyOf,
     autoApplied,
