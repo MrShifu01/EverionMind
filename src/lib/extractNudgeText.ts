@@ -24,8 +24,8 @@ export function extractNudgeText(data: any): string | null {
   // Reject if it contains template placeholders (instruction bleed)
   if (/\{\{.*?\}\}/.test(cleaned)) return null;
 
-  // Reject if it's too short to be useful
-  if (cleaned.length < 15) return null;
+  // Reject if it's too short to be useful (but allow short factual answers)
+  if (cleaned.length < 3) return null;
 
   // Reject if it looks like raw metadata (e.g. "Tuesday0", "key: value", ISO dates alone)
   if (/^\w+\d+$/.test(cleaned)) return null; // e.g. "Tuesday0"

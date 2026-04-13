@@ -5,7 +5,7 @@ import { PROMPTS } from "../config/prompts";
 import { recordDecision } from "../lib/learningEngine";
 import { computeCompletenessScore } from "../lib/completenessScore";
 import type { Entry, Brain, ConfidenceLevel } from "../types";
-import { extractConcepts, extractRelationships, mergeGraph, loadGraph, saveGraph, applyFeedback } from "../lib/conceptGraph";
+import { extractConcepts, extractRelationships, mergeGraph, loadGraphFromDB, saveGraphToDB, applyFeedback } from "../lib/conceptGraph";
 
 interface EntrySuggestion {
   type: string;
@@ -552,9 +552,9 @@ export function useRefineAnalysis({
           try {
             const newConcepts = p.concepts ? extractConcepts(p.concepts) : [];
             const newRels = p.relationships ? extractRelationships(p.relationships) : [];
-            const existing = loadGraph(activeBrain.id);
+            const existing = await loadGraphFromDB(activeBrain.id);
             const merged = mergeGraph(existing, { concepts: newConcepts, relationships: newRels });
-            saveGraph(activeBrain.id, merged);
+            await saveGraphToDB(activeBrain.id, merged);
           } catch (err) {
             console.error("[Improve Brain] concept graph parse failed:", err);
           }

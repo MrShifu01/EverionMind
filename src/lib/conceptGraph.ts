@@ -1,4 +1,5 @@
 import type { Concept, Relationship } from "../types";
+import { authFetch } from "./authFetch";
 
 export interface ConceptGraph {
   concepts: Concept[];
@@ -194,32 +195,63 @@ export function detectCommunities(
     });
 }
 
-// ─── Storage helpers (JSON in brain metadata via localStorage for MVP) ───
+// ─── Storage helpers (DB-backed with localStorage cache) ───
 
 const GRAPH_KEY = (brainId: string) => `concept_graph_${brainId}`;
+const EMPTY: ConceptGraph = { concepts: [], relationships: [] };
 
+/** Sync read from localStorage cache (used by chat context builder). */
 export function loadGraph(brainId: string): ConceptGraph {
   try {
     const raw = localStorage.getItem(GRAPH_KEY(brainId));
-    return raw ? JSON.parse(raw) : { concepts: [], relationships: [] };
+    return raw ? JSON.parse(raw) : EMPTY;
   } catch {
-    return { concepts: [], relationships: [] };
+    return EMPTY;
   }
 }
 
-export function saveGraph(brainId: string, graph: ConceptGraph): void {
+/** Load graph from DB, updating localStorage cache. */
+export async function loadGraphFromDB(brainId: string): Promise<ConceptGraph> {
   try {
-    localStorage.setItem(GRAPH_KEY(brainId), JSON.stringify(graph));
-  } catch { /* quota */ }
+    const res = await authFetch(`/api/graph?brain_id=${encodeURIComponent(brainId)}`);
+    if (!res.ok) return loadGraph(brainId); // fallback to cache
+    const data = await res.json();
+    const graph: ConceptGraph = data.graph || EMPTY;
+    try { localStorage.setItem(GRAPH_KEY(brainId), JSON.stringify(graph)); } catch { /* quota */ }
+    return graph;
+  } catch {
+    return loadGraph(brainId); // offline fallback
+  }
+}
+
+/** Save graph to DB and update localStorage cache. */
+export async function saveGraphToDB(brainId: string, graph: ConceptGraph): Promise<void> {
+  // Update cache immediately for fast reads
+  try { localStorage.setItem(GRAPH_KEY(brainId), JSON.stringify(graph)); } catch { /* quota */ }
+  // Persist to DB
+  try {
+    await authFetch("/api/graph", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ brain_id: brainId, graph }),
+    });
+  } catch (err) {
+    console.error("[conceptGraph] DB save failed, cached locally:", err);
+  }
+}
+
+/** @deprecated Use saveGraphToDB for new code. Kept for sync fallback. */
+export function saveGraph(brainId: string, graph: ConceptGraph): void {
+  try { localStorage.setItem(GRAPH_KEY(brainId), JSON.stringify(graph)); } catch { /* quota */ }
 }
 
 /** Phase 7: Apply user feedback to strengthen/weaken relationship confidence */
-export function applyFeedback(
+export async function applyFeedback(
   brainId: string,
   action: "accept" | "reject",
   entryIdA: string,
   entryIdB: string,
-): void {
+): Promise<void> {
   const graph = loadGraph(brainId);
   const delta = action === "accept" ? 0.1 : -0.15;
   for (const rel of graph.relationships) {
@@ -235,5 +267,5 @@ export function applyFeedback(
   }
   // Remove very low confidence relationships
   graph.relationships = graph.relationships.filter((r) => r.confidence_score > 0.05);
-  saveGraph(brainId, graph);
+  await saveGraphToDB(brainId, graph);
 }

@@ -211,10 +211,15 @@ export function useChat({
           });
           data = (await res.json()) as AIResponseBody;
         }
-        const content =
-          extractNudgeText(data) ||
-          data.content?.map((c) => c.text || "").join("") ||
-          "Couldn't process.";
+        // Surface actual API errors instead of generic "Couldn't process"
+        const errorMsg = typeof data.error === "string"
+          ? data.error
+          : (data.error as any)?.message;
+        const content = errorMsg
+          ? `Sorry, something went wrong: ${errorMsg}`
+          : extractNudgeText(data) ||
+            data.content?.map((c) => c.text || "").join("") ||
+            "Couldn't process.";
         if (containsSensitiveContent(content)) {
           const hasPinSet = !!getStoredPinHash();
           setPendingSecureMsg({ content });

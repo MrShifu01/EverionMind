@@ -2,7 +2,7 @@ import { useMemo, useCallback, useRef, useState, useEffect } from "react";
 import { Cosmograph } from "@cosmograph/react";
 import type { CosmographRef } from "@cosmograph/react";
 import { TC } from "../data/constants";
-import { loadGraph, saveGraph, mergeGraph, extractConcepts, extractRelationships, detectCommunities } from "../lib/conceptGraph";
+import { loadGraph, loadGraphFromDB, saveGraphToDB, mergeGraph, extractConcepts, extractRelationships, detectCommunities } from "../lib/conceptGraph";
 import { callAI } from "../lib/ai";
 import type { Entry, Brain } from "../types";
 
@@ -117,6 +117,13 @@ export default function GraphView({ entries, activeBrain, onSelectEntry }: Graph
   const [building, setBuilding] = useState(false);
   const [graphVersion, setGraphVersion] = useState(0);
 
+  // Hydrate graph from DB on mount (populates localStorage cache)
+  useEffect(() => {
+    if (activeBrain?.id) {
+      loadGraphFromDB(activeBrain.id).then(() => setGraphVersion((v) => v + 1));
+    }
+  }, [activeBrain?.id]);
+
   // Resolve theme colors for Cosmograph (CSS vars → computed values)
   const [tc, setTc] = useState({
     surface: "#1a1816",
@@ -157,9 +164,9 @@ export default function GraphView({ entries, activeBrain, onSelectEntry }: Graph
       if (p.concepts || p.relationships) {
         const newConcepts = p.concepts ? extractConcepts(p.concepts) : [];
         const newRels = p.relationships ? extractRelationships(p.relationships) : [];
-        const existing = loadGraph(activeBrain.id);
+        const existing = await loadGraphFromDB(activeBrain.id);
         const merged = mergeGraph(existing, { concepts: newConcepts, relationships: newRels });
-        saveGraph(activeBrain.id, merged);
+        await saveGraphToDB(activeBrain.id, merged);
         setGraphVersion((v) => v + 1);
       }
     } catch (err) {

@@ -4,7 +4,7 @@ import { useRefineAnalysis } from "../hooks/useRefineAnalysis";
 import { authFetch } from "../lib/authFetch";
 import { TC } from "../data/constants";
 import SurprisingConnections from "../components/SurprisingConnections";
-import { loadGraph, saveGraph, mergeGraph, extractConcepts, extractRelationships } from "../lib/conceptGraph";
+import { loadGraphFromDB, saveGraphToDB, mergeGraph, extractConcepts, extractRelationships } from "../lib/conceptGraph";
 import { callAI } from "../lib/ai";
 import type { Entry, Brain, ConfidenceLevel } from "../types";
 
@@ -573,9 +573,9 @@ export default function RefineView({
         if (p.concepts || p.relationships) {
           const newConcepts = p.concepts ? extractConcepts(p.concepts) : [];
           const newRels = p.relationships ? extractRelationships(p.relationships) : [];
-          const existing = loadGraph(activeBrain.id);
+          const existing = await loadGraphFromDB(activeBrain.id);
           const merged = mergeGraph(existing, { concepts: newConcepts, relationships: newRels });
-          saveGraph(activeBrain.id, merged);
+          await saveGraphToDB(activeBrain.id, merged);
         }
       } catch (err) {
         console.error("[sync] knowledge graph build failed:", err);
