@@ -1,0 +1,37 @@
+The SINKING SHIP checklist :
+
+Run this before you ship anything built with AI.
+
+SECURITY
+[ ] No API keys or secrets in frontend code
+[ ] Every route checks authentication (audit all endpoints, not just the obvious ones)
+[ ] HTTPS enforced everywhere, HTTP redirected
+[ ] CORS locked to your domain — not wildcard
+[ ] Input validated and sanitized server-side
+[ ] Rate limiting on auth and sensitive endpoints
+[ ] Passwords hashed with bcrypt or argon2
+[ ] Auth tokens have expiry
+[ ] Sessions invalidated on logout (server-side)
+
+DATABASE
+[ ] Backups configured and tested (test restore, not just backup)
+[ ] Parameterized queries everywhere — no string concatenation
+[ ] Separate dev and production databases
+[ ] Connection pooling configured
+[ ] Migrations in version control, not manual changes
+[ ] App uses a non-root DB user
+
+DEPLOYMENT
+[ ] All environment variables set on the production server
+[ ] SSL certificate installed and valid
+[ ] Firewall configured (only 80/443 public)
+[ ] Process manager running (PM2, systemd)
+[ ] Rollback plan exists
+[ ] Staging test passed before production deploy
+
+CODE
+[ ] No console.logs in production build
+[ ] Error handling on all async operations
+[ ] Loading and error states in UI
+[ ] Pagination on all list endpoints
+[ ] npm audit run, critical issues resolved
