@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { authFetch } from "../lib/authFetch";
 import { loadGraphFromDB, getConceptsForEntry } from "../lib/conceptGraph";
-import type { Entry } from "../types";
-import type { Concept } from "../types";
+import type { Entry, Concept } from "../types";
 
 type ItemStatus = "pass" | "fail" | "running" | "unknown";
 
@@ -15,6 +14,13 @@ interface HealthItem {
   readOnly?: boolean;
 }
 
+interface Enrichment {
+  embedded?: boolean;
+  concepts_count?: number;
+  has_related?: boolean;
+  has_insight?: boolean;
+}
+
 interface Props {
   entry: Entry;
   brainId: string;
@@ -23,6 +29,11 @@ interface Props {
   entryConcepts: Concept[];
   hasRelated: boolean;
   onRefreshConcepts: () => void;
+  onUpdate?: (id: string, changes: { metadata: Record<string, unknown> }) => void | Promise<void>;
+}
+
+function getEnrichment(entry: Entry): Enrichment {
+  return (entry.metadata as any)?.enrichment ?? {};
 }
 
 function buildItems(
@@ -32,15 +43,28 @@ function buildItems(
   entryConcepts: Concept[],
   hasRelated: boolean,
 ): HealthItem[] {
-  const hasInsight = entries.some(
-    (e) => e.type === "insight" && (e.metadata as any)?.source_entry_id === entry.id,
-  );
+  const e = getEnrichment(entry);
+
+  // Embedding: check persisted flag first, then embedded_at field
+  const isEmbedded = e.embedded ?? Boolean(entry.embedded_at);
+
+  // Concepts: persisted count first, then live prop
+  const conceptCount = e.concepts_count ?? entryConcepts.length;
+
+  // Related: persisted flag first, then live prop
+  const hasRelatedEntries = e.has_related ?? hasRelated;
+
+  // Insight: persisted flag first, then scan entries list
+  const hasInsight =
+    e.has_insight ??
+    entries.some((e) => e.type === "insight" && (e.metadata as any)?.source_entry_id === entry.id);
+
   return [
     {
       key: "embedding",
       label: "Embedding",
-      note: "Semantic search index",
-      status: "unknown",
+      note: isEmbedded ? "Embedded" : "Semantic search index",
+      status: isEmbedded ? "pass" : "unknown",
     },
     {
       key: "parsing",
@@ -52,14 +76,14 @@ function buildItems(
     {
       key: "concepts",
       label: "Concepts",
-      note: entryConcepts.length > 0 ? `${entryConcepts.length} concepts` : "Not in concept graph",
-      status: entryConcepts.length > 0 ? "pass" : "fail",
+      note: conceptCount > 0 ? `${conceptCount} concepts` : "Not in concept graph",
+      status: conceptCount > 0 ? "pass" : "fail",
     },
     {
       key: "related",
       label: "Related by Concepts",
-      note: hasRelated ? "Related entries found" : "No related entries yet",
-      status: hasRelated ? "pass" : entryConcepts.length === 0 ? "fail" : "unknown",
+      note: hasRelatedEntries ? "Related entries found" : "No related entries yet",
+      status: hasRelatedEntries ? "pass" : conceptCount === 0 ? "fail" : "unknown",
     },
     {
       key: "insight",
@@ -119,6 +143,7 @@ export function EntryHealthPanel({
   entryConcepts,
   hasRelated,
   onRefreshConcepts,
+  onUpdate,
 }: Props) {
   const [items, setItems] = useState<HealthItem[]>(() =>
     buildItems(entry, entries, metaKeys, entryConcepts, hasRelated),
@@ -130,6 +155,16 @@ export function EntryHealthPanel({
     setItems((prev) => prev.map((it) => (it.key === key ? { ...it, ...patch } : it)));
   }
 
+  /** Persist an enrichment flag to entry.metadata.enrichment in the DB. */
+  function saveEnrichmentFlag(flag: Partial<Enrichment>) {
+    if (!onUpdate) return;
+    const existing = getEnrichment(entry);
+    const merged = { ...existing, ...flag };
+    onUpdate(entry.id, {
+      metadata: { ...(entry.metadata ?? {}), enrichment: merged },
+    });
+  }
+
   const fixable = items.filter((it) => !it.readOnly && it.status !== "pass");
 
   async function enrich() {
@@ -137,86 +172,94 @@ export function EntryHealthPanel({
     setRunning(true);
     setAllDone(false);
 
+    const needs = new Set(fixable.map((it) => it.key));
+
     await Promise.allSettled([
       // ── Embedding ──────────────────────────────────────────────────────────
-      (async () => {
-        update("embedding", { status: "running", detail: undefined });
-        try {
-          const res = await authFetch("/api/embed", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ entry_id: entry.id }),
-          });
-          if (res.ok) {
-            update("embedding", { status: "pass", note: "Embedded", detail: undefined });
-          } else {
-            const d = await res.json().catch(() => ({}));
-            update("embedding", { status: "fail", detail: (d as any).error || `HTTP ${res.status}` });
+      needs.has("embedding") &&
+        (async () => {
+          update("embedding", { status: "running", detail: undefined });
+          try {
+            const res = await authFetch("/api/embed", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ entry_id: entry.id }),
+            });
+            if (res.ok) {
+              update("embedding", { status: "pass", note: "Embedded", detail: undefined });
+              saveEnrichmentFlag({ embedded: true });
+            } else {
+              const d = await res.json().catch(() => ({}));
+              update("embedding", { status: "fail", detail: (d as any).error || `HTTP ${res.status}` });
+            }
+          } catch (e: any) {
+            update("embedding", { status: "fail", detail: e?.message || "Network error" });
           }
-        } catch (e: any) {
-          update("embedding", { status: "fail", detail: e?.message || "Network error" });
-        }
-      })(),
+        })(),
 
       // ── Concepts + Related ─────────────────────────────────────────────────
-      (async () => {
-        update("concepts", { status: "running", detail: undefined });
-        update("related", { status: "running", detail: undefined });
-        try {
-          const { extractEntryConnections } = await import("../lib/brainConnections");
-          await extractEntryConnections(
-            {
-              id: entry.id,
-              title: entry.title,
-              content: entry.content || "",
-              type: entry.type,
-              tags: entry.tags || [],
-            },
-            brainId,
-          );
-          // Verify by reloading the graph
-          const freshGraph = await loadGraphFromDB(brainId);
-          const freshConcepts = getConceptsForEntry(freshGraph, entry.id);
-          if (freshConcepts.length > 0) {
-            update("concepts", { status: "pass", note: `${freshConcepts.length} concepts` });
-            onRefreshConcepts();
-            const related = freshGraph.concepts
-              .flatMap((c) => c.source_entries)
-              .filter((id) => id !== entry.id);
-            update("related", {
-              status: related.length > 0 ? "pass" : "unknown",
-              note: related.length > 0 ? "Related entries found" : "No related entries yet",
-            });
-          } else {
-            update("concepts", { status: "fail", note: "No concepts extracted", detail: "AI returned none" });
-            update("related", { status: "fail", note: "Depends on concepts" });
+      (needs.has("concepts") || needs.has("related")) &&
+        (async () => {
+          update("concepts", { status: "running", detail: undefined });
+          update("related", { status: "running", detail: undefined });
+          try {
+            const { extractEntryConnections } = await import("../lib/brainConnections");
+            await extractEntryConnections(
+              {
+                id: entry.id,
+                title: entry.title,
+                content: entry.content || "",
+                type: entry.type,
+                tags: entry.tags || [],
+              },
+              brainId,
+            );
+            const freshGraph = await loadGraphFromDB(brainId);
+            const freshConcepts = getConceptsForEntry(freshGraph, entry.id);
+            if (freshConcepts.length > 0) {
+              update("concepts", { status: "pass", note: `${freshConcepts.length} concepts` });
+              onRefreshConcepts();
+              const otherEntryIds = freshGraph.concepts
+                .flatMap((c) => c.source_entries)
+                .filter((id) => id !== entry.id);
+              const hasRel = otherEntryIds.length > 0;
+              update("related", {
+                status: hasRel ? "pass" : "unknown",
+                note: hasRel ? "Related entries found" : "No related entries yet",
+              });
+              saveEnrichmentFlag({ concepts_count: freshConcepts.length, has_related: hasRel });
+            } else {
+              update("concepts", { status: "fail", note: "No concepts extracted", detail: "AI returned none" });
+              update("related", { status: "fail", note: "Depends on concepts" });
+            }
+          } catch (e: any) {
+            update("concepts", { status: "fail", detail: e?.message || "Failed" });
+            update("related", { status: "fail", detail: "Depends on concepts" });
           }
-        } catch (e: any) {
-          update("concepts", { status: "fail", detail: e?.message || "Failed" });
-          update("related", { status: "fail", detail: "Depends on concepts" });
-        }
-      })(),
+        })(),
 
       // ── Insight ────────────────────────────────────────────────────────────
-      (async () => {
-        update("insight", { status: "running", detail: undefined });
-        try {
-          const { generateEntryInsight } = await import("../lib/brainConnections");
-          await generateEntryInsight(
-            {
-              id: entry.id,
-              title: entry.title,
-              content: entry.content || "",
-              type: entry.type,
-              tags: entry.tags || [],
-            },
-            brainId,
-          );
-          update("insight", { status: "pass", note: "AI insight generated" });
-        } catch (e: any) {
-          update("insight", { status: "fail", detail: e?.message || "Failed" });
-        }
-      })(),
+      needs.has("insight") &&
+        (async () => {
+          update("insight", { status: "running", detail: undefined });
+          try {
+            const { generateEntryInsight } = await import("../lib/brainConnections");
+            await generateEntryInsight(
+              {
+                id: entry.id,
+                title: entry.title,
+                content: entry.content || "",
+                type: entry.type,
+                tags: entry.tags || [],
+              },
+              brainId,
+            );
+            update("insight", { status: "pass", note: "AI insight generated" });
+            saveEnrichmentFlag({ has_insight: true });
+          } catch (e: any) {
+            update("insight", { status: "fail", detail: e?.message || "Failed" });
+          }
+        })(),
     ]);
 
     setRunning(false);

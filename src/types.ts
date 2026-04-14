@@ -58,6 +58,7 @@ export interface Entry {
   brain_id?: string;
   created_at?: string;
   updated_at?: string;
+  embedded_at?: string;
   encrypted?: boolean;
   pinned?: boolean;
   importance?: number;

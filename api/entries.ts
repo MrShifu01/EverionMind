@@ -6,7 +6,7 @@ import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 import { sbHeaders, sbHeadersNoContent } from "./_lib/sbHeaders.js";
 
 const SB_URL = process.env.SUPABASE_URL;
-const ENTRY_FIELDS = "id,title,content,type,tags,metadata,brain_id,importance,pinned,created_at";
+const ENTRY_FIELDS = "id,title,content,type,tags,metadata,brain_id,importance,pinned,created_at,embedded_at";
 
 function computeCompletenessScore(title: string, content: string, type: string, tags: string[], metadata: Record<string, any>): number {
   let score = 0;

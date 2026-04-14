@@ -109,45 +109,56 @@ async function _doExtractEntryConnections(entry: EntryRef, brainId: string): Pro
  * concept graph (from localStorage) as context. Saves result as type=insight entry.
  * Fire-and-forget safe.
  */
-export async function generateEntryInsight(entry: EntryRef, brainId: string): Promise<void> {
-  try {
-    const graph = await loadGraphFromDB(brainId);
-    const topConcepts = graph.concepts
-      .sort((a, b) => (b.frequency || 0) - (a.frequency || 0))
-      .slice(0, 8)
-      .map((c) => c.label)
-      .join(", ");
+export async function generateEntryInsight(
+  entry: EntryRef,
+  brainId: string,
+): Promise<{ id: string; title: string; type: string }> {
+  const graph = await loadGraphFromDB(brainId);
+  const topConcepts = graph.concepts
+    .sort((a, b) => (b.frequency || 0) - (a.frequency || 0))
+    .slice(0, 8)
+    .map((c) => c.label)
+    .join(", ");
 
-    const tagStr = entry.tags?.length ? ` [${entry.tags.join(", ")}]` : "";
-    const contextStr = topConcepts ? `\n\nExisting brain concepts: ${topConcepts}` : "";
-    const entryStr = `Entry: "${entry.title}" (${entry.type || "note"})${tagStr}\n${String(entry.content || "").slice(0, 400)}`;
+  const tagStr = entry.tags?.length ? ` [${entry.tags.join(", ")}]` : "";
+  const contextStr = topConcepts ? `\n\nExisting brain concepts: ${topConcepts}` : "";
+  const entryStr = `Entry: "${entry.title}" (${entry.type || "note"})${tagStr}\n${String(entry.content || "").slice(0, 400)}`;
 
-    const aiRes = await callAI({
-      max_tokens: 150,
-      system: INSIGHT_PROMPT,
-      messages: [{ role: "user", content: entryStr + contextStr }],
-    });
-    if (!aiRes.ok) return;
-    const raw = await aiRes.json();
-    const insightText: string = raw?.content?.[0]?.text?.trim() || "";
-    if (insightText.length < 20) return;
+  const aiRes = await callAI({
+    max_tokens: 150,
+    system: INSIGHT_PROMPT,
+    messages: [{ role: "user", content: entryStr + contextStr }],
+  });
+  if (!aiRes.ok) {
+    const errText = await aiRes.text().catch(() => String(aiRes.status));
+    throw new Error(`AI call failed (${aiRes.status}): ${errText.slice(0, 200)}`);
+  }
+  const raw = await aiRes.json();
+  const insightText: string = raw?.content?.[0]?.text?.trim() || "";
+  if (insightText.length < 20) throw new Error("AI returned an empty or too-short insight");
 
-    await authFetch("/api/capture", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        p_title: `Insight: ${entry.title.slice(0, 60)}`,
-        p_content: insightText,
-        p_type: "insight",
-        p_tags: entry.tags || [],
-        p_metadata: {
-          source_entry_id: entry.id,
-          ...(entry.content ? { raw_content: String(entry.content).slice(0, 4000) } : {}),
-        },
-        p_brain_id: brainId,
-      }),
-    });
-  } catch { /* silent */ }
+  const captureRes = await authFetch("/api/capture", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      p_title: `Insight: ${entry.title.slice(0, 60)}`,
+      p_content: insightText,
+      p_type: "insight",
+      p_tags: entry.tags || [],
+      p_metadata: {
+        source_entry_id: entry.id,
+        ...(entry.content ? { raw_content: String(entry.content).slice(0, 4000) } : {}),
+      },
+      p_brain_id: brainId,
+    }),
+  });
+  if (!captureRes.ok) {
+    const errText = await captureRes.text().catch(() => String(captureRes.status));
+    throw new Error(`Failed to save insight (${captureRes.status}): ${errText.slice(0, 200)}`);
+  }
+  const insightTitle = `Insight: ${entry.title.slice(0, 60)}`;
+  const saved = await captureRes.json().catch(() => ({}));
+  return { id: saved?.id ?? "", title: insightTitle, type: "insight" };
 }
 
 const BATCH_CONCEPTS_PROMPT = `You are building a concept graph from a list of personal/business brain entries.
