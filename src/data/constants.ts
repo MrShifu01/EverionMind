@@ -32,8 +32,6 @@ export const PC: Record<Priority, PriorityConfig> = {
 };
 export const fmtD = (d: string | Date): string =>
   new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" });
-export const MODEL: string = import.meta.env.VITE_MODEL ?? "gemini-2.5-flash-lite";
-
 export const INITIAL_ENTRIES: Entry[] = [];
 
 export const LINKS: Link[] = [];

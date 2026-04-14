@@ -31,7 +31,7 @@ export type Workspace = "business" | "personal" | "both";
 
 export type ConfidenceLevel = "extracted" | "inferred" | "ambiguous";
 
-export interface EntryMetadata {
+interface EntryMetadata {
   phone?: string;
   email?: string;
   url?: string;
@@ -73,12 +73,6 @@ export interface PriorityConfig {
   bg: string;
   c: string;
   l: string;
-}
-
-export interface Suggestion {
-  q: string;
-  cat: string;
-  p: Priority;
 }
 
 export interface Brain {

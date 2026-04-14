@@ -2,7 +2,7 @@ import { authFetch } from "./authFetch";
 import { PROMPTS } from "../config/prompts";
 import type { Entry } from "../types";
 
-export const ENRICH_SKIP_META = new Set([
+const ENRICH_SKIP_META = new Set([
   "category", "status", "confidence", "completeness_score",
   "raw_content", "source_entry_id", "full_text", "workspace", "enrichment",
 ]);

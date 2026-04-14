@@ -139,7 +139,7 @@ export function getGodNodes(
 }
 
 /** Simple label propagation community detection */
-export function detectCommunities(
+function detectCommunities(
   graph: ConceptGraph,
 ): Array<{ clusterId: string; conceptIds: string[]; entryIds: string[] }> {
   const labels = new Map<string, string>();
@@ -247,10 +247,6 @@ export async function saveGraphToDB(brainId: string, graph: ConceptGraph): Promi
   }
 }
 
-/** @deprecated Use saveGraphToDB for new code. Kept for sync fallback. */
-export function saveGraph(brainId: string, graph: ConceptGraph): void {
-  try { localStorage.setItem(GRAPH_KEY(brainId), JSON.stringify(graph)); } catch { /* quota */ }
-}
 
 /** Phase 7: Apply user feedback to strengthen/weaken relationship confidence */
 export async function applyFeedback(

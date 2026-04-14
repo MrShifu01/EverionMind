@@ -4,13 +4,13 @@
  */
 
 /** A single content block returned by the AI. */
-export interface AIContentBlock {
+interface AIContentBlock {
   type?: string;
   text?: string;
 }
 
 /** Token accounting (varies by response format — read from here). */
-export interface AIUsageBlock {
+interface AIUsageBlock {
   input_tokens?: number;
   output_tokens?: number;
   prompt_tokens?: number;

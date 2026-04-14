@@ -7,7 +7,7 @@ import { parseAISplitResponse } from "../lib/fileSplitter";
 import { PROMPTS } from "../config/prompts";
 import type { Entry } from "../types";
 
-export type TaskStatus = "extracting" | "classifying" | "saving" | "done" | "error";
+type TaskStatus = "extracting" | "classifying" | "saving" | "done" | "error";
 
 export interface BackgroundTask {
   id: string;

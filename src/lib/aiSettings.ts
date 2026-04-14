@@ -6,7 +6,7 @@ const _keys: Record<string, string | null> = {};
 
 // ── Hydration signal: set true after loadUserAISettings completes ──
 let _loaded = false;
-export function isAISettingsLoaded(): boolean {
+function isAISettingsLoaded(): boolean {
   return _loaded;
 }
 
@@ -118,10 +118,10 @@ const TASK_COL: Record<string, string> = {
   chat: "model_chat",
 };
 
-export function getModelForTask(task: string): string | null {
+function getModelForTask(task: string): string | null {
   return localStorage.getItem(KEYS.taskModel(task)) || null;
 }
-export function setModelForTask(task: string, model: string | null): void {
+function setModelForTask(task: string, model: string | null): void {
   const lsKey = KEYS.taskModel(task);
   if (model) localStorage.setItem(lsKey, model);
   else localStorage.removeItem(lsKey);
