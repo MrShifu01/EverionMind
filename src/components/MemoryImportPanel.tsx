@@ -36,6 +36,10 @@ export default function MemoryImportPanel({ brainId, onImported }: Props) {
     setImporting(true);
     let imported = 0;
     let failed = 0;
+    const importedEntries: Array<{ id: string; title: string; content: string; type: string; tags: string[] }> = [];
+
+    const { extractEntryConnections, generateEntryInsight, findAndSaveConnections } =
+      await import("../lib/brainConnections");
 
     for (const entry of entries) {
       try {
@@ -51,8 +55,26 @@ export default function MemoryImportPanel({ brainId, onImported }: Props) {
             ...(brainId ? { p_brain_id: brainId } : {}),
           }),
         });
-        if (r.ok) imported++;
-        else failed++;
+        if (r.ok) {
+          const data = await r.json();
+          imported++;
+          if (data?.id && brainId) {
+            const entryObj = {
+              id: data.id,
+              title: entry.title.slice(0, 500),
+              content: entry.content || "",
+              type: entry.type || "note",
+              tags: entry.tags || [],
+            };
+            // Fire brain processing for each entry as it's imported
+            extractEntryConnections(entryObj, brainId).catch(() => {});
+            generateEntryInsight(entryObj, brainId).catch(() => {});
+            findAndSaveConnections(entryObj, [...importedEntries], brainId).catch(() => {});
+            importedEntries.push(entryObj);
+          }
+        } else {
+          failed++;
+        }
       } catch {
         failed++;
       }

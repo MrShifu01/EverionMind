@@ -307,13 +307,14 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
     [_handleCreated, activeBrain?.id, entries],
   );
 
-  // Bulk file imports: extract concepts, skip insight generation to avoid flooding the feed.
+  // File uploads: extract concepts, find connections, generate insight.
   const handleCreatedBulk = useCallback(
     (newEntry: import("./types").Entry) => {
       _handleCreated(newEntry);
       if (activeBrain?.id && newEntry.type !== "insight") {
-        import("./lib/brainConnections").then(({ extractEntryConnections, findAndSaveConnections }) => {
+        import("./lib/brainConnections").then(({ extractEntryConnections, generateEntryInsight, findAndSaveConnections }) => {
           extractEntryConnections(newEntry, activeBrain.id!).catch(() => {});
+          generateEntryInsight(newEntry, activeBrain.id!).catch(() => {});
           findAndSaveConnections(newEntry, entries, activeBrain.id!).catch(() => {});
         });
       }

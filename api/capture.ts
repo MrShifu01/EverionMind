@@ -277,20 +277,32 @@ async function handleSaveLinks(req: ApiRequest, res: ApiResponse): Promise<void>
     return res.status(400).json({ error: "No valid links" });
   }
 
-  const response = await fetch(`${SB_URL}/rest/v1/rpc/save_links`, {
+  // Direct insert into links table — simpler and always works
+  const rows = valid.map((l: any) => ({
+    from: l.from,
+    to: l.to,
+    rel: l.rel,
+    ...(brain_id && typeof brain_id === "string" ? { brain_id } : {}),
+    user_id: user.id,
+  }));
+  const response = await fetch(`${SB_URL}/rest/v1/links`, {
     method: "POST",
-    headers: sbHeaders(),
-    body: JSON.stringify({
-      p_user_id: user.id,
-      p_links: JSON.stringify(valid),
-      ...(brain_id && typeof brain_id === "string" ? { p_brain_id: brain_id } : {}),
-    }),
+    headers: sbHeaders({ Prefer: "resolution=ignore-duplicates,return=minimal" }),
+    body: JSON.stringify(rows),
   });
 
   if (!response.ok) {
     const err = await response.text().catch(() => "");
-    console.log(`[save-links] RPC not available: ${err}`);
-    return res.status(200).json({ ok: true, stored: "local-only", message: "Links saved locally. Create the save_links RPC in Supabase to enable server persistence." });
+    console.error(`[save-links] Direct insert failed (${response.status}): ${err}`);
+    // Try RPC as fallback
+    const rpcRes = await fetch(`${SB_URL}/rest/v1/rpc/save_links`, {
+      method: "POST",
+      headers: sbHeaders(),
+      body: JSON.stringify({ p_user_id: user.id, p_links: JSON.stringify(valid), ...(brain_id ? { p_brain_id: brain_id } : {}) }),
+    });
+    if (!rpcRes.ok) {
+      return res.status(200).json({ ok: true, stored: "local-only", count: 0 });
+    }
   }
 
   res.status(200).json({ ok: true, stored: "database", count: valid.length });
@@ -342,15 +354,15 @@ export async function handleEmbed(req: ApiRequest, res: ApiResponse): Promise<vo
     if (typeof brain_id !== "string" || brain_id.length > 100) return res.status(400).json({ error: "Invalid brain_id" });
     const access = await checkBrainAccess(user.id, brain_id);
     if (!access) return res.status(403).json({ error: "Forbidden" });
+    // Always exclude soft-deleted entries
+    const baseFilter = `brain_id=eq.${encodeURIComponent(brain_id)}&deleted_at=is.null`;
     const filter = force
-      ? `brain_id=eq.${encodeURIComponent(brain_id)}`
-      : `brain_id=eq.${encodeURIComponent(brain_id)}&or=(embedded_at.is.null,embedding_provider.neq.${encodeURIComponent(provider)})`;
+      ? baseFilter
+      : `${baseFilter}&or=(embedded_at.is.null,embedding_provider.neq.${encodeURIComponent(provider)})`;
     const entriesRes = await fetch(`${SB_URL}/rest/v1/entries?${filter}&select=id,title,content,tags&limit=25`, { headers: sbHeadersNoContent() });
     if (!entriesRes.ok) return res.status(502).json({ error: "Database error" });
     const entries: any[] = await entriesRes.json();
     if (!entries.length) return res.status(200).json({ processed: 0, failed: 0, remaining: 0 });
-    const countRes = await fetch(`${SB_URL}/rest/v1/entries?${filter}&select=id`, { headers: sbHeadersNoContent({ Prefer: "count=exact" }) });
-    const remaining = parseInt(countRes.headers.get("content-range")?.split("/")?.[1] || "0", 10);
     let processed = 0;
     let failed = 0;
     const texts = entries.map(buildEntryText);
@@ -370,7 +382,10 @@ export async function handleEmbed(req: ApiRequest, res: ApiResponse): Promise<vo
       console.error("[embed:batch]", e.message);
       return res.status(502).json({ error: e.message });
     }
-    return res.status(200).json({ processed, failed, remaining: remaining - processed });
+    // Re-fetch remaining count AFTER patches so the number is accurate
+    const freshCountRes = await fetch(`${SB_URL}/rest/v1/entries?${filter}&select=id`, { headers: sbHeadersNoContent({ Prefer: "count=exact" }) });
+    const freshRemaining = parseInt(freshCountRes.headers.get("content-range")?.split("/")?.[1] || "0", 10);
+    return res.status(200).json({ processed, failed, remaining: isNaN(freshRemaining) ? 0 : freshRemaining });
   }
 
   return res.status(400).json({ error: "Provide either entry_id or { brain_id, batch: true }" });
