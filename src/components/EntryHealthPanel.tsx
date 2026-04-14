@@ -1,0 +1,288 @@
+import { useState } from "react";
+import { authFetch } from "../lib/authFetch";
+import { loadGraphFromDB, getConceptsForEntry } from "../lib/conceptGraph";
+import type { Entry } from "../types";
+import type { Concept } from "../types";
+
+type ItemStatus = "pass" | "fail" | "running" | "unknown";
+
+interface HealthItem {
+  key: string;
+  label: string;
+  note: string;
+  status: ItemStatus;
+  detail?: string;
+  readOnly?: boolean;
+}
+
+interface Props {
+  entry: Entry;
+  brainId: string;
+  entries: Entry[];
+  metaKeys: string[];
+  entryConcepts: Concept[];
+  hasRelated: boolean;
+  onRefreshConcepts: () => void;
+}
+
+function buildItems(
+  entry: Entry,
+  entries: Entry[],
+  metaKeys: string[],
+  entryConcepts: Concept[],
+  hasRelated: boolean,
+): HealthItem[] {
+  const hasInsight = entries.some(
+    (e) => e.type === "insight" && (e.metadata as any)?.source_entry_id === entry.id,
+  );
+  return [
+    {
+      key: "embedding",
+      label: "Embedding",
+      note: "Semantic search index",
+      status: "unknown",
+    },
+    {
+      key: "parsing",
+      label: "AI Parsing",
+      note: metaKeys.length > 0 ? `${metaKeys.length} structured fields` : "No structured fields found",
+      status: metaKeys.length > 0 ? "pass" : "fail",
+      readOnly: true,
+    },
+    {
+      key: "concepts",
+      label: "Concepts",
+      note: entryConcepts.length > 0 ? `${entryConcepts.length} concepts` : "Not in concept graph",
+      status: entryConcepts.length > 0 ? "pass" : "fail",
+    },
+    {
+      key: "related",
+      label: "Related by Concepts",
+      note: hasRelated ? "Related entries found" : "No related entries yet",
+      status: hasRelated ? "pass" : entryConcepts.length === 0 ? "fail" : "unknown",
+    },
+    {
+      key: "insight",
+      label: "Insight",
+      note: hasInsight ? "AI insight generated" : "No insight generated",
+      status: hasInsight ? "pass" : "fail",
+    },
+  ];
+}
+
+function StatusDot({ status }: { status: ItemStatus }) {
+  if (status === "pass") {
+    return (
+      <span
+        className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+        style={{ background: "rgb(22 163 74 / 0.12)", color: "rgb(22 163 74)" }}
+      >
+        ✓
+      </span>
+    );
+  }
+  if (status === "fail") {
+    return (
+      <span
+        className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+        style={{ background: "var(--color-error-container)", color: "var(--color-error)" }}
+      >
+        ✗
+      </span>
+    );
+  }
+  if (status === "running") {
+    return (
+      <span
+        className="flex h-5 w-5 flex-shrink-0 animate-pulse items-center justify-center rounded-full text-[10px]"
+        style={{ background: "var(--color-primary-container)", color: "var(--color-primary)" }}
+      >
+        ●
+      </span>
+    );
+  }
+  return (
+    <span
+      className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[10px]"
+      style={{ background: "var(--color-surface-container)", color: "var(--color-on-surface-variant)" }}
+    >
+      ?
+    </span>
+  );
+}
+
+export function EntryHealthPanel({
+  entry,
+  brainId,
+  entries,
+  metaKeys,
+  entryConcepts,
+  hasRelated,
+  onRefreshConcepts,
+}: Props) {
+  const [items, setItems] = useState<HealthItem[]>(() =>
+    buildItems(entry, entries, metaKeys, entryConcepts, hasRelated),
+  );
+  const [running, setRunning] = useState(false);
+  const [allDone, setAllDone] = useState(false);
+
+  function update(key: string, patch: Partial<HealthItem>) {
+    setItems((prev) => prev.map((it) => (it.key === key ? { ...it, ...patch } : it)));
+  }
+
+  const fixable = items.filter((it) => !it.readOnly && it.status !== "pass");
+
+  async function enrich() {
+    if (running || fixable.length === 0) return;
+    setRunning(true);
+    setAllDone(false);
+
+    await Promise.allSettled([
+      // ── Embedding ──────────────────────────────────────────────────────────
+      (async () => {
+        update("embedding", { status: "running", detail: undefined });
+        try {
+          const res = await authFetch("/api/embed", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ entry_id: entry.id }),
+          });
+          if (res.ok) {
+            update("embedding", { status: "pass", note: "Embedded", detail: undefined });
+          } else {
+            const d = await res.json().catch(() => ({}));
+            update("embedding", { status: "fail", detail: (d as any).error || `HTTP ${res.status}` });
+          }
+        } catch (e: any) {
+          update("embedding", { status: "fail", detail: e?.message || "Network error" });
+        }
+      })(),
+
+      // ── Concepts + Related ─────────────────────────────────────────────────
+      (async () => {
+        update("concepts", { status: "running", detail: undefined });
+        update("related", { status: "running", detail: undefined });
+        try {
+          const { extractEntryConnections } = await import("../lib/brainConnections");
+          await extractEntryConnections(
+            {
+              id: entry.id,
+              title: entry.title,
+              content: entry.content || "",
+              type: entry.type,
+              tags: entry.tags || [],
+            },
+            brainId,
+          );
+          // Verify by reloading the graph
+          const freshGraph = await loadGraphFromDB(brainId);
+          const freshConcepts = getConceptsForEntry(freshGraph, entry.id);
+          if (freshConcepts.length > 0) {
+            update("concepts", { status: "pass", note: `${freshConcepts.length} concepts` });
+            onRefreshConcepts();
+            const related = freshGraph.concepts
+              .flatMap((c) => c.source_entries)
+              .filter((id) => id !== entry.id);
+            update("related", {
+              status: related.length > 0 ? "pass" : "unknown",
+              note: related.length > 0 ? "Related entries found" : "No related entries yet",
+            });
+          } else {
+            update("concepts", { status: "fail", note: "No concepts extracted", detail: "AI returned none" });
+            update("related", { status: "fail", note: "Depends on concepts" });
+          }
+        } catch (e: any) {
+          update("concepts", { status: "fail", detail: e?.message || "Failed" });
+          update("related", { status: "fail", detail: "Depends on concepts" });
+        }
+      })(),
+
+      // ── Insight ────────────────────────────────────────────────────────────
+      (async () => {
+        update("insight", { status: "running", detail: undefined });
+        try {
+          const { generateEntryInsight } = await import("../lib/brainConnections");
+          await generateEntryInsight(
+            {
+              id: entry.id,
+              title: entry.title,
+              content: entry.content || "",
+              type: entry.type,
+              tags: entry.tags || [],
+            },
+            brainId,
+          );
+          update("insight", { status: "pass", note: "AI insight generated" });
+        } catch (e: any) {
+          update("insight", { status: "fail", detail: e?.message || "Failed" });
+        }
+      })(),
+    ]);
+
+    setRunning(false);
+    setAllDone(true);
+  }
+
+  const passCount = items.filter((it) => it.status === "pass").length;
+
+  return (
+    <div className="space-y-2">
+      {items.map((item) => (
+        <div key={item.key} className="flex items-center gap-3">
+          <StatusDot status={item.status} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <span
+                className="text-xs font-semibold"
+                style={{ color: "var(--color-on-surface)" }}
+              >
+                {item.label}
+              </span>
+              {item.readOnly && (
+                <span
+                  className="rounded-full px-1.5 py-px text-[9px] font-medium"
+                  style={{
+                    background: "var(--color-surface-container-highest)",
+                    color: "var(--color-on-surface-variant)",
+                  }}
+                >
+                  auto
+                </span>
+              )}
+            </div>
+            <p
+              className="text-[10px] leading-tight"
+              style={{
+                color: item.detail
+                  ? "var(--color-error)"
+                  : "var(--color-on-surface-variant)",
+              }}
+            >
+              {item.detail || item.note}
+            </p>
+          </div>
+        </div>
+      ))}
+
+      <div className="pt-1">
+        {fixable.length > 0 ? (
+          <button
+            onClick={enrich}
+            disabled={running}
+            className="w-full rounded-xl py-2.5 text-xs font-semibold transition-all disabled:opacity-50"
+            style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
+          >
+            {running ? "Enriching…" : `Fix ${fixable.length} missing item${fixable.length > 1 ? "s" : ""}`}
+          </button>
+        ) : allDone || passCount === items.length ? (
+          <p
+            className="text-center text-[11px] font-semibold"
+            style={{ color: "rgb(22 163 74)" }}
+          >
+            ✓ Fully enriched
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
