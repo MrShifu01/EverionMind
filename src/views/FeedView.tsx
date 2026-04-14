@@ -12,10 +12,15 @@ interface FeedEntry {
   created_at: string;
 }
 
+interface Wow {
+  headline: string;
+  detail: string;
+}
+
 interface FeedData {
   greeting: string;
   resurfaced: FeedEntry[];
-  insight: string | null;
+  wows: Wow[];
   action: string | null;
   streak: { current: number; longest: number };
   stats: { entries: number; connections: number; insights: number };
@@ -56,7 +61,6 @@ export default function FeedView({ brainId, onCapture, onSelectEntry, onNavigate
     );
   }
 
-  // Empty state for new users
   if (!data || data.stats.entries === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
@@ -81,9 +85,6 @@ export default function FeedView({ brainId, onCapture, onSelectEntry, onNavigate
     );
   }
 
-  const dayOfWeek = new Date().getDay();
-  const showInsightFirst = dayOfWeek % 2 === 0;
-
   return (
     <div className="space-y-4">
       <EarlyAccessBanner />
@@ -107,10 +108,39 @@ export default function FeedView({ brainId, onCapture, onSelectEntry, onNavigate
         </div>
       </div>
 
-      {showInsightFirst && data.insight && (
-        <InsightCard insight={data.insight} />
+      {/* Wow moments */}
+      {data.wows && data.wows.length > 0 && (
+        <div className="space-y-2">
+          <p
+            className="text-xs font-semibold tracking-widest uppercase"
+            style={{ color: "var(--color-status-medium)" }}
+          >
+            Your brain just connected the dots
+          </p>
+          {data.wows.map((wow, i) => (
+            <div
+              key={i}
+              className="rounded-2xl border p-4"
+              style={{
+                background: "color-mix(in oklch, var(--color-status-medium) 10%, var(--color-surface))",
+                borderColor: "color-mix(in oklch, var(--color-status-medium) 22%, transparent)",
+              }}
+            >
+              <p
+                className="text-sm font-bold leading-snug"
+                style={{ color: "var(--color-on-surface)" }}
+              >
+                {wow.headline}
+              </p>
+              <p className="text-on-surface-variant mt-1 text-xs leading-relaxed">
+                {wow.detail}
+              </p>
+            </div>
+          ))}
+        </div>
       )}
 
+      {/* Resurfaced memories */}
       {data.resurfaced.length > 0 && (
         <div className="space-y-2">
           <p
@@ -139,10 +169,6 @@ export default function FeedView({ brainId, onCapture, onSelectEntry, onNavigate
             </button>
           ))}
         </div>
-      )}
-
-      {!showInsightFirst && data.insight && (
-        <InsightCard insight={data.insight} />
       )}
 
       {data.action && (
@@ -174,26 +200,6 @@ export default function FeedView({ brainId, onCapture, onSelectEntry, onNavigate
           What's on your mind?
         </button>
       </div>
-    </div>
-  );
-}
-
-function InsightCard({ insight }: { insight: string }) {
-  return (
-    <div
-      className="rounded-2xl border p-4"
-      style={{
-        background: "color-mix(in oklch, var(--color-status-medium) 8%, var(--color-surface))",
-        borderColor: "color-mix(in oklch, var(--color-status-medium) 18%, transparent)",
-      }}
-    >
-      <p
-        className="text-xs font-semibold tracking-widest uppercase"
-        style={{ color: "var(--color-status-medium)" }}
-      >
-        Insight
-      </p>
-      <p className="text-on-surface mt-1 text-sm leading-relaxed">{insight}</p>
     </div>
   );
 }

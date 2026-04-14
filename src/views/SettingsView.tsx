@@ -71,7 +71,7 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
       <div className="space-y-4 px-4 py-4">
         {activeTab === "profile" && (
           <>
-            <AccountTab email={email} />
+            <AccountTab email={email} brainId={activeBrain?.id} />
             <NotificationsTab />
             {isMultiBrainEnabled() && activeBrain && (
               <BrainTab

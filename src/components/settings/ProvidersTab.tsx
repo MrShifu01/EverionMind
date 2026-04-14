@@ -214,7 +214,7 @@ export default function ProvidersTab(props?: { activeBrain?: any }) {
             "X-Embed-Provider": "google",
             "X-Embed-Key": "",
           },
-          body: JSON.stringify({ brain_id: brainId, batch: true, force: true }),
+          body: JSON.stringify({ brain_id: brainId, batch: true, force: false }),
         });
         const data = await res.json();
         if (!res.ok) {

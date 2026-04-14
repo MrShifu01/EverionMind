@@ -24,8 +24,8 @@ function daysAgo(n: number, from: Date): Date {
 
 export function applyEntryFilters(entries: Entry[], filters: EntryFilterState): Entry[] {
   const now = new Date();
-  // Secrets live in the Vault — always exclude from the main grid
-  let result = entries.filter((e) => e.type !== "secret");
+  // Secrets live in the Vault; insights are feed-only — always exclude both from the main grid
+  let result = entries.filter((e) => e.type !== "secret" && e.type !== "insight");
 
   // ── Type filter ──
   if (filters.type !== "all") {
@@ -92,7 +92,7 @@ export function applyEntryFilters(entries: Entry[], filters: EntryFilterState): 
 export function getEntryTypes(entries: Entry[]): string[] {
   const seen = new Set<string>();
   for (const e of entries) {
-    if (e.type && e.type !== "secret") seen.add(e.type);
+    if (e.type && e.type !== "secret" && e.type !== "insight") seen.add(e.type);
   }
   return Array.from(seen).sort();
 }

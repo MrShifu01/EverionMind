@@ -1,10 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../../lib/supabase";
 import { clearAISettingsCache } from "../../lib/aiSettings";
 import { authFetch } from "../../lib/authFetch";
+import MemoryImportPanel from "../MemoryImportPanel";
 
 interface Props {
   email: string;
+  brainId?: string;
+}
+
+interface ProfileFields {
+  display_name: string;
+  phone: string;
+  address: string;
+  city: string;
+  country: string;
 }
 
 function downloadFile(content: string, filename: string, mime: string) {
@@ -17,11 +27,54 @@ function downloadFile(content: string, filename: string, mime: string) {
   URL.revokeObjectURL(url);
 }
 
-export default function AccountTab({ email }: Props) {
+const PROFILE_LABELS: Record<keyof ProfileFields, string> = {
+  display_name: "Display name",
+  phone: "Phone",
+  address: "Address",
+  city: "City",
+  country: "Country",
+};
+
+export default function AccountTab({ email, brainId }: Props) {
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+
+  const [profile, setProfile] = useState<ProfileFields>({
+    display_name: "",
+    phone: "",
+    address: "",
+    city: "",
+    country: "",
+  });
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      const m = user.user_metadata || {};
+      setProfile({
+        display_name: m.display_name || "",
+        phone: m.phone || "",
+        address: m.address || "",
+        city: m.city || "",
+        country: m.country || "",
+      });
+    });
+  }, []);
+
+  async function saveProfile() {
+    setProfileSaving(true);
+    setProfileError(null);
+    setProfileSaved(false);
+    const { error: err } = await supabase.auth.updateUser({ data: profile });
+    setProfileSaving(false);
+    if (err) setProfileError(err.message);
+    else setProfileSaved(true);
+  }
 
   const handleSignOut = async () => {
     setSigningOut(true);
@@ -155,6 +208,68 @@ export default function AccountTab({ email }: Props) {
             {error}
           </p>
         )}
+      </div>
+
+      {/* Profile */}
+      <div
+        className="rounded-2xl border p-4"
+        style={{
+          background: "var(--color-surface-container-high)",
+          borderColor: "var(--color-outline-variant)",
+        }}
+      >
+        <p className="text-on-surface mb-1 text-sm font-semibold">Profile</p>
+        <p className="mb-3 text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
+          Basic details stored with your account.
+        </p>
+        <div className="space-y-2">
+          {(Object.keys(PROFILE_LABELS) as (keyof ProfileFields)[]).map((field) => (
+            <div key={field}>
+              <label className="mb-1 block text-xs font-medium" style={{ color: "var(--color-on-surface-variant)" }}>
+                {PROFILE_LABELS[field]}
+              </label>
+              <input
+                type="text"
+                value={profile[field]}
+                onChange={(e) => setProfile((p) => ({ ...p, [field]: e.target.value }))}
+                className="text-on-surface w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                style={{
+                  background: "var(--color-surface-container-low)",
+                  borderColor: "var(--color-outline-variant)",
+                }}
+              />
+            </div>
+          ))}
+        </div>
+        {profileError && (
+          <p className="mt-2 text-xs" style={{ color: "var(--color-error)" }}>{profileError}</p>
+        )}
+        {profileSaved && (
+          <p className="mt-2 text-xs" style={{ color: "var(--color-primary)" }}>Saved</p>
+        )}
+        <button
+          onClick={saveProfile}
+          disabled={profileSaving}
+          className="press-scale mt-3 w-full rounded-xl py-2.5 text-xs font-semibold disabled:opacity-40"
+          style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
+        >
+          {profileSaving ? "Saving…" : "Save profile"}
+        </button>
+      </div>
+
+      {/* Import AI Memories */}
+      <div
+        className="rounded-2xl border p-4"
+        style={{
+          background: "var(--color-surface-container-high)",
+          borderColor: "var(--color-outline-variant)",
+        }}
+      >
+        <p className="text-on-surface mb-1 text-sm font-semibold">Import from AI</p>
+        <p className="mb-3 text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
+          Bring in memories Claude or ChatGPT already knows about you.
+        </p>
+        <MemoryImportPanel brainId={brainId} />
       </div>
 
       {/* Data Export */}

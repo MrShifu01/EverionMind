@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 import { authFetch } from "../lib/authFetch";
 import { getEmbedHeaders } from "../lib/aiSettings";
+import MemoryImportPanel from "./MemoryImportPanel";
 
 interface OnboardingModalProps {
   onComplete: (
@@ -12,7 +13,7 @@ interface OnboardingModalProps {
   brainId?: string;
 }
 
-type Step = "welcome" | "capture" | "processing" | "query" | "response" | "celebration";
+type Step = "welcome" | "capture" | "processing" | "query" | "response" | "celebration" | "import";
 
 export default function OnboardingModal({ onComplete, brainId }: OnboardingModalProps) {
   const [step, setStep] = useState<Step>("welcome");
@@ -113,7 +114,7 @@ export default function OnboardingModal({ onComplete, brainId }: OnboardingModal
 
         {/* Step indicator */}
         <div className="mb-5 flex justify-center gap-1.5">
-          {(["welcome", "capture", "processing", "query", "response", "celebration"] as Step[]).map((s) => (
+          {(["welcome", "capture", "processing", "query", "response", "celebration", "import"] as Step[]).map((s) => (
             <div
               key={s}
               className="h-1 w-6 rounded-full"
@@ -237,11 +238,28 @@ export default function OnboardingModal({ onComplete, brainId }: OnboardingModal
               Imagine what it can do with 6 months of data.
             </p>
             <button
-              onClick={finish}
+              onClick={() => setStep("import")}
               className="press-scale text-on-primary w-full rounded-xl py-3 text-sm font-semibold"
               style={{ background: "var(--color-primary)" }}
             >
               Start exploring
+            </button>
+          </div>
+        )}
+
+        {step === "import" && (
+          <div>
+            <h3 className="text-on-surface mb-1 text-lg font-bold">Bring in your AI memories</h3>
+            <p className="text-on-surface-variant mb-4 text-xs">
+              If Claude or ChatGPT already knows you, import those memories now. You can also do this later in Settings → Profile.
+            </p>
+            <MemoryImportPanel brainId={brainId} onImported={() => finish()} />
+            <button
+              onClick={finish}
+              className="mt-3 w-full py-2 text-xs font-medium"
+              style={{ color: "var(--color-on-surface-variant)" }}
+            >
+              I'll do this later
             </button>
           </div>
         )}

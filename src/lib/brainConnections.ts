@@ -10,6 +10,9 @@ import {
 
 // ─── Per-entry concept extraction (runs on every capture) ───────────────────
 
+// Serialize all graph reads+writes so concurrent captures don't race.
+let _graphLock: Promise<void> = Promise.resolve();
+
 const ENTRY_CONCEPTS_PROMPT = `Extract key concepts and relationships from this single brain entry.
 Return ONLY this JSON (no markdown):
 {"concepts":[{"label":"concept name","entry_ids":["ENTRY_ID"]}],"relationships":[{"source":"A","target":"B","relation":"related_to","confidence":"extracted","confidence_score":0.8,"entry_ids":["ENTRY_ID"]}]}
@@ -31,6 +34,12 @@ interface EntryRef {
  * Fire-and-forget safe.
  */
 export async function extractEntryConnections(entry: EntryRef, brainId: string): Promise<void> {
+  // Chain onto the lock so concurrent calls are serialized, not raced
+  _graphLock = _graphLock.then(() => _doExtractEntryConnections(entry, brainId));
+  return _graphLock;
+}
+
+async function _doExtractEntryConnections(entry: EntryRef, brainId: string): Promise<void> {
   try {
     const rawContent = (entry as any).metadata?.raw_content;
     const bodyText = rawContent
@@ -214,4 +223,46 @@ export async function buildBrainConnections(
   } catch (e: any) {
     status(`Error: ${e.message}`);
   }
+}
+
+/**
+ * Auto-find and save connections between a newly-captured entry and existing entries.
+ * Called fire-and-forget from handleCreated. Uses the CONNECTION_FINDER prompt.
+ */
+export async function findAndSaveConnections(
+  newEntry: EntryRef,
+  existingEntries: EntryRef[],
+  brainId: string,
+): Promise<void> {
+  try {
+    const candidates = existingEntries
+      .filter((e) => e.id !== newEntry.id)
+      .slice(0, 30)
+      .map((e) => `[${e.id}] (${e.type || "note"}) ${e.title}: ${String(e.content || "").slice(0, 100)}`)
+      .join("\n");
+    if (!candidates) return;
+
+    const newEntryText = `NEW ENTRY:\n[${newEntry.id}] (${newEntry.type || "note"}) ${newEntry.title}: ${String(newEntry.content || "").slice(0, 200)}\n\nEXISTING ENTRIES:\n${candidates}`;
+    const aiRes = await callAI({
+      max_tokens: 512,
+      system: `You are a knowledge-graph builder. Given a NEW entry and EXISTING entries, find meaningful connections.\nRULES:\n- Only connect where a real, specific relationship exists (supplier→business, person→place, idea→business, etc.)\n- "rel" label: short phrase 2-4 words describing the relationship\n- Do NOT connect entries just because they share a type\n- Return 0–5 connections. Quality over quantity.\n- "from" = new entry ID. "to" = existing entry ID.\n- Return ONLY valid JSON array: [{"from":"...","to":"...","rel":"..."}]\n- If no connections: []`,
+      messages: [{ role: "user", content: newEntryText }],
+    });
+    if (!aiRes.ok) return;
+    const raw = await aiRes.json();
+    const text: string = raw?.content?.[0]?.text || "";
+    const match = text.match(/\[[\s\S]*\]/);
+    if (!match) return;
+    const links: Array<{ from: string; to: string; rel: string }> = JSON.parse(match[0]);
+    if (!Array.isArray(links) || links.length === 0) return;
+    const valid = links.filter(
+      (l) => l.from && l.to && l.rel && typeof l.rel === "string" && /^[a-zA-Z0-9 _\-']{1,50}$/.test(l.rel),
+    );
+    if (!valid.length) return;
+    await authFetch("/api/save-links", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ links: valid, brain_id: brainId }),
+    });
+  } catch { /* fire-and-forget, never throws */ }
 }

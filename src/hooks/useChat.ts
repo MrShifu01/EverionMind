@@ -184,6 +184,7 @@ export function useChat({
                   type: e.type,
                   tags: e.tags || [],
                   content: typeof e.content === "string" ? e.content.slice(0, 200) : undefined,
+                  metadata: e.metadata,
                 })),
                 msg,
               ).slice(0, 40);

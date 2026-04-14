@@ -118,11 +118,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     if (brainList.length === 1 && Array.isArray(fallback_entries) && fallback_entries.length > 0) {
       retrievedEntries = (fallback_entries as any[])
         .slice(0, 40)
-        .map((e: any) => ({ id: e.id, title: e.title, type: e.type, tags: e.tags, content: e.content }));
+        .map((e: any) => ({ id: e.id, title: e.title, type: e.type, tags: e.tags, content: e.content, metadata: e.metadata }));
     } else {
       for (const bId of brainList) {
         const recentRes = await fetch(
-          `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(bId)}&order=created_at.desc&limit=20&select=id,title,type,tags,content`,
+          `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(bId)}&order=created_at.desc&limit=20&select=id,title,type,tags,content,metadata`,
           { headers: SB_HEADERS },
         );
         if (recentRes.ok) {
@@ -232,7 +232,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: geminiContents,
-          systemInstruction: { parts: [{ text: system.slice(0, 10000) }] },
+          systemInstruction: { parts: [{ text: system }] },
           generationConfig: { maxOutputTokens: 2000 },
         }),
       }
