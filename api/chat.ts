@@ -155,6 +155,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
       type: e.type,
       tags: e.tags,
       content: e.content ? e.content.slice(0, idx < 5 ? 800 : 200) : undefined,
+      metadata: e.metadata ?? undefined,
       similarity: e.similarity?.toFixed(3),
     }))
   );
