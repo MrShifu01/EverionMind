@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { callAI } from "../lib/ai";
 import { authFetch } from "../lib/authFetch";
 import { getEmbedHeaders } from "../lib/aiSettings";
@@ -49,6 +49,7 @@ export function useCaptureSheetParse({
   const [previewTags, setPreviewTags] = useState("");
   const [previewType, setPreviewType] = useState("note");
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const rawContentRef = useRef<string>("");
 
   const resetState = useCallback(() => {
     setStatus(null);
@@ -83,7 +84,7 @@ export function useCaptureSheetParse({
   );
 
   const doSave = useCallback(
-    async (parsed: ParsedEntry) => {
+    async (parsed: ParsedEntry, rawContent?: string) => {
       setPreview(null);
       setLoading(true);
       setStatus("saving");
@@ -130,9 +131,11 @@ export function useCaptureSheetParse({
 
         // ── Regular entry → entries table ──
         const embedHeaders = getEmbedHeaders();
-        const metaWithConfidence = parsed.confidence
-          ? { ...(parsed.metadata || {}), confidence: parsed.confidence }
-          : parsed.metadata || {};
+        const metaWithConfidence = {
+          ...(parsed.metadata || {}),
+          ...(parsed.confidence ? { confidence: parsed.confidence } : {}),
+          ...(rawContent && rawContent.length > 150 ? { raw_content: rawContent.slice(0, 8000) } : {}),
+        };
         const res = await authFetch("/api/capture", {
           method: "POST",
           headers: { "Content-Type": "application/json", ...(embedHeaders || {}) },
@@ -188,6 +191,7 @@ export function useCaptureSheetParse({
     async (text: string, clearText: () => void) => {
       const input = buildInput(text);
       if (!input) return;
+      rawContentRef.current = input;
       clearText();
       setLoading(true);
       setStatus("thinking");
@@ -200,7 +204,7 @@ export function useCaptureSheetParse({
           type: "note",
           tags: [],
           metadata: {},
-        });
+        }, input);
         return;
       }
 
@@ -267,7 +271,7 @@ export function useCaptureSheetParse({
           const single = parsedRaw[0];
           if (single.title) {
             // AI classified successfully — save immediately
-            await doSave(single);
+            await doSave(single, rawContentRef.current);
             return;
           }
           // No title — fall through to manual preview
@@ -334,7 +338,7 @@ export function useCaptureSheetParse({
         const parsed = parsedRaw as ParsedEntry;
         if (parsed.title) {
           // AI classification succeeded — save immediately, no preview needed
-          await doSave(parsed);
+          await doSave(parsed, rawContentRef.current);
           return;
         }
         // JSON parsed but no title, or parse failed — show edit preview so user can save manually
@@ -378,7 +382,7 @@ export function useCaptureSheetParse({
           .split(",")
           .map((t) => t.trim())
           .filter(Boolean),
-      });
+      }, rawContentRef.current);
       void onRestoreText;
     },
     [preview, previewTitle, previewTags, previewType, doSave],

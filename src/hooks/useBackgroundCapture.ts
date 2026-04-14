@@ -174,7 +174,10 @@ export function useBackgroundCapture() {
                 p_title: entry.title,
                 p_content: entry.content || "",
                 p_type: entry.type || "note",
-                p_metadata: entry.metadata || {},
+                p_metadata: {
+                  ...(entry.metadata || {}),
+                  ...(rawText && rawText.length > 150 ? { raw_content: rawText.slice(0, 8000) } : {}),
+                },
                 p_tags: entry.tags || [],
                 p_brain_id: brainId,
               }),

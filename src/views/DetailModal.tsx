@@ -168,7 +168,8 @@ export default function DetailModal({
     const graph = loadGraph(brainId);
     return getConceptsForEntry(graph, entry.id);
   }, [brainId, entry.id]);
-  const skip = new Set(["category", "status", "confidence", "completeness_score"]);
+  const [showFullContent, setShowFullContent] = useState(false);
+  const skip = new Set(["category", "status", "confidence", "completeness_score", "raw_content"]);
   const meta = Object.entries(entry.metadata || {}).filter(([k]) => !skip.has(k));
   const confidence = (entry.metadata?.confidence || {}) as Record<string, string>;
 
@@ -984,6 +985,36 @@ export default function DetailModal({
                       </span>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Full Content drawer — only shown when raw original text was stored */}
+          {!editing && typeof entry.metadata?.raw_content === "string" && (
+            <div className="pt-1">
+              <button
+                onClick={() => setShowFullContent((s) => !s)}
+                className="flex w-full items-center justify-between py-1"
+              >
+                <span
+                  className="text-[10px] font-semibold tracking-widest uppercase"
+                  style={{ color: "var(--color-on-surface-variant)" }}
+                >
+                  Full Content
+                </span>
+                <span className="text-[10px]" style={{ color: "var(--color-on-surface-variant)" }}>
+                  {showFullContent ? "▲" : "▼"}
+                </span>
+              </button>
+              {showFullContent && (
+                <div
+                  className="mt-2 rounded-xl p-3"
+                  style={{ background: "var(--color-surface-container)" }}
+                >
+                  <p className="text-on-surface/80 whitespace-pre-wrap text-xs leading-relaxed">
+                    {String(entry.metadata.raw_content)}
+                  </p>
                 </div>
               )}
             </div>

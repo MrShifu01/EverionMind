@@ -33,7 +33,11 @@ interface EntryRef {
  */
 export async function extractEntryConnections(entry: EntryRef, brainId: string): Promise<void> {
   try {
-    const entryText = `id:${entry.id} type:${entry.type || "note"} title:${entry.title}\n${String(entry.content || "").replace(/[\r\n]+/g, " ").slice(0, 300)}`;
+    const rawContent = (entry as any).metadata?.raw_content;
+    const bodyText = rawContent
+      ? String(rawContent).replace(/[\r\n]+/g, " ").slice(0, 500)
+      : String(entry.content || "").replace(/[\r\n]+/g, " ").slice(0, 300);
+    const entryText = `id:${entry.id} type:${entry.type || "note"} title:${entry.title}\n${bodyText}`;
     const aiRes = await callAI({
       max_tokens: 512,
       system: ENTRY_CONCEPTS_PROMPT,

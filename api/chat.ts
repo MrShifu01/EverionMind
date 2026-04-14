@@ -177,15 +177,19 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   // 4. Build system prompt with retrieved context
   // Top 5 entries get more content for factual lookups (e.g. ID numbers), rest get 200 chars
   const memoriesText = JSON.stringify(
-    retrievedEntries.map((e: any, idx: number) => ({
-      id: e.id,
-      title: e.title,
-      type: e.type,
-      tags: e.tags,
-      content: e.content ? e.content.slice(0, idx < 5 ? 800 : 200) : undefined,
-      metadata: e.metadata ?? undefined,
-      similarity: e.similarity?.toFixed(3),
-    }))
+    retrievedEntries.map((e: any, idx: number) => {
+      const { raw_content, ...restMeta } = e.metadata ?? {};
+      return {
+        id: e.id,
+        title: e.title,
+        type: e.type,
+        tags: e.tags,
+        content: e.content ? e.content.slice(0, idx < 5 ? 800 : 200) : undefined,
+        ...(idx < 5 && raw_content ? { full_content: String(raw_content).slice(0, 1500) } : {}),
+        metadata: Object.keys(restMeta).length > 0 ? restMeta : undefined,
+        similarity: e.similarity?.toFixed(3),
+      };
+    })
   );
   const safeSecrets: any[] = Array.isArray(secrets)
     ? secrets.slice(0, 50).map((s: any) => ({ title: String(s.title || "").slice(0, 200), content: String(s.content || "").slice(0, 500), tags: Array.isArray(s.tags) ? s.tags.slice(0, 10) : [] }))
