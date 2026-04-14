@@ -66,10 +66,16 @@ export function buildChatContext(entries: Entry[], links: Link[], query: string)
     }
   }
 
+  const SKIP_META = new Set(["raw_content", "full_text", "source_entry_id", "confidence", "completeness_score", "category", "status"]);
+
   const sections = scored.map((e) => {
     const related = linkedTitles.get(e.id);
     const relatedStr = related?.length ? `\nRelated to: ${related.join(", ")}` : "";
-    return `[${e.type}] ${e.title}${e.content ? `: ${e.content.slice(0, 500)}` : ""}${relatedStr}`;
+    const metaEntries = Object.entries(e.metadata || {})
+      .filter(([k, v]) => !SKIP_META.has(k) && v !== null && v !== undefined && v !== "")
+      .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : String(v)}`);
+    const metaStr = metaEntries.length ? `\n${metaEntries.join("\n")}` : "";
+    return `[${e.type}] ${e.title}${e.content ? `: ${e.content.slice(0, 300)}` : ""}${metaStr}${relatedStr}`;
   });
 
   const sourceList = scored.map((e) => e.title).join(", ");
