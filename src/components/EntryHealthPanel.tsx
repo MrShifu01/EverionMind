@@ -29,7 +29,7 @@ interface Props {
   entryConcepts: Concept[];
   hasRelated: boolean;
   onRefreshConcepts: () => void;
-  onUpdate?: (id: string, changes: { metadata: Record<string, unknown> }) => void | Promise<void>;
+  onUpdate?: (id: string, changes: Record<string, unknown>) => void | Promise<void>;
 }
 
 function getEnrichment(entry: Entry): Enrichment {
@@ -71,7 +71,6 @@ function buildItems(
       label: "AI Parsing",
       note: metaKeys.length > 0 ? `${metaKeys.length} structured fields` : "No structured fields found",
       status: metaKeys.length > 0 ? "pass" : "fail",
-      readOnly: true,
     },
     {
       key: "concepts",
@@ -175,6 +174,66 @@ export function EntryHealthPanel({
     const needs = new Set(fixable.map((it) => it.key));
 
     await Promise.allSettled([
+      // ── AI Parsing ─────────────────────────────────────────────────────────
+      needs.has("parsing") &&
+        (async () => {
+          update("parsing", { status: "running", detail: undefined });
+          try {
+            const { PROMPTS } = await import("../config/prompts");
+            const rawText = String(
+              (entry.metadata as any)?.full_text || entry.content || entry.title,
+            );
+            const res = await authFetch("/api/llm", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                system: PROMPTS.CAPTURE,
+                messages: [{ role: "user", content: rawText }],
+                max_tokens: 800,
+              }),
+            });
+            if (!res.ok) {
+              const d = await res.json().catch(() => ({}));
+              update("parsing", { status: "fail", detail: (d as any).error || `HTTP ${res.status}` });
+              return;
+            }
+            const data = await res.json();
+            const text: string = data?.content?.[0]?.text || data?.text || "";
+            const jsonMatch = text.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
+            if (!jsonMatch) {
+              update("parsing", { status: "fail", detail: "AI returned no JSON" });
+              return;
+            }
+            let parsed: any;
+            try {
+              parsed = JSON.parse(jsonMatch[0]);
+            } catch {
+              update("parsing", { status: "fail", detail: "Could not parse AI response" });
+              return;
+            }
+            const result = Array.isArray(parsed) ? parsed[0] : parsed;
+            if (!result?.type) {
+              update("parsing", { status: "fail", detail: "No type in AI response" });
+              return;
+            }
+            const newMeta = { ...(result.metadata || {}) };
+            delete newMeta.confidence;
+            // Preserve full original text so it shows at the bottom of the modal
+            if (rawText.length > 200 && !newMeta.full_text) {
+              newMeta.full_text = rawText;
+            }
+            await onUpdate?.(entry.id, {
+              type: result.type,
+              content: result.content || entry.content,
+              metadata: { ...(entry.metadata ?? {}), ...newMeta },
+            });
+            const fieldCount = Object.keys(newMeta).filter((k) => k !== "full_text").length;
+            update("parsing", { status: "pass", note: `${fieldCount} structured fields` });
+          } catch (e: any) {
+            update("parsing", { status: "fail", detail: e?.message || "Failed" });
+          }
+        })(),
+
       // ── Embedding ──────────────────────────────────────────────────────────
       needs.has("embedding") &&
         (async () => {

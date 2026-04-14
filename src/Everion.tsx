@@ -755,6 +755,8 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
                     onCapture={() => setShowCapture(true)}
                     onSelectEntry={setSelected}
                     onNavigate={setView}
+                    entries={entries}
+                    onUpdate={handleUpdate}
                   />
                 )}
                 {view === "capture" &&

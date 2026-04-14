@@ -168,7 +168,7 @@ No explanation, no punctuation, just one word.`,
   const [showFullText, setShowFullText] = useState(false);
   const [healthOpen, setHealthOpen] = useState(false);
   const CONTENT_PREVIEW_LIMIT = 300;
-  const skip = new Set(["category", "status", "confidence", "completeness_score", "raw_content", "source_entry_id", "full_text", "workspace"]);
+  const skip = new Set(["category", "status", "confidence", "completeness_score", "raw_content", "source_entry_id", "full_text", "workspace", "enrichment"]);
   const meta = Object.entries(entry.metadata || {}).filter(([k]) => !skip.has(k));
   const confidence = (entry.metadata?.confidence || {}) as Record<string, string>;
 
