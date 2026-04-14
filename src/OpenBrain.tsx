@@ -54,6 +54,7 @@ import OmniSearch from "./components/OmniSearch";
 import KeyConcepts from "./components/KeyConcepts";
 import SettingsView from "./views/SettingsView";
 import FeedView from "./views/FeedView";
+import FloatingCaptureButton from "./components/FloatingCaptureButton";
 import type { Brain, Entry } from "./types";
 
 // Retry dynamic imports once on failure (stale chunk hash after deploy)
@@ -208,15 +209,20 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
   const [vaultExists, setVaultExists] = useState(false);
 
   useEffect(() => {
-    if (showOnboarding && brains.length > 0) {
-      localStorage.setItem("openbrain_onboarded", "1");
-      setShowOnboarding(false); // eslint-disable-line react-hooks/set-state-in-effect
-    }
-  }, [brains, showOnboarding]);
-  useEffect(() => {
     const h = () => setShowOnboarding(true);
     window.addEventListener("openbrain:restart-onboarding", h);
     return () => window.removeEventListener("openbrain:restart-onboarding", h);
+  }, []);
+  // Global Cmd+K / Ctrl+K capture shortcut
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setShowCapture(true);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
   useEffect(() => {
     authFetch("/api/vault")
@@ -683,7 +689,11 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
                 )}
                 {view === "settings" && <SettingsView onNavigate={setView} />}
                 {view === "feed" && (
-                  <FeedView onCapture={() => setShowCapture(true)} />
+                  <FeedView
+                    brainId={activeBrain?.id}
+                    onCapture={() => setShowCapture(true)}
+                    onSelectEntry={setSelected}
+                  />
                 )}
                 {view === "capture" &&
                   (() => {
@@ -948,7 +958,7 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
 
               {showOnboarding && (
                 <OnboardingModal
-                  onComplete={(_, answeredItems, skippedQs) => {
+                  onComplete={(_selected, answeredItems, skippedQs) => {
                     if (answeredItems?.length) {
                       try {
                         const key = "openbrain_answered_qs";
@@ -1024,6 +1034,7 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
                     setShowOnboarding(false);
                     setView("feed");
                   }}
+                  brainId={activeBrain?.id}
                 />
               )}
 
@@ -1040,6 +1051,9 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
                   setView(id);
                 }}
               />
+              {view !== "capture" && !showCapture && (
+                <FloatingCaptureButton onClick={() => setShowCapture(true)} />
+              )}
               <BottomNav
                 activeView={view}
                 onNavigate={(id) => {

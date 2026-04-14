@@ -226,6 +226,38 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
     }
   }
 
+  // --- Streak tracking ---
+  try {
+    const userRes = await fetch(
+      `${SB_URL}/auth/v1/admin/users/${user.id}`,
+      { headers: { apikey: process.env.SUPABASE_SERVICE_ROLE_KEY!, Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` } },
+    );
+    if (userRes.ok) {
+      const userData = await userRes.json();
+      const meta = userData.user_metadata || {};
+      const today = new Date().toISOString().slice(0, 10);
+      const lastCapture = meta.last_capture_date || "";
+      let currentStreak = meta.current_streak || 0;
+      let longestStreak = meta.longest_streak || 0;
+
+      if (lastCapture !== today) {
+        const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+        currentStreak = lastCapture === yesterday ? currentStreak + 1 : 1;
+        if (currentStreak > longestStreak) longestStreak = currentStreak;
+
+        await fetch(`${SB_URL}/auth/v1/admin/users/${user.id}`, {
+          method: "PUT",
+          headers: { apikey: process.env.SUPABASE_SERVICE_ROLE_KEY!, Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_metadata: { ...meta, current_streak: currentStreak, longest_streak: longestStreak, last_capture_date: today },
+          }),
+        });
+      }
+    }
+  } catch (err) {
+    console.error("[capture] streak update failed", err);
+  }
+
   res.status(response.status).json({ ...data, embed_error: embedError });
 }
 
