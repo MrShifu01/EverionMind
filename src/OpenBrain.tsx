@@ -291,16 +291,15 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
     cryptoKey,
   });
 
-  // After every 5th capture: silently rebuild brain connections in the background
+  // On every capture: silently extract concepts from the new entry and generate an insight.
+  // Skips insight-type entries to prevent infinite loops.
   const handleCreated = useCallback(
     (newEntry: import("./types").Entry) => {
       _handleCreated(newEntry);
-      if (activeBrain?.id) {
-        import("./lib/brainConnections").then(({ incrementCaptureCount, buildBrainConnections }) => {
-          const count = incrementCaptureCount(activeBrain.id!);
-          if (count % 5 === 0) {
-            buildBrainConnections(activeBrain.id!).catch(() => {});
-          }
+      if (activeBrain?.id && newEntry.type !== "insight") {
+        import("./lib/brainConnections").then(({ extractEntryConnections, generateEntryInsight }) => {
+          extractEntryConnections(newEntry, activeBrain.id!).catch(() => {});
+          generateEntryInsight(newEntry, activeBrain.id!).catch(() => {});
         });
       }
     },
