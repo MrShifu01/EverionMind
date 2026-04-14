@@ -46,7 +46,7 @@ function makeReq(overrides: Record<string, any> = {}) {
       message: "What recipes do I have?",
       brain_id: BRAIN_ID,
       provider: "anthropic",
-      model: "claude-haiku-4-5-20251001",
+      model: "gemini-2.5-flash-lite",
       history: [],
       fallback_entries: FALLBACK_ENTRIES,
     },

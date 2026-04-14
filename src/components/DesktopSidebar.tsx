@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { cn } from "../lib/cn";
 import { NavIcon } from "./icons/NavIcons";
 import { EverionLogo } from "./ui/EverionLogo";
+import { isMultiBrainEnabled } from "../lib/featureFlags";
 
 interface NavView {
   id: string;
@@ -10,6 +11,7 @@ interface NavView {
 }
 
 const NAV_ICONS: Record<string, ReactNode> = {
+  feed: NavIcon.feed,
   capture: NavIcon.capture,
   grid: NavIcon.grid,
   refine: NavIcon.refine,
@@ -54,7 +56,7 @@ const SUN_ICON = (
   </svg>
 );
 
-const CAPTURE_NAV: NavView = { id: "capture", l: "Home", ic: "⌂" };
+const CAPTURE_NAV: NavView = { id: "feed", l: "Feed", ic: "📰" };
 
 interface DesktopSidebarProps {
   activeBrainName: string;
@@ -233,6 +235,7 @@ export default function DesktopSidebar({
             </button>
 
             {/* New brain */}
+            {isMultiBrainEnabled() && (
             <button
               onClick={onShowCreateBrain}
               aria-label="Create new brain"
@@ -250,6 +253,7 @@ export default function DesktopSidebar({
               </svg>
               New brain
             </button>
+            )}
           </div>
         </div>
       </div>

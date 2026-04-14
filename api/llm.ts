@@ -10,7 +10,6 @@ const GROQ_API_KEY = (process.env.GROQ_API_KEY || "").trim();
 const GEMINI_MODEL = (process.env.GEMINI_MODEL || "gemini-2.5-flash-lite").trim();
 
 const ANTHROPIC_MODELS = [
-  "claude-haiku-4-5-20251001",
   "claude-sonnet-4-6",
   "claude-opus-4-6",
 ];
@@ -285,7 +284,7 @@ async function handleExtractFile(req: ApiRequest, res: ApiResponse): Promise<voi
       const r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({ model: model || "claude-haiku-4-5-20251001", max_tokens: 4096, messages: [{ role: "user", content: [block, { type: "text", text: EXTRACT_PROMPT }] }] }),
+        body: JSON.stringify({ model: model || "claude-sonnet-4-6", max_tokens: 4096, messages: [{ role: "user", content: [block, { type: "text", text: EXTRACT_PROMPT }] }] }),
       });
       const d: any = await r.json();
       return res.status(r.ok ? 200 : r.status).json(r.ok ? { text: d.content?.[0]?.text || "" } : d);

@@ -7,6 +7,7 @@ import BrainTab from "../components/settings/BrainTab";
 import NotificationsTab from "../components/settings/NotificationsTab";
 import StorageTab from "../components/settings/StorageTab";
 import DangerTab from "../components/settings/DangerTab";
+import { isMultiBrainEnabled } from "../lib/featureFlags";
 
 type TabId = "account" | "intelligence" | "brain" | "notifications" | "storage" | "danger";
 
@@ -136,7 +137,7 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
     supabase.auth.getUser().then(({ data: { user } }) => setEmail(user?.email || ""));
   }, []);
 
-  const tabs = TAB_DEFS;
+  const tabs = isMultiBrainEnabled() ? TAB_DEFS : TAB_DEFS.filter((t) => t.id !== "brain");
 
   return (
     <div

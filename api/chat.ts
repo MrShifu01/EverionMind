@@ -33,7 +33,7 @@ const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SB_HEADERS: Record<string, string> = { "apikey": SB_KEY!, "Authorization": `Bearer ${SB_KEY}` };
 
-const ALLOWED_ANTHROPIC_MODELS = ["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-6"];
+const ALLOWED_ANTHROPIC_MODELS = ["claude-sonnet-4-6", "claude-opus-4-6"];
 const ALLOWED_OPENAI_MODELS = ["gpt-4o-mini", "gpt-4o", "gpt-4.1"];
 
 const CHAT_SYSTEM = `You are OpenBrain, the user's memory assistant. Be concise. Answer based on the retrieved memories below — they have been selected for relevance to the question. When you mention a phone number, format it clearly. If the answer contains a phone number, put it on its own line.

@@ -15,7 +15,7 @@ describe("usageTracker", () => {
       inputTokens: 100,
       outputTokens: 50,
       provider: "anthropic",
-      model: "claude-haiku-4-5-20251001",
+      model: "gemini-2.5-flash-lite",
     });
     const raw = localStorage.getItem("openbrain_usage");
     expect(raw).not.toBeNull();
@@ -33,7 +33,7 @@ describe("usageTracker", () => {
       inputTokens: 10,
       outputTokens: 5,
       provider: "anthropic",
-      model: "claude-haiku-4-5-20251001",
+      model: "gemini-2.5-flash-lite",
     });
     recordUsage({
       date: "2026-04-07",
@@ -57,7 +57,7 @@ describe("usageTracker", () => {
       inputTokens: 1000,
       outputTokens: 500,
       provider: "anthropic",
-      model: "claude-haiku-4-5-20251001",
+      model: "gemini-2.5-flash-lite",
     });
     recordUsage({
       date: "2026-04-07",
@@ -65,7 +65,7 @@ describe("usageTracker", () => {
       inputTokens: 2000,
       outputTokens: 1000,
       provider: "anthropic",
-      model: "claude-haiku-4-5-20251001",
+      model: "gemini-2.5-flash-lite",
     });
     // Previous month — should be excluded
     recordUsage({
@@ -74,7 +74,7 @@ describe("usageTracker", () => {
       inputTokens: 9999,
       outputTokens: 9999,
       provider: "anthropic",
-      model: "claude-haiku-4-5-20251001",
+      model: "gemini-2.5-flash-lite",
     });
 
     const result = getMonthlyUsage();
@@ -90,7 +90,7 @@ describe("usageTracker", () => {
       inputTokens: 1_000_000,
       outputTokens: 1_000_000,
       provider: "anthropic",
-      model: "claude-haiku-4-5-20251001",
+      model: "gemini-2.5-flash-lite",
     });
 
     const result = getMonthlyUsage();
@@ -137,7 +137,7 @@ describe("usageTracker", () => {
       inputTokens: 100,
       outputTokens: 50,
       provider: "anthropic",
-      model: "claude-haiku-4-5-20251001",
+      model: "gemini-2.5-flash-lite",
     });
     clearUsage();
     const raw = localStorage.getItem("openbrain_usage");

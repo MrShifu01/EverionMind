@@ -3,6 +3,7 @@ import CreateBrainModal from "./CreateBrainModal";
 import { BrainTypeIcon } from "./icons/BrainTypeIcon";
 import type { Brain } from "../types";
 import { cn } from "../lib/cn";
+import { isMultiBrainEnabled } from "../lib/featureFlags";
 
 interface BrainSwitcherProps {
   brains: Brain[];
@@ -18,7 +19,8 @@ export default function BrainSwitcher({
   onSwitch,
   onBrainCreated,
   onBrainTip,
-}: BrainSwitcherProps): JSX.Element {
+}: BrainSwitcherProps): JSX.Element | null {
+  if (!isMultiBrainEnabled()) return null;
   const [open, setOpen] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const ref = useRef<HTMLDivElement>(null);

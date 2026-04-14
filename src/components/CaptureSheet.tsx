@@ -1,13 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { useCaptureSheetParse } from "../hooks/useCaptureSheetParse";
-import { VaultIntroModal } from "./VaultIntroModal";
 import { BrainTypeIcon } from "./icons/BrainTypeIcon";
 import { useBrain as useBrainCtx } from "../context/BrainContext";
 import { CANONICAL_TYPES } from "../types";
 import type { Brain, Entry } from "../types";
-
-const VAULT_INTRO_KEY = "ob_vault_intro_seen";
 
 interface CaptureSheetProps {
   isOpen: boolean;
@@ -36,7 +33,6 @@ export default function CaptureSheet({
   const [secretContent, setSecretContent] = useState("");
   const [secretSaving, setSecretSaving] = useState(false);
   const [secretError, setSecretError] = useState("");
-  const [showVaultIntro, setShowVaultIntro] = useState(false);
   const [brainPickerOpen, setBrainPickerOpen] = useState(false);
 
   const brainCtx = useBrainCtx() ?? {};
@@ -96,9 +92,6 @@ export default function CaptureSheet({
 
   function handleSecretTab() {
     setActiveTab("secret");
-    if (!localStorage.getItem(VAULT_INTRO_KEY)) {
-      setShowVaultIntro(true);
-    }
     requestAnimationFrame(() => secretTitleRef.current?.focus());
   }
 
@@ -334,15 +327,6 @@ export default function CaptureSheet({
           <div className="h-1 w-10 rounded-full" style={{ background: "var(--color-outline)" }} />
         </div>
 
-        {showVaultIntro && (
-          <VaultIntroModal
-            onDismiss={() => {
-              localStorage.setItem(VAULT_INTRO_KEY, "1");
-              setShowVaultIntro(false);
-            }}
-          />
-        )}
-
         <div className="mb-4 flex items-center justify-between">
           {preview ? (
             <h2
@@ -370,6 +354,7 @@ export default function CaptureSheet({
               >
                 New Entry
               </button>
+              {cryptoKey && (
               <button
                 type="button"
                 onClick={handleSecretTab}
@@ -397,6 +382,7 @@ export default function CaptureSheet({
                 </svg>
                 Add Secret
               </button>
+              )}
             </div>
           )}
           <button

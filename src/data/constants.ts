@@ -32,7 +32,7 @@ export const PC: Record<Priority, PriorityConfig> = {
 };
 export const fmtD = (d: string | Date): string =>
   new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" });
-export const MODEL: string = import.meta.env.VITE_ANTHROPIC_MODEL ?? "claude-haiku-4-5-20251001";
+export const MODEL: string = import.meta.env.VITE_MODEL ?? "gemini-2.5-flash-lite";
 
 export const INITIAL_ENTRIES: Entry[] = [];
 

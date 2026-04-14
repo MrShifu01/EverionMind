@@ -3,6 +3,7 @@ import { authFetch } from "../lib/authFetch";
 import type { Brain } from "../types";
 import { cn } from "../lib/cn";
 import { BrainTypeIcon } from "./icons/BrainTypeIcon";
+import { isMultiBrainEnabled } from "../lib/featureFlags";
 
 const BRAIN_TYPES = [
   {
@@ -30,7 +31,8 @@ interface CreateBrainModalProps {
 export default function CreateBrainModal({
   onClose,
   onCreate,
-}: CreateBrainModalProps): JSX.Element {
+}: CreateBrainModalProps): JSX.Element | null {
+  if (!isMultiBrainEnabled()) return null;
   const [name, setName] = useState("");
   const [brainType, setBrainType] = useState("family");
   const [inviteEmail, setInviteEmail] = useState("");

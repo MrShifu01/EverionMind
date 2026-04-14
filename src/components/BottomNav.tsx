@@ -3,25 +3,20 @@ import { cn } from "../lib/cn";
 import { NavIcon } from "./icons/NavIcons";
 
 const NAV_ITEMS = [
-  { id: "capture", label: "Home", icon: NavIcon.capture },
-  { id: "refine", label: "Improve", icon: NavIcon.refine },
+  { id: "feed", label: "Feed", icon: NavIcon.feed },
   { id: "_capture_fab", label: "Capture", isFAB: true, icon: NavIcon.add },
   { id: "chat", label: "Ask", icon: NavIcon.chat },
-  { id: "more", label: "More", icon: NavIcon.more },
+  { id: "grid", label: "Memory", icon: NavIcon.grid },
+  { id: "settings", label: "Settings", icon: NavIcon.settings },
 ];
-
-const MORE_IDS = new Set(["vault", "settings", "grid", "todos", "timeline"]);
 
 interface BottomNavProps {
   activeView: string;
   onNavigate: (id: string) => void;
   onCapture: () => void;
-  refineBadge?: number;
 }
 
-function BottomNavInner({ activeView, onNavigate, onCapture, refineBadge }: BottomNavProps) {
-  const isMoreActive = MORE_IDS.has(activeView);
-
+function BottomNavInner({ activeView, onNavigate, onCapture }: BottomNavProps) {
   return (
     <nav
       aria-label="Primary navigation"
@@ -33,7 +28,7 @@ function BottomNavInner({ activeView, onNavigate, onCapture, refineBadge }: Bott
       }}
     >
       {NAV_ITEMS.map((item) => {
-        const isActive = item.id === "more" ? isMoreActive : activeView === item.id;
+        const isActive = activeView === item.id;
 
         if (item.isFAB) {
           return (
@@ -63,14 +58,6 @@ function BottomNavInner({ activeView, onNavigate, onCapture, refineBadge }: Bott
           >
             {item.icon}
             <span className="text-[10px] font-medium">{item.label}</span>
-            {item.id === "refine" && refineBadge && refineBadge > 0 ? (
-              <span
-                className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold"
-                style={{ background: "var(--color-error)", color: "var(--color-on-error)" }}
-              >
-                {refineBadge > 9 ? "9+" : refineBadge}
-              </span>
-            ) : null}
           </button>
         );
       })}

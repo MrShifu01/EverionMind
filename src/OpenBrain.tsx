@@ -28,6 +28,8 @@ import { applyEntryFilters, getEntryTypes } from "./lib/entryFilters";
 import type { EntryFilterState } from "./lib/entryFilters";
 import GridFilters from "./components/GridFilters";
 import { readEntriesCache, writeEntriesCache } from "./lib/entriesCache";
+import { loadGraph, getGodNodes } from "./lib/conceptGraph";
+import type { ConceptGraph } from "./lib/conceptGraph";
 import { PinGate } from "./lib/pin";
 import { inferWorkspace } from "./lib/workspaceInfer";
 import { EntriesContext } from "./context/EntriesContext";
@@ -46,11 +48,12 @@ import BottomNav from "./components/BottomNav";
 import MobileHeader from "./components/MobileHeader";
 import CaptureSheet from "./components/CaptureSheet";
 import DesktopSidebar from "./components/DesktopSidebar";
-import MobileMoreMenu from "./components/MobileMoreMenu";
 import LoadingScreen from "./components/LoadingScreen";
 import SkeletonCard from "./components/SkeletonCard";
 import OmniSearch from "./components/OmniSearch";
+import KeyConcepts from "./components/KeyConcepts";
 import SettingsView from "./views/SettingsView";
+import FeedView from "./views/FeedView";
 import type { Brain, Entry } from "./types";
 
 // Retry dynamic imports once on failure (stale chunk hash after deploy)
@@ -90,9 +93,7 @@ function Loader() {
 const PHONE_REGEX = /(\+?[0-9]{7,15})/;
 
 const NAV_VIEWS = [
-  { id: "grid", l: "Grid", ic: "▦" },
-  { id: "todos", l: "Todos", ic: "✓" },
-  { id: "refine", l: "Improve Brain", ic: "✦" },
+  { id: "grid", l: "Memory", ic: "▦" },
   { id: "chat", l: "Ask", ic: "◈" },
 ];
 
@@ -176,8 +177,7 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
   const [gridViewMode, setGridViewMode] = useState<"grid" | "list">(
     () => (localStorage.getItem("openbrain_viewmode") as "grid" | "list") || "grid",
   );
-  const [view, setView] = useState("capture");
-  const [navOpen, setNavOpen] = useState(false);
+  const [view, setView] = useState("feed");
   const [selected, setSelected] = useState<Entry | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -336,6 +336,30 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
 
   const availableEntryTypes = useMemo(() => getEntryTypes(entries), [entries]);
 
+  // Concept graph data for grid view
+  const conceptGraph: ConceptGraph | null = useMemo(() => {
+    if (!activeBrain?.id) return null;
+    const g = loadGraph(activeBrain.id);
+    return g.concepts.length > 0 ? g : null;
+  }, [activeBrain?.id, entries]); // re-derive when entries change (after sync)
+
+  const conceptMap = useMemo(() => {
+    if (!conceptGraph) return undefined;
+    const map: Record<string, string[]> = {};
+    for (const c of conceptGraph.concepts) {
+      for (const eid of c.source_entries) {
+        if (!map[eid]) map[eid] = [];
+        map[eid].push(c.label);
+      }
+    }
+    return map;
+  }, [conceptGraph]);
+
+  const godNodes = useMemo(() => {
+    if (!conceptGraph) return [];
+    return getGodNodes(conceptGraph, 8);
+  }, [conceptGraph]);
+
   const entriesValue = useMemo(
     () => ({
       entries,
@@ -404,7 +428,6 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
               setSelected(null);
               setShowCapture(false);
               setView(id);
-              setNavOpen(false);
             }}
             onCapture={() => setShowCapture(true)}
             isDark={isDark}
@@ -559,9 +582,20 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
                           gridFilters.type !== "all",
                           gridFilters.date !== "all",
                           gridFilters.sort !== "newest",
+                          !!gridFilters.concept,
                         ].filter(Boolean).length
                       }
                     />
+
+                    {godNodes.length > 0 && (
+                      <KeyConcepts
+                        concepts={godNodes}
+                        activeConcept={gridFilters.concept}
+                        onConceptClick={(label) =>
+                          setGridFilters((f) => ({ ...f, concept: label, brainId: activeBrain?.id }))
+                        }
+                      />
+                    )}
 
                     {!entriesLoaded ? (
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -579,6 +613,7 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
                           selectedIds={selectedIds}
                           onToggleSelect={toggleSelectId}
                           viewMode={gridViewMode}
+                          conceptMap={conceptMap}
                         />
                         {selectMode && selectedIds.size > 0 && (
                           <BulkActionBar
@@ -647,6 +682,9 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
                   </Suspense>
                 )}
                 {view === "settings" && <SettingsView onNavigate={setView} />}
+                {view === "feed" && (
+                  <FeedView onCapture={() => setShowCapture(true)} />
+                )}
                 {view === "capture" &&
                   (() => {
                     if (!entriesLoaded)
@@ -984,7 +1022,7 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
                       }
                     }
                     setShowOnboarding(false);
-                    setView("capture");
+                    setView("feed");
                   }}
                 />
               )}
@@ -1002,30 +1040,12 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
                   setView(id);
                 }}
               />
-              <MobileMoreMenu
-                isOpen={navOpen}
-                onNavigate={(id) => {
-                  if (id === "close") {
-                    setNavOpen(false);
-                  } else {
-                    setSelected(null);
-                    setShowCapture(false);
-                    setView(id);
-                    setNavOpen(false);
-                  }
-                }}
-              />
               <BottomNav
                 activeView={view}
                 onNavigate={(id) => {
-                  if (id === "more") {
-                    setNavOpen((o) => !o);
-                  } else {
-                    setSelected(null);
-                    setShowCapture(false);
-                    setView(id);
-                    setNavOpen(false);
-                  }
+                  setSelected(null);
+                  setShowCapture(false);
+                  setView(id);
                 }}
                 onCapture={() => setShowCapture(true)}
               />

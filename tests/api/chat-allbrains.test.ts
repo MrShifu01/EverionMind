@@ -104,7 +104,7 @@ describe("api/chat — cross-brain (brain_ids)", () => {
         message: "Recipes?",
         brain_ids: [BRAIN_A, BRAIN_B],
         provider: "anthropic",
-        model: "claude-haiku-4-5-20251001",
+        model: "gemini-2.5-flash-lite",
         history: [],
       },
     };
@@ -127,7 +127,7 @@ describe("api/chat — cross-brain (brain_ids)", () => {
         message: "Recipes?",
         brain_ids: [BRAIN_A, BRAIN_B],
         provider: "anthropic",
-        model: "claude-haiku-4-5-20251001",
+        model: "gemini-2.5-flash-lite",
         history: [],
       },
     };
@@ -156,7 +156,7 @@ describe("api/chat — cross-brain (brain_ids)", () => {
         message: "Recipes?",
         brain_ids: [BRAIN_A, BRAIN_B],
         provider: "anthropic",
-        model: "claude-haiku-4-5-20251001",
+        model: "gemini-2.5-flash-lite",
         history: [],
       },
     };
@@ -221,7 +221,7 @@ describe("api/chat — cross-brain fallback (no embeddings)", () => {
         message: "Recipes?",
         brain_ids: [BRAIN_A, BRAIN_B],
         provider: "anthropic",
-        model: "claude-haiku-4-5-20251001",
+        model: "gemini-2.5-flash-lite",
         history: [],
       },
     };
