@@ -361,33 +361,6 @@ export default function ChatView({
       {/* ── Composer ── */}
       <div className="pt-4" style={{ borderTop: "1px solid var(--color-outline-variant)" }}>
         <div className="lg:mx-auto lg:max-w-2xl">
-          {/* Brain scope tabs */}
-          {brains.length > 1 && (
-            <div className="mb-3 flex gap-5 px-1">
-              {[
-                { key: false, label: "This brain" },
-                { key: true, label: "All brains" },
-              ].map(({ key, label }) => (
-                <button
-                  key={String(key)}
-                  onClick={() => setSearchAllBrains(key)}
-                  className="press-scale pb-1 text-xs font-medium transition-all"
-                  style={{
-                    color:
-                      searchAllBrains === key
-                        ? "var(--color-primary)"
-                        : "var(--color-on-surface-variant)",
-                    borderBottom:
-                      searchAllBrains === key
-                        ? "1.5px solid var(--color-primary)"
-                        : "1.5px solid transparent",
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
 
           {/* Input row */}
           <div className="flex items-end gap-2">

@@ -1,6 +1,5 @@
 import { authFetch } from "./authFetch";
 import { callAI } from "./ai";
-import { PROMPTS } from "../config/prompts";
 import {
   extractConcepts,
   extractRelationships,
@@ -43,23 +42,41 @@ export async function extractEntryConnections(entry: EntryRef, brainId: string):
       system: ENTRY_CONCEPTS_PROMPT,
       messages: [{ role: "user", content: entryText }],
     });
-    if (!aiRes.ok) return;
+    if (!aiRes.ok) {
+      console.warn("[concepts] AI call failed", aiRes.status, entry.id);
+      return;
+    }
     const raw = await aiRes.json();
     const text: string = raw?.content?.[0]?.text || "";
+    if (!text) {
+      console.warn("[concepts] AI returned empty text for", entry.id);
+      return;
+    }
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return;
+    if (!jsonMatch) {
+      console.warn("[concepts] No JSON in AI response for", entry.id, "· raw:", text.slice(0, 100));
+      return;
+    }
     let parsed: any;
-    try { parsed = JSON.parse(jsonMatch[0]); } catch { return; }
+    try { parsed = JSON.parse(jsonMatch[0]); } catch (e) {
+      console.warn("[concepts] JSON parse failed for", entry.id, e);
+      return;
+    }
 
     const newConcepts = parsed.concepts ? extractConcepts(parsed.concepts) : [];
     const newRels = parsed.relationships ? extractRelationships(parsed.relationships) : [];
-    if (newConcepts.length === 0 && newRels.length === 0) return;
+    if (newConcepts.length === 0 && newRels.length === 0) {
+      console.warn("[concepts] AI returned 0 concepts for", entry.id, "· parsed:", parsed);
+      return;
+    }
 
-    // Load from DB (caches to localStorage for subsequent reads on same device)
     const existing = await loadGraphFromDB(brainId);
     const merged = mergeGraph(existing, { concepts: newConcepts, relationships: newRels });
     await saveGraphToDB(brainId, merged);
-  } catch { /* silent */ }
+    console.log("[concepts] saved", newConcepts.length, "concepts for", entry.title);
+  } catch (e) {
+    console.error("[concepts] extractEntryConnections failed for", entry.id, e);
+  }
 }
 
 /**
@@ -98,18 +115,27 @@ export async function generateEntryInsight(entry: EntryRef, brainId: string): Pr
         p_content: insightText,
         p_type: "insight",
         p_tags: entry.tags || [],
-        p_metadata: { source_entry_id: entry.id },
+        p_metadata: {
+          source_entry_id: entry.id,
+          ...(entry.content ? { raw_content: String(entry.content).slice(0, 4000) } : {}),
+        },
         p_brain_id: brainId,
       }),
     });
   } catch { /* silent */ }
 }
 
+const BATCH_CONCEPTS_PROMPT = `You are building a concept graph from a list of personal/business brain entries.
+Identify the most important recurring concepts (themes, entities, ideas) and meaningful relationships between them.
+Return ONLY this JSON (no markdown):
+{"concepts":[{"label":"concept name","entry_ids":["id1","id2"]}],"relationships":[{"source":"A","target":"B","relation":"related_to","confidence":"extracted","confidence_score":0.8,"entry_ids":["id1"]}]}
+Max 20 concepts, max 15 relationships. Use the entry IDs provided in brackets.`;
+
 // ─── Full-brain batch rebuild (used by Settings button) ─────────────────────
 
 /**
  * Rebuild concept graph from all entries in the brain.
- * Fetches all entries, runs COMBINED_AUDIT, merges result into graph.
+ * Fetches all entries, runs a dedicated concept-extraction prompt, merges into graph.
  * Pass onStatus for UI feedback; omit for silent background use.
  */
 export async function buildBrainConnections(
@@ -130,17 +156,16 @@ export async function buildBrainConnections(
     const summary = entries
       .slice(0, 80)
       .map((e) =>
-        `[${e.id}] (${e.type}) ${e.title}: ${String(e.content || "").replace(/[\r\n]+/g, " ").slice(0, 80)}`,
+        `[${e.id}] (${e.type}) ${e.title}: ${String(e.content || "").replace(/[\r\n]+/g, " ").slice(0, 120)}`,
       )
       .join("\n");
 
     status(`Analysing ${entries.length} entries with AI…`);
     const aiRes = await callAI({
-      task: "refine",
-      max_tokens: 4096,
-      system: `Today's date is ${new Date().toISOString().slice(0, 10)}. ${PROMPTS.COMBINED_AUDIT}`,
+      max_tokens: 2048,
+      system: BATCH_CONCEPTS_PROMPT,
       brainId,
-      messages: [{ role: "user", content: `Here are the brain entries:\n\n${summary}` }],
+      messages: [{ role: "user", content: `Brain entries:\n\n${summary}` }],
     });
     if (!aiRes.ok) throw new Error(`AI error ${aiRes.status}`);
     const raw = await aiRes.json();

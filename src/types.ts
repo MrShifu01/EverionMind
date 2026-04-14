@@ -7,6 +7,7 @@ export const CANONICAL_TYPES = [
   "note",
   "task",
   "document",
+  "recipe",
   "event",
   "health",
   "finance",

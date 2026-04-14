@@ -306,6 +306,19 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
     [_handleCreated, activeBrain?.id],
   );
 
+  // Bulk file imports: extract concepts only, skip insight generation to avoid flooding the feed.
+  const handleCreatedBulk = useCallback(
+    (newEntry: import("./types").Entry) => {
+      _handleCreated(newEntry);
+      if (activeBrain?.id && newEntry.type !== "insight") {
+        import("./lib/brainConnections").then(({ extractEntryConnections }) => {
+          extractEntryConnections(newEntry, activeBrain.id!).catch(() => {});
+        });
+      }
+    },
+    [_handleCreated, activeBrain?.id],
+  );
+
   const {
     tasks: bgTasks,
     processFiles: bgProcessFiles,
@@ -1091,7 +1104,7 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
                 brainId={activeBrain?.id}
                 cryptoKey={cryptoKey}
                 isOnline={isOnline}
-                onBackgroundFiles={(files) => bgProcessFiles(files, activeBrain?.id, handleCreated)}
+                onBackgroundFiles={(files) => bgProcessFiles(files, activeBrain?.id, handleCreatedBulk)}
                 onNavigate={(id) => {
                   setShowCapture(false);
                   setView(id);

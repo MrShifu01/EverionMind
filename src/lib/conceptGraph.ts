@@ -217,8 +217,15 @@ export async function loadGraphFromDB(brainId: string): Promise<ConceptGraph> {
     if (!res.ok) return loadGraph(brainId); // fallback to cache
     const data = await res.json();
     const graph: ConceptGraph = data.graph || EMPTY;
-    try { localStorage.setItem(GRAPH_KEY(brainId), JSON.stringify(graph)); } catch { /* quota */ }
-    return graph;
+    // Only overwrite localStorage if DB has actual data — don't wipe a valid local cache
+    // with an empty DB response (e.g. migration not yet applied or first save pending)
+    if (graph.concepts.length > 0 || graph.relationships.length > 0) {
+      try { localStorage.setItem(GRAPH_KEY(brainId), JSON.stringify(graph)); } catch { /* quota */ }
+      return graph;
+    }
+    // DB is empty — prefer local cache if it has data
+    const cached = loadGraph(brainId);
+    return (cached.concepts.length > 0 || cached.relationships.length > 0) ? cached : graph;
   } catch {
     return loadGraph(brainId); // offline fallback
   }

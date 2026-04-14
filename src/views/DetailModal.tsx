@@ -5,7 +5,8 @@ import { resolveIcon } from "../lib/typeIcons";
 import { extractPhone, toWaUrl } from "../lib/phone";
 import { useEntryEdit } from "../hooks/useEntryEdit";
 import { authFetch } from "../lib/authFetch";
-import { loadGraph, getRelatedEntries, getConceptsForEntry } from "../lib/conceptGraph";
+import { loadGraphFromDB, getRelatedEntries, getConceptsForEntry } from "../lib/conceptGraph";
+import type { ConceptGraph } from "../lib/conceptGraph";
 import { CANONICAL_TYPES } from "../types";
 import type { Entry, Brain, EntryType } from "../types";
 
@@ -83,15 +84,18 @@ export default function DetailModal({
     setAiTyping(true);
     setAiMsg(null);
     try {
-      const types = CANONICAL_TYPES.filter((t) => t !== "secret");
-      // Put 'person' near the end so model doesn't default to first-in-list
-      const orderedTypes = [...types.filter((t) => t !== "person"), "person"];
+      const canonicalTypes = CANONICAL_TYPES.filter((t) => t !== "secret");
+      const orderedTypes = [...canonicalTypes.filter((t) => t !== "person"), "person"];
+      const entryContext = `Title: ${editTitle}\nContent: ${(editContent || "").slice(0, 400)}`;
       const res = await authFetch("/api/llm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          system: `Reply with ONE word only — the single best category for this entry. Pick from: ${orderedTypes.join(", ")}. No explanation, no punctuation, just one word.`,
-          messages: [{ role: "user", content: `Title: ${editTitle}\nContent: ${(editContent || "").slice(0, 300)}` }],
+          system: `Reply with ONE word only — the single most accurate category for this entry.
+Preferred types: ${orderedTypes.join(", ")}.
+If none of these fit well, invent the single most descriptive lowercase word (e.g. "recipe", "invoice", "supplier", "contract", "procedure").
+No explanation, no punctuation, just one word.`,
+          messages: [{ role: "user", content: entryContext }],
           max_tokens: 20,
         }),
       });
@@ -101,28 +105,16 @@ export default function DetailModal({
         const full = (data.content?.[0]?.text || data.choices?.[0]?.message?.content || "")
           .trim()
           .toLowerCase();
-        const raw = full.replace(/[^a-z]/g, " ");
-        // Find whichever type appears EARLIEST in the response (not first in list order)
-        const match = types
-          .map((t) => ({ t, idx: raw.search(new RegExp(`\\b${t}\\b`)) }))
-          .filter((m) => m.idx >= 0)
-          .sort((a, b) => a.idx - b.idx)[0]?.t;
-        if (match) {
-          setEditType(match);
-          setAiMsg({
-            text: `✓ ${match} · model: ${usedModel} · raw: "${full.slice(0, 60)}"`,
-            ok: true,
-          });
+        const word = full.replace(/[^a-z]/g, "").slice(0, 40);
+        if (!word) {
+          setAiMsg({ text: `Empty response · model: ${usedModel}`, ok: false });
         } else {
-          setAiMsg({
-            text: `No match · model: ${usedModel} · raw: "${full.slice(0, 80)}"`,
-            ok: false,
-          });
+          setEditType(word);
+          setAiMsg({ text: `✓ ${word} · ${usedModel}`, ok: true });
         }
       } else {
         const errData = await res.json().catch(() => ({}));
-        const msg = (errData as any)?.error || `HTTP ${res.status}`;
-        setAiMsg({ text: msg, ok: false });
+        setAiMsg({ text: (errData as any)?.error || `HTTP ${res.status}`, ok: false });
       }
     } catch (err: any) {
       setAiMsg({ text: err?.message || "Request failed", ok: false });
@@ -150,26 +142,31 @@ export default function DetailModal({
       other: entries.find((e) => e.id === (l.from === entry.id ? l.to : l.from)),
       dir: l.from === entry.id ? "→" : "←",
     }));
-  // Concept graph: related entries via shared concepts
+  // Concept graph: load async from DB so we always get fresh data
   const brainId = entry.brain_id;
+  const [conceptGraph, setConceptGraph] = useState<ConceptGraph | null>(null);
+  useEffect(() => {
+    if (!brainId) return;
+    loadGraphFromDB(brainId).then(setConceptGraph).catch(() => {});
+  }, [brainId, entry.id]);
+  const entryConcepts = useMemo(() => {
+    if (!conceptGraph) return [];
+    return getConceptsForEntry(conceptGraph, entry.id);
+  }, [conceptGraph, entry.id]);
   const conceptRelated = useMemo(() => {
-    if (!brainId) return [];
-    const graph = loadGraph(brainId);
-    return getRelatedEntries(graph, entry.id)
+    if (!conceptGraph) return [];
+    return getRelatedEntries(conceptGraph, entry.id)
       .slice(0, 5)
       .map((r) => ({
         ...r,
         entry: entries.find((e) => e.id === r.entryId),
       }))
       .filter((r) => r.entry);
-  }, [brainId, entry.id, entries]);
-  const entryConcepts = useMemo(() => {
-    if (!brainId) return [];
-    const graph = loadGraph(brainId);
-    return getConceptsForEntry(graph, entry.id);
-  }, [brainId, entry.id]);
+  }, [conceptGraph, entry.id, entries]);
   const [showFullContent, setShowFullContent] = useState(false);
-  const skip = new Set(["category", "status", "confidence", "completeness_score", "raw_content"]);
+  const [showFullText, setShowFullText] = useState(false);
+  const CONTENT_PREVIEW_LIMIT = 300;
+  const skip = new Set(["category", "status", "confidence", "completeness_score", "raw_content", "source_entry_id"]);
   const meta = Object.entries(entry.metadata || {}).filter(([k]) => !skip.has(k));
   const confidence = (entry.metadata?.confidence || {}) as Record<string, string>;
 
@@ -728,69 +725,6 @@ export default function DetailModal({
                   }}
                 />
               </div>
-              {brains.length > 1 && (
-                <div>
-                  <label
-                    className="mb-1.5 block text-[10px] font-semibold tracking-widest uppercase"
-                    style={{ color: "var(--color-on-surface-variant)" }}
-                  >
-                    Brains{" "}
-                    <span className="text-on-surface-variant/50 tracking-normal normal-case">
-                      (tap to add/remove)
-                    </span>
-                  </label>
-                  {!extraBrainsLoaded ? (
-                    <div className="flex flex-wrap gap-2">
-                      {brains.map((b) => (
-                        <div
-                          key={b.id}
-                          className="h-9 w-24 animate-pulse rounded-xl"
-                          style={{ background: "var(--color-surface-container)" }}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {brains.map((b) => {
-                        const isPrimary = editBrainId === b.id;
-                        const isExtra = editExtraBrainIds.includes(b.id);
-                        const isActive = isPrimary || isExtra;
-                        return (
-                          <button
-                            key={b.id}
-                            aria-label={`${isActive ? "Remove from" : "Add to"} ${b.name}`}
-                            aria-pressed={isActive}
-                            className="press-scale flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
-                            style={{
-                              background: isPrimary
-                                ? "var(--color-primary-container)"
-                                : isExtra
-                                  ? "var(--color-secondary-container)"
-                                  : "var(--color-surface-container)",
-                              border: isPrimary
-                                ? "1px solid var(--color-primary)"
-                                : isExtra
-                                  ? "1px solid var(--color-secondary)"
-                                  : "1px solid var(--color-outline-variant)",
-                              color: isPrimary
-                                ? "var(--color-primary)"
-                                : isExtra
-                                  ? "var(--color-secondary)"
-                                  : "var(--color-on-surface-variant)",
-                            }}
-                            onClick={() => toggleExtraBrain(b.id, isPrimary)}
-                          >
-                            <BrainTypeIcon type={b.type ?? "personal"} className="h-3.5 w-3.5" />
-                            {b.name}
-                            {isPrimary && <span className="text-[9px] opacity-60">primary</span>}
-                            {isExtra && <span className="text-[9px] opacity-60">✓</span>}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
               <div className="flex gap-3 pt-2">
                 <button
                   className="text-on-surface-variant hover:text-on-surface press-scale flex-1 rounded-xl py-3 text-sm font-semibold transition-all"
@@ -853,8 +787,19 @@ export default function DetailModal({
               ) : (
                 <>
                   <p className="text-on-surface/90 text-sm leading-relaxed whitespace-pre-wrap">
-                    {editContent}
+                    {!showFullText && (editContent || "").length > CONTENT_PREVIEW_LIMIT
+                      ? (editContent || "").slice(0, CONTENT_PREVIEW_LIMIT) + "…"
+                      : editContent}
                   </p>
+                  {(editContent || "").length > CONTENT_PREVIEW_LIMIT && (
+                    <button
+                      onClick={() => setShowFullText((s) => !s)}
+                      className="mt-1 text-[11px] font-semibold"
+                      style={{ color: "var(--color-primary)" }}
+                    >
+                      {showFullText ? "Show less" : "Show more"}
+                    </button>
+                  )}
                   {meta.length > 0 && (
                     <div
                       className="space-y-2 rounded-xl p-3"

@@ -34,6 +34,21 @@ type ParsedEntry = {
   metadata?: Record<string, unknown>;
 };
 
+/** Salvage complete objects from a truncated JSON array like `[{...},{...},{` */
+function salvageTruncatedArray(text: string): ParsedEntry[] {
+  const entries: ParsedEntry[] = [];
+  // Match complete {...} objects inside the array
+  const objRe = /\{[^{}]*(?:\{[^{}]*\}[^{}]*)?\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = objRe.exec(text)) !== null) {
+    try {
+      const obj = JSON.parse(m[0]);
+      if (obj && typeof obj === "object" && !Array.isArray(obj)) entries.push(obj);
+    } catch { /* skip incomplete object */ }
+  }
+  return entries;
+}
+
 function parseAIEntries(
   aiText: string,
   baseName: string,
@@ -60,6 +75,16 @@ function parseAIEntries(
     parseError = "Unexpected JSON shape";
   } catch (e: any) {
     parseError = e?.message || String(e);
+  }
+
+  // Salvage complete objects from a truncated array response
+  const salvaged = salvageTruncatedArray(aiText);
+  if (salvaged.length > 0) {
+    const entries = salvaged.map((e, i) => ({
+      ...e,
+      title: (e?.title || "").trim() || `${baseName}${salvaged.length > 1 ? ` (${i + 1})` : ""}`,
+    }));
+    return { entries, parseError: "" };
   }
 
   // Try fileSplitter as a last resort
@@ -128,10 +153,12 @@ export function useBackgroundCapture() {
           let entries: ParsedEntry[] = [];
           let classifyWarning = "";
 
+          // Scale token budget: large files need room for many split entries
+          const captureMaxTokens = input.length > 3000 ? 4096 : 1500;
           try {
             const aiRes = await callAI({
               system: PROMPTS.CAPTURE,
-              max_tokens: 1000,
+              max_tokens: captureMaxTokens,
               brainId,
               messages: [{ role: "user", content: input }],
             });
@@ -165,6 +192,7 @@ export function useBackgroundCapture() {
           // Step 3: Save all entries
           updateTask(taskId, { status: "saving" });
           const embedHeaders = getEmbedHeaders();
+          const isSplit = entries.length > 1;
           let savedTitle = "";
           for (const entry of entries) {
             const res = await authFetch("/api/capture", {
@@ -176,7 +204,9 @@ export function useBackgroundCapture() {
                 p_type: entry.type || "note",
                 p_metadata: {
                   ...(entry.metadata || {}),
-                  ...(rawText && rawText.length > 150 ? { raw_content: rawText.slice(0, 8000) } : {}),
+                  // For split entries the content IS the relevant portion — don't store the whole file.
+                  // For single-entry captures store the raw original so "Full Content" shows the source.
+                  ...(!isSplit && rawText && rawText.length > 150 ? { raw_content: rawText.slice(0, 8000) } : {}),
                 },
                 p_tags: entry.tags || [],
                 p_brain_id: brainId,
