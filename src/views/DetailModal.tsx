@@ -166,7 +166,7 @@ No explanation, no punctuation, just one word.`,
   const [showFullContent, setShowFullContent] = useState(false);
   const [showFullText, setShowFullText] = useState(false);
   const CONTENT_PREVIEW_LIMIT = 300;
-  const skip = new Set(["category", "status", "confidence", "completeness_score", "raw_content", "source_entry_id"]);
+  const skip = new Set(["category", "status", "confidence", "completeness_score", "raw_content", "source_entry_id", "full_text"]);
   const meta = Object.entries(entry.metadata || {}).filter(([k]) => !skip.has(k));
   const confidence = (entry.metadata?.confidence || {}) as Record<string, string>;
 
@@ -935,8 +935,8 @@ No explanation, no punctuation, just one word.`,
             </div>
           )}
 
-          {/* Full Content drawer — only shown when raw original text was stored */}
-          {!editing && typeof entry.metadata?.raw_content === "string" && (
+          {/* Full Content drawer — shown when full_text or raw_content is stored */}
+          {!editing && (typeof entry.metadata?.full_text === "string" || typeof entry.metadata?.raw_content === "string") && (
             <div className="pt-1">
               <button
                 onClick={() => setShowFullContent((s) => !s)}
@@ -958,7 +958,7 @@ No explanation, no punctuation, just one word.`,
                   style={{ background: "var(--color-surface-container)" }}
                 >
                   <p className="text-on-surface/80 whitespace-pre-wrap text-xs leading-relaxed">
-                    {String(entry.metadata.raw_content)}
+                    {String(entry.metadata.full_text ?? entry.metadata.raw_content)}
                   </p>
                 </div>
               )}

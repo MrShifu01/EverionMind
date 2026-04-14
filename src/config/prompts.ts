@@ -45,7 +45,8 @@ EXTRACTION RULES:
   - metadata.date: for any other specific date mentioned (YYYY-MM-DD)
 - If price/cost mentioned (e.g. "R85/kg", "R120 per case"), extract: metadata.price and metadata.unit
 - Title: max 60 chars
-- Content: 1-2 sentence description
+- Content: ALWAYS a clean 1-3 sentence human-readable summary or description. NEVER paste raw extracted text, assembly steps, or lists into content. Write it as prose.
+- Full text: If the entry has detailed instructions, steps, fields, or long body text (recipes, procedures, documents), put the full original text verbatim into metadata.full_text. Do NOT truncate it.
 
 WORKSPACE RULES:
 - business: related to a business, restaurant, supplier, contractor
