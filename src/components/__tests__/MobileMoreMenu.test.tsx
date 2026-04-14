@@ -20,14 +20,9 @@ describe("MobileMoreMenu", () => {
     expect(panel.className).toContain("translate-x-0");
   });
 
-  it("renders Fill Brain item", () => {
+  it("renders Improve Brain item", () => {
     render(<MobileMoreMenu isOpen={true} onNavigate={vi.fn()} />);
-    expect(screen.getByText("Fill Brain")).toBeInTheDocument();
-  });
-
-  it("renders Refine item", () => {
-    render(<MobileMoreMenu isOpen={true} onNavigate={vi.fn()} />);
-    expect(screen.getByText("Refine")).toBeInTheDocument();
+    expect(screen.getByText("Improve Brain")).toBeInTheDocument();
   });
 
   it("renders Vault item", () => {
@@ -40,17 +35,10 @@ describe("MobileMoreMenu", () => {
     expect(screen.getByText("Settings")).toBeInTheDocument();
   });
 
-  it("calls onNavigate with 'suggest' when Fill Brain is clicked", () => {
+  it("calls onNavigate with 'refine' when Improve Brain is clicked", () => {
     const onNavigate = vi.fn();
     render(<MobileMoreMenu isOpen={true} onNavigate={onNavigate} />);
-    fireEvent.click(screen.getByText("Fill Brain"));
-    expect(onNavigate).toHaveBeenCalledWith("suggest");
-  });
-
-  it("calls onNavigate with 'refine' when Refine button is clicked", () => {
-    const onNavigate = vi.fn();
-    render(<MobileMoreMenu isOpen={true} onNavigate={onNavigate} />);
-    fireEvent.click(screen.getByText("Refine"));
+    fireEvent.click(screen.getByText("Improve Brain"));
     expect(onNavigate).toHaveBeenCalledWith("refine");
   });
 

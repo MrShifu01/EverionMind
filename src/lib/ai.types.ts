@@ -1,19 +1,15 @@
 /**
  * Boundary types for AI responses.
- *
- * Providers (Anthropic, OpenAI, OpenRouter, internal /api/chat) return
- * different shapes. These types describe the *union* of fields we read so
- * call-sites can stop using `any`. Parsing / shape-normalisation is the
- * responsibility of `extractTokenUsage` and `extractNudgeText`.
+ * Shape covers both Gemini (/api/llm, /api/chat) and internal responses.
  */
 
-/** A single content block (Anthropic-style). Other providers may be absent. */
+/** A single content block returned by the AI. */
 export interface AIContentBlock {
   type?: string;
   text?: string;
 }
 
-/** Token accounting (shape varies by provider — we only read from here). */
+/** Token accounting (varies by response format — read from here). */
 export interface AIUsageBlock {
   input_tokens?: number;
   output_tokens?: number;
@@ -22,18 +18,15 @@ export interface AIUsageBlock {
 }
 
 /**
- * Union shape covering Anthropic, OpenAI/OpenRouter, and our internal
- * `/api/chat` responses. All fields are optional — the reader must handle
- * missing values.
+ * Union shape covering Gemini and our internal `/api/chat` responses.
+ * All fields are optional — the reader must handle missing values.
  */
 export interface AIResponseBody {
-  /** Anthropic-style content blocks. */
+  /** Content blocks (our normalized format). */
   content?: AIContentBlock[];
-  /** OpenAI-style text (`choices[].message.content`). */
-  choices?: Array<{ message?: { content?: string } }>;
-  /** Nudge / freeform text some internal endpoints return. */
+  /** Freeform text some internal endpoints return. */
   text?: string;
-  /** Token usage across all providers. */
+  /** Token usage. */
   usage?: AIUsageBlock;
   /** Error bag. */
   error?: string | { message?: string };

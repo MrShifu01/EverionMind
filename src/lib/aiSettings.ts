@@ -1,9 +1,7 @@
 import { supabase } from "./supabase";
-import { MODEL as DEFAULT_MODEL } from "../data/constants";
 import { KEYS } from "./storageKeys";
 
 // ── In-memory store for sensitive API keys ──
-// Keys never touch localStorage; live only in this module's memory.
 const _keys: Record<string, string | null> = {};
 
 // ── Hydration signal: set true after loadUserAISettings completes ──
@@ -34,17 +32,7 @@ try {
     const data = JSON.parse(localStorage.getItem(authTokenKey)!);
     const uid: string | null = data?.user?.id || null;
     if (uid) {
-      for (const suffix of [
-        "api_key",
-        "model",
-        "provider",
-        "openrouter_key",
-        "openrouter_model",
-        "embed_provider",
-        "embed_openai_key",
-        "gemini_key",
-        "groq_key",
-      ]) {
+      for (const suffix of ["gemini_key", "groq_key"]) {
         const oldKey = `openbrain_${uid}_${suffix}`;
         const newKey = `openbrain_${suffix}`;
         if (!localStorage.getItem(newKey) && localStorage.getItem(oldKey)) {
@@ -57,14 +45,8 @@ try {
   /* ignore */
 }
 
-// ── Sensitive key names (localStorage entries to clear on migration) ──
-const SENSITIVE_LS_KEYS = [
-  KEYS.AI_API_KEY,
-  KEYS.OPENROUTER_KEY,
-  KEYS.GROQ_KEY,
-  KEYS.EMBED_OPENAI_KEY,
-  KEYS.GEMINI_KEY,
-] as const;
+// ── Sensitive key names (cleared from localStorage on migration) ──
+const SENSITIVE_LS_KEYS = [KEYS.GROQ_KEY, KEYS.GEMINI_KEY] as const;
 
 export function getUserId(): string | null {
   try {
@@ -109,52 +91,6 @@ export async function persistKeyToDb(
   return { error: error?.message ?? null };
 }
 
-// ── Primary AI provider ──
-export function getUserApiKey(): string | null {
-  return _keys[KEYS.AI_API_KEY] ?? null;
-}
-export function setUserApiKey(key: string | null): void {
-  _keys[KEYS.AI_API_KEY] = key || null;
-  syncToSupabase({ api_key: key || null });
-}
-
-export function getUserModel(): string {
-  return localStorage.getItem(KEYS.AI_MODEL) || DEFAULT_MODEL;
-}
-export function setUserModel(model: string | null): void {
-  if (model) localStorage.setItem(KEYS.AI_MODEL, model);
-  else localStorage.removeItem(KEYS.AI_MODEL);
-  syncToSupabase({ ai_model: model || null });
-}
-
-export function getUserProvider(): string {
-  const stored = localStorage.getItem(KEYS.AI_PROVIDER);
-  if (!stored) return "google";
-  return stored;
-}
-export function setUserProvider(provider: string | null): void {
-  localStorage.setItem(KEYS.AI_PROVIDER, provider || "google");
-  syncToSupabase({ ai_provider: provider || "google" });
-}
-
-// ── OpenRouter ──
-export function getOpenRouterKey(): string | null {
-  return _keys[KEYS.OPENROUTER_KEY] ?? null;
-}
-export function setOpenRouterKey(key: string | null): void {
-  _keys[KEYS.OPENROUTER_KEY] = key || null;
-  syncToSupabase({ openrouter_key: key || null });
-}
-
-export function getOpenRouterModel(): string | null {
-  return localStorage.getItem(KEYS.OPENROUTER_MODEL) || null;
-}
-export function setOpenRouterModel(model: string | null): void {
-  if (model) localStorage.setItem(KEYS.OPENROUTER_MODEL, model);
-  else localStorage.removeItem(KEYS.OPENROUTER_MODEL);
-  syncToSupabase({ openrouter_model: model || null });
-}
-
 // ── Groq ──
 export function getGroqKey(): string | null {
   return _keys[KEYS.GROQ_KEY] ?? null;
@@ -162,6 +98,15 @@ export function getGroqKey(): string | null {
 export function setGroqKey(key: string | null): void {
   _keys[KEYS.GROQ_KEY] = key || null;
   syncToSupabase({ groq_key: key || null });
+}
+
+// ── Gemini ──
+export function getGeminiKey(): string | null {
+  return _keys[KEYS.GEMINI_KEY] ?? null;
+}
+export function setGeminiKey(key: string | null): void {
+  _keys[KEYS.GEMINI_KEY] = key || null;
+  syncToSupabase({ gemini_key: key || null });
 }
 
 // ── Per-task model overrides ──
@@ -188,8 +133,6 @@ export function setModelForTask(task: string, model: string | null): void {
 // ── Load all settings from Supabase into memory / localStorage ──
 export async function loadUserAISettings(userId: string): Promise<void> {
   _cachedUserId = userId;
-  // Avoid .single()/.maybeSingle() — both send Accept: application/vnd.pgrst.object+json
-  // which PostgREST returns 406 when 0 rows exist (new user with no saved settings).
   const { data: rows, error } = await supabase
     .from("user_ai_settings")
     .select("*")
@@ -198,7 +141,6 @@ export async function loadUserAISettings(userId: string): Promise<void> {
 
   if (error) {
     console.error("[aiSettings] loadUserAISettings failed:", error.message);
-    // Fall back to any keys that may still be in localStorage
     for (const lsKey of SENSITIVE_LS_KEYS) {
       const val = localStorage.getItem(lsKey);
       if (val) _keys[lsKey] = val;
@@ -209,35 +151,19 @@ export async function loadUserAISettings(userId: string): Promise<void> {
   const data = rows?.[0] ?? null;
 
   if (data) {
-    // Sensitive keys → memory
-    _keys[KEYS.AI_API_KEY] = data.api_key ?? null;
-    _keys[KEYS.OPENROUTER_KEY] = data.openrouter_key ?? null;
     _keys[KEYS.GROQ_KEY] = data.groq_key ?? null;
-    _keys[KEYS.EMBED_OPENAI_KEY] = data.embed_openai_key ?? null;
     _keys[KEYS.GEMINI_KEY] = data.gemini_key ?? null;
 
-    // Non-sensitive settings → localStorage
     const set = (lsKey: string, val: string | null | undefined) => {
       if (val) localStorage.setItem(lsKey, val);
       else localStorage.removeItem(lsKey);
     };
-    set(KEYS.AI_MODEL, data.ai_model);
-    set(KEYS.AI_PROVIDER, data.ai_provider);
-    set(KEYS.OPENROUTER_MODEL, data.openrouter_model);
     set(KEYS.EMBED_PROVIDER, data.embed_provider);
-    set(KEYS.EMBED_OR_MODEL, data.embed_or_model);
-    // simple_mode is boolean in DB — serialize to localStorage
-    if (typeof data.simple_mode === "boolean") {
-      localStorage.setItem(KEYS.SIMPLE_MODE, String(data.simple_mode));
-    } else if (data.simple_mode === null || data.simple_mode === undefined) {
-      localStorage.setItem(KEYS.SIMPLE_MODE, "true");
-    }
 
     for (const [task, col] of Object.entries(TASK_COL)) {
       set(KEYS.taskModel(task), data[col]);
     }
   } else {
-    // No Supabase record: migrate any localStorage keys to memory
     for (const lsKey of SENSITIVE_LS_KEYS) {
       const val = localStorage.getItem(lsKey);
       if (val) _keys[lsKey] = val;
@@ -257,101 +183,22 @@ export async function loadUserAISettings(userId: string): Promise<void> {
   }
 }
 
-// ── Simple mode free model constants ──
-export const SIMPLE_AI_MODEL = "openrouter/free";
-export const SIMPLE_AI_FALLBACKS = [
-  "google/gemini-2.0-flash-001", // cheap paid — ultimate fallback
-];
-
-export const SIMPLE_EMBED_MODEL = "nvidia/llama-nemotron-embed-vl-1b-v2:free";
-
-export const SIMPLE_VOICE_MODEL = "openrouter/free";
-export const SIMPLE_VOICE_FALLBACKS = [
-  "google/gemini-2.0-flash-001", // cheap paid — ultimate fallback
-];
-
 // ── Embedding settings ──
-export function getSimpleMode(): boolean {
-  const val = localStorage.getItem(KEYS.SIMPLE_MODE);
-  return val === null ? true : val !== "false";
-}
-export function setUiSimpleMode(val: boolean): void {
-  localStorage.setItem(KEYS.SIMPLE_MODE, String(val));
-  syncToSupabase({ simple_mode: val });
-}
-
-export function getEmbedOrModel(): string {
-  return localStorage.getItem(KEYS.EMBED_OR_MODEL) || "nvidia/llama-nemotron-embed-vl-1b-v2:free";
-}
-export function setEmbedOrModel(model: string | null): void {
-  if (model) localStorage.setItem(KEYS.EMBED_OR_MODEL, model);
-  else localStorage.removeItem(KEYS.EMBED_OR_MODEL);
-  syncToSupabase({ embed_or_model: model || null });
-}
-
 export function getEmbedProvider(): string {
-  const stored = localStorage.getItem(KEYS.EMBED_PROVIDER);
-  // OpenAI has been removed as an embedding provider option.
-  if (!stored || stored === "openai") return "google";
-  return stored; // "google" or "openrouter"
+  return "google";
 }
-export function setEmbedProvider(p: string | null): void {
-  localStorage.setItem(KEYS.EMBED_PROVIDER, p || "google");
-  syncToSupabase({ embed_provider: p || "google" });
+export function setEmbedProvider(_p: string | null): void {
+  // Always google — no-op
 }
 
-export function getEmbedOpenAIKey(): string | null {
-  return _keys[KEYS.EMBED_OPENAI_KEY] ?? null;
-}
-export function setEmbedOpenAIKey(key: string | null): void {
-  _keys[KEYS.EMBED_OPENAI_KEY] = key || null;
-  syncToSupabase({ embed_openai_key: key || null });
-}
-
-export function getGeminiKey(): string | null {
-  return _keys[KEYS.GEMINI_KEY] ?? null;
-}
-export function setGeminiKey(key: string | null): void {
-  _keys[KEYS.GEMINI_KEY] = key || null;
-  syncToSupabase({ gemini_key: key || null });
-}
-
-export function getEmbedKey(): string | null {
-  const p = getEmbedProvider();
-  if (p === "google") return getGeminiKey();
-  if (p === "openrouter") return getOpenRouterKey();
-  return getEmbedOpenAIKey();
-}
-
-export function getEmbedHeaders(): {
-  "X-Embed-Provider": string;
-  "X-Embed-Key": string;
-  "X-Embed-Model"?: string;
-} | null {
-  // Simple mode: always OpenRouter + NVIDIA Nemotron — never touches advanced embed config
-  if (getSimpleMode()) {
-    const key = getOpenRouterKey();
-    if (!key) return null;
-    return {
-      "X-Embed-Provider": "openrouter",
-      "X-Embed-Key": key,
-      "X-Embed-Model": SIMPLE_EMBED_MODEL,
-    };
-  }
-  const provider = getEmbedProvider();
-  const key = getEmbedKey();
-  // Google embed: server falls back to GEMINI_API_KEY env var — no user key required.
-  if (!key && provider !== "google") return null;
-  const h: { "X-Embed-Provider": string; "X-Embed-Key": string; "X-Embed-Model"?: string } = {
-    "X-Embed-Provider": provider,
-    "X-Embed-Key": key || "",
+export function getEmbedHeaders(): { "X-Embed-Provider": string; "X-Embed-Key": string } {
+  return {
+    "X-Embed-Provider": "google",
+    "X-Embed-Key": getGeminiKey() || "",
   };
-  if (provider === "openrouter") h["X-Embed-Model"] = getEmbedOrModel();
-  return h;
 }
 
-/** Returns true if the user has configured at least one AI provider key, or if using Google (server-side key). */
+/** Always true — server provides GEMINI_API_KEY. */
 export function isAIConfigured(): boolean {
-  if (getUserProvider() === "google") return true; // server has GEMINI_API_KEY
-  return !!(getUserApiKey() || getOpenRouterKey() || getGroqKey() || getGeminiKey());
+  return true;
 }

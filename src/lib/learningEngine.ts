@@ -5,7 +5,7 @@
  * Chat, Suggestions — and distils them into compact "learnings" injected
  * into every AI prompt so the whole app gets smarter over time.
  *
- * Storage: sessionStorage only (S1-7: not persisted to prevent XSS exposure),
+ * Storage: localStorage (persisted across sessions so learnings accumulate),
  * keyed per brain (each brain learns independently).
  */
 
@@ -46,8 +46,8 @@ interface LearningDecision {
 
 function readDecisions(brainId: string): LearningDecision[] {
   try {
-    // S1-7: Use sessionStorage (not persisted, XSS-safe)
-    const raw = sessionStorage.getItem(KEYS.learningDecisions(brainId));
+    // Persisted across sessions so the graph improves over time
+    const raw = localStorage.getItem(KEYS.learningDecisions(brainId));
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -57,7 +57,7 @@ function readDecisions(brainId: string): LearningDecision[] {
 function writeDecisions(brainId: string, decisions: LearningDecision[]): void {
   try {
     const trimmed = decisions.slice(-MAX_RAW_DECISIONS);
-    sessionStorage.setItem(KEYS.learningDecisions(brainId), JSON.stringify(trimmed));
+    localStorage.setItem(KEYS.learningDecisions(brainId), JSON.stringify(trimmed));
   } catch {
     /* quota exceeded — degrade gracefully */
   }
@@ -65,8 +65,8 @@ function writeDecisions(brainId: string, decisions: LearningDecision[]): void {
 
 function readLearnings(brainId: string): string {
   try {
-    // S1-7: Use sessionStorage only
-    return sessionStorage.getItem(KEYS.learningSummary(brainId)) || "";
+    // Persisted to localStorage
+    return localStorage.getItem(KEYS.learningSummary(brainId)) || "";
   } catch {
     return "";
   }
@@ -74,7 +74,7 @@ function readLearnings(brainId: string): string {
 
 function writeLearnings(brainId: string, text: string): void {
   try {
-    sessionStorage.setItem(KEYS.learningSummary(brainId), text);
+    localStorage.setItem(KEYS.learningSummary(brainId), text);
   } catch {
     /* quota exceeded */
   }

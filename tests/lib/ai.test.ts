@@ -1,11 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("../../src/lib/aiSettings", () => ({
-  getUserProvider: vi.fn().mockReturnValue("anthropic"),
-  getUserModel: vi.fn().mockReturnValue("claude-sonnet-4-6"),
-  getUserApiKey: vi.fn().mockReturnValue("sk-test-key"),
-  getOpenRouterKey: vi.fn().mockReturnValue("or-test-key"),
-  getOpenRouterModel: vi.fn().mockReturnValue(null),
+  isAIConfigured: vi.fn().mockReturnValue(true),
   getModelForTask: vi.fn().mockReturnValue(null),
 }));
 
@@ -17,11 +13,9 @@ vi.mock("../../src/lib/authFetch", () => ({
   authFetch: vi.fn(),
 }));
 
-import { getUserProvider } from "../../src/lib/aiSettings";
 import { authFetch } from "../../src/lib/authFetch";
 import { callAI } from "../../src/lib/ai";
 
-const mockGetProvider = getUserProvider as ReturnType<typeof vi.fn>;
 const mockAuthFetch = authFetch as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
@@ -30,38 +24,21 @@ beforeEach(() => {
 });
 
 describe("callAI endpoint routing", () => {
-  it("routes anthropic provider to /api/llm?provider=anthropic", async () => {
-    mockGetProvider.mockReturnValue("anthropic");
+  it("always routes to /api/llm?provider=google (server-side Gemini)", async () => {
     await callAI({ messages: [{ role: "user", content: "hi" }] });
     const [url] = mockAuthFetch.mock.calls[0];
-    expect(url).toBe("/api/llm?provider=anthropic");
+    expect(url).toBe("/api/llm?provider=google");
   });
 
-  it("routes openai provider to /api/llm?provider=openai", async () => {
-    mockGetProvider.mockReturnValue("openai");
+  it("uses google regardless of user provider setting", async () => {
     await callAI({ messages: [{ role: "user", content: "hi" }] });
     const [url] = mockAuthFetch.mock.calls[0];
-    expect(url).toBe("/api/llm?provider=openai");
-  });
-
-  it("routes openrouter provider to /api/llm?provider=openrouter", async () => {
-    mockGetProvider.mockReturnValue("openrouter");
-    await callAI({ messages: [{ role: "user", content: "hi" }] });
-    const [url] = mockAuthFetch.mock.calls[0];
-    expect(url).toBe("/api/llm?provider=openrouter");
-  });
-
-  it("defaults to anthropic for unknown provider", async () => {
-    mockGetProvider.mockReturnValue("unknown-provider");
-    await callAI({ messages: [{ role: "user", content: "hi" }] });
-    const [url] = mockAuthFetch.mock.calls[0];
-    expect(url).toBe("/api/llm?provider=anthropic");
+    expect(url).toBe("/api/llm?provider=google");
   });
 });
 
 describe("callAI message normalisation", () => {
   it("unknown provider uses anthropic message format (no transformation)", async () => {
-    mockGetProvider.mockReturnValue("badprovider");
     const imageMessage = {
       role: "user",
       content: [

@@ -101,8 +101,8 @@ Instructions: Mix until smooth. Cook on pan.
       expect(parseAISplitResponse("not json")).toEqual([]);
     });
 
-    it("returns empty array for non-array JSON", () => {
-      expect(parseAISplitResponse('{"title":"test"}')).toEqual([]);
+    it("wraps single object with valid title into array", () => {
+      expect(parseAISplitResponse('{"title":"test"}')).toEqual([{ title: "test" }]);
     });
 
     it("filters out entries without title", () => {

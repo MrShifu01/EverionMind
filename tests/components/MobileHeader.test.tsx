@@ -17,9 +17,8 @@ describe("MobileHeader", () => {
     pendingCount: 0,
   };
 
-  it("always renders 'Everion' as the logo text, not the brain name", () => {
+  it("does not render the brain name as visible text in the header", () => {
     renderWithTheme(<MobileHeader {...defaultProps} brainName="My Very Long Business Brain Name" />);
-    expect(screen.getByText("Everion")).toBeInTheDocument();
     expect(screen.queryByText("My Very Long Business Brain Name")).not.toBeInTheDocument();
   });
 

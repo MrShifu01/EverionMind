@@ -66,22 +66,11 @@ export function recordUsage(record: UsageRecord): void {
 }
 
 function estimateLlmCost(
-  inputTokens: number,
-  outputTokens: number,
-  provider: string,
-  model: string,
+  _inputTokens: number,
+  _outputTokens: number,
+  _provider: string,
+  _model: string,
 ): number {
-  if (provider === "anthropic") {
-    if (model.includes("haiku")) return inputTokens * 0.00000025 + outputTokens * 0.00000125;
-    if (model.includes("sonnet")) return inputTokens * 0.000003 + outputTokens * 0.000015;
-    if (model.includes("opus")) return inputTokens * 0.000015 + outputTokens * 0.000075;
-  }
-  if (provider === "openai") {
-    if (model === "gpt-4o-mini") return inputTokens * 0.00000015 + outputTokens * 0.0000006;
-    if (model === "gpt-4o") return inputTokens * 0.0000025 + outputTokens * 0.00001;
-    if (model.startsWith("gpt-4.1")) return inputTokens * 0.000002 + outputTokens * 0.000008;
-  }
-  // OpenRouter: pricing varies by model
   return 0;
 }
 
@@ -89,7 +78,6 @@ function estimateTranscriptionCost(audioBytes: number, provider: string): number
   // Assume ~16 KB/s typical compressed audio bitrate → seconds = bytes / 16000
   const seconds = audioBytes / 16000;
   if (provider === "groq") return seconds * (0.111 / 3600); // $0.111/hour
-  if (provider === "openai") return seconds * (0.006 / 60); // $0.006/min
   return 0;
 }
 
@@ -158,11 +146,9 @@ export function clearUsage(): void {
 export function extractTokenUsage(body: unknown): { inputTokens: number; outputTokens: number } {
   if (!body || typeof body !== "object") return { inputTokens: 0, outputTokens: 0 };
   const b = body as any;
-  // Anthropic format
   if (b.usage?.input_tokens != null) {
     return { inputTokens: b.usage.input_tokens, outputTokens: b.usage.output_tokens ?? 0 };
   }
-  // OpenAI / OpenRouter format
   if (b.usage?.prompt_tokens != null) {
     return { inputTokens: b.usage.prompt_tokens, outputTokens: b.usage.completion_tokens ?? 0 };
   }

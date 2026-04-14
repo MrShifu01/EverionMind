@@ -1,21 +1,4 @@
 import { authFetch } from "./authFetch";
-import {
-  getUserProvider,
-  getUserModel,
-  getUserApiKey,
-  getOpenRouterKey,
-  getOpenRouterModel,
-} from "./aiSettings";
-function getAIHeaders(): Record<string, string> {
-  const provider = getUserProvider();
-  const apiKey = provider === "openrouter" ? getOpenRouterKey() : getUserApiKey();
-  const model = provider === "openrouter" ? getOpenRouterModel() || "" : getUserModel();
-  return {
-    "x-user-api-key": apiKey || "",
-    "x-provider": provider || "openrouter",
-    "x-model": model,
-  };
-}
 
 async function fileToBase64(file: File): Promise<string> {
   return new Promise((res, rej) => {
@@ -30,7 +13,7 @@ async function extractViaAI(file: File): Promise<string> {
   const fileData = await fileToBase64(file);
   const res = await authFetch("/api/extract-file", {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...getAIHeaders() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       filename: file.name,
       fileData,

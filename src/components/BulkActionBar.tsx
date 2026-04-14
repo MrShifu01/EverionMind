@@ -1,13 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { authFetch } from "../lib/authFetch";
 import { CANONICAL_TYPES } from "../types";
-import {
-  getUserProvider,
-  getUserApiKey,
-  getOpenRouterKey,
-  getOpenRouterModel,
-  getUserModel,
-} from "../lib/aiSettings";
 import type { Brain, Entry } from "../types";
 
 interface Props {
@@ -54,24 +47,10 @@ export default function BulkActionBar({
       const sample = selected
         .map((e) => `- ${e.title}: ${(e.content || "").slice(0, 120)}`)
         .join("\n");
-      const provider = getUserProvider();
-      const apiKey = provider === "openrouter" ? getOpenRouterKey() : getUserApiKey();
-      const model = provider === "openrouter" ? getOpenRouterModel() || "" : getUserModel();
-      const endpoint =
-        provider === "openai"
-          ? "/api/openai"
-          : provider === "openrouter"
-            ? "/api/openrouter"
-            : "/api/anthropic";
       const types = CANONICAL_TYPES.filter((t) => t !== "secret");
-      const res = await authFetch(endpoint, {
+      const res = await authFetch("/api/llm", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-user-api-key": apiKey || "",
-          "x-provider": provider,
-          "x-model": model,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           system: `Reply with ONE word only — the best category for these entries. Pick from: ${types.join(", ")}. No explanation.`,
           messages: [{ role: "user", content: `Entries:\n${sample}` }],

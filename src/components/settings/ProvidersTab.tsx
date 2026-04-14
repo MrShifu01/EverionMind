@@ -5,11 +5,8 @@ import { PROMPTS } from "../../config/prompts";
 import {
   clearAISettingsCache,
   persistKeyToDb,
-  getUserApiKey,
-  getOpenRouterKey,
   getGroqKey,
   getGeminiKey,
-  getEmbedOpenAIKey,
 } from "../../lib/aiSettings";
 
 type Status = "idle" | "loading" | "ok" | "fail";
@@ -117,9 +114,9 @@ export default function ProvidersTab(props?: { activeBrain?: any }) {
     setLlmTesting(true);
     setLlmResult(null);
     try {
-      const res = await authFetch("/api/openrouter", {
+      const res = await authFetch("/api/llm", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-api-key": "" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: [{ role: "user", content: "Reply with exactly: WORKING" }],
           max_tokens: 10,
@@ -187,26 +184,14 @@ export default function ProvidersTab(props?: { activeBrain?: any }) {
     { title: "Database", desc: "Supabase", status: db },
   ];
 
-  const hasStoredKeys = !!(
-    getUserApiKey() ||
-    getOpenRouterKey() ||
-    getGroqKey() ||
-    getGeminiKey() ||
-    getEmbedOpenAIKey()
-  );
+  const hasStoredKeys = !!(getGroqKey() || getGeminiKey());
   const [clearing, setClearing] = useState(false);
   const [clearMsg, setClearMsg] = useState<string | null>(null);
 
   async function clearAllKeys() {
     setClearing(true);
     setClearMsg(null);
-    const { error } = await persistKeyToDb({
-      api_key: null,
-      openrouter_key: null,
-      groq_key: null,
-      embed_openai_key: null,
-      gemini_key: null,
-    });
+    const { error } = await persistKeyToDb({ groq_key: null, gemini_key: null });
     clearAISettingsCache();
     setClearMsg(error ? `Error: ${error}` : "All frontend API keys removed.");
     setClearing(false);

@@ -43,6 +43,7 @@ const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 
 beforeEach(async () => {
+  process.env.GEMINI_API_KEY = "test-gemini-key";
   mockFetch.mockReset();
   mockFetch.mockResolvedValue({
     ok: true,
@@ -60,13 +61,14 @@ beforeEach(async () => {
 });
 
 describe("search handler", () => {
-  it("returns fallback:true when no x-embed-key header", async () => {
+  it("returns results even without x-embed-key header (uses server Gemini key)", async () => {
     const handler = (await import("../../api/search.js")).default;
     const req = makeReq({ body: { query: "hello world", brain_id: "brain-1" } });
     const res = makeRes();
     await handler(req as any, res as any);
     expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith({ fallback: true });
+    const jsonArg = res.json.mock.calls[0][0];
+    expect(jsonArg.fallback).toBe(false);
   });
 
   it("returns fallback:true when query is empty", async () => {
@@ -145,7 +147,10 @@ describe("search handler", () => {
     const res = makeRes();
     await handler(req as any, res as any);
 
-    expect(generateEmbedding).toHaveBeenCalledWith("burger recipe", "openai", "sk-test");
+    expect(generateEmbedding).toHaveBeenCalledWith(
+      "burger recipe",
+      "test-gemini-key",
+    );
     expect(mockFetch).toHaveBeenCalled();
     const fetchUrl = mockFetch.mock.calls[0][0] as string;
     expect(fetchUrl).toContain("match_entries");

@@ -12,19 +12,19 @@ import { useNudge } from "../../src/hooks/useNudge";
 
 describe("useNudge", () => {
   beforeEach(() => {
-    sessionStorage.clear();
+    localStorage.clear();
     vi.clearAllMocks();
   });
 
-  it("returns null nudge initially when sessionStorage is empty", () => {
+  it("returns null nudge initially when localStorage is empty", () => {
     const { result } = renderHook(() =>
       useNudge({ entriesLoaded: false, entries: [], activeBrain: null }),
     );
     expect(result.current.nudge).toBeNull();
   });
 
-  it("returns stored nudge from sessionStorage", () => {
-    sessionStorage.setItem("openbrain_nudge", "You have 3 items to review");
+  it("returns stored nudge from localStorage", () => {
+    localStorage.setItem("openbrain_nudge", "You have 3 items to review");
     const { result } = renderHook(() =>
       useNudge({ entriesLoaded: false, entries: [], activeBrain: null }),
     );

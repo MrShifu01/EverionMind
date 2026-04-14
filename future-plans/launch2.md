@@ -16,8 +16,9 @@ The research doc isn't just a feature list. It's a product philosophy built arou
 3. **Privacy by design** -- E2E encryption, local-first, exportable data
 4. **Single daily loop** -- Capture > Memory > Insight > Action > Reward > Repeat
 5. **One insane moment** -- "What have I been doing wrong?" and getting a real answer
+6. **Retention-first growth** -- every growth mechanic must emerge from daily usage, not bolted-on invites (see [Viral Growth Research](#viral-growth-integration) below)
 
-Every feature in the MVP section traces back to these five. Everything else is Phase 2+.
+Every feature in the MVP section traces back to these six. Everything else is Phase 2+.
 
 ---
 
@@ -145,12 +146,24 @@ Brain Feed (home screen):
 - Capture bar pinned at bottom ("What's on your mind?")
 ```
 
-**Why it's critical:** This is the daily return trigger. Without it, users open the app, see nothing new, close it.
+**Why it's critical:** This is the daily return trigger. Without it, users open the app, see nothing new, close it. The Feed is also the core of the **Habit Hook Loop** -- the cycle that moves users from needing a notification to *craving* the app:
+
+```
+Trigger (internal: "I wonder what my brain surfaced") →
+Action (open app, glance at feed, capture a thought) →
+Variable Reward (a surprising connection or forgotten memory) →
+Investment (every new capture makes the next insight better)
+```
+
+The Feed must deliver **variable rewards** -- not the same template every day. Rotate between resurfaced memories, pattern detections, and "did you know?" connections. Unpredictability drives dopamine and return visits.
+
+**AI-driven personalization (non-negotiable by 2026):** The Feed should adapt to user behavior -- if someone captures at 8am daily, the feed should be ready at 7:55am. If they mostly capture business ideas, surface business-related insights, not grocery lists. This doesn't require ML at launch -- simple heuristics on entry timestamps and tags are enough.
 
 **Implementation path:**
-- New API route `/api/feed` that returns: random old entries (weighted), latest gap-analyst insights, action suggestions
+- New API route `/api/feed` that returns: random old entries (weighted by age + importance), latest gap-analyst insights, action suggestions
 - New `FeedView.tsx` component, set as default home view
 - Reuse existing `gap-analyst` cron output as insight source
+- Vary the feed composition daily (don't show the same format twice in a row)
 
 **Effort:** 3-5 days for a basic version. Polish over time.
 
@@ -174,6 +187,13 @@ Onboarding flow:
 
 **Why it's critical:** The research says users need the "holy shit" moment in the first session or they never come back. Your current onboarding explains features instead of demonstrating value.
 
+**Tactical rules from viral growth research:**
+- **60-second value or bust.** If a user can't experience the core insight in under 60 seconds, they churn. The onboarding must be a *value demo*, not a *product tour*.
+- **Progressive onboarding ("learn by doing").** No front-loaded tutorials. Contextual tooltips only when the user reaches a feature naturally. Micro-tasks build momentum.
+- **Eliminate registration friction.** One-tap sign-up (Google/GitHub). Delay all non-essential permissions. If you must ask for something (notifications), explain exactly why.
+- **Celebrate the first win.** When the AI returns that first insight from their 5-10 inputs, use a subtle animation or visual beat. This is the "instant win" that anchors emotional buy-in.
+- **Always allow skip.** Some users will skip onboarding. Make sure they can re-access it from Settings > Help.
+
 **Effort:** 3-4 days. Mostly prompt engineering + a guided capture flow.
 
 ---
@@ -192,6 +212,11 @@ Onboarding flow:
 
 **Why it matters:** This is your entire growth engine. Users don't invite friends to "a note app." They share insights that make people say "how did your app know that?"
 
+**Growth loop mechanics (from viral research):**
+- Shared insights are **social currency** -- they make the sharer look smart. Design the card to be impressive on its own, no context needed.
+- Virality must be a *natural extension* of the product, not a "share with 5 friends" nag screen. The loop is: user gets insight → shares it → recipient asks "how?" → downloads app → becomes user → gets own insights → shares.
+- **Collaborative "shared brains"** (already built as multi-brain) become the ultimate viral loop in v1.1+: one user *must* invite others for the feature to work. This is the strongest viral mechanic you have -- but it only works after single-brain is proven. Don't rush it.
+
 ---
 
 #### 4. Streak / Capture Reward System -- MEDIUM
@@ -204,8 +229,10 @@ Onboarding flow:
 - Simple streak counter: "5-day capture streak" (stored as user metadata)
 - NudgeBanner already exists -- use it for streak messages
 - Push notification: "Don't break your streak! What's on your mind today?"
+- **Brain growth stats:** Show total entries, connections found, insights generated. This leverages the **IKEA effect** -- users who see their brain growing value it more because they built it. "Your brain: 47 memories, 12 connections, 3 insights this week."
+- **Switching cost awareness:** Every stat you show reminds users how much they'd lose by leaving. This isn't manipulative -- it's *demonstrating real accumulated value*. A user with 200 entries and 50 connections has a brain that's genuinely hard to rebuild elsewhere.
 
-**Effort:** 1 day. Uses existing NudgeBanner + push notification infrastructure.
+**Effort:** 1-2 days. Uses existing NudgeBanner + push notification infrastructure + simple metadata queries.
 
 ---
 
@@ -320,6 +347,30 @@ The research doc isn't just competitive analysis. It contains hard-won product w
 
 ---
 
+## Viral Growth Integration
+
+*Synthesized from `5-viral-points.md` -- the retention-first growth paradigm applied to this launch plan.*
+
+The five viral factors map directly to what's already planned above:
+
+| Viral Factor | Where It Lives in This Plan | Launch Priority |
+|:---|:---|:---|
+| **Speed to Value** (Aha < 60s) | Onboarding rework (ADD #2) | Day 4-7 |
+| **Habit Hook Loop** (trigger → action → variable reward → investment) | Brain Feed (ADD #1) | Day 4-7 |
+| **User Investment / IKEA Effect** (growing brain = switching cost) | Streak + brain stats (ADD #4) | Day 4-7 |
+| **AI Personalization** (proactive "Next Best Experience") | Feed personalization heuristics | Day 4-7 (basic), v1.1 (advanced) |
+| **Sustainable Growth Loops** (retention → sharing → acquisition) | Shareable insight cards (ADD #3) | v1.1 (Week 1-2 post-launch) |
+
+**The key insight:** You don't need a separate "viral strategy." Every viral mechanic is already a feature in the launch plan. The research just confirms *why* each feature matters and adds tactical details on *how* to execute them for maximum retention.
+
+**What this changes in the sprint:**
+- Onboarding gets a hard 60-second constraint, not just "guided flow"
+- Feed must deliver *variable* rewards (no static templates)
+- Streak system shows brain growth stats, not just a day counter
+- Insight cards (v1.1) are designed as social currency from day 1, even if sharing ships later
+
+---
+
 ## Part 6: The Honest Scorecard
 
 | Dimension | Score | Notes |
@@ -328,8 +379,8 @@ The research doc isn't just competitive analysis. It contains hard-won product w
 | **Feature completeness** | 8/10 | You built more than the research asked for. That's the problem. |
 | **Feature focus** | 4/10 | Too many views, too many options, too many paths through the app. |
 | **UX clarity** | 5/10 | Good components, unclear journey. User doesn't know what to do first. |
-| **Habit loop** | 2/10 | No feed, no resurfacing, no streak, no reward. Users will churn after day 3. |
-| **Viral mechanics** | 1/10 | Nothing shareable. Zero growth engine. |
+| **Habit loop** | 2/10 → 7/10 with plan | No feed yet, but hook loop + IKEA effect + streak system designed into sprint. |
+| **Viral mechanics** | 1/10 → 6/10 with plan | Nothing shareable yet, but viral research now integrated into sprint. Sharing ships v1.1. |
 | **Monetization readiness** | 3/10 | Strategy is excellent (pricing doc), implementation is zero. |
 | **Launch readiness** | 5/10 | Ship-ready technically, not product-ready experientially. |
 

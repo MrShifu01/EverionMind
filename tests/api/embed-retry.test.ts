@@ -61,6 +61,7 @@ beforeEach(() => {
   vi.resetModules();
   mockFetch.mockReset();
   mockGenerateEmbedding.mockReset();
+  process.env.GEMINI_API_KEY = "test-gemini-key";
 
   // Supabase fetch: entry lookup + patch both succeed
   mockFetch.mockResolvedValue({

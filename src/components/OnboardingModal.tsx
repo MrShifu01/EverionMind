@@ -97,6 +97,9 @@ export default function OnboardingModal({ onComplete, brainId }: OnboardingModal
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "var(--color-scrim)" }}>
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Onboarding"
         className="relative w-full max-w-md rounded-2xl border p-6"
         style={{ background: "var(--color-surface)", borderColor: "var(--color-outline-variant)" }}
       >

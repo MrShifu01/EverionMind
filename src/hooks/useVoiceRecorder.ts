@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { authFetch } from "../lib/authFetch";
-import { getGroqKey, getUserApiKey } from "../lib/aiSettings";
+import { getGroqKey } from "../lib/aiSettings";
 
 const MIN_VOICE_BLOB_BYTES = 1000;
 const VOICE_RECORDER_CHUNK_MS = 1000;
@@ -33,7 +33,6 @@ export function useVoiceRecorder({
     }
 
     const groqKey = getGroqKey();
-    const openAIKey = getUserApiKey();
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -75,7 +74,6 @@ export function useVoiceRecorder({
           });
           const headers: Record<string, string> = { "Content-Type": "application/json" };
           if (groqKey) headers["X-Groq-Api-Key"] = groqKey;
-          if (openAIKey) headers["X-User-Api-Key"] = openAIKey;
           const transcribeRes = await authFetch("/api/transcribe", {
             method: "POST",
             headers,

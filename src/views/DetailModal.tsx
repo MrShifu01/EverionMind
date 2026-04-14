@@ -6,13 +6,6 @@ import { extractPhone, toWaUrl } from "../lib/phone";
 import { useEntryEdit } from "../hooks/useEntryEdit";
 import { authFetch } from "../lib/authFetch";
 import { loadGraph, getRelatedEntries, getConceptsForEntry } from "../lib/conceptGraph";
-import {
-  getUserProvider,
-  getUserApiKey,
-  getOpenRouterKey,
-  getOpenRouterModel,
-  getUserModel,
-} from "../lib/aiSettings";
 import { CANONICAL_TYPES } from "../types";
 import type { Entry, Brain, EntryType } from "../types";
 
@@ -90,34 +83,15 @@ export default function DetailModal({
     setAiTyping(true);
     setAiMsg(null);
     try {
-      const provider = getUserProvider();
-      const apiKey = provider === "openrouter" ? getOpenRouterKey() : getUserApiKey();
-      const model = provider === "openrouter" ? getOpenRouterModel() || "" : getUserModel();
-      const endpoint =
-        provider === "openai"
-          ? "/api/openai"
-          : provider === "openrouter"
-            ? "/api/openrouter"
-            : "/api/anthropic";
       const types = CANONICAL_TYPES.filter((t) => t !== "secret");
       // Put 'person' near the end so model doesn't default to first-in-list
       const orderedTypes = [...types.filter((t) => t !== "person"), "person"];
-      const res = await authFetch(endpoint, {
+      const res = await authFetch("/api/llm", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-user-api-key": apiKey || "",
-          "x-provider": provider,
-          "x-model": model,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           system: `Reply with ONE word only — the single best category for this entry. Pick from: ${orderedTypes.join(", ")}. No explanation, no punctuation, just one word.`,
-          messages: [
-            {
-              role: "user",
-              content: `Title: ${editTitle}\nContent: ${(editContent || "").slice(0, 300)}`,
-            },
-          ],
+          messages: [{ role: "user", content: `Title: ${editTitle}\nContent: ${(editContent || "").slice(0, 300)}` }],
           max_tokens: 20,
         }),
       });

@@ -3,15 +3,9 @@ import { authFetch } from "../lib/authFetch";
 import { callAI } from "../lib/ai";
 import { extractNudgeText } from "../lib/extractNudgeText";
 import { scoreEntriesForQuery } from "../lib/chatContext";
-import { loadGraph } from "../lib/conceptGraph";
-import {
-  getEmbedHeaders,
-  getUserProvider,
-  getUserModel,
-  getUserApiKey,
-  getOpenRouterKey,
-  getOpenRouterModel,
-} from "../lib/aiSettings";
+import { loadGraph, saveGraphToDB } from "../lib/conceptGraph";
+import { recordDecision } from "../lib/learningEngine";
+import { getEmbedHeaders } from "../lib/aiSettings";
 import { unlockVault, decryptVaultKeyFromRecovery, decryptEntry } from "../lib/crypto";
 import { PROMPTS } from "../config/prompts";
 import { getStoredPinHash } from "../lib/pin";
@@ -65,6 +59,30 @@ function buildGraphContext(brainId: string, query: string, entries: Entry[]): st
 
   if (lines.length === 0) return "";
   return `\n\n<concept_graph>\n${lines.join("\n")}\n</concept_graph>`;
+}
+
+/**
+ * Feed chat queries back into the concept graph.
+ * If the user asks about concepts that already exist, boost their frequency.
+ * This strengthens the graph based on what the user actually cares about.
+ */
+function feedQueryToGraph(brainId: string, query: string): void {
+  const graph = loadGraph(brainId);
+  if (graph.concepts.length === 0) return;
+
+  const terms = query.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
+  if (terms.length === 0) return;
+
+  let changed = false;
+  for (const concept of graph.concepts) {
+    if (terms.some((t) => concept.label.toLowerCase().includes(t))) {
+      concept.frequency += 1;
+      changed = true;
+    }
+  }
+  if (changed) {
+    saveGraphToDB(brainId, graph);
+  }
 }
 
 interface ChatLink {
@@ -141,12 +159,20 @@ export function useChat({
         const embedHeaders = getEmbedHeaders();
         // Build concept graph context for richer answers
         const graphCtx = activeBrain?.id ? buildGraphContext(activeBrain.id, msg, entries) : "";
+        // Feed query back into the graph to boost frequently-asked concepts
+        if (activeBrain?.id) {
+          feedQueryToGraph(activeBrain.id, msg);
+          recordDecision(activeBrain.id, {
+            source: "chat",
+            type: "CHAT_QUERY",
+            action: "accept",
+            field: "query",
+            originalValue: msg,
+          });
+        }
 
         let data: AIResponseBody;
         if (embedHeaders && activeBrain?.id) {
-          const provider = getUserProvider();
-          const genKey = provider === "openrouter" ? getOpenRouterKey() : getUserApiKey();
-          const model = provider === "openrouter" ? getOpenRouterModel() : getUserModel();
           const history = chatMsgs.slice(-10);
           const isAllBrains = searchAllBrains && brains.length > 1;
           const keywordFallback = isAllBrains
@@ -168,17 +194,11 @@ export function useChat({
           const enrichedMsg = graphCtx ? `${msg}\n\n[Concept graph context — use to surface cross-concept connections:]${graphCtx}` : msg;
           const res = await authFetch("/api/chat", {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...embedHeaders,
-              ...(genKey ? { "X-User-Api-Key": genKey } : {}),
-            },
+            headers: { "Content-Type": "application/json", ...embedHeaders },
             body: JSON.stringify({
               message: enrichedMsg,
               ...brainParam,
               history,
-              provider,
-              model,
               secrets,
               ...(isAllBrains ? {} : { fallback_entries: keywordFallback }),
             }),

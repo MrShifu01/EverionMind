@@ -17,9 +17,6 @@ function fmtUsd(usd: number) {
 }
 
 const PROVIDER_LABELS: Record<string, string> = {
-  anthropic: "Anthropic",
-  openai: "OpenAI",
-  openrouter: "OpenRouter",
   groq: "Groq",
   google: "Google",
 };
@@ -121,7 +118,7 @@ function UsagePanel() {
                   key={p}
                   name={`  ${label(p)}`}
                   value={`${fmt(s.inputTokens)} in / ${fmt(s.outputTokens)} out`}
-                  sub={cost ?? (p === "openrouter" ? "(cost varies)" : undefined)}
+                  sub={cost ?? undefined}
                 />
               );
             })}

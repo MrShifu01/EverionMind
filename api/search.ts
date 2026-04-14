@@ -86,9 +86,7 @@ async function handleSearch(req: ApiRequest, res: ApiResponse): Promise<void> {
   }
   if (query.length > 500) return res.status(400).json({ error: "Query too long" });
 
-  const embedProvider = ((req.headers["x-embed-provider"] as string) || "google").toLowerCase();
-  const embedKey = ((req.headers["x-embed-key"] as string) || "").trim() ||
-    (embedProvider === "google" ? (process.env.GEMINI_API_KEY || "").trim() : "");
+  const embedKey = (process.env.GEMINI_API_KEY || "").trim();
 
   // No embed key → graceful fallback
   if (!embedKey) return res.status(200).json({ fallback: true });
@@ -101,13 +99,7 @@ async function handleSearch(req: ApiRequest, res: ApiResponse): Promise<void> {
   if (cached) return res.status(200).json(cached);
 
   try {
-    const embedModel = ((req.headers["x-embed-model"] as string) || "").trim() || undefined;
-    const embedding = await generateEmbedding(
-      query.trim(),
-      embedProvider as "openai" | "google" | "openrouter",
-      embedKey,
-      embedModel,
-    );
+    const embedding = await generateEmbedding(query.trim(), embedKey);
 
     const rpcRes = await fetch(`${SB_URL}/rest/v1/rpc/match_entries`, {
       method: "POST",
@@ -126,8 +118,8 @@ async function handleSearch(req: ApiRequest, res: ApiResponse): Promise<void> {
     const payload = { results, fallback: false };
     _setCache(cacheKey, payload);
     res.setHeader("X-Embedding-Usage", JSON.stringify({
-      provider: embedProvider,
-      model: embedProvider === "google" ? "gemini-embedding-001" : "text-embedding-3-small",
+      provider: "google",
+      model: "gemini-embedding-001",
       count: 1,
     }));
     return res.status(200).json(payload);

@@ -16,10 +16,8 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\""
   },
   "dependencies": {
-    "@cosmograph/react": "^2.2.1",
     "@fontsource-variable/geist": "^5.2.8",
-    "@luma.gl/shadertools": "^9.3.2",
-    "@sentry/react": "^10.48.0",
+"@sentry/react": "^10.48.0",
     "@supabase/supabase-js": "^2.102.1",
     "@tanstack/react-virtual": "^3.13.23",
     "@vercel/speed-insights": "^2.0.0",

@@ -82,38 +82,6 @@ describe("usageTracker", () => {
     expect(result.outputTokens).toBe(1500);
   });
 
-  it("getMonthlyUsage estimates USD cost for Anthropic Haiku", async () => {
-    const { recordUsage, getMonthlyUsage } = await import("../../src/lib/usageTracker");
-    recordUsage({
-      date: "2026-04-07",
-      type: "llm",
-      inputTokens: 1_000_000,
-      outputTokens: 1_000_000,
-      provider: "anthropic",
-      model: "gemini-2.5-flash-lite",
-    });
-
-    const result = getMonthlyUsage();
-    // 1M input * 0.00000025 + 1M output * 0.00000125 = 0.25 + 1.25 = 1.50
-    expect(result.estimatedUsd).toBeCloseTo(1.5, 5);
-  });
-
-  it("getMonthlyUsage estimates USD cost for OpenAI gpt-4o-mini", async () => {
-    const { recordUsage, getMonthlyUsage } = await import("../../src/lib/usageTracker");
-    recordUsage({
-      date: "2026-04-07",
-      type: "llm",
-      inputTokens: 1_000_000,
-      outputTokens: 1_000_000,
-      provider: "openai",
-      model: "gpt-4o-mini",
-    });
-
-    const result = getMonthlyUsage();
-    // 1M input * 0.00000015 + 1M output * 0.0000006 = 0.15 + 0.60 = 0.75
-    expect(result.estimatedUsd).toBeCloseTo(0.75, 5);
-  });
-
   it("getMonthlyUsage returns 0 cost for unknown provider/model", async () => {
     const { recordUsage, getMonthlyUsage } = await import("../../src/lib/usageTracker");
     recordUsage({

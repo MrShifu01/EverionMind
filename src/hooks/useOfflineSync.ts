@@ -9,7 +9,7 @@ const MAX_RETRIES = 3;
 
 interface ExtendedOp extends OfflineOp {
   type?: string;
-  anthropicRequest?: unknown;
+  llmRequest?: unknown;
   retryCount?: number;
   nextRetryAt?: number;
 }
@@ -50,10 +50,10 @@ export function useOfflineSync({ onEntryIdUpdate }: UseOfflineSyncOptions = {}) 
 
         try {
           if (op.type === "raw-capture") {
-            const parseRes = await authFetch("/api/llm?provider=anthropic", {
+            const parseRes = await authFetch("/api/llm", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(op.anthropicRequest),
+              body: JSON.stringify(op.llmRequest),
             });
             if (!parseRes.ok) {
               const retryCount = (op.retryCount || 0) + 1;

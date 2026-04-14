@@ -128,10 +128,16 @@ export default function GridFilters({
               onClear={() => set({ sort: "newest" })}
             />
           )}
+          {filters.concept && (
+            <ActivePill
+              label={`Theme: ${filters.concept}`}
+              onClear={() => set({ concept: undefined })}
+            />
+          )}
           {hasActive && (
             <button
               type="button"
-              onClick={() => onChange({ type: "all", date: "all", sort: "newest" })}
+              onClick={() => onChange({ type: "all", date: "all", sort: "newest", concept: undefined })}
               className="press-scale text-on-surface-variant flex-shrink-0 text-xs opacity-60 transition-opacity hover:opacity-100"
             >
               Clear all

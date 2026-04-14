@@ -15,7 +15,7 @@ vi.mock("../../api/_lib/checkBrainAccess.js", () => ({
   checkBrainAccess: vi.fn().mockResolvedValue(true),
 }));
 vi.mock("../../api/_lib/generateEmbedding.js", () => ({
-  generateEmbedding: vi.fn().mockResolvedValue(new Array(1536).fill(0.1)),
+  generateEmbedding: vi.fn().mockResolvedValue(new Array(768).fill(0.1)),
   buildEntryText: vi.fn().mockReturnValue("text"),
 }));
 vi.mock("../../api/_lib/securityHeaders.js", () => ({
@@ -51,7 +51,7 @@ describe("api/chat — cross-brain (brain_ids)", () => {
       checkBrainAccess: vi.fn().mockResolvedValue(true),
     }));
     vi.mock("../../api/_lib/generateEmbedding.js", () => ({
-      generateEmbedding: vi.fn().mockResolvedValue(new Array(1536).fill(0.1)),
+      generateEmbedding: vi.fn().mockResolvedValue(new Array(768).fill(0.1)),
       buildEntryText: vi.fn().mockReturnValue("text"),
     }));
     vi.mock("../../api/_lib/securityHeaders.js", () => ({
@@ -60,13 +60,13 @@ describe("api/chat — cross-brain (brain_ids)", () => {
 
     process.env.SUPABASE_URL = "https://sb.example.com";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "svc";
+    process.env.GEMINI_API_KEY = "test-gemini-key";
 
     global.fetch = vi.fn().mockImplementation((url: string, opts: any) => {
       fetchCalls.push({ url, opts });
       const u = String(url);
       if (u.includes("rpc/match_entries")) {
         const body = JSON.parse(opts?.body || "{}");
-        // Return one result per brain
         return Promise.resolve({
           ok: true,
           json: () =>
@@ -84,10 +84,13 @@ describe("api/chat — cross-brain (brain_ids)", () => {
       }
       if (u.includes("/rest/v1/links"))
         return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-      // LLM call
+      // Gemini LLM call
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ content: [{ type: "text", text: "Answer." }] }),
+        json: () =>
+          Promise.resolve({
+            candidates: [{ content: { parts: [{ text: "Answer." }] } }],
+          }),
       });
     }) as any;
 
@@ -99,12 +102,10 @@ describe("api/chat — cross-brain (brain_ids)", () => {
     const req = {
       method: "POST",
       query: {},
-      headers: { "x-embed-key": "sk", "x-embed-provider": "openai", "x-user-api-key": "sk-gen" },
+      headers: { "x-embed-key": "sk", "x-user-api-key": "sk-gen" },
       body: {
         message: "Recipes?",
         brain_ids: [BRAIN_A, BRAIN_B],
-        provider: "anthropic",
-        model: "gemini-2.5-flash-lite",
         history: [],
       },
     };
@@ -122,22 +123,20 @@ describe("api/chat — cross-brain (brain_ids)", () => {
     const req = {
       method: "POST",
       query: {},
-      headers: { "x-embed-key": "sk", "x-embed-provider": "openai", "x-user-api-key": "sk-gen" },
+      headers: { "x-embed-key": "sk", "x-user-api-key": "sk-gen" },
       body: {
         message: "Recipes?",
         brain_ids: [BRAIN_A, BRAIN_B],
-        provider: "anthropic",
-        model: "gemini-2.5-flash-lite",
         history: [],
       },
     };
     const res = makeRes();
     await handler(req, res);
 
-    const llmCall = fetchCalls.find((c) => c.url.includes("api.anthropic.com"));
+    const llmCall = fetchCalls.find((c) => c.url.includes("generativelanguage.googleapis.com"));
+    expect(llmCall).toBeDefined();
     const body = JSON.parse(llmCall!.opts.body);
-    const system: string = body.system;
-    // Should contain entries from BOTH brains
+    const system: string = body.systemInstruction?.parts?.[0]?.text || "";
     expect(system).toContain(`Entry from brain 1`);
     expect(system).toContain(`Entry from brain 2`);
   });
@@ -151,12 +150,10 @@ describe("api/chat — cross-brain (brain_ids)", () => {
     const req = {
       method: "POST",
       query: {},
-      headers: { "x-embed-key": "sk", "x-embed-provider": "openai", "x-user-api-key": "sk-gen" },
+      headers: { "x-embed-key": "sk", "x-user-api-key": "sk-gen" },
       body: {
         message: "Recipes?",
         brain_ids: [BRAIN_A, BRAIN_B],
-        provider: "anthropic",
-        model: "gemini-2.5-flash-lite",
         history: [],
       },
     };
@@ -176,6 +173,7 @@ describe("api/chat — cross-brain fallback (no embeddings)", () => {
 
     process.env.SUPABASE_URL = "https://sb.example.com";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "svc";
+    process.env.GEMINI_API_KEY = "test-gemini-key";
 
     global.fetch = vi.fn().mockImplementation((url: any) => {
       localUrls.push(String(url));
@@ -196,17 +194,17 @@ describe("api/chat — cross-brain fallback (no embeddings)", () => {
         return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ content: [{ type: "text", text: "Answer." }] }),
+        json: () =>
+          Promise.resolve({
+            candidates: [{ content: { parts: [{ text: "Answer." }] } }],
+          }),
       });
     }) as any;
 
-    // Import dependencies first to ensure mock implementations are correctly set up.
-    // Test 3 modifies checkBrainAccess.mockImplementation; re-importing after resetModules
-    // may reuse the same mock instance, so we explicitly restore correct behavior.
     const { checkBrainAccess } = (await import("../../api/_lib/checkBrainAccess.js")) as any;
     checkBrainAccess.mockResolvedValue(true);
     const { generateEmbedding } = (await import("../../api/_lib/generateEmbedding.js")) as any;
-    generateEmbedding.mockResolvedValue(new Array(1536).fill(0.1));
+    generateEmbedding.mockResolvedValue(new Array(768).fill(0.1));
 
     const mod = await import("../../api/chat.js");
     handler = mod.default;
@@ -216,12 +214,10 @@ describe("api/chat — cross-brain fallback (no embeddings)", () => {
     const req = {
       method: "POST",
       query: {},
-      headers: { "x-embed-key": "sk", "x-embed-provider": "openai", "x-user-api-key": "sk-gen" },
+      headers: { "x-embed-key": "sk", "x-user-api-key": "sk-gen" },
       body: {
         message: "Recipes?",
         brain_ids: [BRAIN_A, BRAIN_B],
-        provider: "anthropic",
-        model: "gemini-2.5-flash-lite",
         history: [],
       },
     };

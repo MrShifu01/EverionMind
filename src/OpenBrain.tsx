@@ -607,6 +607,26 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         <SkeletonCard count={6} />
                       </div>
+                    ) : entries.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
+                        <div className="text-5xl">🧠</div>
+                        <h2
+                          className="text-on-surface text-xl font-bold"
+                          style={{ fontFamily: "'Lora', Georgia, serif" }}
+                        >
+                          Your memory is blank. Start filling it.
+                        </h2>
+                        <p className="text-on-surface-variant max-w-sm text-sm">
+                          Every thought you capture makes your brain smarter. Try one now.
+                        </p>
+                        <button
+                          onClick={() => setShowCapture(true)}
+                          className="press-scale text-on-primary rounded-xl px-6 py-3 text-sm font-semibold"
+                          style={{ background: "var(--color-primary)" }}
+                        >
+                          Capture a thought
+                        </button>
+                      </div>
                     ) : filtered.length > 0 ? (
                       <>
                         <VirtualGrid
@@ -637,9 +657,19 @@ export default function OpenBrain({ initialShowCapture }: { initialShowCapture?:
                         )}
                       </>
                     ) : (
-                      <div className="flex flex-col items-center justify-center gap-3 py-20">
+                      <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
                         <div className="text-4xl opacity-40">🔍</div>
-                        <p className="text-on-surface font-bold">No memories match</p>
+                        <p className="text-on-surface font-bold">Nothing matches that filter.</p>
+                        <p className="text-on-surface-variant max-w-xs text-sm">
+                          Try a different search, or capture something new.
+                        </p>
+                        <button
+                          onClick={() => setShowCapture(true)}
+                          className="press-scale text-on-primary rounded-xl px-5 py-2.5 text-sm font-semibold"
+                          style={{ background: "var(--color-primary)" }}
+                        >
+                          Capture a thought
+                        </button>
                       </div>
                     )}
                   </div>

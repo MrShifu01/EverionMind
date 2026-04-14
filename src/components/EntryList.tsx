@@ -25,6 +25,7 @@ const EntryCard = memo(function EntryCard({
   selectMode = false,
   selected = false,
   onToggleSelect,
+  concepts,
 }: {
   entry: Entry;
   onSelect: (e: Entry) => void;
@@ -34,6 +35,7 @@ const EntryCard = memo(function EntryCard({
   selectMode?: boolean;
   selected?: boolean;
   onToggleSelect?: (id: string) => void;
+  concepts?: string[];
 }) {
   const importance = (e as any).importance as number;
   const imp = ({ 1: "Important", 2: "Critical" } as Record<number, string>)[importance];
@@ -129,6 +131,23 @@ const EntryCard = memo(function EntryCard({
               +{(e as any).tags.length - 3}
             </span>
           )}
+        </div>
+      )}
+
+      {concepts && concepts.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {concepts.slice(0, 3).map((c) => (
+            <span
+              key={c}
+              className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={{
+                background: "var(--color-secondary-container)",
+                color: "var(--color-secondary)",
+              }}
+            >
+              {c}
+            </span>
+          ))}
         </div>
       )}
 
@@ -303,6 +322,7 @@ export function VirtualGrid({
   selectedIds,
   onToggleSelect,
   viewMode = "grid",
+  conceptMap,
 }: {
   filtered: Entry[];
   setSelected: (e: Entry) => void;
@@ -313,6 +333,7 @@ export function VirtualGrid({
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
   viewMode?: "grid" | "list";
+  conceptMap?: Record<string, string[]>;
 }) {
   const isList = viewMode === "list";
   const [COLS, setCOLS] = useState(() =>
@@ -393,6 +414,7 @@ export function VirtualGrid({
                   selectMode={selectMode}
                   selected={selectedIds?.has(e.id) ?? false}
                   onToggleSelect={onToggleSelect}
+                  concepts={conceptMap?.[e.id]}
                 />
               ),
             )}
