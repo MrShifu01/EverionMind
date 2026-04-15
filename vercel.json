@@ -2,15 +2,10 @@
   "framework": "vite",
   "devCommand": "vite --port 5174",
   "buildCommand": "npm run build",
-  "crons": [
-    { "path": "/api/push?action=daily",  "schedule": "0 8 * * *" },
-    { "path": "/api/push?action=nudge",   "schedule": "0 10 * * *" },
-    { "path": "/api/push?action=expiry",  "schedule": "0 9 * * *" },
-    { "path": "/api/cron?job=gaps",             "schedule": "0 6 * * 0" },
-    { "path": "/api/cron?job=purge",            "schedule": "0 3 * * 0" }
-  ],
   "outputDirectory": "dist",
   "rewrites": [
+    { "source": "/api/notification-prefs", "destination": "/api/notifications?resource=prefs" },
+    { "source": "/api/push-subscribe",     "destination": "/api/notifications?resource=push" },
     { "source": "/api/anthropic",        "destination": "/api/llm?provider=anthropic" },
     { "source": "/api/openai",           "destination": "/api/llm?provider=openai" },
     { "source": "/api/openrouter",       "destination": "/api/llm?provider=openrouter" },
