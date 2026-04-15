@@ -6,10 +6,11 @@ import "./index.css";
 import App from "./App";
 import { ThemeProvider } from "./ThemeContext";
 import ErrorBoundary from "./ErrorBoundary";
+import PrivacyPolicy from "./views/PrivacyPolicy";
 
 Sentry.init({
   dsn: "https://6e5d222a07dc7a0eb057d0572920045f@o4511133135470592.ingest.us.sentry.io/4511133136846848",
-  sendDefaultPii: true,
+  sendDefaultPii: false,
 });
 
 // When a new service worker takes control (after skipWaiting), reload so the
@@ -20,12 +21,13 @@ if ("serviceWorker" in navigator) {
   });
 }
 
+const isPrivacy = window.location.pathname === "/privacy";
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ErrorBoundary>
       <ThemeProvider>
-        <App />
-        <SpeedInsights />
+        {isPrivacy ? <PrivacyPolicy /> : <><App /><SpeedInsights /></>}
       </ThemeProvider>
     </ErrorBoundary>
   </StrictMode>,

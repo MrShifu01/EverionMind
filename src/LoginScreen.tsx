@@ -959,6 +959,19 @@ export default function LoginScreen(): JSX.Element {
                 </div>
               </div>
             )}
+            <p
+              style={{
+                marginTop: 24,
+                fontSize: 11,
+                color: "var(--color-on-surface-variant)",
+                opacity: 0.6,
+                textAlign: "center",
+              }}
+            >
+              <a href="/privacy" style={{ color: "inherit", textDecoration: "underline" }}>
+                Privacy Policy
+              </a>
+            </p>
           </div>
         </div>
       </div>
