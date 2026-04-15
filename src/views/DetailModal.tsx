@@ -12,6 +12,24 @@ import { CANONICAL_TYPES } from "../types";
 import type { Entry, Brain, EntryType } from "../types";
 import { SKIP_META_KEYS } from "../lib/entryConstants";
 
+// Mirror the same logic as isFullyEnriched / getEnrichmentGaps in enrichEntry.ts
+function getHealthChecks(entry: Entry, entryConcepts: any[], conceptRelated: any[], conceptsLoading: boolean) {
+  const enr = (entry.metadata as any)?.enrichment ?? {};
+  const embedded = enr.embedded ?? Boolean((entry as any).embedded_at);
+  const hasConcepts = (enr.concepts_count ?? 0) > 0 || entryConcepts.length > 0;
+  const hasInsight = !!(entry.metadata as any)?.ai_insight || enr.has_insight === true;
+  const parsed =
+    enr.parsed === true ||
+    Object.keys(entry.metadata ?? {}).filter((k) => !SKIP_META_KEYS.has(k)).length > 0;
+  return [
+    { label: "insight",    ok: hasInsight,                        enrichable: true  },
+    { label: "parsing",    ok: parsed,                            enrichable: true  },
+    { label: "embedding",  ok: embedded,                          enrichable: true  },
+    { label: "concepts",   ok: conceptsLoading ? null : hasConcepts, enrichable: true  },
+    { label: "related",    ok: conceptsLoading ? null : conceptRelated.length > 0, enrichable: false },
+  ];
+}
+
 interface DetailLink {
   from: string;
   to: string;
@@ -271,36 +289,36 @@ No explanation, no punctuation, just one word.`,
               </h2>
             )}
             {!editing && (() => {
-              const checks = [
-                { label: "insight", ok: !!entry.metadata?.ai_insight },
-                { label: "parsing", ok: !!(entry.metadata?.full_text || entry.metadata?.raw_content) },
-                { label: "embedding", ok: !!entry.embedded_at },
-                { label: "concepts", ok: conceptsLoading ? null : entryConcepts.length > 0 },
-                { label: "related", ok: conceptsLoading ? null : conceptRelated.length > 0 },
-              ];
+              const checks = getHealthChecks(entry, entryConcepts, conceptRelated, conceptsLoading);
               return (
                 <div className="mt-2 flex items-center gap-3">
-                  {checks.map(({ label, ok }) => (
-                    <div key={label} className="flex flex-col items-center gap-0.5">
-                      <span
-                        className="block h-2 w-2 rounded-full"
-                        style={{
-                          background: ok === null
-                            ? "var(--color-outline-variant)"
-                            : ok
-                              ? "rgb(22,163,74)"
-                              : "rgb(220,38,38)",
-                        }}
-                        title={`${label}: ${ok === null ? "loading" : ok ? "present" : "missing"}`}
-                      />
-                      <span
-                        className="text-[8px] font-medium leading-none"
-                        style={{ color: "var(--color-on-surface-variant)" }}
-                      >
-                        {label}
-                      </span>
-                    </div>
-                  ))}
+                  {checks.map(({ label, ok, enrichable }) => {
+                    const bg =
+                      ok === null ? "var(--color-outline-variant)"
+                      : ok         ? "rgb(22,163,74)"
+                      : enrichable ? "rgb(220,38,38)"
+                      :              "rgb(217,119,6)"; // amber — informational, not enrichable
+                    const hint =
+                      ok === null ? "loading"
+                      : ok        ? "present"
+                      : enrichable ? "missing — will auto-enrich"
+                      :              "no siblings yet";
+                    return (
+                      <div key={label} className="flex flex-col items-center gap-0.5">
+                        <span
+                          className="block h-2 w-2 rounded-full"
+                          style={{ background: bg }}
+                          title={`${label}: ${hint}`}
+                        />
+                        <span
+                          className="text-[8px] font-medium leading-none"
+                          style={{ color: "var(--color-on-surface-variant)" }}
+                        >
+                          {label}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })()}
