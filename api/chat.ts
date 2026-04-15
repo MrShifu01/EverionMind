@@ -177,18 +177,31 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
       const rows: any[] = await graphRes.json();
       const graph = rows[0]?.graph;
       if (graph) {
-        // Top 15 concepts by frequency
-        const topConcepts: string[] = (graph.concepts || [])
+        // Build id→title map from retrieved entries for concept→entry linking
+        const entryTitleMap = new Map(retrievedEntries.map((e: any) => [e.id, e.title]));
+
+        // Top 15 concepts — show which retrieved entries belong to each
+        const conceptLines: string[] = (graph.concepts || [])
           .sort((a: any, b: any) => (b.frequency || 0) - (a.frequency || 0))
           .slice(0, 15)
-          .map((c: any) => c.label);
-        // Relationships involving retrieved entries only (keep prompt compact)
+          .map((c: any) => {
+            const linked = (c.source_entries || [])
+              .map((id: string) => entryTitleMap.get(id))
+              .filter(Boolean)
+              .slice(0, 5);
+            return linked.length
+              ? `${c.label}: ${linked.join(", ")}`
+              : c.label;
+          });
+
+        // Concept-to-concept relationships involving retrieved entries
         const relevantRels: string[] = (graph.relationships || [])
           .filter((r: any) => r.entry_ids?.some((id: string) => sourceIds.includes(id)))
           .slice(0, 20)
           .map((r: any) => `${r.source} → ${r.relation} → ${r.target}`);
-        if (topConcepts.length > 0) {
-          conceptBlock = `\n\n<concept_graph>\nTop concepts: ${topConcepts.join(", ")}${relevantRels.length ? `\nRelationships: ${relevantRels.join("; ")}` : ""}\n</concept_graph>`;
+
+        if (conceptLines.length > 0) {
+          conceptBlock = `\n\n<concept_graph>\nThemes and connected entries:\n${conceptLines.join("\n")}${relevantRels.length ? `\n\nConcept relationships: ${relevantRels.join("; ")}` : ""}\n</concept_graph>`;
         }
       }
     }
