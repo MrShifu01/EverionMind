@@ -29,36 +29,34 @@ export default function MobileHeader({
         paddingTop: "max(12px, env(safe-area-inset-top))",
       }}
     >
-      {/* Search tap target */}
-      {onSearch && (
-        <button
-          onClick={onSearch}
-          aria-label="Search"
-          className="hover:bg-surface-container flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl transition-colors"
-          style={{ color: "var(--color-on-surface-variant)" }}
-        >
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.75"
-            viewBox="0 0 24 24"
+      {/* Left: search + brain switcher + status */}
+      <div className="flex min-w-0 shrink-0 items-center gap-1">
+        {onSearch && (
+          <button
+            onClick={onSearch}
+            aria-label="Search"
+            className="hover:bg-surface-container flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl transition-colors"
+            style={{ color: "var(--color-on-surface-variant)" }}
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
-            />
-          </svg>
-        </button>
-      )}
-
-      {/* Brain switcher — fills remaining space, truncates */}
-      <div className="min-w-0 flex-1">
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+              />
+            </svg>
+          </button>
+        )}
         {children}
         {!isOnline && (
           <span
-            className="ml-1 rounded-full px-2 py-1 text-[10px] font-semibold tracking-widest uppercase"
+            className="rounded-full px-2 py-1 text-[10px] font-semibold tracking-widest uppercase"
             style={{
               color: "var(--color-error)",
               background: "color-mix(in oklch, var(--color-error) 12%, transparent)",
@@ -69,7 +67,7 @@ export default function MobileHeader({
         )}
         {isOnline && pendingCount > 0 && (
           <span
-            className="ml-1 rounded-full px-2 py-1 text-[10px] font-semibold tracking-widest uppercase"
+            className="rounded-full px-2 py-1 text-[10px] font-semibold tracking-widest uppercase"
             style={{
               color: "var(--color-secondary)",
               background: "var(--color-secondary-container)",
@@ -79,6 +77,20 @@ export default function MobileHeader({
           </span>
         )}
       </div>
+
+      {/* Centre: brand name — absolute so it's always truly centred */}
+      <span className="pointer-events-none absolute inset-x-0 flex justify-center">
+        <span
+          className="text-sm font-semibold tracking-tight"
+          style={{ color: "var(--color-on-surface)", fontFamily: "'Lora', Georgia, serif" }}
+        >
+          Everion{" "}
+          <span style={{ color: "var(--color-primary)" }}>Mind</span>
+        </span>
+      </span>
+
+      {/* Spacer pushes theme toggle to the right */}
+      <div className="flex-1" />
 
       {/* Theme toggle */}
       <button

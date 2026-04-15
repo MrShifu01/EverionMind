@@ -152,10 +152,11 @@ export default function DesktopSidebar({
         <div className="mb-1 flex items-center gap-2">
           <EverionLogo size={22} />
           <h1
-            className="text-primary text-2xl font-bold tracking-tight"
-            style={{ fontFamily: "'Lora', Georgia, serif" }}
+            className="text-2xl font-bold tracking-tight"
+            style={{ fontFamily: "'Lora', Georgia, serif", color: "var(--color-on-surface)" }}
           >
-            Everion
+            Everion{" "}
+            <span style={{ color: "var(--color-primary)" }}>Mind</span>
           </h1>
         </div>
         <p className="text-on-surface-variant/50 mt-0.5 text-xs">Your thinking, preserved.</p>
