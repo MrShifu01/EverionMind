@@ -1,19 +1,7 @@
-import { memo, useState, useEffect } from "react";
+import { memo } from "react";
 import { cn } from "../lib/cn";
 import { NavIcon } from "./icons/NavIcons";
-
-function useKeyboardVisible(): boolean {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const screenHeight = window.screen.height;
-    const handler = () => setVisible(vv.height < screenHeight * 0.75);
-    vv.addEventListener("resize", handler);
-    return () => vv.removeEventListener("resize", handler);
-  }, []);
-  return visible;
-}
+import { useKeyboardVisible } from "../hooks/useKeyboardVisible";
 
 const NAV_ITEMS = [
   { id: "feed", label: "Feed", icon: NavIcon.feed },

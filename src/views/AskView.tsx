@@ -1,4 +1,5 @@
 import { useRef, useEffect, useMemo } from "react";
+import { useKeyboardVisible } from "../hooks/useKeyboardVisible";
 
 const EXAMPLE_PROMPTS = [
   "Summarize what I've captured this week",
@@ -56,6 +57,7 @@ export default function AskView({
   phoneRegex,
 }: AskViewProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const keyboardVisible = useKeyboardVisible();
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -391,7 +393,20 @@ export default function AskView({
       </div>
 
       {/* ── Composer ── */}
-      <div className="pt-4" style={{ borderTop: "1px solid var(--color-outline-variant)" }}>
+      <div
+        className="pt-4"
+        style={{
+          borderTop: "1px solid var(--color-outline-variant)",
+          // On mobile: sit 5px above BottomNav (89px) or 5px above keyboard (5px).
+          // On desktop (lg+): no BottomNav, no padding needed.
+          paddingBottom:
+            typeof window !== "undefined" && window.innerWidth >= 1024
+              ? undefined
+              : keyboardVisible
+                ? "5px"
+                : "89px",
+        }}
+      >
         <div className="lg:mx-auto lg:max-w-2xl">
 
           {/* Brain scope toggle — only shown when multiple brains exist */}
