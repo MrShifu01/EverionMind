@@ -13,6 +13,7 @@ interface CaptureSheetProps {
   brainId?: string;
   cryptoKey?: CryptoKey | null;
   isOnline?: boolean;
+  initialText?: string;
   onBackgroundFiles?: (files: File[]) => void;
   onBackgroundSave?: (entry: { title: string; content: string; type: string; tags: string[]; metadata: Record<string, any>; rawContent?: string }) => void;
   onNavigate?: (id: string) => void;
@@ -25,6 +26,7 @@ export default function CaptureSheet({
   brainId,
   cryptoKey,
   isOnline = true,
+  initialText,
   onBackgroundFiles,
   onBackgroundSave,
   onNavigate,
@@ -124,6 +126,7 @@ export default function CaptureSheet({
 
   useEffect(() => {
     if (isOpen) {
+      if (initialText) setText(initialText);
       // Lock body scroll on iOS (overflow:hidden is ignored; position:fixed is required)
       const scrollY = window.scrollY;
       document.body.style.position = "fixed";

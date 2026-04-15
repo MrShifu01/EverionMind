@@ -475,7 +475,7 @@ function EverionContent({
             )}
             {appShell.view === "ask" && (
               <Suspense fallback={<Loader />}>
-                <AskView {...chat} brains={brains} phoneRegex={PHONE_REGEX} />
+                <AskView {...chat} brains={brains} phoneRegex={PHONE_REGEX} onOpenCapture={appShell.openCapture} />
               </Suspense>
             )}
             {appShell.view === "settings" && <SettingsView onNavigate={appShell.setView} />}
@@ -832,11 +832,12 @@ function EverionContent({
           <Suspense fallback={null}>
             <CaptureSheet
               isOpen={appShell.showCapture}
-              onClose={() => appShell.setShowCapture(false)}
+              onClose={() => { appShell.setShowCapture(false); }}
               onCreated={(e) => { if (activeBrain?.id) invalidateFeedCache(activeBrain.id); handleCreated(e); }}
               brainId={activeBrain?.id}
               cryptoKey={cryptoKey}
               isOnline={isOnline}
+              initialText={appShell.captureInitialText}
               onBackgroundFiles={(files) =>
                 bgProcessFiles(files, activeBrain?.id, handleCreatedBulk)
               }

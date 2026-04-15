@@ -14,6 +14,9 @@ interface AskViewProps {
   searchAllBrains: boolean;
   setSearchAllBrains: (v: boolean) => void;
   handleChat: () => void;
+  pendingCapture: string | null;
+  setPendingCapture: (v: string | null) => void;
+  onOpenCapture: (initialText?: string) => void;
   vaultUnlockModal: { vaultData: any; pendingMsg: string } | null;
   setVaultUnlockModal: (v: any) => void;
   vaultModalInput: string;
@@ -36,6 +39,9 @@ export default function AskView({
   searchAllBrains,
   setSearchAllBrains,
   handleChat,
+  pendingCapture,
+  setPendingCapture,
+  onOpenCapture,
   vaultUnlockModal,
   setVaultUnlockModal,
   vaultModalInput,
@@ -62,6 +68,11 @@ export default function AskView({
     if (!chatInput.trim() || chatLoading) return;
     handleChat();
   };
+
+  const lastAssistantIdx = useMemo(
+    () => chatMsgs.reduce((acc, m, i) => (m.role === "assistant" ? i : acc), -1),
+    [chatMsgs],
+  );
 
   const renderedMessages = useMemo(
     () =>
@@ -164,40 +175,59 @@ export default function AskView({
                 </div>
               )}
 
-              <div
-                className="max-w-[78%] text-sm leading-relaxed lg:max-w-[68%]"
-                style={
-                  m.role === "user"
-                    ? {
-                        background: "var(--color-primary-container)",
-                        color: "var(--color-on-primary-container)",
-                        borderRadius: "1rem 1rem 0.25rem 1rem",
-                        padding: "0.625rem 1rem",
-                      }
-                    : {
-                        background: "var(--color-surface-container-low)",
-                        color: "var(--color-on-surface)",
-                        borderRadius: "0.25rem 1rem 1rem 1rem",
-                        padding: "0.75rem 1rem",
-                      }
-                }
-              >
-                {m.parsedContent
-                  ? m.parsedContent.map((part) =>
-                      part.isPhone ? (
-                        <a
-                          key={part.key}
-                          href={`tel:${part.value}`}
-                          className="underline"
-                          style={{ color: "var(--color-primary)" }}
-                        >
-                          {part.value}
-                        </a>
-                      ) : (
-                        part.value
-                      ),
-                    )
-                  : m.content}
+              <div className="flex flex-col gap-2">
+                <div
+                  className="max-w-[78%] text-sm leading-relaxed lg:max-w-[68%]"
+                  style={
+                    m.role === "user"
+                      ? {
+                          background: "var(--color-primary-container)",
+                          color: "var(--color-on-primary-container)",
+                          borderRadius: "1rem 1rem 0.25rem 1rem",
+                          padding: "0.625rem 1rem",
+                        }
+                      : {
+                          background: "var(--color-surface-container-low)",
+                          color: "var(--color-on-surface)",
+                          borderRadius: "0.25rem 1rem 1rem 1rem",
+                          padding: "0.75rem 1rem",
+                        }
+                  }
+                >
+                  {m.parsedContent
+                    ? m.parsedContent.map((part) =>
+                        part.isPhone ? (
+                          <a
+                            key={part.key}
+                            href={`tel:${part.value}`}
+                            className="underline"
+                            style={{ color: "var(--color-primary)" }}
+                          >
+                            {part.value}
+                          </a>
+                        ) : (
+                          part.value
+                        ),
+                      )
+                    : m.content}
+                </div>
+                {m.role === "assistant" && pendingCapture && m.key === lastAssistantIdx && (
+                  <button
+                    onClick={() => {
+                      const topic = pendingCapture;
+                      setPendingCapture(null);
+                      onOpenCapture(topic);
+                    }}
+                    className="press-scale self-start rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+                    style={{
+                      background: "var(--color-primary-container)",
+                      color: "var(--color-on-primary-container)",
+                      border: "1px solid transparent",
+                    }}
+                  >
+                    + Add it
+                  </button>
+                )}
               </div>
             </div>
           ))}

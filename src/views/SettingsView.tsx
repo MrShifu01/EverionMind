@@ -7,13 +7,15 @@ import BrainTab from "../components/settings/BrainTab";
 import NotificationsTab from "../components/settings/NotificationsTab";
 import StorageTab from "../components/settings/StorageTab";
 import DangerTab from "../components/settings/DangerTab";
+import ClaudeCodeTab from "../components/settings/ClaudeCodeTab";
 import { isMultiBrainEnabled } from "../lib/featureFlags";
 
-type TabId = "profile" | "advanced";
+type TabId = "profile" | "advanced" | "claude";
 
 const TAB_DEFS: { id: TabId; label: string }[] = [
   { id: "profile", label: "Profile" },
   { id: "advanced", label: "Advanced" },
+  { id: "claude", label: "Claude Code" },
 ];
 
 interface SettingsViewProps {
@@ -130,6 +132,7 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
             )}
           </>
         )}
+        {activeTab === "claude" && <ClaudeCodeTab />}
       </div>
     </div>
   );

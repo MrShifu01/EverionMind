@@ -13,6 +13,7 @@ const MAX_CHARS = 8000;
 // Dispatched via rewrites:
 //   /api/memory, /api/activity, /api/health, /api/vault → /api/user-data?resource=X
 //   /api/pin → /api/user-data?resource=pin
+//   /api/user-data?resource=api_keys → MCP API key management
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
   applySecurityHeaders(res);
   const resource = req.query.resource as string | undefined;
@@ -21,6 +22,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   if (resource === "vault") return handleVault(req, res);
   if (resource === "pin") return handlePin(req, res);
   if (resource === "account") return handleDeleteAccount(req, res);
+  if (resource === "api_keys") return handleApiKeys(req, res);
   // Default: memory
   return handleMemory(req, res);
 }
@@ -337,4 +339,66 @@ async function handleDeleteAccount(req: ApiRequest, res: ApiResponse): Promise<v
 
   console.log(`[audit] DELETE_ACCOUNT user=${user.id}`);
   return void res.status(200).json({ deleted: true, vault_export });
+}
+
+// ── /api/user-data?resource=api_keys — Claude Code / MCP API key management ──
+async function handleApiKeys(req: ApiRequest, res: ApiResponse): Promise<void> {
+  if (!(await rateLimit(req, 20))) return void res.status(429).json({ error: "Too many requests" });
+  const user: any = await verifyAuth(req);
+  if (!user) return void res.status(401).json({ error: "Unauthorized" });
+
+  // GET — list active keys (never returns hash or raw key)
+  if (req.method === "GET") {
+    const r = await fetch(
+      `${SB_URL}/rest/v1/user_api_keys?user_id=eq.${encodeURIComponent(user.id)}&revoked_at=is.null&select=id,name,key_prefix,created_at,last_used_at&order=created_at.desc`,
+      { headers: hdrs() },
+    );
+    if (!r.ok) return void res.status(502).json({ error: "Database error" });
+    return void res.status(200).json(await r.json());
+  }
+
+  // POST — generate a new key
+  if (req.method === "POST") {
+    const { name } = req.body || {};
+    if (!name || typeof name !== "string" || !name.trim()) {
+      return void res.status(400).json({ error: "name required" });
+    }
+
+    // Generate raw key: em_ + 32 random bytes as hex
+    const rawKey = "em_" + crypto.randomBytes(32).toString("hex");
+    const keyHash = crypto.createHash("sha256").update(rawKey).digest("hex");
+    const keyPrefix = rawKey.slice(0, 12);
+
+    const r = await fetch(`${SB_URL}/rest/v1/user_api_keys`, {
+      method: "POST",
+      headers: hdrs({ Prefer: "return=representation" }),
+      body: JSON.stringify({ user_id: user.id, name: name.trim().slice(0, 100), key_hash: keyHash, key_prefix: keyPrefix }),
+    });
+    if (!r.ok) {
+      const err = await r.text().catch(() => String(r.status));
+      return void res.status(502).json({ error: `Database error: ${err}` });
+    }
+    const rows: any[] = await r.json();
+    // Return raw key once — it is never stored and cannot be retrieved again
+    return void res.status(201).json({ id: rows[0].id, name: rows[0].name, key: rawKey, key_prefix: keyPrefix });
+  }
+
+  // DELETE — revoke a key by id
+  if (req.method === "DELETE") {
+    const id = req.query.id as string;
+    if (!id) return void res.status(400).json({ error: "id required" });
+
+    const r = await fetch(
+      `${SB_URL}/rest/v1/user_api_keys?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(user.id)}`,
+      {
+        method: "PATCH",
+        headers: hdrs({ Prefer: "return=minimal" }),
+        body: JSON.stringify({ revoked_at: new Date().toISOString() }),
+      },
+    );
+    if (!r.ok) return void res.status(502).json({ error: "Database error" });
+    return void res.status(200).json({ ok: true });
+  }
+
+  return void res.status(405).json({ error: "Method not allowed" });
 }

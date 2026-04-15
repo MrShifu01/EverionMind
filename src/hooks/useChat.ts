@@ -131,6 +131,7 @@ export function useChat({
     },
   ]);
   const [chatLoading, setChatLoading] = useState(false);
+  const [pendingCapture, setPendingCapture] = useState<string | null>(null);
   const [pendingSecureMsg, setPendingSecureMsg] = useState<{ content: string } | null>(null);
   const [showPinGate, setShowPinGate] = useState(false);
   const [pinGateIsSetup, setPinGateIsSetup] = useState(false);
@@ -241,11 +242,15 @@ export function useChat({
         const errorMsg = typeof data.error === "string"
           ? data.error
           : (data.error as any)?.message;
-        const content = errorMsg
+        const rawContent = errorMsg
           ? `Sorry, something went wrong: ${errorMsg}`
           : extractNudgeText(data) ||
             data.content?.map((c) => c.text || "").join("") ||
             "Couldn't process.";
+        // Extract [NO_INFO:topic] tag if present
+        const noInfoMatch = rawContent.match(/\[NO_INFO:([^\]]+)\]\s*$/);
+        const content = noInfoMatch ? rawContent.replace(noInfoMatch[0], "").trimEnd() : rawContent;
+        if (noInfoMatch) setPendingCapture(noInfoMatch[1].trim());
         if (containsSensitiveContent(content)) {
           const hasPinSet = !!getStoredPinHash();
           setPendingSecureMsg({ content });
@@ -350,6 +355,8 @@ export function useChat({
     chatMsgs,
     setChatMsgs,
     chatLoading,
+    pendingCapture,
+    setPendingCapture,
     pendingSecureMsg,
     setPendingSecureMsg,
     showPinGate,

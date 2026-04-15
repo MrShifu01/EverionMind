@@ -6,8 +6,8 @@
     { "path": "/api/push?action=daily",  "schedule": "0 8 * * *" },
     { "path": "/api/push?action=nudge",   "schedule": "0 10 * * *" },
     { "path": "/api/push?action=expiry",  "schedule": "0 9 * * *" },
-    { "path": "/api/cron/gap-analyst",          "schedule": "0 6 * * 0" },
-    { "path": "/api/cron/purge-trash",          "schedule": "0 3 * * 0" }
+    { "path": "/api/cron?job=gaps",             "schedule": "0 6 * * 0" },
+    { "path": "/api/cron?job=purge",            "schedule": "0 3 * * 0" }
   ],
   "outputDirectory": "dist",
   "rewrites": [

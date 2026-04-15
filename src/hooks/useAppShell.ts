@@ -17,6 +17,8 @@ export interface AppShellState {
   // Modals
   showCapture: boolean;
   setShowCapture: React.Dispatch<React.SetStateAction<boolean>>;
+  captureInitialText: string;
+  openCapture: (initialText?: string) => void;
   showOnboarding: boolean;
   setShowOnboarding: React.Dispatch<React.SetStateAction<boolean>>;
   showBrainTip: Brain | null;
@@ -52,6 +54,7 @@ export function useAppShell({
 
   // Modals
   const [showCapture, setShowCapture] = useState(!!initialShowCapture);
+  const [captureInitialText, setCaptureInitialText] = useState("");
   const [showOnboarding, setShowOnboarding] = useState(
     () => !localStorage.getItem("openbrain_onboarded"),
   );
@@ -127,6 +130,11 @@ export function useAppShell({
     if (activeBrainId) setTypeIcons(getTypeIcons(activeBrainId));
   }, [activeBrainId]);
 
+  const openCapture = useCallback((initialText = "") => {
+    setCaptureInitialText(initialText);
+    setShowCapture(true);
+  }, []);
+
   return {
     view,
     setView,
@@ -134,6 +142,8 @@ export function useAppShell({
     setSelected,
     showCapture,
     setShowCapture,
+    captureInitialText,
+    openCapture,
     showOnboarding,
     setShowOnboarding,
     showBrainTip,
