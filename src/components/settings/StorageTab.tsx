@@ -2,8 +2,6 @@ import { useState, useEffect } from "react";
 import TrashView from "../../views/TrashView";
 import type { Brain } from "../../types";
 import { KEYS } from "../../lib/storageKeys";
-import { authFetch } from "../../lib/authFetch";
-import { buildBrainConnections } from "../../lib/brainConnections";
 
 function fmt(n: number) {
   return n.toLocaleString();
@@ -54,29 +52,28 @@ function UsagePanel() {
   const [bd, setBd] = useState<Awaited<
     ReturnType<typeof import("../../lib/usageTracker").getMonthlyBreakdown>
   > | null>(null);
-  const [entryCount, setEntryCount] = useState<number>(0);
+  const [entryCount, setEntryCount] = useState(0);
+  const [entriesThisMonth, setEntriesThisMonth] = useState(0);
 
   useEffect(() => {
     import("../../lib/usageTracker").then((m) => setBd(m.getMonthlyBreakdown()));
-
-    // Estimate Supabase data from cached entries
     try {
       const cached = localStorage.getItem(KEYS.ENTRIES_CACHE);
       if (cached) {
         const arr = JSON.parse(cached);
-        if (Array.isArray(arr)) setEntryCount(arr.length);
+        if (Array.isArray(arr)) {
+          setEntryCount(arr.length);
+          const month = new Date().toISOString().slice(0, 7);
+          setEntriesThisMonth(arr.filter((e: any) => e.created_at?.startsWith(month)).length);
+        }
       }
     } catch (err) {
       console.error("[StorageTab]", err);
     }
   }, []);
 
-  // Supabase size estimate: ~3 KB embedding + ~2 KB content per entry
   const supabaseEstimateBytes = entryCount * 5 * 1024;
-
-  const providers = bd ? Object.keys(bd.llm.byProvider) : [];
   const txProviders = bd ? Object.keys(bd.transcription.byProvider) : [];
-  const embProviders = bd ? Object.keys(bd.embedding.byProvider) : [];
 
   return (
     <div
@@ -86,98 +83,43 @@ function UsagePanel() {
         borderColor: "var(--color-outline-variant)",
       }}
     >
-      <div className="flex items-center justify-between">
-        <p className="text-on-surface text-sm font-semibold">Usage this month</p>
-        <button
-          onClick={() => {
-            import("../../lib/usageTracker").then((m) => {
-              m.clearUsage();
-              setBd(m.getMonthlyBreakdown());
-            });
-          }}
-          className="rounded-lg px-2 text-xs"
-          style={{
-            color: "var(--color-on-surface-variant)",
-            border: "1px solid var(--color-outline-variant)",
-            minHeight: 32,
-          }}
-        >
-          Clear
-        </button>
-      </div>
+      <p className="text-on-surface text-sm font-semibold">Usage this month</p>
 
-      {bd && (
-        <div className="space-y-4">
-          {/* LLM */}
-          <Section title="LLM tokens">
-            <Row name="Input" value={fmt(bd.llm.inputTokens)} />
-            <Row name="Output" value={fmt(bd.llm.outputTokens)} />
-            {providers.map((p) => {
-              const s = bd.llm.byProvider[p];
+      <div className="space-y-4">
+        {/* Memory */}
+        <Section title="Memory">
+          <Row name="Added this month" value={fmt(entriesThisMonth)} />
+          <Row name="Total entries" value={fmt(entryCount)} />
+          <Row name="Est. storage" value={fmtBytes(supabaseEstimateBytes)} sub="~5 KB/entry" />
+        </Section>
+
+        {/* Voice transcription — only shown if used */}
+        {bd && bd.transcription.calls > 0 && (
+          <Section title="Voice transcription">
+            <Row name="Sessions" value={fmt(bd.transcription.calls)} />
+            <Row name="Audio processed" value={fmtBytes(bd.transcription.audioBytes)} />
+            {txProviders.map((p) => {
+              const s = bd.transcription.byProvider[p];
               const cost = fmtUsd(s.estimatedUsd);
               return (
                 <Row
                   key={p}
-                  name={`  ${label(p)}`}
-                  value={`${fmt(s.inputTokens)} in / ${fmt(s.outputTokens)} out`}
-                  sub={cost ?? undefined}
+                  name={label(p)}
+                  value={`${fmt(s.calls)} sessions, ${fmtBytes(s.audioBytes)}`}
+                  sub={cost}
                 />
               );
             })}
-            {fmtUsd(bd.llm.estimatedUsd) && (
-              <Row name="Est. cost" value={fmtUsd(bd.llm.estimatedUsd)!} sub="(estimate only)" />
-            )}
           </Section>
+        )}
 
-          {/* Transcription */}
-          {(bd.transcription.calls > 0 || txProviders.length > 0) && (
-            <Section title="Voice transcription">
-              <Row name="Sessions" value={fmt(bd.transcription.calls)} />
-              <Row name="Audio processed" value={fmtBytes(bd.transcription.audioBytes)} />
-              {txProviders.map((p) => {
-                const s = bd.transcription.byProvider[p];
-                const cost = fmtUsd(s.estimatedUsd);
-                return (
-                  <Row
-                    key={p}
-                    name={`  ${label(p)}`}
-                    value={`${fmt(s.calls)} sessions, ${fmtBytes(s.audioBytes)}`}
-                    sub={cost}
-                  />
-                );
-              })}
-              {fmtUsd(bd.transcription.estimatedUsd) && (
-                <Row
-                  name="Est. cost"
-                  value={fmtUsd(bd.transcription.estimatedUsd)!}
-                  sub="(estimate only)"
-                />
-              )}
-            </Section>
-          )}
-
-          {/* Embeddings */}
-          {(bd.embedding.calls > 0 || embProviders.length > 0) && (
-            <Section title="Embeddings">
-              <Row name="Total calls" value={fmt(bd.embedding.calls)} />
-              {embProviders.map((p) => (
-                <Row
-                  key={p}
-                  name={`  ${label(p)}`}
-                  value={`${fmt(bd.embedding.byProvider[p].calls)} calls`}
-                  sub="(free tier / low cost)"
-                />
-              ))}
-            </Section>
-          )}
-
-          {/* Supabase */}
-          <Section title="Supabase data (active brain)">
-            <Row name="Entries cached" value={fmt(entryCount)} />
-            <Row name="Est. DB size" value={fmtBytes(supabaseEstimateBytes)} sub="(~5 KB/entry)" />
+        {/* Embeddings — only shown if used */}
+        {bd && bd.embedding.calls > 0 && (
+          <Section title="AI searches">
+            <Row name="Queries processed" value={fmt(bd.embedding.calls)} />
           </Section>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -186,51 +128,9 @@ interface Props {
   activeBrain?: Brain;
 }
 
-async function runEmbedLoop(
-  brainId: string,
-  force: boolean,
-  label: string,
-  onStatus: (s: string) => void,
-) {
-  onStatus(`${label}…`);
-  let total = 0;
-  try {
-    for (let i = 0; i < 100; i++) {
-      const res = await authFetch("/api/capture?action=embed", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ batch: true, brain_id: brainId, force }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Unknown error");
-      total += data.processed ?? 0;
-      const remaining = data.remaining ?? 0;
-      if (remaining > 0) onStatus(`${label}… ${total} done, ${remaining} remaining`);
-      if (remaining === 0 || (data.processed ?? 0) === 0) break;
-    }
-    onStatus(`Done — ${total} entries embedded.`);
-  } catch (e: any) {
-    onStatus(`Error: ${e.message}`);
-  }
-}
-
-function reEmbedAll(brainId: string, onStatus: (s: string) => void) {
-  return runEmbedLoop(brainId, true, "Re-embedding all entries", onStatus);
-}
-
-function syncMissingEmbeddings(brainId: string, onStatus: (s: string) => void) {
-  return runEmbedLoop(brainId, false, "Syncing missing embeddings", onStatus);
-}
-
 
 export default function StorageTab({ activeBrain }: Props) {
   const [showTrash, setShowTrash] = useState(false);
-  const [embedStatus, setEmbedStatus] = useState("");
-  const [embedBusy, setEmbedBusy] = useState(false);
-  const [syncStatus, setSyncStatus] = useState("");
-  const [syncBusy, setSyncBusy] = useState(false);
-  const [graphStatus, setGraphStatus] = useState("");
-  const [graphBusy, setGraphBusy] = useState(false);
 
   return (
     <>
@@ -287,82 +187,6 @@ export default function StorageTab({ activeBrain }: Props) {
         </button>
       </div>
 
-      <div
-        className="space-y-3 rounded-2xl border p-4"
-        style={{
-          background: "var(--color-surface-container-high)",
-          borderColor: "var(--color-outline-variant)",
-        }}
-      >
-        <p className="text-on-surface text-sm font-semibold">Advanced Brain</p>
-        <p className="text-on-surface-variant text-xs">
-          Re-embed all entries with pgvector for semantic search. Build brain connections
-          to surface concepts and relationships across your knowledge.
-        </p>
-
-        <button
-          disabled={syncBusy || embedBusy || !activeBrain?.id}
-          onClick={async () => {
-            if (!activeBrain?.id) return;
-            setSyncBusy(true);
-            await syncMissingEmbeddings(activeBrain.id, setSyncStatus);
-            setSyncBusy(false);
-          }}
-          className="rounded-xl px-4 py-2 text-xs font-semibold transition-opacity hover:opacity-90 disabled:opacity-50"
-          style={{
-            background: "var(--color-primary)",
-            color: "var(--color-on-primary)",
-            minHeight: 44,
-          }}
-        >
-          {syncBusy ? "Syncing…" : "Sync Missing Embeddings"}
-        </button>
-        {syncStatus && (
-          <p className="text-on-surface-variant text-xs">{syncStatus}</p>
-        )}
-
-        <button
-          disabled={embedBusy || syncBusy || !activeBrain?.id}
-          onClick={async () => {
-            if (!activeBrain?.id) return;
-            setEmbedBusy(true);
-            await reEmbedAll(activeBrain.id, setEmbedStatus);
-            setEmbedBusy(false);
-          }}
-          className="rounded-xl px-4 py-2 text-xs font-semibold transition-opacity hover:opacity-90 disabled:opacity-50"
-          style={{
-            background: "var(--color-secondary-container)",
-            color: "var(--color-on-secondary-container)",
-            minHeight: 44,
-          }}
-        >
-          {embedBusy ? "Embedding…" : "Re-embed All Entries"}
-        </button>
-        {embedStatus && (
-          <p className="text-on-surface-variant text-xs">{embedStatus}</p>
-        )}
-
-        <button
-          disabled={graphBusy || !activeBrain?.id}
-          onClick={async () => {
-            if (!activeBrain?.id) return;
-            setGraphBusy(true);
-            await buildBrainConnections(activeBrain.id, setGraphStatus);
-            setGraphBusy(false);
-          }}
-          className="rounded-xl px-4 py-2 text-xs font-semibold transition-opacity hover:opacity-90 disabled:opacity-50"
-          style={{
-            background: "var(--color-primary-container)",
-            color: "var(--color-primary)",
-            minHeight: 44,
-          }}
-        >
-          {graphBusy ? "Building…" : "Build Brain Connections"}
-        </button>
-        {graphStatus && (
-          <p className="text-on-surface-variant text-xs">{graphStatus}</p>
-        )}
-      </div>
     </>
   );
 }

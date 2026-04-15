@@ -279,81 +279,6 @@ export default function ProvidersTab(props?: { activeBrain?: any }) {
         ))}
       </div>
 
-      {/* Direct LLM pipeline test */}
-      <div
-        className="space-y-3 rounded-xl p-4"
-        style={{
-          background: "var(--color-surface-container)",
-          border: "1px solid var(--color-outline-variant)",
-        }}
-      >
-        <div>
-          <p className="text-sm font-semibold" style={{ color: "var(--color-on-surface)" }}>
-            Live AI test
-          </p>
-          <p className="mt-0.5 text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-            Tests the exact path the AI features use (no key required).
-          </p>
-        </div>
-        <button
-          onClick={testLLM}
-          disabled={llmTesting}
-          className="w-full rounded-xl py-2 text-xs font-semibold transition-all disabled:opacity-50"
-          style={{
-            background: "var(--color-secondary-container)",
-            color: "var(--color-on-secondary-container)",
-          }}
-        >
-          {llmTesting ? "Calling model…" : "Test AI pipeline"}
-        </button>
-        {llmResult && (
-          <p
-            className="font-mono text-xs break-all whitespace-pre-wrap"
-            style={{ color: llmResult.ok ? "var(--color-primary)" : "var(--color-error)" }}
-          >
-            {llmResult.text}
-          </p>
-        )}
-      </div>
-
-      {/* ── Parse pipeline tests ─────────────────────────────────────────── */}
-      <div
-        className="space-y-4 rounded-xl p-4"
-        style={{
-          background: "var(--color-surface-container)",
-          border: "1px solid var(--color-outline-variant)",
-        }}
-      >
-        <div>
-          <p className="text-sm font-semibold" style={{ color: "var(--color-on-surface)" }}>
-            Parse pipeline tests
-          </p>
-          <p className="mt-0.5 text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-            Runs the full CAPTURE prompt through Gemma and shows raw + parsed output.
-          </p>
-        </div>
-
-        {/* Test 1 */}
-        <ParseTestBlock
-          num={1}
-          label="Test 1 — single entry (vehicle licence, should get title + type + expiry date + phone)"
-          input={PARSE_TEST_1}
-          loading={parseLoading === 1}
-          result={parseResult1}
-          onRun={() => runParseTest(1)}
-        />
-
-        {/* Test 2 */}
-        <ParseTestBlock
-          num={2}
-          label="Test 2 — should SPLIT into 2 entries (supplier + reminder)"
-          input={PARSE_TEST_2}
-          loading={parseLoading === 2}
-          result={parseResult2}
-          onRun={() => runParseTest(2)}
-        />
-      </div>
-
       {/* Clear stored frontend keys */}
       <div
         className="space-y-3 rounded-xl p-4"
@@ -397,42 +322,6 @@ export default function ProvidersTab(props?: { activeBrain?: any }) {
         )}
       </div>
 
-      {/* Re-embed all entries */}
-      <div
-        className="space-y-3 rounded-xl p-4"
-        style={{
-          background: "var(--color-surface-container)",
-          border: "1px solid var(--color-outline-variant)",
-        }}
-      >
-        <div>
-          <p className="text-sm font-semibold" style={{ color: "var(--color-on-surface)" }}>
-            Re-embed all entries
-          </p>
-          <p className="mt-0.5 text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-            Force re-generate all embeddings with the current model (gemini-embedding-001). Use
-            after switching embedding models.
-          </p>
-        </div>
-        <button
-          onClick={reembedAll}
-          disabled={reembedding || !props?.activeBrain}
-          className="w-full rounded-xl py-2 text-xs font-semibold transition-all disabled:opacity-50"
-          style={{
-            background: "var(--color-secondary-container)",
-            color: "var(--color-on-secondary-container)",
-          }}
-        >
-          {reembedding ? "Re-embedding…" : "Re-embed all entries"}
-        </button>
-        {reembedProgress !== null && (
-          <p className="text-center text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-            {reembedding
-              ? `Processing… ${reembedProgress.processed} done${reembedProgress.failed > 0 ? `, ${reembedProgress.failed} failed` : ""}${reembedProgress.remaining > 0 ? `, ${reembedProgress.remaining} remaining` : ""}`
-              : `Done — ${reembedProgress.processed} embedded${reembedProgress.failed > 0 ? `, ${reembedProgress.failed} failed` : ""}`}
-          </p>
-        )}
-      </div>
     </div>
   );
 }

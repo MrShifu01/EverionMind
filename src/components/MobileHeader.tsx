@@ -81,7 +81,7 @@ export default function MobileHeader({
       {/* Centre: brand name — absolute so it's always truly centred */}
       <span className="pointer-events-none absolute inset-x-0 flex justify-center">
         <span
-          className="text-sm font-semibold tracking-tight"
+          className="text-base font-semibold tracking-tight"
           style={{ color: "var(--color-on-surface)", fontFamily: "'Lora', Georgia, serif" }}
         >
           Everion{" "}
