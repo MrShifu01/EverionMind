@@ -1,6 +1,5 @@
 import { useMemo, useRef, memo, useState, useEffect } from "react";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { fmtD } from "../data/constants";
 import type { Entry } from "../types";
 import { Badge } from "./ui/badge";
 import type { VariantProps } from "class-variance-authority";
@@ -236,9 +235,6 @@ const EntryRow = memo(function EntryRow({
       <Badge variant={rowTypeVariant}>{e.type.charAt(0).toUpperCase() + e.type.slice(1)}</Badge>
       {isPinned && <span className="text-primary flex-shrink-0 text-[11px]">📌</span>}
       <span className="text-on-surface min-w-0 flex-1 truncate text-sm font-medium">{e.title}</span>
-      <span className="flex-shrink-0 text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-        {e.created_at ? fmtD(e.created_at) : ""}
-      </span>
       {(onPin || onDelete) && (
         <div className="flex flex-shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
           {onPin && (
@@ -467,9 +463,6 @@ export function VirtualTimeline({
                   style={{ background: "var(--color-primary)" }}
                 />
               </div>
-              <p className="text-on-surface-variant/50 w-20 flex-shrink-0 text-xs font-semibold tracking-widest uppercase">
-                {fmtD(e.created_at ?? "")}
-              </p>
               <div className="group-hover:bg-surface-container flex min-w-0 flex-1 items-center gap-2 rounded-xl px-3 py-2 transition-colors">
                 <span className="text-on-surface truncate text-sm">{e.title}</span>
               </div>
