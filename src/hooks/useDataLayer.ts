@@ -201,7 +201,7 @@ export function useDataLayer({
     for (let i = 0; i < unenriched.length; i++) {
       await enrichEntry(unenriched[i], activeBrainId, silentUpdate);
       setEnrichProgress({ done: i + 1, total: unenriched.length });
-      if (i < unenriched.length - 1) await new Promise((r) => setTimeout(r, 1000));
+      if (i < unenriched.length - 1) await new Promise((r) => setTimeout(r, 5000));
     }
     setEnriching(false);
     setEnrichProgress(null);
