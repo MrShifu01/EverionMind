@@ -267,7 +267,7 @@ export default function AccountTab({ email, brainId }: Props) {
           style={{
             display: "grid",
             gridTemplateRows: profileOpen ? "1fr" : "0fr",
-            transition: "grid-template-rows 260ms cubic-bezier(0.16, 1, 0.3, 1)",
+            transition: "grid-template-rows 380ms cubic-bezier(0.16, 1, 0.3, 1)",
           }}
         >
           <div className="overflow-hidden">
@@ -328,7 +328,7 @@ export default function AccountTab({ email, brainId }: Props) {
           style={{
             display: "grid",
             gridTemplateRows: notifOpen ? "1fr" : "0fr",
-            transition: "grid-template-rows 260ms cubic-bezier(0.16, 1, 0.3, 1)",
+            transition: "grid-template-rows 380ms cubic-bezier(0.16, 1, 0.3, 1)",
           }}
         >
           <div className="overflow-hidden">
@@ -355,7 +355,7 @@ export default function AccountTab({ email, brainId }: Props) {
           style={{
             display: "grid",
             gridTemplateRows: importsOpen ? "1fr" : "0fr",
-            transition: "grid-template-rows 260ms cubic-bezier(0.16, 1, 0.3, 1)",
+            transition: "grid-template-rows 380ms cubic-bezier(0.16, 1, 0.3, 1)",
           }}
         >
           <div className="overflow-hidden">

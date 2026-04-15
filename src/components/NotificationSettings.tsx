@@ -61,7 +61,7 @@ const inputClasses =
 function toggleClasses(on: boolean): string {
   return `inline-flex items-center gap-1.5 py-[7px] px-3.5 rounded-[20px] text-xs font-bold cursor-pointer border-none ${
     on
-      ? "bg-[var(--color-secondary-container)] text-[var(--color-secondary)] outline outline-1 outline-[var(--color-outline-variant)]"
+      ? "bg-[var(--color-primary-container)] text-[var(--color-on-primary-container)] outline outline-1 outline-[var(--color-outline)]"
       : "bg-surface-container-high text-on-surface outline outline-1 outline-[var(--color-outline)]"
   }`;
 }
@@ -395,7 +395,7 @@ export default function NotificationSettings(): JSX.Element {
                         aria-pressed={active}
                         className={`cursor-pointer rounded-[20px] border-none px-3.5 py-1.5 text-xs font-bold ${
                           active
-                            ? "bg-[var(--color-secondary-container)] text-[var(--color-secondary)] outline outline-1 outline-[var(--color-outline-variant)]"
+                            ? "bg-[var(--color-primary-container)] text-[var(--color-on-primary-container)] outline outline-1 outline-[var(--color-outline)]"
                             : "bg-surface-container-high text-on-surface outline outline-1 outline-[var(--color-outline)]"
                         }`}
                       >

@@ -109,7 +109,7 @@
 }
 /* View transition — gentle fade-up on tab switch */
 .animate-view-enter {
-  animation: slide-up 210ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: slide-up 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes fade-in {
