@@ -14,7 +14,6 @@ const NAV_ICONS: Record<string, ReactNode> = {
   feed: NavIcon.feed,
   capture: NavIcon.capture,
   memory: NavIcon.grid,
-  refine: NavIcon.refine,
   todos: NavIcon.todos,
   timeline: NavIcon.timeline,
   vault: NavIcon.vault,

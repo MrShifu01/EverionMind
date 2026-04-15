@@ -248,7 +248,7 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
               Quick Nav
             </p>
             <div className="flex flex-wrap gap-2">
-              {["grid", "todos", "refine", "chat"].map((view) => (
+              {["grid", "todos", "chat"].map((view) => (
                 <button
                   key={view}
                   className="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
@@ -261,9 +261,7 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
                     setOpen(false);
                   }}
                 >
-                  {view === "refine"
-                    ? "Improve Brain"
-                    : view.charAt(0).toUpperCase() + view.slice(1)}
+                  {view.charAt(0).toUpperCase() + view.slice(1)}
                 </button>
               ))}
             </div>

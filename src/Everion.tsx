@@ -77,7 +77,6 @@ function lazyRetry(fn: () => Promise<any>) {
   );
 }
 
-const RefineView = lazyRetry(() => import("./views/RefineView"));
 const TodoView = lazyRetry(() => import("./views/TodoView"));
 const DetailModal = lazyRetry(() => import("./views/DetailModal"));
 const VaultView = lazyRetry(() => import("./views/VaultView"));
@@ -743,20 +742,7 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
                     )}
                   </div>
                 )}
-                {view === "refine" && (
-                  <Suspense fallback={<Loader />}>
-                    <RefineView
-                      entries={entries}
-                      setEntries={setEntries}
-                      links={links}
-                      addLinks={addLinks}
-                      activeBrain={activeBrain}
-                      brains={brains}
-                      onSwitchBrain={setActiveBrain}
-                      onCapture={() => setShowCapture(true)}
-                    />
-                  </Suspense>
-                )}
+
                 {view === "todos" && (
                   <Suspense fallback={<Loader />}>
                     <TodoView entries={entries} typeIcons={typeIcons} />
@@ -874,7 +860,6 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
                     const quickActions = [
                       { id: "ask", label: "Ask Brain", icon: NavIcon.chat },
                       { id: "todos", label: "Todos", icon: NavIcon.todos },
-                      { id: "refine", label: "Improve Brain", icon: NavIcon.refine },
                       { id: "memory", label: "Memory Grid", icon: NavIcon.grid },
                     ] as { id: string; label: string; icon: ReactNode }[];
                     return (
