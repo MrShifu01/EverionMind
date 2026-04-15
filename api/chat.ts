@@ -113,6 +113,26 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   allSemanticResults.sort((a, b) => _combinedScore(b) - _combinedScore(a));
   let retrievedEntries: any[] = allSemanticResults.slice(0, 20);
 
+  // Hydrate metadata for vector-matched entries — the match_entries RPC typically
+  // only returns id/title/content/type/tags/similarity, not the full metadata object.
+  if (retrievedEntries.length > 0) {
+    try {
+      const ids = retrievedEntries.map((e: any) => e.id).join(",");
+      const metaRes = await fetch(
+        `${SB_URL}/rest/v1/entries?id=in.(${ids})&select=id,metadata`,
+        { headers: SB_HEADERS },
+      );
+      if (metaRes.ok) {
+        const metaRows: any[] = await metaRes.json();
+        const metaMap = new Map(metaRows.map((r: any) => [r.id, r.metadata]));
+        retrievedEntries = retrievedEntries.map((e: any) => ({
+          ...e,
+          metadata: metaMap.get(e.id) ?? e.metadata,
+        }));
+      }
+    } catch { /* non-fatal — proceed without metadata */ }
+  }
+
   const noSemanticResults = retrievedEntries.length === 0;
   if (noSemanticResults) {
     if (brainList.length === 1 && Array.isArray(fallback_entries) && fallback_entries.length > 0) {
