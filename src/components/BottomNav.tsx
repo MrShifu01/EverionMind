@@ -7,7 +7,8 @@ function useKeyboardVisible(): boolean {
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
-    const handler = () => setVisible(vv.height < window.innerHeight * 0.75);
+    const screenHeight = window.screen.height;
+    const handler = () => setVisible(vv.height < screenHeight * 0.75);
     vv.addEventListener("resize", handler);
     return () => vv.removeEventListener("resize", handler);
   }, []);
