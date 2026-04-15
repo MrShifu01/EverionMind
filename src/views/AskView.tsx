@@ -1,34 +1,59 @@
 import { useRef, useEffect, useMemo, useState } from "react";
 
 /**
- * Tracks the usable height above the keyboard on mobile.
- * Returns `vv.height + vv.offsetTop` when the keyboard is open so that the
- * caller can subtract the AskView's fixed top offset (header + wrapper padding)
- * and get a container that ends exactly at the keyboard edge — even when iOS
- * scrolls the page after focus.  Returns null when keyboard is closed.
+ * Returns the correct pixel height for the AskView container — no hardcoded values.
+ *
+ * Keyboard open:  vv.height − container.getBoundingClientRect().top
+ *   → exact space from the container's current top edge to the keyboard top.
+ *   getBoundingClientRect() already accounts for scroll, so this works on every
+ *   device regardless of header size or safe-area insets.
+ *
+ * Keyboard closed: window.innerHeight − containerTop − navClearance
+ *   → measured from the live DOM so different header heights, notches, and
+ *   bottom-nav sizes are all handled automatically.
  */
-function useVisualViewportHeight(): number | null {
-  const [vpHeight, setVpHeight] = useState<number | null>(null);
+function useContainerHeight(containerRef: React.RefObject<HTMLDivElement>): string | null {
+  const [height, setHeight] = useState<string | null>(null);
+
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
-    const screenH = window.screen.height;
+
+    /** Pixels from the bottom of the screen that the floating nav occupies. */
+    const getNavClearance = (): number => {
+      const nav = document.querySelector('nav[aria-label="Primary navigation"]') as HTMLElement | null;
+      if (!nav) return 84; // safe fallback if nav not in DOM
+      return window.innerHeight - nav.getBoundingClientRect().top;
+    };
+
     const update = () => {
-      if (vv.height < screenH * 0.75) {
-        // Include offsetTop so the value is stable even when iOS scrolls the page.
-        setVpHeight(vv.height + vv.offsetTop);
+      const el = containerRef.current;
+      if (!el) return;
+
+      // Use window.innerHeight (CSS px) for the keyboard-open threshold so the
+      // comparison is always in the same unit on every device/DPR.
+      const isKeyboardOpen = vv.height < window.innerHeight * 0.8;
+      const top = el.getBoundingClientRect().top;
+
+      if (isKeyboardOpen) {
+        // Space from container top to keyboard top — device-agnostic.
+        setHeight(`${Math.max(vv.height - top, 100)}px`);
       } else {
-        setVpHeight(null);
+        // Fill from container top to just above the floating bottom nav.
+        setHeight(`${window.innerHeight - top - getNavClearance()}px`);
       }
     };
+
+    update();
     vv.addEventListener("resize", update);
     vv.addEventListener("scroll", update);
     return () => {
       vv.removeEventListener("resize", update);
       vv.removeEventListener("scroll", update);
     };
-  }, []);
-  return vpHeight;
+  }, [containerRef]);
+
+  return height;
 }
 
 const EXAMPLE_PROMPTS = [
@@ -87,6 +112,7 @@ export default function AskView({
   phoneRegex,
 }: AskViewProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -122,17 +148,15 @@ export default function AskView({
     [chatMsgs, phoneRegex],
   );
 
-  const vpHeight = useVisualViewportHeight();
-  // When keyboard is open: vpHeight = vv.height + vv.offsetTop (scroll-adjusted).
-  // Subtract the header height (68px) — no wrapper pt-4 since AskView sits directly
-  // below the header with no extra top padding.
-  // When keyboard is closed: fall back to CSS calc (header + bottom nav = 136px).
-  const mobileHeight = vpHeight != null ? `${vpHeight - 68}px` : "calc(100dvh - 136px)";
+  const measuredHeight = useContainerHeight(containerRef);
 
   return (
     <div
+      ref={containerRef}
       className="flex flex-col lg:h-[calc(100dvh-80px)]"
-      style={{ height: mobileHeight }}
+      // measuredHeight is null only for the very first render tick before the
+      // ResizeObserver fires; fall back to a CSS estimate so there's no flash.
+      style={{ height: measuredHeight ?? "calc(100dvh - 136px)" }}
     >
       {/* ── Message thread ── */}
       <div
