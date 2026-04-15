@@ -246,6 +246,10 @@ export default function FeedView({
 
   return (
     <div className="space-y-4">
+      <div aria-live="polite" aria-atomic="true" className="sr-only">
+        {loading ? "Loading your entries…" : `${data?.stats.entries ?? 0} entries loaded`}
+      </div>
+
       <EarlyAccessBanner />
 
       {/* Bulk enrichment banner — only when there are unenriched entries */}

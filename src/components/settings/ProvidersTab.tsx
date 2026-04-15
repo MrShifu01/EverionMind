@@ -48,7 +48,7 @@ function extractJSON(text: string): unknown {
 }
 
 const dot = (s: Status) => {
-  if (s === "ok") return <span style={{ color: "var(--color-success, #4ade80)" }}>●</span>;
+  if (s === "ok") return <span style={{ color: "var(--color-success)" }}>●</span>;
   if (s === "fail") return <span style={{ color: "var(--color-error)" }}>●</span>;
   if (s === "loading")
     return <span style={{ color: "var(--color-on-surface-variant)", opacity: 0.5 }}>◌</span>;

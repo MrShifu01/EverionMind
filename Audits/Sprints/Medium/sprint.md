@@ -17,7 +17,7 @@ Tasks are grouped into four themes. Work a full theme at a time rather than cher
 
 ## Theme 1 — Security & Compliance Config
 
-### [ ] M-1 — Move Sentry DSN to env var
+### [x] M-1 — Move Sentry DSN to env var
 **Effort:** XS | **File:** `src/main.tsx:11`
 
 - [ ] Replace hardcoded DSN string with `import.meta.env.VITE_SENTRY_DSN`
@@ -27,7 +27,7 @@ Tasks are grouped into four themes. Work a full theme at a time rather than cher
 
 ---
 
-### [ ] M-2 — Add HSTS header
+### [x] M-2 — Add HSTS header
 **Effort:** XS | **File:** `vercel.json`
 
 - [ ] Add `{ "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains; preload" }` to the headers array
@@ -52,7 +52,7 @@ Tasks are grouped into four themes. Work a full theme at a time rather than cher
 
 ---
 
-### [ ] M-5 — Downgrade `vite-plugin-pwa` to avoid build-pipeline CVEs
+### [x] M-5 — Downgrade `vite-plugin-pwa` to avoid build-pipeline CVEs
 **Effort:** XS | **File:** `package.json`
 
 - [ ] Change `vite-plugin-pwa` to `0.19.8` in `package.json`
@@ -61,7 +61,7 @@ Tasks are grouped into four themes. Work a full theme at a time rather than cher
 
 ---
 
-### [ ] M-6 — Add `npm audit` to CI
+### [x] M-6 — Add `npm audit` to CI
 **Effort:** XS | **File:** `.github/workflows/ci.yml`
 
 - [ ] Add `- run: npm audit --audit-level=high` step to the CI workflow
@@ -79,7 +79,7 @@ Tasks are grouped into four themes. Work a full theme at a time rather than cher
 
 ---
 
-### [ ] M-16 — Add Terms of Service page
+### [x] M-16 — Add Terms of Service page
 **Effort:** S | **Files:** new ToS page, login screen link
 
 - [ ] Draft minimal ToS (can be a static Markdown-rendered page)
@@ -142,7 +142,7 @@ No schema version → stale data silently loaded. Lossy normalization → duplic
 
 ---
 
-### [ ] M-27 — Deduplicate `SKIP_META` into a single source of truth
+### [x] M-27 — Deduplicate `SKIP_META` into a single source of truth
 **Effort:** XS | **Files:** `src/lib/chatContext.ts`, `src/lib/enrichEntry.ts`, new `src/lib/entryConstants.ts`
 
 Two separate `SKIP_META` sets with different contents. They will drift further as new metadata fields are added.
@@ -167,7 +167,7 @@ Two separate `SKIP_META` sets with different contents. They will drift further a
 
 ---
 
-### [ ] M-7 — Replace 77 silent `catch {}` blocks with logging
+### [x] M-7 — Replace 77 silent `catch {}` blocks with logging
 **Effort:** M | **Files:** `BulkActionBar.tsx`, `BrainTab.tsx`, `SurprisingConnections.tsx`, others
 
 - [ ] Fix `BulkActionBar.tsx:109,121` — surface bulk operation failures to the user; don't increment progress counter on failure
@@ -177,7 +177,7 @@ Two separate `SKIP_META` sets with different contents. They will drift further a
 
 ---
 
-### [ ] M-8 — Halt growth of `: any` usages (249 and climbing)
+### [x] M-8 — Halt growth of `: any` usages (249 and climbing)
 **Effort:** S | **File:** `eslint.config.js`, then incremental
 
 - [ ] Enable `@typescript-eslint/no-explicit-any: warn` in `eslint.config.js`
@@ -187,7 +187,7 @@ Two separate `SKIP_META` sets with different contents. They will drift further a
 
 ---
 
-### [ ] M-13 — Remove localStorage write-back in `loadUserAISettings`
+### [x] M-13 — Remove localStorage write-back in `loadUserAISettings`
 **Effort:** XS | **File:** `src/lib/aiSettings.ts:157-165`
 
 - [ ] Remove the localStorage write-back for model overrides and embed provider
@@ -196,7 +196,7 @@ Two separate `SKIP_META` sets with different contents. They will drift further a
 
 ---
 
-### [ ] M-14 — Lazy-load `CaptureSheet.tsx`
+### [x] M-14 — Lazy-load `CaptureSheet.tsx`
 **Effort:** XS | **File:** Import site in `Everion.tsx` or wherever CaptureSheet is imported
 
 - [ ] Wrap the import in `React.lazy(() => import('./CaptureSheet'))`
@@ -219,7 +219,7 @@ The connections section is a flat `<ul>` with no grouping. The app's core value 
 
 ---
 
-### [ ] M-30 — Add text labels to bottom navigation
+### [x] M-30 — Add text labels to bottom navigation
 **Effort:** XS | **File:** `src/components/BottomNav.tsx`
 
 - [ ] Add text labels under each bottom nav icon (`text-[10px]`, muted color)
@@ -227,7 +227,7 @@ The connections section is a flat `<ul>` with no grouping. The app's core value 
 
 ---
 
-### [ ] M-31 — Rewrite AI chat not-found response + remove internal terminology
+### [x] M-31 — Rewrite AI chat not-found response + remove internal terminology
 **Effort:** S | **File:** `src/config/prompts.ts` — CHAT prompt
 
 - [ ] Audit CHAT prompt for "retrieved memories", "indexed", "memory store" — replace with "remembered", "saved", "stored"
@@ -254,7 +254,7 @@ The connections section is a flat `<ul>` with no grouping. The app's core value 
 
 ---
 
-### [ ] M-12 — Add soft-delete purge cron job
+### [x] M-12 — Add soft-delete purge cron job
 **Effort:** S | **Files:** `vercel.json`, new `api/cron/purge-trash.ts`
 
 - [ ] Add cron schedule to `vercel.json`: `{ "path": "/api/cron/purge-trash", "schedule": "0 3 * * 0" }`
@@ -265,7 +265,7 @@ The connections section is a flat `<ul>` with no grouping. The app's core value 
 
 ## Theme 4 — Accessibility
 
-### [ ] M-17 — Add global focus ring, remove systemic `outline-none`
+### [x] M-17 — Add global focus ring, remove systemic `outline-none`
 **Effort:** S | **Files:** `index.css`, then 42 component files
 
 - [ ] Add to `index.css`: `:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }`
@@ -275,7 +275,7 @@ The connections section is a flat `<ul>` with no grouping. The app's core value 
 
 ---
 
-### [ ] M-18 — Fix OmniSearch combobox ARIA pattern
+### [x] M-18 — Fix OmniSearch combobox ARIA pattern
 **Effort:** S | **File:** `src/components/OmniSearch.tsx:85-280`
 
 - [ ] Add `role="combobox"`, `aria-expanded`, `aria-haspopup="listbox"`, `aria-controls`, `aria-autocomplete="list"` to the input
@@ -284,7 +284,7 @@ The connections section is a flat `<ul>` with no grouping. The app's core value 
 
 ---
 
-### [ ] M-19 — Increase touch target sizes to 44px minimum
+### [x] M-19 — Increase touch target sizes to 44px minimum
 **Effort:** S | **Files:** `BulkActionBar.tsx`, `EntryList.tsx`, `KeyConcepts.tsx`, `CaptureSheet.tsx`
 
 - [ ] Change `py-1`/`py-1.5` to `py-2.5` on small action buttons
@@ -293,7 +293,7 @@ The connections section is a flat `<ul>` with no grouping. The app's core value 
 
 ---
 
-### [ ] M-20 — Fix 14px input font (iOS auto-zoom)
+### [x] M-20 — Fix 14px input font (iOS auto-zoom)
 **Effort:** XS | **File:** `src/App.tsx:192`
 
 - [ ] Change `fontSize: "14px"` to `fontSize: "16px"`
@@ -301,7 +301,7 @@ The connections section is a flat `<ul>` with no grouping. The app's core value 
 
 ---
 
-### [ ] M-21 — Define `--color-success` token
+### [x] M-21 — Define `--color-success` token
 **Effort:** XS | **Files:** `index.css`, `src/components/settings/ProvidersTab.tsx:51`
 
 - [ ] Add `--color-success: oklch(62% 0.15 142)` to `index.css @theme`
@@ -310,14 +310,14 @@ The connections section is a flat `<ul>` with no grouping. The app's core value 
 
 ---
 
-### [ ] M-22 — Add ARIA live regions for async status updates
+### [x] M-22 — Add ARIA live regions for async status updates
 **Effort:** S | **Files:** `CaptureSheet.tsx`, `FeedView.tsx`, `OmniSearch.tsx`
 
 - [ ] Add `<div aria-live="polite" aria-atomic="true" className="sr-only">` with contextual status text to CaptureSheet AI parse result, FeedView load, and OmniSearch results
 
 ---
 
-### [ ] M-23 — Fix BulkActionBar dropdown ARIA attributes
+### [x] M-23 — Fix BulkActionBar dropdown ARIA attributes
 **Effort:** XS | **File:** `BulkActionBar.tsx:261,328`
 
 - [ ] Add `aria-expanded={isOpen}` and `aria-haspopup="true"` to both trigger buttons

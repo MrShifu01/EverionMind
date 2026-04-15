@@ -149,7 +149,7 @@ const EntryCard = memo(function EntryCard({
                 onPin(e);
               }}
               aria-label={isPinned ? "Unpin" : "Pin"}
-              className="hover:bg-surface-container-high press-scale flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs transition-colors"
+              className="hover:bg-surface-container-high press-scale flex items-center gap-1.5 rounded-lg px-2.5 py-2.5 text-xs transition-colors"
               style={{ color: "var(--color-on-surface-variant)" }}
             >
               <svg
@@ -175,7 +175,7 @@ const EntryCard = memo(function EntryCard({
                 onDelete(e);
               }}
               aria-label="Delete"
-              className="entry-card__delete press-scale ml-auto flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs transition-colors"
+              className="entry-card__delete press-scale ml-auto flex items-center gap-1.5 rounded-lg px-2.5 py-2.5 text-xs transition-colors"
               style={{ color: "var(--color-on-surface-variant)" }}
             >
               <svg

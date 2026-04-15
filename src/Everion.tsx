@@ -46,7 +46,7 @@ import OnboardingModal from "./components/OnboardingModal";
 import BrainTipCard from "./components/BrainTipCard";
 import BottomNav from "./components/BottomNav";
 import MobileHeader from "./components/MobileHeader";
-import CaptureSheet from "./components/CaptureSheet";
+const CaptureSheet = lazy(() => import("./components/CaptureSheet"));
 import DesktopSidebar from "./components/DesktopSidebar";
 import LoadingScreen from "./components/LoadingScreen";
 import SkeletonCard from "./components/SkeletonCard";
@@ -1129,19 +1129,21 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
                 />
               )}
 
-              <CaptureSheet
-                isOpen={showCapture}
-                onClose={() => setShowCapture(false)}
-                onCreated={handleCreated}
-                brainId={activeBrain?.id}
-                cryptoKey={cryptoKey}
-                isOnline={isOnline}
-                onBackgroundFiles={(files) => bgProcessFiles(files, activeBrain?.id, handleCreatedBulk)}
-                onNavigate={(id) => {
-                  setShowCapture(false);
-                  setView(id);
-                }}
-              />
+              <Suspense fallback={null}>
+                <CaptureSheet
+                  isOpen={showCapture}
+                  onClose={() => setShowCapture(false)}
+                  onCreated={handleCreated}
+                  brainId={activeBrain?.id}
+                  cryptoKey={cryptoKey}
+                  isOnline={isOnline}
+                  onBackgroundFiles={(files) => bgProcessFiles(files, activeBrain?.id, handleCreatedBulk)}
+                  onNavigate={(id) => {
+                    setShowCapture(false);
+                    setView(id);
+                  }}
+                />
+              </Suspense>
               {view !== "capture" && !showCapture && (
                 <FloatingCaptureButton onClick={() => setShowCapture(true)} />
               )}

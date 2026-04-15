@@ -270,6 +270,10 @@ export default function CaptureSheet({
           paddingBottom: "calc(env(safe-area-inset-bottom) + 110px)",
         }}
       >
+        <div aria-live="polite" aria-atomic="true" className="sr-only">
+          {loading ? "Processing your entry…" : (status ?? "")}
+        </div>
+
         {/* Hidden file inputs */}
         <input
           ref={imgRef}
@@ -771,7 +775,7 @@ export default function CaptureSheet({
                   disabled={loading && !listening}
                   aria-label={listening ? "Stop recording" : "Voice note"}
                   title={listening ? "Stop recording" : "Voice note"}
-                  className="flex h-9 w-9 items-center justify-center rounded-xl transition-colors hover:bg-white/10 disabled:opacity-40"
+                  className="flex h-11 w-11 items-center justify-center rounded-xl transition-colors hover:bg-white/10 disabled:opacity-40"
                   style={
                     listening
                       ? {
@@ -808,7 +812,7 @@ export default function CaptureSheet({
                   disabled={loading}
                   aria-label="Take photo"
                   title="Take photo"
-                  className="flex h-9 w-9 items-center justify-center rounded-xl transition-colors hover:bg-white/10 disabled:opacity-40 lg:hidden"
+                  className="flex h-11 w-11 items-center justify-center rounded-xl transition-colors hover:bg-white/10 disabled:opacity-40 lg:hidden"
                   style={{ color: "var(--color-on-surface-variant)" }}
                 >
                   <svg
@@ -837,7 +841,7 @@ export default function CaptureSheet({
                   disabled={loading}
                   aria-label="Upload image"
                   title="Upload image"
-                  className="flex h-9 w-9 items-center justify-center rounded-xl transition-colors hover:bg-white/10 disabled:opacity-40 lg:hidden"
+                  className="flex h-11 w-11 items-center justify-center rounded-xl transition-colors hover:bg-white/10 disabled:opacity-40 lg:hidden"
                   style={{ color: "var(--color-on-surface-variant)" }}
                 >
                   <svg
@@ -861,7 +865,7 @@ export default function CaptureSheet({
                   disabled={loading}
                   aria-label="Add documents"
                   title="Add documents"
-                  className="flex h-9 w-9 items-center justify-center rounded-xl transition-colors hover:bg-white/10 disabled:opacity-40"
+                  className="flex h-11 w-11 items-center justify-center rounded-xl transition-colors hover:bg-white/10 disabled:opacity-40"
                   style={{ color: "var(--color-on-surface-variant)" }}
                 >
                   <svg

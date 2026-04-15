@@ -98,6 +98,8 @@ export default function BulkActionBar({
     setProgress(`Updating 0 / ${ids.length}…`);
 
     for (const id of ids) {
+      let entryOk = true;
+
       if (targetType) {
         try {
           const res = await authFetch("/api/update-entry", {
@@ -106,24 +108,28 @@ export default function BulkActionBar({
             body: JSON.stringify({ id, type: targetType }),
           });
           if (res.ok) updated.push(await res.json());
-        } catch {
-          /* skip */
+          else entryOk = false;
+        } catch (err) {
+          console.error("[BulkActionBar] type update failed for entry", id, err);
+          entryOk = false;
         }
       }
 
       for (const brain_id of targetBrainIds) {
         try {
-          await authFetch("/api/entry-brains", {
+          const res = await authFetch("/api/entry-brains", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ entry_id: id, brain_id }),
           });
-        } catch {
-          /* skip */
+          if (!res.ok) entryOk = false;
+        } catch (err) {
+          console.error("[BulkActionBar] brain assignment failed for entry", id, err);
+          entryOk = false;
         }
       }
 
-      done++;
+      if (entryOk) done++;
       setProgress(`Updating ${done} / ${ids.length}…`);
     }
 
@@ -162,7 +168,7 @@ export default function BulkActionBar({
           </span>
           <button
             onClick={() => setExpanded(true)}
-            className="press-scale rounded-full px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-opacity hover:opacity-90"
+            className="press-scale rounded-full px-3 py-2.5 text-xs font-semibold whitespace-nowrap transition-opacity hover:opacity-90"
             style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
           >
             Edit
@@ -170,7 +176,7 @@ export default function BulkActionBar({
           <button
             onClick={onCancel}
             aria-label="Cancel selection"
-            className="press-scale flex h-7 w-7 items-center justify-center rounded-full transition-opacity hover:opacity-70"
+            className="press-scale flex h-11 w-11 items-center justify-center rounded-full transition-opacity hover:opacity-70"
             style={{ color: "var(--color-on-surface-variant)" }}
           >
             <svg
@@ -205,7 +211,7 @@ export default function BulkActionBar({
         <div className="flex items-center justify-between">
           <button
             onClick={() => setExpanded(false)}
-            className="press-scale flex items-center gap-1.5 rounded-lg px-1 py-1 text-sm font-semibold transition-opacity hover:opacity-70"
+            className="press-scale flex items-center gap-1.5 rounded-lg px-1 py-2.5 text-sm font-semibold transition-opacity hover:opacity-70"
             style={{ color: "var(--color-on-surface)" }}
             aria-label="Back to selecting"
           >
@@ -222,7 +228,7 @@ export default function BulkActionBar({
           </button>
           <button
             onClick={onCancel}
-            className="rounded-lg px-2.5 py-1 text-xs transition-opacity hover:opacity-70"
+            className="rounded-lg px-2.5 py-2.5 text-xs transition-opacity hover:opacity-70"
             style={{ color: "var(--color-on-surface-variant)" }}
           >
             Cancel
@@ -254,6 +260,10 @@ export default function BulkActionBar({
               </button>
             </div>
             <button
+              id="bulk-type-trigger"
+              aria-expanded={typeOpen}
+              aria-haspopup="true"
+              aria-controls="bulk-type-panel"
               onClick={() => {
                 setTypeOpen((p) => !p);
                 setBrainsOpen(false);
@@ -279,6 +289,7 @@ export default function BulkActionBar({
             </button>
             {typeOpen && (
               <div
+                id="bulk-type-panel"
                 className="absolute right-0 bottom-full left-0 z-10 mb-1 overflow-y-auto rounded-xl border shadow-lg"
                 style={dropdownStyle}
               >
@@ -321,6 +332,10 @@ export default function BulkActionBar({
               Add to brains
             </label>
             <button
+              id="bulk-brains-trigger"
+              aria-expanded={brainsOpen}
+              aria-haspopup="true"
+              aria-controls="bulk-brains-panel"
               onClick={() => {
                 setBrainsOpen((p) => !p);
                 setTypeOpen(false);
@@ -346,6 +361,7 @@ export default function BulkActionBar({
             </button>
             {brainsOpen && (
               <div
+                id="bulk-brains-panel"
                 className="absolute right-0 bottom-full left-0 z-10 mb-1 overflow-y-auto rounded-xl border shadow-lg"
                 style={dropdownStyle}
               >

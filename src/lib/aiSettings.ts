@@ -4,6 +4,9 @@ import { KEYS } from "./storageKeys";
 // ── In-memory store for sensitive API keys ──
 const _keys: Record<string, string | null> = {};
 
+// ── In-memory store for per-task model overrides ──
+const _taskModels: Record<string, string | null> = {};
+
 // ── Hydration signal: set true after loadUserAISettings completes ──
 let _loaded = false;
 function isAISettingsLoaded(): boolean {
@@ -16,12 +19,14 @@ let _cachedUserId: string | null = null;
 /** Clear in-memory key store and cached user ID. For tests only. */
 export function _resetForTests(): void {
   for (const k of Object.keys(_keys)) delete _keys[k];
+  for (const k of Object.keys(_taskModels)) delete _taskModels[k];
   _cachedUserId = null;
 }
 
 /** Call on sign-out to wipe cached identity. */
 export function clearAISettingsCache(): void {
   for (const k of Object.keys(_keys)) delete _keys[k];
+  for (const k of Object.keys(_taskModels)) delete _taskModels[k];
   _cachedUserId = null;
 }
 
@@ -119,12 +124,10 @@ const TASK_COL: Record<string, string> = {
 };
 
 function getModelForTask(task: string): string | null {
-  return localStorage.getItem(KEYS.taskModel(task)) || null;
+  return _taskModels[task] ?? null;
 }
 function setModelForTask(task: string, model: string | null): void {
-  const lsKey = KEYS.taskModel(task);
-  if (model) localStorage.setItem(lsKey, model);
-  else localStorage.removeItem(lsKey);
+  _taskModels[task] = model;
   const col = TASK_COL[task];
   if (!col) return;
   syncToSupabase({ [col]: model || null });
@@ -154,14 +157,8 @@ export async function loadUserAISettings(userId: string): Promise<void> {
     _keys[KEYS.GROQ_KEY] = data.groq_key ?? null;
     _keys[KEYS.GEMINI_KEY] = data.gemini_key ?? null;
 
-    const set = (lsKey: string, val: string | null | undefined) => {
-      if (val) localStorage.setItem(lsKey, val);
-      else localStorage.removeItem(lsKey);
-    };
-    set(KEYS.EMBED_PROVIDER, data.embed_provider);
-
     for (const [task, col] of Object.entries(TASK_COL)) {
-      set(KEYS.taskModel(task), data[col]);
+      _taskModels[task] = data[col] ?? null;
     }
   } else {
     for (const lsKey of SENSITIVE_LS_KEYS) {

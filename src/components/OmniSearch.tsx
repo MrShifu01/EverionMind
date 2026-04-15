@@ -157,6 +157,12 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
+            role="combobox"
+            aria-expanded={results.length > 0}
+            aria-haspopup="listbox"
+            aria-controls="omnisearch-listbox"
+            aria-autocomplete="list"
+            aria-activedescendant={results.length > 0 ? `omnisearch-option-${highlighted}` : undefined}
             className="flex-1 border-none bg-transparent text-base outline-none lg:text-sm"
             style={{ color: "var(--color-on-surface)" }}
           />
@@ -190,11 +196,19 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
           </button>
         </div>
 
+        <div aria-live="polite" aria-atomic="true" className="sr-only">
+          {query && results.length === 0
+            ? "No results found"
+            : results.length > 0
+              ? `${results.length} result${results.length === 1 ? "" : "s"} found`
+              : ""}
+        </div>
+
         {/* Results */}
         {results.length > 0 ? (
-          <ul className="flex-1 overflow-y-auto py-2 lg:max-h-96 lg:flex-none">
+          <ul id="omnisearch-listbox" role="listbox" className="flex-1 overflow-y-auto py-2 lg:max-h-96 lg:flex-none">
             {results.map((entry, i) => (
-              <li key={entry.id}>
+              <li key={entry.id} id={`omnisearch-option-${i}`} role="option" aria-selected={i === highlighted}>
                 <button
                   className="flex w-full items-start gap-3 px-4 py-2.5 text-left transition-colors"
                   style={{

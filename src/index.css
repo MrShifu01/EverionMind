@@ -40,6 +40,9 @@
   --color-error-dim: oklch(52% 0.18 25);
   --color-on-error: oklch(97% 0.01 25);
 
+  /* Semantic — Success */
+  --color-success: oklch(62% 0.15 142);
+
   /* Semantic — Status (priority/urgency signals) */
   --color-status-medium: oklch(72% 0.16 68);
   --color-status-medium-container: color-mix(in oklch, oklch(72% 0.16 68) 12%, transparent);
@@ -229,9 +232,12 @@
 
 /* Focus rings */
 :focus-visible {
-  outline: 2px solid oklch(72% 0.14 75);
-  outline-offset: 3px;
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
   border-radius: 4px;
+}
+:focus:not(:focus-visible) {
+  outline: none;
 }
 
 /* Reduced motion */
@@ -278,6 +284,9 @@ html:not(.dark) {
   --color-error: oklch(50% 0.18 25);
   --color-error-dim: oklch(44% 0.18 25);
   --color-on-error: oklch(99% 0.002 80);
+
+  /* Success */
+  --color-success: oklch(52% 0.15 142);
 
   /* Semantic — Status */
   --color-status-medium: oklch(55% 0.16 68);

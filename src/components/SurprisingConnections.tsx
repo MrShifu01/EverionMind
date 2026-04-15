@@ -50,11 +50,16 @@ export default function SurprisingConnections({
 
   const surprises = useMemo<SurprisingConnection[]>(() => {
     if (!brainId) return [];
-    const graph = loadGraph(brainId);
-    if (graph.concepts.length === 0) return [];
-    const results = findSurprisingConnections(graph, entries, 5);
-    if (results.length > 0) markDiscovered(brainId);
-    return results;
+    try {
+      const graph = loadGraph(brainId);
+      if (graph.concepts.length === 0) return [];
+      const results = findSurprisingConnections(graph, entries, 5);
+      if (results.length > 0) markDiscovered(brainId);
+      return results;
+    } catch (err) {
+      console.error("[SurprisingConnections] failed to compute connections", err);
+      return [];
+    }
   }, [brainId, entries]);
 
   const showNotes = brainId ? shouldShowNotes(brainId) : false;

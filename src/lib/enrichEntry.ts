@@ -1,12 +1,7 @@
 import { authFetch } from "./authFetch";
 import { PROMPTS } from "../config/prompts";
 import type { Entry } from "../types";
-
-const ENRICH_SKIP_META = new Set([
-  "category", "status", "confidence", "completeness_score",
-  "raw_content", "source_entry_id", "full_text", "workspace", "enrichment",
-  "ai_insight",
-]);
+import { SKIP_META_KEYS } from "./entryConstants";
 
 export function isFullyEnriched(entry: Entry, _allEntries: Entry[]): boolean {
   const e = (entry.metadata as any)?.enrichment ?? {};
@@ -15,7 +10,7 @@ export function isFullyEnriched(entry: Entry, _allEntries: Entry[]): boolean {
   const insight = !!(entry.metadata as any)?.ai_insight || e.has_insight === true;
   const parsed =
     e.parsed === true ||
-    Object.keys(entry.metadata ?? {}).filter((k) => !ENRICH_SKIP_META.has(k)).length > 0;
+    Object.keys(entry.metadata ?? {}).filter((k) => !SKIP_META_KEYS.has(k)).length > 0;
   return embedded && concepts && insight && parsed;
 }
 
@@ -28,7 +23,7 @@ export function getEnrichmentGaps(entry: Entry, _allEntries: Entry[]): string[] 
   if (!hasInsight) gaps.push("insight");
   const parsed =
     e.parsed === true ||
-    Object.keys(entry.metadata ?? {}).filter((k) => !ENRICH_SKIP_META.has(k)).length > 0;
+    Object.keys(entry.metadata ?? {}).filter((k) => !SKIP_META_KEYS.has(k)).length > 0;
   if (!parsed) gaps.push("parsed");
   return gaps;
 }
@@ -43,7 +38,7 @@ export async function enrichEntry(
   const concepts = (e.concepts_count ?? 0) > 0;
   const parsed =
     e.parsed === true ||
-    Object.keys(entry.metadata ?? {}).filter((k) => !ENRICH_SKIP_META.has(k)).length > 0;
+    Object.keys(entry.metadata ?? {}).filter((k) => !SKIP_META_KEYS.has(k)).length > 0;
   const insight = e.has_insight ?? false;
 
   // ── AI Parsing ─────────────────────────────────────────────────────────

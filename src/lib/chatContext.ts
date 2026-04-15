@@ -1,4 +1,5 @@
 import type { Entry, Link } from "../types";
+import { SKIP_META_KEYS } from "./entryConstants";
 
 /**
  * Keyword + tag relevance scoring for the ASK chat context fallback.
@@ -66,13 +67,11 @@ export function buildChatContext(entries: Entry[], links: Link[], query: string)
     }
   }
 
-  const SKIP_META = new Set(["raw_content", "full_text", "source_entry_id", "confidence", "completeness_score", "category", "status"]);
-
   const sections = scored.map((e) => {
     const related = linkedTitles.get(e.id);
     const relatedStr = related?.length ? `\nRelated to: ${related.join(", ")}` : "";
     const metaEntries = Object.entries(e.metadata || {})
-      .filter(([k, v]) => !SKIP_META.has(k) && v !== null && v !== undefined && v !== "")
+      .filter(([k, v]) => !SKIP_META_KEYS.has(k) && v !== null && v !== undefined && v !== "")
       .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : String(v)}`);
     const metaStr = metaEntries.length ? `\n${metaEntries.join("\n")}` : "";
     return `[${e.type}] ${e.title}${e.content ? `: ${e.content.slice(0, 300)}` : ""}${metaStr}${relatedStr}`;

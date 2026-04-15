@@ -33,6 +33,7 @@ export default defineConfig([
       'no-empty': ['error', { allowEmptyCatch: true }],
       'no-useless-assignment': 'off',
       '@typescript-eslint/no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]', argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-explicit-any': 'warn',
       'react-hooks/set-state-in-effect': 'off',
       'react-hooks/preserve-manual-memoization': 'off',
       'react-hooks/use-memo': 'off',

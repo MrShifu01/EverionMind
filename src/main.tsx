@@ -7,9 +7,11 @@ import App from "./App";
 import { ThemeProvider } from "./ThemeContext";
 import ErrorBoundary from "./ErrorBoundary";
 import PrivacyPolicy from "./views/PrivacyPolicy";
+import TermsOfService from "./views/TermsOfService";
 
 Sentry.init({
-  dsn: "https://6e5d222a07dc7a0eb057d0572920045f@o4511133135470592.ingest.us.sentry.io/4511133136846848",
+  dsn: import.meta.env.VITE_SENTRY_DSN,
+  enabled: !!import.meta.env.VITE_SENTRY_DSN,
   sendDefaultPii: false,
 });
 
@@ -21,13 +23,19 @@ if ("serviceWorker" in navigator) {
   });
 }
 
-const isPrivacy = window.location.pathname === "/privacy";
+const pathname = window.location.pathname;
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ErrorBoundary>
       <ThemeProvider>
-        {isPrivacy ? <PrivacyPolicy /> : <><App /><SpeedInsights /></>}
+        {pathname === "/privacy" ? (
+          <PrivacyPolicy />
+        ) : pathname === "/terms" ? (
+          <TermsOfService />
+        ) : (
+          <><App /><SpeedInsights /></>
+        )}
       </ThemeProvider>
     </ErrorBoundary>
   </StrictMode>,

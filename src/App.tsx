@@ -189,7 +189,7 @@ export default function App(): JSX.Element {
                 color: "var(--color-primary)",
                 textAlign: "center",
                 padding: "14px 16px",
-                fontSize: "14px",
+                fontSize: "16px",
                 fontFamily: "'DM Sans', system-ui, sans-serif",
               }}
             >

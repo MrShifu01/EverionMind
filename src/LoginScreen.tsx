@@ -971,6 +971,10 @@ export default function LoginScreen(): JSX.Element {
               <a href="/privacy" style={{ color: "inherit", textDecoration: "underline" }}>
                 Privacy Policy
               </a>
+              {" · "}
+              <a href="/terms" style={{ color: "inherit", textDecoration: "underline" }}>
+                Terms of Service
+              </a>
             </p>
           </div>
         </div>

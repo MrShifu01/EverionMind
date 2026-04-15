@@ -51,7 +51,7 @@ export default function KeyConcepts({ concepts, activeConcept, onConceptClick }:
               key={c.id}
               type="button"
               onClick={() => onConceptClick(isActive ? undefined : c.label)}
-              className="press-scale flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-all"
+              className="press-scale flex items-center gap-1.5 rounded-full px-2.5 py-2.5 text-xs font-medium transition-all"
               style={{
                 background: isActive
                   ? "var(--color-primary)"
