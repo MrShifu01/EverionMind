@@ -10,6 +10,7 @@ vi.mock("../../../lib/supabase", () => ({
     auth: {
       signOut: mockSignOut,
       getUser: vi.fn().mockResolvedValue({ data: { user: { user_metadata: {} } } }),
+      onAuthStateChange: vi.fn(),
     },
   },
 }));

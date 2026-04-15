@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 
 vi.mock("../../../lib/supabase", () => ({
   supabase: {
-    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) },
+    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }), onAuthStateChange: vi.fn() },
     from: vi.fn().mockReturnValue({ upsert: vi.fn() }),
   },
 }));

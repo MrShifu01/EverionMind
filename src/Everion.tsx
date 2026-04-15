@@ -437,14 +437,13 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
   const entriesValue = useMemo(
     () => ({
       entries,
-      setEntries,
       entriesLoaded,
       selected,
       setSelected,
       handleDelete,
       handleUpdate,
     }),
-    [entries, setEntries, entriesLoaded, selected, setSelected, handleDelete, handleUpdate],
+    [entries, entriesLoaded, selected, setSelected, handleDelete, handleUpdate],
   );
   const brainValue = useMemo(
     () => ({

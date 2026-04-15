@@ -3,7 +3,7 @@
 **Source:** Audits/Medium/audit.md (31 findings)
 **Goal:** Close configuration gaps, architectural coupling, accessibility blockers, and UX friction that collectively degrade the app's trustworthiness, performance, and usability for real users.
 
-> **Note:** Several tasks here are architectural (M-9, M-24–M-28) and depend on High sprint items being stable first. Complete the High sprint before starting the architecture cluster (M-9, M-24, M-25, M-26, M-27, M-28).
+> **Note:** High sprint is now fully complete (H-6 resolved by deleting RefineView). Architecture cluster tasks M-24–M-28 are unblocked.
 
 ---
 
@@ -69,7 +69,7 @@ Tasks are grouped into four themes. Work a full theme at a time rather than cher
 
 ---
 
-### [ ] M-15 — Add cookie consent gating
+### [x] M-15 — Add cookie consent gating
 **Effort:** M | **Files:** `src/main.tsx`, new consent component
 
 - [ ] Audit which third-party scripts set cookies (Sentry, Vercel Speed Insights)
@@ -102,7 +102,7 @@ The application root owns everything: 45+ useState calls, data fetching, enrichm
 
 ---
 
-### [ ] M-24 — Add explicit types to `EntriesContext` and `BrainContext`
+### [x] M-24 — Add explicit types to `EntriesContext` and `BrainContext`
 **Effort:** S | **Files:** `src/context/EntriesContext.tsx`, `src/context/BrainContext.tsx`, `src/Everion.tsx`
 
 Both contexts are `createContext<any>(null)`. Shape drifts fail silently at runtime.
@@ -116,7 +116,7 @@ Both contexts are `createContext<any>(null)`. Shape drifts fail silently at runt
 
 ---
 
-### [ ] M-25 — Cache `authFetch` session token + separate usage tracking
+### [x] M-25 — Cache `authFetch` session token + separate usage tracking
 **Effort:** S | **File:** `src/lib/authFetch.ts`, `src/lib/usageTracker.ts`
 
 `getSession()` called ~100x/session. Usage tracking is a hidden side effect inside the transport layer.
@@ -129,7 +129,7 @@ Both contexts are `createContext<any>(null)`. Shape drifts fail silently at runt
 
 ---
 
-### [ ] M-26 — Fix ConceptGraph: add versioning, fix normalization, add dirty flag
+### [x] M-26 — Fix ConceptGraph: add versioning, fix normalization, add dirty flag
 **Effort:** M | **File:** `src/lib/conceptGraph.ts`, `src/types.ts`
 
 No schema version → stale data silently loaded. Lossy normalization → duplicate concept nodes accumulate. Silent DB save failure → localStorage ahead of DB with no recovery.
@@ -154,7 +154,7 @@ Two separate `SKIP_META` sets with different contents. They will drift further a
 
 ---
 
-### [ ] M-28 — Write tests for critical untested paths
+### [x] M-28 — Write tests for critical untested paths
 **Effort:** XL | **Files:** new `src/__tests__/` files
 
 13% test coverage. Race conditions and broken field names (H-10, H-11) were caught by manual audit, not CI.
@@ -207,7 +207,7 @@ Two separate `SKIP_META` sets with different contents. They will drift further a
 
 ## Theme 3 — UX & Product Quality
 
-### [ ] M-29 — Redesign connections list (group by type, add labels)
+### [x] M-29 — Redesign connections list (group by type, add labels)
 **Effort:** M | **File:** connections rendering in `DetailModal.tsx` or its sub-component
 
 The connections section is a flat `<ul>` with no grouping. The app's core value prop (links between ideas) is invisible.

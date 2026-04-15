@@ -143,6 +143,28 @@ export function clearUsage(): void {
   localStorage.removeItem(KEYS.USAGE);
 }
 
+/** Track embedding usage from an X-Embedding-Usage response header. Called by authFetch. */
+export function trackEmbeddingIfPresent(response: Response): void {
+  const header = response.headers.get("X-Embedding-Usage");
+  if (!header) return;
+  try {
+    const { provider, model, count } = JSON.parse(header) as {
+      provider: string;
+      model: string;
+      count: number;
+    };
+    recordUsage({
+      date: new Date().toISOString().slice(0, 10),
+      type: "embedding",
+      provider,
+      model,
+      embeddingCount: count,
+    });
+  } catch (err) {
+    console.error("[authFetch]", err);
+  }
+}
+
 export function extractTokenUsage(body: unknown): { inputTokens: number; outputTokens: number } {
   if (!body || typeof body !== "object") return { inputTokens: 0, outputTokens: 0 };
   const b = body as any;

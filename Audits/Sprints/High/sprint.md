@@ -80,16 +80,12 @@ CI is broken on `main`. Two clusters of failures.
 
 ---
 
-### [ ] H-6 — Decompose `RefineView.tsx` (1,883 lines)
+### [x] H-6 — Decompose `RefineView.tsx` (1,883 lines)
 **Effort:** XL | **File:** `src/views/RefineView.tsx`
 
 Single component with 1,883 lines, 6 useState, 2 useMemo. Any state change re-renders everything. Persistent across 3 audit passes.
 
-- [ ] Extract `<ConceptGraphPanel>` — graph load/save/merge logic
-- [ ] Extract `<SuggestionList>` — suggestion items, accept/reject handlers
-- [ ] Extract `<EnrichmentDebugPanel>` — Q&A capture, debug output
-- [ ] `RefineView.tsx` becomes orchestration shell (~200 lines)
-- [ ] Run existing tests and smoke-test Refine view end-to-end
+- [x] **Resolved by deletion** — `RefineView.tsx` was removed entirely from the codebase. The Refine view is no longer part of the app.
 
 ---
 

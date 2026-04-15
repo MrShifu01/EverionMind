@@ -3,7 +3,7 @@
  * All sites that load→merge→save the concept graph must go through here
  * to prevent concurrent writes from silently overwriting each other.
  */
-import { loadGraphFromDB, saveGraphToDB, mergeGraph } from "./conceptGraph";
+import { loadGraphFromDB, saveGraphToDB, mergeGraph, validateGraph } from "./conceptGraph";
 import type { ConceptGraph } from "./conceptGraph";
 
 const _queues = new Map<string, Promise<void>>();
@@ -23,6 +23,10 @@ function _chain(brainId: string, fn: () => Promise<void>): Promise<void> {
  */
 export function writeConceptsToGraph(brainId: string, incoming: ConceptGraph): Promise<void> {
   return _chain(brainId, async () => {
+    if (!validateGraph(incoming)) {
+      console.error("[graphWriter] Invalid incoming graph — write aborted");
+      return;
+    }
     const existing = await loadGraphFromDB(brainId);
     const merged = mergeGraph(existing, incoming);
     await saveGraphToDB(brainId, merged);

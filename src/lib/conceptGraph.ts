@@ -2,13 +2,31 @@ import type { Concept, Relationship } from "../types";
 import { authFetch } from "./authFetch";
 
 export interface ConceptGraph {
+  version?: number;
   concepts: Concept[];
   relationships: Relationship[];
 }
 
+/** Migrate graph data from older schema versions to current (v2). */
+function migrateGraph(graph: ConceptGraph): ConceptGraph {
+  if ((graph.version ?? 1) >= 2) return graph;
+  return { ...graph, version: 2 };
+}
+
+/** Guard: returns false if graph is structurally invalid. */
+export function validateGraph(graph: unknown): graph is ConceptGraph {
+  if (!graph || typeof graph !== "object") return false;
+  const g = graph as ConceptGraph;
+  return Array.isArray(g.concepts) && Array.isArray(g.relationships);
+}
+
 /** Normalize a concept label for deduplication */
 function normalize(label: string): string {
-  return label.toLowerCase().trim().replace(/[^a-z0-9\s]/g, "");
+  return label
+    .toLowerCase()
+    .trim()
+    .replace(/[''\u2019]s\b/g, "s") // "Smith's" → "smiths" before punctuation strip
+    .replace(/[^a-z0-9\s]/g, "");
 }
 
 /** Parse AI-returned concepts into typed Concept[] */
@@ -198,7 +216,8 @@ function detectCommunities(
 // ─── Storage helpers (DB-backed with localStorage cache) ───
 
 const GRAPH_KEY = (brainId: string) => `concept_graph_${brainId}`;
-const EMPTY: ConceptGraph = { concepts: [], relationships: [] };
+const DIRTY_KEY = (brainId: string) => `concept_graph_dirty_${brainId}`;
+const EMPTY: ConceptGraph = { concepts: [], relationships: [], version: 2 };
 
 /** Sync read from localStorage cache (used by chat context builder). */
 export function loadGraph(brainId: string): ConceptGraph {
@@ -216,7 +235,7 @@ export async function loadGraphFromDB(brainId: string): Promise<ConceptGraph> {
     const res = await authFetch(`/api/graph?brain_id=${encodeURIComponent(brainId)}`);
     if (!res.ok) return loadGraph(brainId); // fallback to cache
     const data = await res.json();
-    const graph: ConceptGraph = data.graph || EMPTY;
+    const graph = migrateGraph(data.graph || EMPTY);
     // Only overwrite localStorage if DB has actual data — don't wipe a valid local cache
     // with an empty DB response (e.g. migration not yet applied or first save pending)
     if (graph.concepts.length > 0 || graph.relationships.length > 0) {
@@ -225,7 +244,14 @@ export async function loadGraphFromDB(brainId: string): Promise<ConceptGraph> {
     }
     // DB is empty — prefer local cache if it has data
     const cached = loadGraph(brainId);
-    return (cached.concepts.length > 0 || cached.relationships.length > 0) ? cached : graph;
+    if (cached.concepts.length > 0 || cached.relationships.length > 0) {
+      // Retry a previously failed save if the dirty flag is set
+      if (localStorage.getItem(DIRTY_KEY(brainId))) {
+        saveGraphToDB(brainId, cached).catch(() => {});
+      }
+      return cached;
+    }
+    return graph;
   } catch {
     return loadGraph(brainId); // offline fallback
   }
@@ -233,17 +259,23 @@ export async function loadGraphFromDB(brainId: string): Promise<ConceptGraph> {
 
 /** Save graph to DB and update localStorage cache. */
 export async function saveGraphToDB(brainId: string, graph: ConceptGraph): Promise<void> {
+  const versionedGraph = { ...graph, version: 2 };
+  // Mark dirty before attempting write so a crash mid-write is recoverable
+  try { localStorage.setItem(DIRTY_KEY(brainId), "1"); } catch { /* quota */ }
   // Update cache immediately for fast reads
-  try { localStorage.setItem(GRAPH_KEY(brainId), JSON.stringify(graph)); } catch { /* quota */ }
+  try { localStorage.setItem(GRAPH_KEY(brainId), JSON.stringify(versionedGraph)); } catch { /* quota */ }
   // Persist to DB
   try {
     await authFetch("/api/graph", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ brain_id: brainId, graph }),
+      body: JSON.stringify({ brain_id: brainId, graph: versionedGraph }),
     });
+    // Clear dirty flag on success
+    try { localStorage.removeItem(DIRTY_KEY(brainId)); } catch { /* quota */ }
   } catch (err) {
     console.error("[conceptGraph] DB save failed, cached locally:", err);
+    // Dirty flag remains set — will retry on next loadGraphFromDB
   }
 }
 

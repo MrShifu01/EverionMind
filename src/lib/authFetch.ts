@@ -1,41 +1,43 @@
 import { supabase } from "./supabase";
+import { trackEmbeddingIfPresent } from "./usageTracker";
+
+const TTL_MS = 4 * 60 * 1000; // 4 minutes — within Supabase token lifetime
+let _sessionCache: { token: string; expiresAt: number } | null = null;
+
+// Invalidate on sign-in / sign-out / token refresh
+supabase.auth.onAuthStateChange(() => {
+  _sessionCache = null;
+});
+
+/** Reset session cache — for tests only */
+export function _resetSessionCache(): void {
+  _sessionCache = null;
+}
 
 export async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  let token: string | undefined;
+
+  if (_sessionCache && Date.now() < _sessionCache.expiresAt) {
+    token = _sessionCache.token;
+  } else {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      _sessionCache = { token: session.access_token, expiresAt: Date.now() + TTL_MS };
+      token = session.access_token;
+    } else {
+      _sessionCache = null;
+    }
+  }
+
   const response = await fetch(url, {
     ...options,
     headers: {
       ...options.headers,
-      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
 
-  // Auto-track embedding usage when backend reports it via header
-  const embeddingHeader = response.headers.get("X-Embedding-Usage");
-  if (embeddingHeader) {
-    try {
-      const { provider, model, count } = JSON.parse(embeddingHeader) as {
-        provider: string;
-        model: string;
-        count: number;
-      };
-      import("./usageTracker")
-        .then((m) => {
-          m.recordUsage({
-            date: new Date().toISOString().slice(0, 10),
-            type: "embedding",
-            provider,
-            model,
-            embeddingCount: count,
-          });
-        })
-        .catch((err) => console.error("[authFetch] background refresh failed", err));
-    } catch (err) {
-      console.error("[authFetch]", err);
-    }
-  }
+  trackEmbeddingIfPresent(response);
 
   return response;
 }
