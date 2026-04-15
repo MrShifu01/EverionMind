@@ -3,6 +3,7 @@ import { supabase } from "../../lib/supabase";
 import { clearAISettingsCache } from "../../lib/aiSettings";
 import { authFetch } from "../../lib/authFetch";
 import MemoryImportPanel from "../MemoryImportPanel";
+import GoogleKeepImportPanel from "./GoogleKeepImportPanel";
 
 interface Props {
   email: string;
@@ -271,6 +272,9 @@ export default function AccountTab({ email, brainId }: Props) {
         </p>
         <MemoryImportPanel brainId={brainId} />
       </div>
+
+      {/* Google Keep Import */}
+      {brainId && <GoogleKeepImportPanel brainId={brainId} />}
 
       {/* Data Export */}
       <div
