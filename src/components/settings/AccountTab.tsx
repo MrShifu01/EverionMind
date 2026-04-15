@@ -43,12 +43,21 @@ export default function AccountTab({ email, brainId }: Props) {
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  const [profile, setProfile] = useState<ProfileFields>({
-    display_name: "",
-    phone: "",
-    address: "",
-    city: "",
-    country: "",
+  const PROFILE_CACHE_KEY = "everion_profile";
+
+  function readProfileCache(): ProfileFields | null {
+    try {
+      const raw = localStorage.getItem(PROFILE_CACHE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  }
+
+  function writeProfileCache(p: ProfileFields) {
+    try { localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(p)); } catch { /* ignore */ }
+  }
+
+  const [profile, setProfile] = useState<ProfileFields>(() => {
+    return readProfileCache() ?? { display_name: "", phone: "", address: "", city: "", country: "" };
   });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
@@ -56,17 +65,20 @@ export default function AccountTab({ email, brainId }: Props) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifImportOpen, setNotifImportOpen] = useState(false);
 
+  // Hydrate from Supabase in background — updates cache if server has newer data
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
       const m = user.user_metadata || {};
-      setProfile({
+      const fresh: ProfileFields = {
         display_name: m.display_name || "",
         phone: m.phone || "",
         address: m.address || "",
         city: m.city || "",
         country: m.country || "",
-      });
+      };
+      setProfile(fresh);
+      writeProfileCache(fresh);
     });
   }, []);
 
@@ -74,6 +86,7 @@ export default function AccountTab({ email, brainId }: Props) {
     setProfileSaving(true);
     setProfileError(null);
     setProfileSaved(false);
+    writeProfileCache(profile); // optimistic local write
     const { error: err } = await supabase.auth.updateUser({ data: profile });
     setProfileSaving(false);
     if (err) setProfileError(err.message);
