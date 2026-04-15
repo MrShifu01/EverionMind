@@ -9,22 +9,22 @@ import type { ApiRequest } from './types';
 
 // ─── In-memory fallback (same serverless caveat as before) ───────────────────
 const _counts = new Map<string, { count: number; reset: number }>();
-function _inMemoryLimited(ip: string, windowMs: number, limit: number): boolean {
+function _inMemoryLimited(key: string, windowMs: number, limit: number): boolean {
   const now = Date.now();
-  const e = _counts.get(ip) || { count: 0, reset: now + windowMs };
+  const e = _counts.get(key) || { count: 0, reset: now + windowMs };
   if (now > e.reset) { e.count = 0; e.reset = now + windowMs; }
   e.count++;
-  _counts.set(ip, e);
+  _counts.set(key, e);
   return e.count > limit;
 }
 
 // ─── Upstash sliding window via REST pipeline ─────────────────────────────────
-async function _upstashLimited(ip: string, windowMs: number, limit: number): Promise<boolean> {
+async function _upstashLimited(key: string, windowMs: number, limit: number): Promise<boolean> {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   const now = Date.now();
   const windowStart = now - windowMs;
-  const setKey = `rl:${ip}`;
+  const setKey = `rl:${key}`;
   const member = `${now}:${Math.random().toString(36).slice(2, 8)}`;
 
   // Pipeline: trim old, add new, count, set TTL
@@ -46,14 +46,14 @@ async function _upstashLimited(ip: string, windowMs: number, limit: number): Pro
     });
     if (!res.ok) {
       console.warn(`[rateLimit] Upstash pipeline HTTP ${res.status} — falling back to in-memory`);
-      return _inMemoryLimited(ip, windowMs, limit);
+      return _inMemoryLimited(key, windowMs, limit);
     }
     const data: any = await res.json();
     const count: number = data[2]?.result ?? 0;
     return count > limit;
   } catch (err: any) {
     console.warn(`[rateLimit] Upstash error — falling back to in-memory: ${err.message}`);
-    return _inMemoryLimited(ip, windowMs, limit);
+    return _inMemoryLimited(key, windowMs, limit);
   }
 }
 
@@ -67,15 +67,19 @@ function _getIp(req: ApiRequest): string {
 
 /**
  * Returns true if the request is allowed (not rate-limited).
+ * Each endpoint gets its own independent counter — the path is included in
+ * the key so that LLM/embed calls don't consume the budget of feed/entries.
  * @param req - Vercel/Node request
  * @param limit - max requests per window
  * @param windowMs - window size in milliseconds (default 60s)
  */
 export async function rateLimit(req: ApiRequest, limit: number = 20, windowMs: number = 60_000): Promise<boolean> {
   const ip = _getIp(req);
+  const path = (req.url || "").split("?")[0].slice(0, 50);
+  const key = `${ip}:${path}`;
   const limited = process.env.UPSTASH_REDIS_REST_URL
-    ? await _upstashLimited(ip, windowMs, limit)
-    : _inMemoryLimited(ip, windowMs, limit);
+    ? await _upstashLimited(key, windowMs, limit)
+    : _inMemoryLimited(key, windowMs, limit);
   return !limited;
 }
 
