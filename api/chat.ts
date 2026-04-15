@@ -396,19 +396,6 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
 
   const messages = [...safeHistory, { role: "user", content: message.trim() }];
 
-  // Debug mode: /debug <question> returns retrieved entries without calling LLM
-  if (message.trim().toLowerCase().startsWith("/debug ")) {
-    const debugLines = retrievedEntries.map((e: any, i: number) => {
-      const preview = e.content ? String(e.content).slice(0, 150).replace(/\n/g, " ") : "(no content)";
-      const meta = e.metadata ? JSON.stringify(e.metadata).slice(0, 100) : "";
-      return `${i + 1}. [${(e.similarity ?? 0).toFixed ? (e.similarity ?? 0).toFixed(3) : "kw"}] "${e.title}" (${e.type})\n   tags: ${(e.tags ?? []).join(", ") || "none"}\n   content: ${preview}${meta ? `\n   meta: ${meta}` : ""}`;
-    }).join("\n\n");
-    const debugText = retrievedEntries.length
-      ? `**Retrieved ${retrievedEntries.length} entries:**\n\n${debugLines}`
-      : "No entries retrieved.";
-    return res.status(200).json({ content: [{ type: "text", text: debugText }], sources: sourceIds });
-  }
-
   // 6. Call Gemini (with NO_INFO second-pass retry)
   async function callGemini(sys: string, msgs: { role: string; content: string }[]): Promise<{ ok: true; text: string } | { ok: false; status: number; body: any }> {
     const geminiContents = msgs.map((m: any) => ({
