@@ -47,11 +47,18 @@ interface Suggestion {
   cat: string;
 }
 
+interface MergeSuggestion {
+  ids: string[];
+  titles: string[];
+  reason: string;
+}
+
 interface FeedData {
   greeting: string;
   resurfaced: FeedEntry[];
   wows: Wow[];
   suggestions: Suggestion[];
+  merges?: MergeSuggestion[];
   streak: { current: number; longest: number };
   stats: { entries: number; connections: number; insights: number };
 }
@@ -550,6 +557,46 @@ export default function FeedView({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Merge suggestions */}
+      {data.merges && data.merges.length > 0 && (
+        <div className="space-y-2">
+          <p
+            className="text-xs font-semibold tracking-widest uppercase"
+            style={{ color: "var(--color-on-surface-variant)" }}
+          >
+            Consider merging
+          </p>
+          {data.merges.map((m, i) => (
+            <div
+              key={i}
+              className="rounded-2xl border p-4"
+              style={{
+                background: "color-mix(in oklch, var(--color-tertiary) 8%, var(--color-surface))",
+                borderColor: "color-mix(in oklch, var(--color-tertiary) 20%, transparent)",
+              }}
+            >
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {m.titles.map((t, j) => (
+                  <span
+                    key={j}
+                    className="rounded-full px-2.5 py-0.5 text-[10px] font-medium"
+                    style={{
+                      background: "var(--color-tertiary-container)",
+                      color: "var(--color-on-tertiary-container)",
+                    }}
+                  >
+                    {t}
+                  </span>
+                ))}
+              </div>
+              <p className="text-xs leading-relaxed" style={{ color: "var(--color-on-surface-variant)" }}>
+                {m.reason}
+              </p>
+            </div>
+          ))}
         </div>
       )}
 

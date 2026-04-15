@@ -126,6 +126,7 @@ interface EverionContentProps {
   chat: ReturnType<typeof useChat>;
   bgTasks: any[];
   bgProcessFiles: (files: File[], brainId: string | undefined, onCreated: (e: Entry) => void) => void;
+  bgQueueDirectSave: (entry: { title: string; content: string; type: string; tags: string[]; metadata: Record<string, any>; rawContent?: string }, brainId: string | undefined, onCreated: (e: Entry) => void) => void;
   bgDismissTask: (id: string) => void;
   bgDismissAll: () => void;
   filtered: Entry[];
@@ -162,6 +163,7 @@ function EverionContent({
   chat,
   bgTasks,
   bgProcessFiles,
+  bgQueueDirectSave,
   bgDismissTask,
   bgDismissAll,
   filtered,
@@ -838,6 +840,10 @@ function EverionContent({
               onBackgroundFiles={(files) =>
                 bgProcessFiles(files, activeBrain?.id, handleCreatedBulk)
               }
+              onBackgroundSave={(entry) => {
+                if (activeBrain?.id) invalidateFeedCache(activeBrain.id);
+                bgQueueDirectSave(entry, activeBrain?.id, handleCreated);
+              }}
               onNavigate={(id) => {
                 appShell.setShowCapture(false);
                 appShell.setView(id);
@@ -917,7 +923,7 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
     vaultExists: dataLayer.vaultExists,
   });
 
-  const { tasks: bgTasks, processFiles: bgProcessFiles, dismissTask: bgDismissTask, dismissAll: bgDismissAll } =
+  const { tasks: bgTasks, processFiles: bgProcessFiles, queueDirectSave: bgQueueDirectSave, dismissTask: bgDismissTask, dismissAll: bgDismissAll } =
     useBackgroundCapture();
 
   const filtered = useMemo(() => {
@@ -1044,6 +1050,7 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
             chat={chat}
             bgTasks={bgTasks}
             bgProcessFiles={bgProcessFiles}
+            bgQueueDirectSave={bgQueueDirectSave}
             bgDismissTask={bgDismissTask}
             bgDismissAll={bgDismissAll}
             filtered={filtered}

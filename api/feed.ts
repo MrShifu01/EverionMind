@@ -50,6 +50,17 @@ Rules:
 - cat is a short label (1-3 words) for the domain
 - Return ONLY valid JSON, no markdown: {"suggestions":[{"q":"...","cat":"..."},{"q":"...","cat":"..."},{"q":"...","cat":"..."}]}`;
 
+const MERGE_PROMPT = `You are a personal knowledge assistant reviewing a user's second-brain entries.
+
+Identify groups of 2-3 entries that are clearly fragmented pieces of the same real-world entity and should be merged into one entry. The most common case is a person/contact split across multiple entries (e.g. one entry has their phone number, another has their ID, another has their address). Also flag near-duplicate notes or entries where one is a clear subset of another.
+
+Rules:
+- Only suggest merges you are highly confident about — false positives are worse than misses
+- Each group must have a plain-English reason (1 sentence)
+- At most 3 suggestions
+- Return ONLY valid JSON, no markdown: {"merges":[{"ids":["id1","id2"],"titles":["title1","title2"],"reason":"..."}]}
+- If no clear candidates, return {"merges":[]}`;
+
 const WOW_PROMPT = `You are a personal insight synthesizer for a second-brain app.
 
 Given the user's recent AI-generated insights AND their top brain concepts and relationships, find 1-3 genuine "wow" moments — surprising cross-domain connections, unexpected patterns, or profound implications the user has NOT consciously noticed.
@@ -107,6 +118,47 @@ async function generateSuggestions(
     if (!Array.isArray(parsed.suggestions)) return [];
     return parsed.suggestions
       .filter((s: any) => s.q && s.cat)
+      .slice(0, 3);
+  } catch {
+    return [];
+  }
+}
+
+async function generateMergeSuggestions(
+  entries: any[],
+): Promise<Array<{ ids: string[]; titles: string[]; reason: string }>> {
+  if (!GEMINI_API_KEY || entries.length < 2) return [];
+
+  const entryLines = entries
+    .map((e) => `- id:${e.id} [${e.type}] ${e.title}`)
+    .join("\n");
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: `My entries:\n${entryLines}` }] }],
+          systemInstruction: { parts: [{ text: MERGE_PROMPT }] },
+          generationConfig: { maxOutputTokens: 512 },
+        }),
+      },
+    );
+    if (!res.ok) return [];
+    const data: any = await res.json();
+    const text: string = (data.candidates?.[0]?.content?.parts || [])
+      .filter((p: any) => !p.thought)
+      .map((p: any) => p.text || "")
+      .join("")
+      .trim();
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return [];
+    const parsed = JSON.parse(match[0]);
+    if (!Array.isArray(parsed.merges)) return [];
+    return parsed.merges
+      .filter((m: any) => Array.isArray(m.ids) && m.ids.length >= 2 && m.reason)
       .slice(0, 3);
   } catch {
     return [];
@@ -174,7 +226,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
 
   try {
     // Run independent fetches in parallel
-    const [resurfacedRes, statsRes, userRes, insightRes, sparseRes, graphRes] = await Promise.all([
+    const [resurfacedRes, statsRes, userRes, insightRes, sparseRes, graphRes, mergeEntriesRes] = await Promise.all([
       // 1. Resurfaced entries: random entries from 1-6 months ago
       fetch(
         `${SB_URL}/rest/v1/entries?brain_id=eq.${brainId}&created_at=gte.${new Date(Date.now() - 180 * 86400000).toISOString()}&created_at=lte.${new Date(Date.now() - 30 * 86400000).toISOString()}&deleted_at=is.null&select=id,title,content,type,tags,created_at&order=random&limit=2`,
@@ -202,6 +254,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
         `${SB_URL}/rest/v1/concept_graphs?brain_id=eq.${encodeURIComponent(brainId)}&select=graph`,
         { headers: SB_HEADERS },
       ),
+      // 7. Wider entry sample for merge detection (50 entries, older entries included)
+      fetch(
+        `${SB_URL}/rest/v1/entries?brain_id=eq.${brainId}&deleted_at=is.null&select=id,title,type&order=created_at.desc&limit=50`,
+        { headers: SB_HEADERS },
+      ),
     ]);
 
     const resurfaced = resurfacedRes.ok ? await resurfacedRes.json() : [];
@@ -216,6 +273,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
       content: String(e.metadata?.ai_insight || ""),
     }));
     const recentEntries: any[] = sparseRes.ok ? await sparseRes.json() : [];
+    const mergeEntries: any[] = mergeEntriesRes.ok ? await mergeEntriesRes.json() : [];
 
     // Extract top concepts + relationships from graph for wow/suggestions synthesis
     let topConcepts: string[] = [];
@@ -234,10 +292,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
       }
     }
 
-    // Run both LLM calls in parallel
-    const [wows, suggestions] = await Promise.all([
+    // Run all LLM calls in parallel
+    const [wows, suggestions, merges] = await Promise.all([
       synthesizeWows(insights, topConcepts, relationships),
       generateSuggestions(recentEntries, topConcepts),
+      generateMergeSuggestions(mergeEntries),
     ]);
 
     const name = meta.display_name || meta.full_name || meta.name || "";
@@ -247,6 +306,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
       resurfaced,
       wows,
       suggestions,
+      merges,
       streak,
       stats: { entries: entryCount, connections: 0, insights: insights.length },
     });

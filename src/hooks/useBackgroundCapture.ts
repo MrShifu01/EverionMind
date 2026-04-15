@@ -243,5 +243,58 @@ export function useBackgroundCapture() {
     [updateTask, dismissTask],
   );
 
-  return { tasks, processFiles, dismissTask, dismissAll };
+  const queueDirectSave = useCallback(
+    async (
+      entry: { title: string; content: string; type: string; tags: string[]; metadata: Record<string, any>; rawContent?: string },
+      brainId: string | undefined,
+      onCreated: (e: Entry) => void,
+    ) => {
+      const taskId = String(++taskIdRef.current);
+      setTasks((prev) => [...prev, { id: taskId, filename: entry.title, status: "saving" as TaskStatus }]);
+      try {
+        const embedHeaders = getEmbedHeaders();
+        const metadata = {
+          ...(entry.metadata || {}),
+          ...(entry.rawContent && entry.rawContent.length > 150
+            ? { raw_content: entry.rawContent.slice(0, 8000) }
+            : {}),
+        };
+        const res = await authFetch("/api/capture", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(embedHeaders || {}) },
+          body: JSON.stringify({
+            p_title: entry.title,
+            p_content: entry.content,
+            p_type: entry.type || "note",
+            p_metadata: metadata,
+            p_tags: entry.tags || [],
+            p_brain_id: brainId,
+          }),
+        });
+        if (res.ok) {
+          const result = await res.json();
+          onCreated({
+            id: result?.id || Date.now().toString(),
+            title: entry.title,
+            content: entry.content,
+            type: (entry.type || "note") as Entry["type"],
+            metadata,
+            pinned: false,
+            importance: 0,
+            tags: entry.tags || [],
+            created_at: new Date().toISOString(),
+          } as Entry);
+          updateTask(taskId, { status: "done", entryTitle: entry.title });
+          setTimeout(() => dismissTask(taskId), 8000);
+        } else {
+          updateTask(taskId, { status: "error", error: "Save failed" });
+        }
+      } catch (e: any) {
+        updateTask(taskId, { status: "error", error: e?.message || "Save failed" });
+      }
+    },
+    [updateTask, dismissTask],
+  );
+
+  return { tasks, processFiles, queueDirectSave, dismissTask, dismissAll };
 }

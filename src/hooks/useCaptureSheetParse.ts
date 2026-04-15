@@ -32,6 +32,7 @@ interface UseCaptureSheetParseOptions {
   cryptoKey?: CryptoKey | null;
   onCreated: (entry: Entry) => void;
   onClose: () => void;
+  onBackgroundSave?: (entry: { title: string; content: string; type: string; tags: string[]; metadata: Record<string, any>; rawContent?: string }) => void;
 }
 
 export function useCaptureSheetParse({
@@ -40,6 +41,7 @@ export function useCaptureSheetParse({
   cryptoKey,
   onCreated,
   onClose,
+  onBackgroundSave,
 }: UseCaptureSheetParseOptions) {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -126,6 +128,27 @@ export function useCaptureSheetParse({
             setStatus("error");
           }
           setLoading(false);
+          return;
+        }
+
+        // ── Regular entry → background save (close immediately, show toast) ──
+        if (onBackgroundSave) {
+          const metaWithConfidence = {
+            ...(parsed.metadata || {}),
+            ...(parsed.confidence ? { confidence: parsed.confidence } : {}),
+          };
+          onBackgroundSave({
+            title: parsed.title,
+            content: parsed.content || "",
+            type: parsed.type || "note",
+            tags: parsed.tags || [],
+            metadata: metaWithConfidence,
+            rawContent,
+          });
+          setUploadedFiles([]);
+          setLoading(false);
+          setStatus(null);
+          onClose();
           return;
         }
 

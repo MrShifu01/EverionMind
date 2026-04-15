@@ -14,6 +14,7 @@ interface CaptureSheetProps {
   cryptoKey?: CryptoKey | null;
   isOnline?: boolean;
   onBackgroundFiles?: (files: File[]) => void;
+  onBackgroundSave?: (entry: { title: string; content: string; type: string; tags: string[]; metadata: Record<string, any>; rawContent?: string }) => void;
   onNavigate?: (id: string) => void;
 }
 
@@ -25,6 +26,7 @@ export default function CaptureSheet({
   cryptoKey,
   isOnline = true,
   onBackgroundFiles,
+  onBackgroundSave,
   onNavigate,
 }: CaptureSheetProps) {
   const [text, setText] = useState("");
@@ -68,7 +70,7 @@ export default function CaptureSheet({
     confirmSave,
     handleImageFile,
     handleDocFiles,
-  } = useCaptureSheetParse({ brainId, isOnline, cryptoKey, onCreated, onClose });
+  } = useCaptureSheetParse({ brainId, isOnline, cryptoKey, onCreated, onClose, onBackgroundSave });
 
   // Voice
   const { listening, startVoice, resetListening } = useVoiceRecorder({

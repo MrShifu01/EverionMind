@@ -331,6 +331,20 @@ async function handlePatch(req: ApiRequest, res: ApiResponse): Promise<void> {
   const mergedMeta = patch.metadata ?? entry.metadata ?? {};
   const cScore = computeCompletenessScore(mergedTitle, mergedContent, mergedType, mergedTags, mergedMeta);
   const finalMeta = { ...(entry.metadata || {}), ...(patch.metadata || {}), completeness_score: cScore };
+
+  // Reset enrichment flags when substantive content changes so the client re-enriches
+  const titleChanged = patch.title !== undefined && patch.title !== (entry.title ?? "");
+  const contentChanged = patch.content !== undefined && patch.content !== (entry.content ?? "");
+  if (titleChanged || contentChanged) {
+    (finalMeta as any).enrichment = {
+      ...((finalMeta as any).enrichment ?? {}),
+      embedded: false,
+      concepts_count: 0,
+      has_insight: false,
+      parsed: false,
+    };
+  }
+
   patch.metadata = finalMeta;
 
   const response = await fetch(
