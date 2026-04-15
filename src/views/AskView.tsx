@@ -404,7 +404,7 @@ export default function AskView({
               ? undefined
               : keyboardVisible
                 ? "5px"
-                : "100px",
+                : "114px",
         }}
       >
         <div className="lg:mx-auto lg:max-w-2xl">
