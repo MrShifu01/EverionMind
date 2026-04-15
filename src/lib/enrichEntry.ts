@@ -65,29 +65,40 @@ export async function enrichEntry(
       });
       if (res.ok) {
         const data = await res.json();
-        const text: string = data?.content?.[0]?.text || data?.text || "";
-        const jsonMatch = text.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
+        const rawAI: string = data?.content?.[0]?.text || data?.text || "";
+        const aiText = rawAI.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "");
+        const jsonMatch = aiText.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
+        let result: any = null;
         if (jsonMatch) {
-          let parsed: any;
-          try { parsed = JSON.parse(jsonMatch[0]); } catch { /* skip */ }
-          const result = Array.isArray(parsed) ? parsed[0] : parsed;
-          if (result?.type) {
-            const newMeta = { ...(result.metadata || {}) };
-            delete newMeta.confidence;
-            if (rawText.length > 200 && !newMeta.full_text) newMeta.full_text = rawText;
-            const existingEnrichment = (entry.metadata as any)?.enrichment ?? {};
-            const mergedMeta = {
-              ...(entry.metadata ?? {}),
-              ...newMeta,
-              enrichment: { ...existingEnrichment, parsed: true },
-            };
-            await onUpdate(entry.id, {
-              type: result.type,
-              content: result.content || entry.content,
-              metadata: mergedMeta,
-            });
-            entry = { ...entry, type: result.type, content: result.content || entry.content, metadata: mergedMeta };
-          }
+          try {
+            const p = JSON.parse(jsonMatch[0]);
+            result = Array.isArray(p) ? p[0] : p;
+          } catch { /* fall through */ }
+        }
+        const existingEnrichment = (entry.metadata as any)?.enrichment ?? {};
+        if (result?.type) {
+          const newMeta = { ...(result.metadata || {}) };
+          delete newMeta.confidence;
+          if (rawText.length > 200 && !newMeta.full_text) newMeta.full_text = rawText;
+          const mergedMeta = {
+            ...(entry.metadata ?? {}),
+            ...newMeta,
+            enrichment: { ...existingEnrichment, parsed: true },
+          };
+          await onUpdate(entry.id, {
+            type: result.type,
+            content: result.content || entry.content,
+            metadata: mergedMeta,
+          });
+          entry = { ...entry, type: result.type, content: result.content || entry.content, metadata: mergedMeta };
+        } else {
+          // AI gave prose — mark parsed so we don't retry endlessly
+          const mergedMeta = {
+            ...(entry.metadata ?? {}),
+            enrichment: { ...existingEnrichment, parsed: true },
+          };
+          await onUpdate(entry.id, { metadata: mergedMeta });
+          entry = { ...entry, metadata: mergedMeta };
         }
       }
     } catch { /* continue */ }

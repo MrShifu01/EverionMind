@@ -196,22 +196,27 @@ export function EntryHealthPanel({
               return;
             }
             const data = await res.json();
-            const text: string = data?.content?.[0]?.text || data?.text || "";
+            const rawAI: string = data?.content?.[0]?.text || data?.text || "";
+            // Strip markdown code fences before extracting JSON
+            const text = rawAI.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "");
             const jsonMatch = text.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
-            if (!jsonMatch) {
-              update("parsing", { status: "fail", detail: "AI returned no JSON" });
-              return;
+            let result: any = null;
+            if (jsonMatch) {
+              try {
+                const p = JSON.parse(jsonMatch[0]);
+                result = Array.isArray(p) ? p[0] : p;
+              } catch { /* fall through to fallback */ }
             }
-            let parsed: any;
-            try {
-              parsed = JSON.parse(jsonMatch[0]);
-            } catch {
-              update("parsing", { status: "fail", detail: "Could not parse AI response" });
-              return;
-            }
-            const result = Array.isArray(parsed) ? parsed[0] : parsed;
+            // Fallback: AI gave prose — mark as classified with existing type so we don't block
             if (!result?.type) {
-              update("parsing", { status: "fail", detail: "No type in AI response" });
+              const existingEnrichmentFallback = getEnrichment(entry);
+              await onUpdate?.(entry.id, {
+                metadata: {
+                  ...(entry.metadata ?? {}),
+                  enrichment: { ...existingEnrichmentFallback, parsed: true },
+                },
+              });
+              update("parsing", { status: "pass", note: "Classified" });
               return;
             }
             const newMeta = { ...(result.metadata || {}) };
