@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p __TRACKED_VAR__/.claude/skills/production-audit/evals)",
+      "Bash(mkdir -p __TRACKED_VAR__/.claude/skills/production-audit-workspace/iteration-1)"
+    ]
+  }
+}

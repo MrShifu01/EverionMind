@@ -591,3 +591,12 @@ VERDICT   FAIL
 5. **Sprint**: Rate limiting, CSRF protection, JSON.parse error handling
 
 ---
+
+---
+## 2026-04-15 — M-9: Decompose Everion.tsx
+- Created `src/hooks/useAppShell.ts` — all UI/nav/modal/search state (16 useState)
+- Created `src/hooks/useDataLayer.ts` — entries, links, crypto, enrichment, entry actions
+- Created `src/context/ConceptGraphContext.tsx` — concept graph re-derives on brain change only (drops entries dep)
+- Everion.tsx refactored: 0 useState, hooks called at top, contexts provided, EverionContent sub-component calls useConceptGraph()
+- patchEntryIdRef pattern used to break chicken-and-egg between useOfflineSync and useDataLayer
+- prevBrainIdRef guard prevents flash-blank on initial mount during brain switch reset

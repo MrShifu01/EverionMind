@@ -89,7 +89,7 @@ Tasks are grouped into four themes. Work a full theme at a time rather than cher
 
 ## Theme 2 — Architecture & Code Quality
 
-### [ ] M-9 — Decompose `Everion.tsx` (1,171 lines)
+### [x] M-9 — Decompose `Everion.tsx` (1,171 lines)
 **Effort:** XL | **Files:** `src/Everion.tsx`, new hooks + context
 
 The application root owns everything: 45+ useState calls, data fetching, enrichment orchestration, search indexing, concept graph derivation, and navigation. Concept graph re-derives on every entry mutation (including 100s per session).

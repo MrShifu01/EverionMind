@@ -7,11 +7,6 @@ Things that require dashboard access, third-party signups, or environment config
 ## M-3 — Verify Upstash Redis is configured in production
 
 **Action:** Vercel dashboard
-
-1. Run `vercel env ls` and confirm both vars are present:
-   - `UPSTASH_REDIS_REST_URL`
-   - `UPSTASH_REDIS_REST_TOKEN`
-2. If missing: add them from https://console.upstash.com (free tier is sufficient)
 3. Confirm rate limiting hits the Redis path in `api/_lib/rateLimit.ts`
 
 ---
@@ -31,17 +26,6 @@ Things that require dashboard access, third-party signups, or environment config
 
 ---
 
-## M-11 — Add external uptime monitoring
-
-**Action:** UptimeRobot (free) or Checkly
-
-1. Sign up at https://uptimerobot.com (free tier covers this)
-2. Add a new HTTP monitor pointing to `https://everionmind.com/api/health`
-3. Set check interval to 5 minutes
-4. Configure alert to Telegram or email on failure
-
----
-
 ## M-4 — Move user API keys to Supabase Vault
 
 **Action:** Supabase dashboard + code migration (M effort)
@@ -58,19 +42,6 @@ This requires a database migration and code changes. Steps:
 
 **Warning:** Do this in staging first. A bad migration here locks users out of AI features.
 
----
-
-## M-15 — Add cookie consent gating
-
-**Action:** Code change (M effort — deferred from sprint)
-
-1. Audit which scripts set cookies: Sentry (`@sentry/react`) and Vercel Speed Insights
-2. Create a minimal consent banner component (can reuse existing design tokens)
-3. In `src/main.tsx`, gate `Sentry.init()` behind `localStorage.getItem('cookie_consent') === 'true'`
-4. Gate `<SpeedInsights />` behind same flag
-5. The banner component sets the flag and triggers a page reload (or lazy-init Sentry post-consent)
-
----
 
 ## npm install after vite-plugin-pwa downgrade
 
