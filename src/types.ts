@@ -109,8 +109,8 @@ export interface Relationship {
 }
 
 export interface Link {
-  from_id: string;
-  to_id: string;
+  from: string;
+  to: string;
   rel: string;
 }
 

@@ -29,8 +29,8 @@ const entries: Entry[] = [
 ];
 
 const links: Link[] = [
-  { from_id: "e1", to_id: "e2", rel: "references" },
-  { from_id: "e1", to_id: "e3", rel: "uses" },
+  { from: "e1", to: "e2", rel: "references" },
+  { from: "e1", to: "e3", rel: "uses" },
 ];
 
 describe("buildChatContext", () => {

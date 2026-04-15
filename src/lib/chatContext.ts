@@ -59,10 +59,10 @@ export function buildChatContext(entries: Entry[], links: Link[], query: string)
   // Build a link lookup: entry id → titles of linked entries
   const linkedTitles = new Map<string, string[]>();
   for (const link of links) {
-    const targetEntry = entries.find((e) => e.id === link.to_id);
+    const targetEntry = entries.find((e) => e.id === link.to);
     if (targetEntry) {
-      if (!linkedTitles.has(link.from_id)) linkedTitles.set(link.from_id, []);
-      linkedTitles.get(link.from_id)!.push(targetEntry.title);
+      if (!linkedTitles.has(link.from)) linkedTitles.set(link.from, []);
+      linkedTitles.get(link.from)!.push(targetEntry.title);
     }
   }
 
