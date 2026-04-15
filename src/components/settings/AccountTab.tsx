@@ -263,43 +263,51 @@ export default function AccountTab({ email, brainId }: Props) {
           </svg>
         </button>
 
-        {profileOpen && (
-          <div className="px-4 pb-4">
-            <div className="space-y-2">
-              {(Object.keys(PROFILE_LABELS) as (keyof ProfileFields)[]).map((field) => (
-                <div key={field}>
-                  <label className="mb-1 block text-xs font-medium" style={{ color: "var(--color-on-surface-variant)" }}>
-                    {PROFILE_LABELS[field]}
-                  </label>
-                  <input
-                    type="text"
-                    value={profile[field]}
-                    onChange={(e) => setProfile((p) => ({ ...p, [field]: e.target.value }))}
-                    className="text-on-surface w-full rounded-xl border px-3 py-2 text-sm outline-none"
-                    style={{
-                      background: "var(--color-surface-container-low)",
-                      borderColor: "var(--color-outline-variant)",
-                    }}
-                  />
-                </div>
-              ))}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateRows: profileOpen ? "1fr" : "0fr",
+            transition: "grid-template-rows 260ms cubic-bezier(0.16, 1, 0.3, 1)",
+          }}
+        >
+          <div className="overflow-hidden">
+            <div className="px-4 pb-4">
+              <div className="space-y-2">
+                {(Object.keys(PROFILE_LABELS) as (keyof ProfileFields)[]).map((field) => (
+                  <div key={field}>
+                    <label className="mb-1 block text-xs font-medium" style={{ color: "var(--color-on-surface-variant)" }}>
+                      {PROFILE_LABELS[field]}
+                    </label>
+                    <input
+                      type="text"
+                      value={profile[field]}
+                      onChange={(e) => setProfile((p) => ({ ...p, [field]: e.target.value }))}
+                      className="text-on-surface w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                      style={{
+                        background: "var(--color-surface-container-low)",
+                        borderColor: "var(--color-outline-variant)",
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+              {profileError && (
+                <p className="mt-2 text-xs" style={{ color: "var(--color-error)" }}>{profileError}</p>
+              )}
+              {profileSaved && (
+                <p className="mt-2 text-xs" style={{ color: "var(--color-primary)" }}>Saved</p>
+              )}
+              <button
+                onClick={saveProfile}
+                disabled={profileSaving}
+                className="press-scale mt-3 w-full rounded-xl py-2.5 text-xs font-semibold disabled:opacity-40"
+                style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
+              >
+                {profileSaving ? "Saving…" : "Save profile"}
+              </button>
             </div>
-            {profileError && (
-              <p className="mt-2 text-xs" style={{ color: "var(--color-error)" }}>{profileError}</p>
-            )}
-            {profileSaved && (
-              <p className="mt-2 text-xs" style={{ color: "var(--color-primary)" }}>Saved</p>
-            )}
-            <button
-              onClick={saveProfile}
-              disabled={profileSaving}
-              className="press-scale mt-3 w-full rounded-xl py-2.5 text-xs font-semibold disabled:opacity-40"
-              style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
-            >
-              {profileSaving ? "Saving…" : "Save profile"}
-            </button>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Notifications — collapsible */}
@@ -316,7 +324,17 @@ export default function AccountTab({ email, brainId }: Props) {
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
           </svg>
         </button>
-        {notifOpen && <div className="px-4 pb-4"><NotificationSettings /></div>}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateRows: notifOpen ? "1fr" : "0fr",
+            transition: "grid-template-rows 260ms cubic-bezier(0.16, 1, 0.3, 1)",
+          }}
+        >
+          <div className="overflow-hidden">
+            <div className="px-4 pb-4"><NotificationSettings /></div>
+          </div>
+        </div>
       </div>
 
       {/* Imports — collapsible */}
@@ -333,16 +351,24 @@ export default function AccountTab({ email, brainId }: Props) {
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
           </svg>
         </button>
-        {importsOpen && (
-          <div className="px-4 pb-4 space-y-4">
-            <div>
-              <p className="text-on-surface mb-1 text-xs font-semibold">Import from AI</p>
-              <p className="mb-2 text-[11px]" style={{ color: "var(--color-on-surface-variant)" }}>Bring in memories Claude or ChatGPT already knows about you.</p>
-              <MemoryImportPanel brainId={brainId} />
+        <div
+          style={{
+            display: "grid",
+            gridTemplateRows: importsOpen ? "1fr" : "0fr",
+            transition: "grid-template-rows 260ms cubic-bezier(0.16, 1, 0.3, 1)",
+          }}
+        >
+          <div className="overflow-hidden">
+            <div className="px-4 pb-4 space-y-4">
+              <div>
+                <p className="text-on-surface mb-1 text-xs font-semibold">Import from AI</p>
+                <p className="mb-2 text-[11px]" style={{ color: "var(--color-on-surface-variant)" }}>Bring in memories Claude or ChatGPT already knows about you.</p>
+                <MemoryImportPanel brainId={brainId} />
+              </div>
+              {brainId && <GoogleKeepImportPanel brainId={brainId} />}
             </div>
-            {brainId && <GoogleKeepImportPanel brainId={brainId} />}
           </div>
-        )}
+        </div>
       </div>
 
       {/* Data Export */}

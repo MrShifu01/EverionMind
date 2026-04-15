@@ -324,7 +324,7 @@ function EverionContent({
 
           <OmniSearch entries={entries} onSelect={setSelected} onNavigate={appShell.setView} />
 
-          <div className="mx-auto max-w-6xl px-4 pt-4 pb-32 sm:px-6 lg:pb-8">
+          <div key={appShell.view} className="animate-view-enter mx-auto max-w-6xl px-4 pt-4 pb-32 sm:px-6 lg:pb-8">
             {appShell.view === "memory" && (
               <div className="space-y-3">
                 <div
