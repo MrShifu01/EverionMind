@@ -23,8 +23,6 @@
     { "source": "/api/embed",             "destination": "/api/capture?action=embed" },
     { "source": "/api/export",           "destination": "/api/transfer" },
     { "source": "/api/import",           "destination": "/api/transfer" },
-    { "source": "/api/notification-prefs", "destination": "/api/push?resource=prefs" },
-    { "source": "/api/push-subscribe",   "destination": "/api/push?resource=subscribe" },
     { "source": "/api/pin",              "destination": "/api/user-data?resource=pin" },
     { "source": "/api/entry-brains",     "destination": "/api/entries?resource=entry-brains" },
     { "source": "/api/memory",           "destination": "/api/user-data?resource=memory" },
