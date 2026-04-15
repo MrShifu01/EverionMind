@@ -323,22 +323,56 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   } catch { /* non-fatal */ }
 
   // 4. Build system prompt with retrieved context
+
+  // ── Relationship synthesis ────────────────────────────────────────────────
+  // Detect person→role→attribute chains and inject explicit notes so the LLM
+  // doesn't have to infer the connection itself. E.g.: "Henk Stander is tagged
+  // 'father'. 'Father's ID Number' likely refers to Henk Stander."
+  const ROLE_TAGS = new Set(["father","mother","mom","mum","dad","brother","sister",
+    "wife","husband","son","daughter","partner","boss","manager","friend","uncle","aunt",
+    "grandfather","grandmother","grandpa","grandma"]);
+  const synthNotes: string[] = [];
+  const queryLower = message.toLowerCase();
+  for (const personEntry of retrievedEntries) {
+    const nameWords = String(personEntry.title || "").toLowerCase()
+      .split(/\s+/).filter((w: string) => w.length > 3);
+    if (!nameWords.some((w: string) => queryLower.includes(w))) continue;
+    const roleTags: string[] = (personEntry.tags ?? [])
+      .map((t: string) => t.toLowerCase().trim())
+      .filter((t: string) => ROLE_TAGS.has(t));
+    if (!roleTags.length) continue;
+    for (const role of roleTags) {
+      const related = retrievedEntries.filter((e: any) =>
+        e.id !== personEntry.id && String(e.title || "").toLowerCase().includes(role)
+      );
+      for (const r of related) {
+        synthNotes.push(
+          `"${personEntry.title}" is tagged "${role}". The entry "${r.title}" refers to ${personEntry.title}. ` +
+          `When the user asks about ${personEntry.title}, use "${r.title}" to answer.`
+        );
+      }
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   // Top 5 entries get more content for factual lookups (e.g. ID numbers), rest get 200 chars
-  const memoriesText = JSON.stringify(
-    retrievedEntries.map((e: any, idx: number) => {
-      const { raw_content, ...restMeta } = e.metadata ?? {};
-      return {
-        id: e.id,
-        title: e.title,
-        type: e.type,
-        tags: e.tags,
-        content: e.content ? e.content.slice(0, idx < 5 ? 800 : 200) : undefined,
-        ...(idx < 5 && raw_content ? { full_content: String(raw_content).slice(0, 1500) } : {}),
-        metadata: Object.keys(restMeta).length > 0 ? restMeta : undefined,
-        similarity: e.similarity?.toFixed(3),
-      };
-    })
-  );
+  const memoriesArray = retrievedEntries.map((e: any, idx: number) => {
+    const { raw_content, ...restMeta } = e.metadata ?? {};
+    return {
+      id: e.id,
+      title: e.title,
+      type: e.type,
+      tags: e.tags,
+      content: e.content ? e.content.slice(0, idx < 5 ? 800 : 200) : undefined,
+      ...(idx < 5 && raw_content ? { full_content: String(raw_content).slice(0, 1500) } : {}),
+      metadata: Object.keys(restMeta).length > 0 ? restMeta : undefined,
+      similarity: e.similarity?.toFixed(3),
+    };
+  });
+  if (synthNotes.length > 0) {
+    memoriesArray.unshift({ type: "_synthesis", content: synthNotes.join(" | ") } as any);
+  }
+  const memoriesText = JSON.stringify(memoriesArray);
   const safeSecrets: any[] = Array.isArray(secrets)
     ? secrets.slice(0, 50).map((s: any) => ({ title: String(s.title || "").slice(0, 200), content: String(s.content || "").slice(0, 500), tags: Array.isArray(s.tags) ? s.tags.slice(0, 10) : [] }))
     : [];
