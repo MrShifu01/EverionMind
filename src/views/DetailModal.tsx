@@ -10,7 +10,6 @@ import { loadGraphFromDB, getRelatedEntries, getConceptsForEntry } from "../lib/
 import type { ConceptGraph } from "../lib/conceptGraph";
 import { CANONICAL_TYPES } from "../types";
 import type { Entry, Brain, EntryType } from "../types";
-import { EntryHealthPanel } from "../components/EntryHealthPanel";
 import { SKIP_META_KEYS } from "../lib/entryConstants";
 
 interface DetailLink {
@@ -168,7 +167,6 @@ No explanation, no punctuation, just one word.`,
   }, [conceptGraph, entry.id, entries]);
   const [showFullContent, setShowFullContent] = useState(false);
   const [showFullText, setShowFullText] = useState(false);
-  const [healthOpen, setHealthOpen] = useState(false);
   const CONTENT_PREVIEW_LIMIT = 300;
   const meta = Object.entries(entry.metadata || {}).filter(([k]) => !SKIP_META_KEYS.has(k));
   const confidence = (entry.metadata?.confidence || {}) as Record<string, string>;
@@ -589,44 +587,6 @@ No explanation, no punctuation, just one word.`,
             />
           )}
 
-          {/* Brain Health */}
-          {!editing && entry.type !== "secret" && brainId && (
-            <div
-              className="mt-4 pt-4"
-              style={{ borderTop: "1px solid var(--color-outline-variant)" }}
-            >
-              <button
-                onClick={() => setHealthOpen((p) => !p)}
-                className="flex w-full items-center justify-between py-1"
-              >
-                <span
-                  className="text-[10px] font-semibold tracking-widest uppercase"
-                  style={{ color: "var(--color-on-surface-variant)" }}
-                >
-                  Brain Health
-                </span>
-                <span className="text-[10px]" style={{ color: "var(--color-on-surface-variant)" }}>
-                  {healthOpen ? "▲" : "▼"}
-                </span>
-              </button>
-              {healthOpen && (
-                <div className="mt-3">
-                  <EntryHealthPanel
-                    entry={entry}
-                    brainId={brainId}
-                    entries={entries}
-                    metaKeys={meta.map(([k]) => k)}
-                    entryConcepts={entryConcepts}
-                    hasRelated={conceptRelated.length > 0}
-                    onRefreshConcepts={() =>
-                      loadGraphFromDB(brainId).then(setConceptGraph).catch(() => {})
-                    }
-                    onUpdate={onUpdate}
-                  />
-                </div>
-              )}
-            </div>
-          )}
         </div>
         {/* end scrollable body */}
 
