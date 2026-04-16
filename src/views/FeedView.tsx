@@ -172,6 +172,8 @@ export default function FeedView({
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Tracks which audit flags have already been auto-applied (survives re-renders, resets on unmount)
+  const autoAppliedRef = useRef<Set<string>>(new Set());
   const [showEnrichDebug, setShowEnrichDebug] = useState(false);
 
   // Ignored questions
@@ -243,6 +245,62 @@ export default function FeedView({
       return changed ? next : prev;
     });
   }, [entries]);
+
+  // Auto-apply title and type fixes without requiring manual approval.
+  // Uses a ref to ensure each flag is only auto-applied once per component lifetime.
+  useEffect(() => {
+    if (!entriesLoaded || !localAuditFlags.size) return;
+
+    type EntryFix = { entry: any; flagsToApply: AuditFlag[]; remainingFlags: AuditFlag[] };
+    const fixes = new Map<string, EntryFix>();
+
+    for (const [entryId, flags] of localAuditFlags) {
+      const newFlags = flags.filter((f) => {
+        if (f.type !== "TITLE_POOR" && f.type !== "TYPE_MISMATCH") return false;
+        if (!f.suggestedValue) return false;
+        return !autoAppliedRef.current.has(`${entryId}:${f.type}`);
+      });
+      if (!newFlags.length) continue;
+      const entry = entries.find((e) => e.id === entryId);
+      if (!entry) continue;
+      const appliedTypes = new Set(newFlags.map((f) => f.type));
+      newFlags.forEach((f) => autoAppliedRef.current.add(`${entryId}:${f.type}`));
+      fixes.set(entryId, {
+        entry,
+        flagsToApply: newFlags,
+        remainingFlags: flags.filter((f) => !appliedTypes.has(f.type)),
+      });
+    }
+
+    if (!fixes.size) return;
+
+    // Optimistically remove auto-applied flags from local state
+    setLocalAuditFlags((prev) => {
+      const next = new Map(prev);
+      for (const [entryId, { flagsToApply }] of fixes) {
+        const appliedTypes = new Set(flagsToApply.map((f) => f.type));
+        const remaining = (next.get(entryId) ?? []).filter((f) => !appliedTypes.has(f.type));
+        if (remaining.length) next.set(entryId, remaining);
+        else next.delete(entryId);
+      }
+      return next;
+    });
+
+    // Persist each entry's fix as a single PATCH
+    Promise.all(
+      [...fixes.entries()].map(async ([entryId, { entry, flagsToApply, remainingFlags }]) => {
+        const patch: any = {};
+        for (const flag of flagsToApply) {
+          if (flag.field === "title") patch.title = flag.suggestedValue;
+          if (flag.field === "type") patch.type = flag.suggestedValue;
+        }
+        patch.metadata = { ...(entry.metadata ?? {}), audit_flags: remainingFlags.length ? remainingFlags : null };
+        await handleUpdate(entryId, patch, { silent: true });
+      })
+    )
+      .then(() => showToast(`Auto-fixed ${fixes.size} entr${fixes.size === 1 ? "y" : "ies"}`, "success"))
+      .catch(() => {});
+  }, [localAuditFlags, entriesLoaded, entries, handleUpdate]);
 
   useEffect(() => {
     if (!brainId) return;
@@ -642,7 +700,9 @@ export default function FeedView({
 
     // Build the field change from the flag
     const patch: any = {};
-    if (flag.field === "type") {
+    if (flag.field === "title") {
+      patch.title = flag.suggestedValue;
+    } else if (flag.field === "type") {
       patch.type = flag.suggestedValue;
     } else if (flag.field === "tags") {
       const suggested = flag.suggestedValue.split(",").map((t) => t.trim()).filter(Boolean);
