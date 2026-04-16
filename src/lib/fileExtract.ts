@@ -34,8 +34,9 @@ async function extractExcel(buffer: ArrayBuffer): Promise<string> {
   const parts: string[] = [];
   for (const sheetName of workbook.SheetNames) {
     const sheet = workbook.Sheets[sheetName];
-    const csv = XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
-    if (csv.trim()) parts.push(`[Sheet: ${sheetName}]\n${csv.trim()}`);
+    // Use tab-separated output — avoids double-quote wrapping that breaks AI JSON generation
+    const tsv = XLSX.utils.sheet_to_txt(sheet, { blankrows: false } as any);
+    if (tsv.trim()) parts.push(`[Sheet: ${sheetName}]\n${tsv.trim()}`);
   }
   return parts.join("\n\n");
 }
