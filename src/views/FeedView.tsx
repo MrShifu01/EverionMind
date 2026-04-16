@@ -310,31 +310,19 @@ export default function FeedView({
         .finally(() => setInsightsLoading(false));
     }
 
-    // Audit auto-run — background, parallel with quick/insights, once per 24h per brain
+    // Audit auto-run — fire-and-forget, once per 24h per brain.
+    // Sets TTL immediately so re-renders don't re-trigger it.
+    // Flags surface via Supabase realtime → entries update → merge effect picks them up.
     const lastAuditTs = (() => {
       try { return Number(localStorage.getItem(auditCacheKey(brainId))) || 0; } catch { return 0; }
     })();
     if (Date.now() - lastAuditTs > AUDIT_TTL) {
+      try { localStorage.setItem(auditCacheKey(brainId), String(Date.now())); } catch { /* ignore */ }
       authFetch("/api/audit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brain_id: brainId }),
-      })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d: { flagged: number; entries: Record<string, AuditFlag[] | null> } | null) => {
-          if (!d) return;
-          console.log("[audit] response:", d.flagged, "flagged entries:", d.entries);
-          try { localStorage.setItem(auditCacheKey(brainId), String(Date.now())); } catch { /* ignore */ }
-          setLocalAuditFlags((prev) => {
-            const next = new Map(prev);
-            for (const [id, flags] of Object.entries(d.entries)) {
-              if (flags?.length) next.set(id, flags);
-              else next.delete(id);
-            }
-            return next;
-          });
-        })
-        .catch(() => { /* silent — audit_run_at not written, retries next load */ });
+        body: JSON.stringify({ brain_id: brainId, pace: true }),
+      }).catch(() => { /* silent */ });
     }
   }, [brainId, refreshKey]);
 

@@ -385,6 +385,7 @@ async function handlePatch(req: ApiRequest, res: ApiResponse): Promise<void> {
 const AUDIT_GEMINI_BATCH = 50;  // entries per Gemini call
 const AUDIT_MAX_TOKENS  = 4096; // output tokens per batch (2 flags × 50 entries × ~40 tokens)
 const AUDIT_DB_PAGE     = 500;  // rows per Supabase fetch
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function runGeminiBatch(
   lines: string,
@@ -431,7 +432,7 @@ async function handleAudit(req: ApiRequest, res: ApiResponse): Promise<void> {
   const user: any = await verifyAuth(req);
   if (!user) return res.status(401).json({ error: "Unauthorized" });
 
-  const { brain_id } = req.body;
+  const { brain_id, pace } = req.body;
   if (!brain_id || typeof brain_id !== "string" || brain_id.length > 100) {
     return res.status(400).json({ error: "Missing or invalid brain_id" });
   }
@@ -460,9 +461,14 @@ async function handleAudit(req: ApiRequest, res: ApiResponse): Promise<void> {
   const GEMINI_MODEL   = (process.env.GEMINI_MODEL || "gemini-2.5-flash-lite").trim();
   console.log("[audit] model:", GEMINI_MODEL, "key set:", !!GEMINI_API_KEY, "total entries:", allEntries.length);
 
-  // Run Gemini sequentially over batches of AUDIT_GEMINI_BATCH entries
+  // Run Gemini sequentially over batches of AUDIT_GEMINI_BATCH entries.
+  // When pace=true (auto background run), space batches evenly over 60s.
+  const numBatches = Math.ceil(allEntries.length / AUDIT_GEMINI_BATCH);
+  const batchDelay = pace ? Math.max(2000, Math.floor(60000 / numBatches)) : 0;
+
   const allFlags: any[] = [];
   for (let i = 0; i < allEntries.length; i += AUDIT_GEMINI_BATCH) {
+    if (i > 0 && batchDelay > 0) await sleep(batchDelay);
     const batch = allEntries.slice(i, i + AUDIT_GEMINI_BATCH);
     const batchSet = new Set(batch.map((e: any) => e.id));
     const lines = batch
