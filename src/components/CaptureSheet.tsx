@@ -684,7 +684,9 @@ export default function CaptureSheet({
               placeholder={
                 listening
                   ? "Listening… tap stop when done"
-                  : "Capture a thought, paste a link, log anything…"
+                  : uploadedFiles.length > 0
+                    ? "Optional: describe what this is or how to structure it…"
+                    : "Capture a thought, paste a link, log anything…"
               }
               rows={7}
               className="text-on-surface placeholder:text-on-surface-variant/40 w-full resize-none bg-transparent text-base leading-relaxed outline-none"
