@@ -13,6 +13,8 @@ function insightsCacheKey(brainId: string) { return `feed_insights_cache:${brain
 function feedCacheKey(brainId: string) { return `feed_cache:${brainId}`; }
 function mergeCacheKey(brainId: string) { return `merge_cache:${brainId}`; }
 function ignoredMergesKey(brainId: string) { return `ignored_merges:${brainId}`; }
+function ignoredQuestionsKey(brainId: string) { return `ignored_questions:${brainId}`; }
+function wowFeedbackKey(brainId: string) { return `wow_feedback:${brainId}`; }
 function mergeId(ids: string[]) { return [...ids].sort().join(":"); }
 
 function readCache<T>(key: string): T | null {
@@ -116,6 +118,11 @@ export default function FeedView({
   // Merge state
   const [ignoredMerges, setIgnoredMerges] = useState<Set<string>>(new Set());
   const [mergingId, setMergingId] = useState<string | null>(null);
+  const [pendingMergeAction, setPendingMergeAction] = useState<{
+    mergeKey: string;
+    action: "merge" | "ignore";
+    note: string;
+  } | null>(null);
 
   // Question answering state
   const [activeQ, setActiveQ] = useState<Suggestion | null>(null);
@@ -128,11 +135,31 @@ export default function FeedView({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showEnrichDebug, setShowEnrichDebug] = useState(false);
 
+  // Ignored questions
+  const [ignoredQuestions, setIgnoredQuestions] = useState<Set<string>>(new Set());
+
+  // Wow insight feedback: keyed by headline
+  type WowFeedback = { vote: "up" | "down" | null; correction: string };
+  const [wowFeedback, setWowFeedback] = useState<Record<string, WowFeedback>>({});
+
   useEffect(() => {
     if (!brainId) return;
     try {
       const raw = localStorage.getItem(ignoredMergesKey(brainId));
-      setIgnoredMerges(new Set(raw ? JSON.parse(raw) : []));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        // Support both legacy string[] and new {id, note}[] formats
+        const ids = parsed.map((item: any) => (typeof item === "string" ? item : item.id));
+        setIgnoredMerges(new Set(ids));
+      }
+    } catch { /* ignore */ }
+    try {
+      const raw = localStorage.getItem(ignoredQuestionsKey(brainId));
+      setIgnoredQuestions(new Set(raw ? JSON.parse(raw) : []));
+    } catch { /* ignore */ }
+    try {
+      const raw = localStorage.getItem(wowFeedbackKey(brainId));
+      if (raw) setWowFeedback(JSON.parse(raw));
     } catch { /* ignore */ }
   }, [brainId]);
 
@@ -227,22 +254,72 @@ export default function FeedView({
     e.target.value = "";
   }
 
-  function handleIgnore(m: MergeSuggestion) {
+  function handleIgnoreQuestion(q: string) {
+    if (!brainId) return;
+    setIgnoredQuestions((prev) => {
+      const next = new Set(prev);
+      next.add(q);
+      try { localStorage.setItem(ignoredQuestionsKey(brainId), JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+    setInsightsData((prev) => prev ? { ...prev, suggestions: prev.suggestions.filter((s) => s.q !== q) } : prev);
+  }
+
+  function handleWowVote(headline: string, vote: "up" | "down") {
+    if (!brainId) return;
+    setWowFeedback((prev) => {
+      const existing = prev[headline] ?? { vote: null, correction: "" };
+      // Toggle off if same vote
+      const newVote = existing.vote === vote ? null : vote;
+      const next = { ...prev, [headline]: { ...existing, vote: newVote } };
+      try { localStorage.setItem(wowFeedbackKey(brainId), JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }
+
+  function handleWowCorrection(headline: string, correction: string) {
+    if (!brainId) return;
+    setWowFeedback((prev) => {
+      const existing = prev[headline] ?? { vote: "down" as const, correction: "" };
+      const next = { ...prev, [headline]: { ...existing, correction } };
+      try { localStorage.setItem(wowFeedbackKey(brainId), JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }
+
+  function handleIgnore(m: MergeSuggestion, note?: string) {
     if (!brainId) return;
     const key = mergeId(m.ids);
     setIgnoredMerges((prev) => {
       const next = new Set(prev);
       next.add(key);
-      try { localStorage.setItem(ignoredMergesKey(brainId), JSON.stringify([...next])); } catch { /* ignore */ }
+      // Store ids + optional note
+      const existing: Array<{id: string; note?: string}> = [];
+      try {
+        const raw = localStorage.getItem(ignoredMergesKey(brainId));
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          // Support legacy format (plain string array) and new format
+          if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === "string") {
+            parsed.forEach((id: string) => existing.push({ id }));
+          } else {
+            existing.push(...parsed);
+          }
+        }
+      } catch { /* ignore */ }
+      existing.push({ id: key, ...(note ? { note } : {}) });
+      try { localStorage.setItem(ignoredMergesKey(brainId), JSON.stringify(existing)); } catch { /* ignore */ }
       return next;
     });
+    setPendingMergeAction(null);
     // Remove from cache so it won't reappear
     setInsightsData((prev) => prev ? { ...prev, merges: prev.merges.filter((x) => mergeId(x.ids) !== key) } : prev);
     writeCache(mergeCacheKey(brainId), (insightsData?.merges ?? []).filter((x) => mergeId(x.ids) !== key));
   }
 
-  async function handleMerge(m: MergeSuggestion) {
+  async function handleMerge(m: MergeSuggestion, note?: string) {
     if (!brainId || m.ids.length < 2 || mergingId) return;
+    setPendingMergeAction(null);
     const key = mergeId(m.ids);
     setMergingId(key);
     try {
@@ -256,11 +333,7 @@ export default function FeedView({
         .filter(Boolean);
       if (!primary) throw new Error("Entries not found");
 
-      // Combine content, tags, metadata
-      const combinedContent = [primary, ...secondaries]
-        .map((e: any) => e.content)
-        .filter(Boolean)
-        .join("\n\n");
+      // Combine tags and metadata from all entries
       const combinedTags = [...new Set([
         ...(primary.tags || []),
         ...secondaries.flatMap((e: any) => e.tags || []),
@@ -269,6 +342,37 @@ export default function FeedView({
         (acc: any, e: any) => ({ ...acc, ...(e.metadata || {}) }),
         { ...(primary.metadata || {}) },
       );
+      if (note) combinedMeta.merge_note = note;
+
+      // Use AI to synthesise a proper merged title + content
+      const allEntryTexts = [primary, ...secondaries]
+        .map((e: any) => `Title: ${e.title}\nContent: ${e.content || ""}`)
+        .join("\n\n---\n\n");
+
+      let mergedTitle = m.titles.join(" & ");
+      let mergedContent = [primary, ...secondaries].map((e: any) => e.content).filter(Boolean).join("\n\n");
+
+      try {
+        const llmRes = await authFetch("/api/llm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            system: `You are merging brain entries. Produce a single JSON object with exactly two keys: "title" (a concise title that represents ALL entities/topics covered) and "content" (a clean, synthesised paragraph that combines all facts from every entry without duplication). Do not add any explanation — output only the JSON.`,
+            messages: [{ role: "user", content: allEntryTexts }],
+            max_tokens: 600,
+          }),
+        });
+        if (llmRes.ok) {
+          const llmData = await llmRes.json();
+          const text: string = llmData?.content?.[0]?.text || llmData?.text || "";
+          const match = text.match(/\{[\s\S]*\}/);
+          if (match) {
+            const parsed = JSON.parse(match[0]);
+            if (parsed.title) mergedTitle = parsed.title;
+            if (parsed.content) mergedContent = parsed.content;
+          }
+        }
+      } catch { /* fall back to concatenation */ }
 
       // PATCH primary — entries.ts resets enrichment flags automatically on content change
       const patchRes = await authFetch("/api/update-entry", {
@@ -276,7 +380,8 @@ export default function FeedView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: primary.id,
-          content: combinedContent,
+          title: mergedTitle,
+          content: mergedContent,
           tags: combinedTags,
           metadata: combinedMeta,
         }),
@@ -292,9 +397,34 @@ export default function FeedView({
         });
       }
 
-      // Remove from suggestions + cache
-      setInsightsData((prev) => prev ? { ...prev, merges: prev.merges.filter((x) => mergeId(x.ids) !== key) } : prev);
-      writeCache(mergeCacheKey(brainId), (insightsData?.merges ?? []).filter((x) => mergeId(x.ids) !== key));
+      // Permanently suppress this pair so it never reappears (same mechanism as ignore)
+      setIgnoredMerges((prev) => {
+        const next = new Set(prev);
+        next.add(key);
+        try {
+          const existing: Array<{id: string; note?: string}> = [];
+          const raw = localStorage.getItem(ignoredMergesKey(brainId));
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === "string") {
+              parsed.forEach((id: string) => existing.push({ id }));
+            } else {
+              existing.push(...parsed);
+            }
+          }
+          existing.push({ id: key });
+          localStorage.setItem(ignoredMergesKey(brainId), JSON.stringify(existing));
+        } catch { /* ignore */ }
+        return next;
+      });
+
+      // Remove from in-memory suggestions + cache
+      setInsightsData((prev) => {
+        if (!prev) return prev;
+        const updated = prev.merges.filter((x) => mergeId(x.ids) !== key);
+        writeCache(mergeCacheKey(brainId), updated);
+        return { ...prev, merges: updated };
+      });
 
       showToast("Entries merged — re-enriching now…", "success");
       onEnrich?.();
@@ -510,7 +640,9 @@ export default function FeedView({
           }}
         >
           <p className="text-on-surface text-base font-bold" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-            {quickData.greeting} Here's what your brain surfaced today:
+            {insightsLoading
+              ? `${quickData.greeting.replace(/\.$/, ",")} your brain is loading…`
+              : `${quickData.greeting} Here's what your brain surfaced today:`}
           </p>
           <div className="text-on-surface-variant mt-2 flex flex-wrap gap-4 text-xs">
             <span>{quickData.stats.entries} memories</span>
@@ -568,26 +700,83 @@ export default function FeedView({
           >
             Your brain just connected the dots
           </p>
-          {insightsData.wows.map((wow, i) => (
-            <div
-              key={i}
-              className="rounded-2xl border p-4"
-              style={{
-                background: "color-mix(in oklch, var(--color-status-medium) 10%, var(--color-surface))",
-                borderColor: "color-mix(in oklch, var(--color-status-medium) 22%, transparent)",
-              }}
-            >
-              <p
-                className="text-sm font-bold leading-snug"
-                style={{ color: "var(--color-on-surface)" }}
+          {insightsData.wows.map((wow, i) => {
+            const fb = wowFeedback[wow.headline] ?? { vote: null, correction: "" };
+            return (
+              <div
+                key={i}
+                className="rounded-2xl border p-4"
+                style={{
+                  background: "color-mix(in oklch, var(--color-status-medium) 10%, var(--color-surface))",
+                  borderColor: "color-mix(in oklch, var(--color-status-medium) 22%, transparent)",
+                }}
               >
-                {wow.headline}
-              </p>
-              <p className="text-on-surface-variant mt-1 text-xs leading-relaxed">
-                {wow.detail}
-              </p>
-            </div>
-          ))}
+                <p
+                  className="text-sm font-bold leading-snug"
+                  style={{ color: "var(--color-on-surface)" }}
+                >
+                  {wow.headline}
+                </p>
+                <p className="text-on-surface-variant mt-1 text-xs leading-relaxed line-clamp-3">
+                  {wow.detail}
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    onClick={() => handleWowVote(wow.headline, "up")}
+                    className="rounded-lg px-2 py-0.5 text-sm border transition-opacity"
+                    style={{
+                      borderColor: "color-mix(in oklch, var(--color-status-medium) 40%, transparent)",
+                      opacity: fb.vote === "up" ? 1 : 0.4,
+                    }}
+                    title="This is correct"
+                  >
+                    👍
+                  </button>
+                  <button
+                    onClick={() => handleWowVote(wow.headline, "down")}
+                    className="rounded-lg px-2 py-0.5 text-sm border transition-opacity"
+                    style={{
+                      borderColor: "color-mix(in oklch, var(--color-status-medium) 40%, transparent)",
+                      opacity: fb.vote === "down" ? 1 : 0.4,
+                    }}
+                    title="This is wrong"
+                  >
+                    👎
+                  </button>
+                  {fb.vote === "down" && (
+                    <span className="text-[10px]" style={{ color: "var(--color-on-surface-variant)" }}>
+                      What's wrong?
+                    </span>
+                  )}
+                </div>
+                {fb.vote === "down" && (
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      value={fb.correction}
+                      onChange={(e) => handleWowCorrection(wow.headline, e.target.value)}
+                      placeholder="e.g. My staff are not suppliers"
+                      maxLength={200}
+                      className="flex-1 rounded-lg border px-2 py-1 text-xs outline-none"
+                      style={{
+                        background: "var(--color-surface-container-low)",
+                        borderColor: "var(--color-outline-variant)",
+                        color: "var(--color-on-surface)",
+                      }}
+                    />
+                    {fb.correction && (
+                      <button
+                        onClick={() => handleWowCorrection(wow.headline, fb.correction)}
+                        className="rounded-lg px-2 py-1 text-[10px] font-semibold"
+                        style={{ background: "var(--color-error)", color: "#fff" }}
+                      >
+                        Save
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : null}
 
@@ -597,7 +786,7 @@ export default function FeedView({
           className="h-20 animate-pulse rounded-2xl"
           style={{ background: "var(--color-surface-container)" }}
         />
-      ) : insightsData && insightsData.suggestions.length > 0 ? (
+      ) : insightsData && insightsData.suggestions.filter((s) => !ignoredQuestions.has(s.q)).length > 0 ? (
         <div className="space-y-2">
           <p
             className="text-xs font-semibold tracking-widest uppercase"
@@ -605,7 +794,7 @@ export default function FeedView({
           >
             Your brain is asking
           </p>
-          {insightsData.suggestions.map((s, i) => {
+          {insightsData.suggestions.filter((s) => !ignoredQuestions.has(s.q)).map((s, i) => {
             const isDone = doneQs.has(s.q);
             const isOpen = activeQ?.q === s.q;
             return (
@@ -646,7 +835,20 @@ export default function FeedView({
                     </p>
                   </div>
                   {!isDone && (
-                    <span className="text-on-surface-variant self-center text-xs">{isOpen ? "↑" : "↓"}</span>
+                    <div className="flex items-center gap-1 self-center flex-shrink-0">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleIgnoreQuestion(s.q); }}
+                        className="rounded-lg px-2 py-0.5 text-[10px] font-medium border"
+                        style={{
+                          borderColor: "color-mix(in oklch, var(--color-secondary) 30%, transparent)",
+                          color: "var(--color-on-surface-variant)",
+                        }}
+                        title="Ignore this question"
+                      >
+                        Ignore
+                      </button>
+                      <span className="text-on-surface-variant text-xs">{isOpen ? "↑" : "↓"}</span>
+                    </div>
                   )}
                 </button>
 
@@ -757,30 +959,74 @@ export default function FeedView({
                   <p className="text-xs leading-relaxed" style={{ color: "var(--color-on-surface-variant)" }}>
                     {m.reason}
                   </p>
-                  <div className="flex gap-2 mt-3">
-                    <button
-                      onClick={() => handleIgnore(m)}
-                      disabled={isMerging}
-                      className="flex-1 rounded-xl border py-2 text-xs font-medium transition-colors disabled:opacity-40"
-                      style={{
-                        borderColor: "color-mix(in oklch, var(--color-tertiary) 35%, transparent)",
-                        color: "var(--color-on-surface-variant)",
-                      }}
-                    >
-                      Ignore
-                    </button>
-                    <button
-                      onClick={() => handleMerge(m)}
-                      disabled={isMerging || !!mergingId}
-                      className="flex-[2] rounded-xl py-2 text-xs font-semibold transition-colors disabled:opacity-40"
-                      style={{
-                        background: "var(--color-tertiary)",
-                        color: "var(--color-on-tertiary)",
-                      }}
-                    >
-                      {isMerging ? "Merging…" : "Merge"}
-                    </button>
-                  </div>
+                  {pendingMergeAction?.mergeKey === key ? (
+                    <div className="mt-3 space-y-2">
+                      <textarea
+                        value={pendingMergeAction.note}
+                        onChange={(e) => setPendingMergeAction((p) => p ? { ...p, note: e.target.value } : p)}
+                        placeholder={pendingMergeAction.action === "ignore" ? "Why are you ignoring this? (optional)" : "Why are you merging these? (optional)"}
+                        rows={2}
+                        maxLength={300}
+                        className="w-full rounded-xl border px-3 py-2 text-xs resize-none outline-none"
+                        style={{
+                          background: "var(--color-surface-container-low)",
+                          borderColor: "var(--color-outline-variant)",
+                          color: "var(--color-on-surface)",
+                        }}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setPendingMergeAction(null)}
+                          className="flex-1 rounded-xl border py-2 text-xs font-medium"
+                          style={{
+                            borderColor: "color-mix(in oklch, var(--color-tertiary) 35%, transparent)",
+                            color: "var(--color-on-surface-variant)",
+                          }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (pendingMergeAction.action === "ignore") handleIgnore(m, pendingMergeAction.note || undefined);
+                            else handleMerge(m, pendingMergeAction.note || undefined);
+                          }}
+                          disabled={isMerging}
+                          className="flex-[2] rounded-xl py-2 text-xs font-semibold disabled:opacity-40"
+                          style={{
+                            background: pendingMergeAction.action === "merge" ? "var(--color-tertiary)" : "var(--color-surface-container-high)",
+                            color: pendingMergeAction.action === "merge" ? "var(--color-on-tertiary)" : "var(--color-on-surface)",
+                          }}
+                        >
+                          {isMerging ? "Merging…" : `Confirm ${pendingMergeAction.action === "merge" ? "Merge" : "Ignore"}`}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2 mt-3">
+                      <button
+                        onClick={() => setPendingMergeAction({ mergeKey: key, action: "ignore", note: "" })}
+                        disabled={isMerging}
+                        className="flex-1 rounded-xl border py-2 text-xs font-medium transition-colors disabled:opacity-40"
+                        style={{
+                          borderColor: "color-mix(in oklch, var(--color-tertiary) 35%, transparent)",
+                          color: "var(--color-on-surface-variant)",
+                        }}
+                      >
+                        Ignore
+                      </button>
+                      <button
+                        onClick={() => setPendingMergeAction({ mergeKey: key, action: "merge", note: "" })}
+                        disabled={isMerging || !!mergingId}
+                        className="flex-[2] rounded-xl py-2 text-xs font-semibold transition-colors disabled:opacity-40"
+                        style={{
+                          background: "var(--color-tertiary)",
+                          color: "var(--color-on-tertiary)",
+                        }}
+                      >
+                        {isMerging ? "Merging…" : "Merge"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}

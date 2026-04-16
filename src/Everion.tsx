@@ -19,7 +19,7 @@ import { useRole } from "./hooks/useRole";
 import { useOfflineSync } from "./hooks/useOfflineSync";
 import { useNudge } from "./hooks/useNudge";
 import { useChat } from "./hooks/useChat";
-import { searchIndex } from "./lib/searchIndex";
+import { searchIndex, indexEntryConcepts } from "./lib/searchIndex";
 import { applyEntryFilters, getEntryTypes } from "./lib/entryFilters";
 import GridFilters from "./components/GridFilters";
 import { PinGate } from "./lib/pin";
@@ -174,6 +174,14 @@ function EverionContent({
   const { entries, entriesLoaded, selected, setSelected, handleDelete, handleUpdate } = useEntries();
   const { conceptMap, godNodes } = useConceptGraph();
   const { isDark, toggleTheme } = useTheme();
+
+  // Index concept names into the search index so grid search finds entries by concept
+  useEffect(() => {
+    if (!conceptMap) return;
+    Object.entries(conceptMap).forEach(([entryId, concepts]) => {
+      indexEntryConcepts(entryId, concepts);
+    });
+  }, [conceptMap]);
 
   // L-13: Cmd/Ctrl+N → open CaptureSheet (Cmd+K handled by OmniSearch, Escape by each modal)
   useEffect(() => {

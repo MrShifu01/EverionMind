@@ -47,7 +47,12 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
       setResults(
         entries
           .filter((e) => {
-            const hay = `${e.title} ${e.content || ""} ${(e.tags || []).join(" ")}`.toLowerCase();
+            const metaValues = e.metadata && typeof e.metadata === "object"
+              ? Object.values(e.metadata as Record<string, unknown>)
+                  .map((v) => (typeof v === "string" ? v : ""))
+                  .join(" ")
+              : "";
+            const hay = `${e.title} ${e.content || ""} ${(e.tags || []).join(" ")} ${metaValues}`.toLowerCase();
             return hay.includes(trimmed);
           })
           .slice(0, 12),

@@ -47,15 +47,18 @@ export function useDataLayer({
   const [conceptEntryIds, setConceptEntryIds] = useState<Set<string>>(new Set());
 
   // Load concept graph entry IDs so unenriched detection matches the health panel
-  useEffect(() => {
+  const refreshConceptIds = useCallback(async () => {
     if (!activeBrainId) return;
-    loadGraphFromDB(activeBrainId)
-      .then((graph) => {
-        const ids = new Set<string>(graph.concepts.flatMap((c) => c.source_entries ?? []));
-        setConceptEntryIds(ids);
-      })
-      .catch(() => {});
+    try {
+      const graph = await loadGraphFromDB(activeBrainId);
+      const ids = new Set<string>(graph.concepts.flatMap((c) => c.source_entries ?? []));
+      setConceptEntryIds(ids);
+    } catch {}
   }, [activeBrainId]);
+
+  useEffect(() => {
+    refreshConceptIds();
+  }, [refreshConceptIds]);
 
   // Load entries cache on mount
   useEffect(() => {
@@ -228,11 +231,14 @@ export function useDataLayer({
     for (let i = 0; i < unenriched.length; i++) {
       await enrichEntry(unenriched[i], activeBrainId, silentUpdate);
       setEnrichProgress({ done: i + 1, total: unenriched.length });
+      // Refresh concept IDs every 3 entries so the count stays live
+      if ((i + 1) % 3 === 0) await refreshConceptIds();
       if (i < unenriched.length - 1) await new Promise((r) => setTimeout(r, 5000));
     }
+    await refreshConceptIds();
     setEnriching(false);
     setEnrichProgress(null);
-  }, [activeBrainId, entries, enriching, silentUpdate, conceptEntryIds]);
+  }, [activeBrainId, entries, enriching, silentUpdate, conceptEntryIds, refreshConceptIds]);
 
   const handleCreated = useCallback(
     (newEntry: Entry) => {

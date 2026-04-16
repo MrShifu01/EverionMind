@@ -90,17 +90,7 @@ export function useAppShell({
     return () => window.removeEventListener("openbrain:restart-onboarding", h);
   }, []);
 
-  // Global Cmd+K / Ctrl+K capture shortcut
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        setShowCapture(true);
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  // Cmd+K is handled by OmniSearch — do not open CaptureSheet here.
 
   // Search debounce
   useEffect(() => {
