@@ -54,28 +54,37 @@ export function buildSplitPrompt(content: string, brainType: string): string {
  * Falls back to "note" only when the type field is missing or empty.
  */
 export function parseAISplitResponse(raw: string): SplitEntry[] {
-  try {
-    const cleaned = raw.replace(/```json|```/g, "").trim();
-    const jsonMatch = cleaned.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
-    const parsed = JSON.parse(jsonMatch ? jsonMatch[1] : cleaned);
-    // Gemma may return a single object instead of array — wrap it
-    if (!Array.isArray(parsed)) {
-      if (
-        parsed &&
-        typeof parsed === "object" &&
-        typeof parsed.title === "string" &&
-        parsed.title.trim()
-      )
-        return [parsed];
-      return [];
-    }
-    return parsed
+  const cleaned = raw.replace(/```json|```/g, "").trim();
+  const jsonMatch = cleaned.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+  const candidate = jsonMatch ? jsonMatch[1] : cleaned;
+
+  const normalise = (parsed: any): SplitEntry[] => {
+    const arr = Array.isArray(parsed) ? parsed : (parsed?.title ? [parsed] : []);
+    return arr
       .filter((e: any) => e && typeof e.title === "string" && e.title.trim())
       .map((e: any) => ({
         ...e,
         type: typeof e.type === "string" && e.type.trim() ? e.type.trim() : "note",
       }));
+  };
+
+  // Fast path — valid JSON
+  try {
+    return normalise(JSON.parse(candidate));
   } catch {
+    // Slow path — truncated response. Recover all complete entries before the break.
+    try {
+      // Find the last complete object in the array by trimming from the last "},"  or  "}]"
+      const lastComplete = candidate.lastIndexOf("},");
+      const lastEnd = candidate.lastIndexOf("}]");
+      const cutAt = Math.max(lastComplete, lastEnd);
+      if (cutAt > 0) {
+        const recovered = candidate.slice(0, cutAt + 1) + "]";
+        return normalise(JSON.parse(recovered));
+      }
+    } catch {
+      // nothing recoverable
+    }
     return [];
   }
 }

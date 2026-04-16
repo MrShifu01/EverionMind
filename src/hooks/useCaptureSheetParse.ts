@@ -232,10 +232,11 @@ export function useCaptureSheetParse({
       }
 
       try {
+        const hasFiles = uploadedFiles.length > 0;
         const hasMultipleFiles = uploadedFiles.length > 1;
         const res = await callAI({
-          system: hasMultipleFiles ? PROMPTS.FILE_SPLIT : PROMPTS.CAPTURE,
-          max_tokens: uploadedFiles.length > 0 ? 2000 : 800,
+          system: hasFiles ? PROMPTS.FILE_SPLIT : PROMPTS.CAPTURE,
+          max_tokens: hasFiles ? 4000 : 800,
           brainId,
           messages: [{ role: "user", content: input }],
         });
@@ -276,7 +277,7 @@ export function useCaptureSheetParse({
           console.log("[useCaptureSheetParse] AI raw:", aiRawText.slice(0, 300));
           if (!aiRawText) {
             parseError = "Model returned empty response";
-          } else if (hasMultipleFiles) {
+          } else if (hasFiles) {
             const entries = parseAISplitResponse(aiRawText);
             parsedRaw = entries.length > 0 ? entries : { title: "" };
           } else {
