@@ -5,6 +5,7 @@ import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
 import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 import { sbHeaders, sbHeadersNoContent } from "./_lib/sbHeaders.js";
 import { computeCompletenessScore } from "./_lib/completeness.js";
+import { SERVER_PROMPTS } from "./_lib/prompts.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const ENTRY_FIELDS = "id,title,content,type,tags,metadata,brain_id,importance,pinned,created_at,embedded_at";
@@ -14,6 +15,7 @@ const ENTRY_FIELDS = "id,title,content,type,tags,metadata,brain_id,importance,pi
 //   /api/entry-brains → /api/entries?resource=entry-brains
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
   applySecurityHeaders(res);
+  if (req.query.resource === "audit" && req.method === "POST") return handleAudit(req, res);
   if (req.query.resource === "entry-brains") return handleEntryBrains(req, res);
   if (req.method === "GET") return handleGet(req, res);
   if (req.method === "DELETE") return handleDelete(req, res);
@@ -335,6 +337,7 @@ async function handlePatch(req: ApiRequest, res: ApiResponse): Promise<void> {
   // Reset enrichment flags when substantive content changes so the client re-enriches
   const titleChanged = patch.title !== undefined && patch.title !== (entry.title ?? "");
   const contentChanged = patch.content !== undefined && patch.content !== (entry.content ?? "");
+  const typeChanged = patch.type !== undefined && patch.type !== (entry.type ?? "note");
   if (titleChanged || contentChanged) {
     (finalMeta as any).enrichment = {
       ...((finalMeta as any).enrichment ?? {}),
@@ -343,6 +346,10 @@ async function handlePatch(req: ApiRequest, res: ApiResponse): Promise<void> {
       has_insight: false,
       parsed: false,
     };
+  }
+  // Clear audit flags when content, title, or type changes — stale flags no longer apply
+  if (titleChanged || contentChanged || typeChanged) {
+    (finalMeta as any).audit_flags = null;
   }
 
   patch.metadata = finalMeta;
@@ -372,4 +379,107 @@ async function handlePatch(req: ApiRequest, res: ApiResponse): Promise<void> {
 
   const data: any = await response.json();
   res.status(response.ok ? 200 : 502).json(data);
+}
+
+// ── /api/audit (rewritten to /api/entries?resource=audit) ──
+async function handleAudit(req: ApiRequest, res: ApiResponse): Promise<void> {
+  if (!(await rateLimit(req, 10))) return res.status(429).json({ error: "Too many requests" });
+  const user: any = await verifyAuth(req);
+  if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+  const { brain_id } = req.body;
+  if (!brain_id || typeof brain_id !== "string" || brain_id.length > 100) {
+    return res.status(400).json({ error: "Missing or invalid brain_id" });
+  }
+
+  const access = await checkBrainAccess(user.id, brain_id);
+  if (!access) return res.status(403).json({ error: "Forbidden" });
+
+  // Fetch 25 newest entries for this brain
+  const entriesRes = await fetch(
+    `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brain_id)}&select=id,title,content,type,tags,metadata&order=created_at.desc&limit=25`,
+    { headers: sbHeadersNoContent() },
+  );
+  if (!entriesRes.ok) return res.status(502).json({ error: "Database error" });
+  const entries: any[] = await entriesRes.json();
+
+  if (!entries.length) return res.status(200).json({ flagged: 0, entries: {} });
+
+  const entrySet = new Set(entries.map((e: any) => e.id));
+  const entryLines = entries
+    .map((e: any) =>
+      `ID: ${e.id}\nTitle: ${e.title}\nType: ${e.type}\nTags: ${(e.tags || []).join(", ")}\nContent: ${String(e.content || "").slice(0, 500)}\nMetadata: ${JSON.stringify(e.metadata || {})}`,
+    )
+    .join("\n\n---\n\n");
+
+  const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
+  const GEMINI_MODEL = (process.env.GEMINI_MODEL || "gemini-2.5-flash-lite").trim();
+
+  let flags: any[] = [];
+  try {
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: entryLines }] }],
+          systemInstruction: { parts: [{ text: SERVER_PROMPTS.ENTRY_AUDIT }] },
+          generationConfig: { maxOutputTokens: 2048 },
+        }),
+      },
+    );
+    if (geminiRes.ok) {
+      const geminiData = await geminiRes.json();
+      const text: string = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const cleaned = text.replace(/```json|```/g, "").trim();
+      const match = cleaned.match(/\[[\s\S]*\]/);
+      if (match) {
+        try {
+          const parsed = JSON.parse(match[0]);
+          if (Array.isArray(parsed)) {
+            // Hallucination guard: only accept flags for entryIds in the fetched batch
+            flags = parsed.filter((f: any) => f?.entryId && entrySet.has(f.entryId));
+          }
+        } catch { /* invalid JSON — no flags */ }
+      }
+    }
+  } catch { /* Gemini unreachable — return empty */ }
+
+  // Group flags by entryId
+  const flagsByEntry: Record<string, any[]> = {};
+  for (const flag of flags) {
+    if (!flagsByEntry[flag.entryId]) flagsByEntry[flag.entryId] = [];
+    flagsByEntry[flag.entryId].push({
+      type: flag.type,
+      field: flag.field,
+      currentValue: flag.currentValue ?? "",
+      suggestedValue: flag.suggestedValue ?? "",
+      reason: String(flag.reason || "").slice(0, 90),
+    });
+  }
+
+  // PATCH every entry in the batch: write flags or clear stale ones
+  await Promise.all(
+    entries.map(async (entry: any) => {
+      const entryFlags = flagsByEntry[entry.id] ?? null;
+      const newMeta = { ...(entry.metadata || {}), audit_flags: entryFlags };
+      await fetch(
+        `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entry.id)}`,
+        {
+          method: "PATCH",
+          headers: sbHeaders({ Prefer: "return=minimal" }),
+          body: JSON.stringify({ metadata: newMeta }),
+        },
+      ).catch(() => {}); // best-effort per entry
+    }),
+  );
+
+  // Return flag map so the client can update local state without a full re-fetch
+  const responseEntries: Record<string, any[] | null> = {};
+  for (const entry of entries) {
+    responseEntries[entry.id] = flagsByEntry[entry.id] ?? null;
+  }
+
+  return res.status(200).json({ flagged: Object.keys(flagsByEntry).length, entries: responseEntries });
 }

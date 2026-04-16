@@ -24,6 +24,7 @@
     { "source": "/api/activity",         "destination": "/api/user-data?resource=activity" },
     { "source": "/api/health",           "destination": "/api/user-data?resource=health" },
     { "source": "/api/vault",            "destination": "/api/user-data?resource=vault" },
+    { "source": "/api/audit",            "destination": "/api/entries?resource=audit" },
     { "source": "/((?!api/|assets/).*)",  "destination": "/index.html" }
   ],
   "headers": [
