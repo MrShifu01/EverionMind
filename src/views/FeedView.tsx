@@ -1,12 +1,15 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { authFetch } from "../lib/authFetch";
 import { fmtD } from "../data/constants";
 import { EarlyAccessBanner } from "../components/EarlyAccessBanner";
 import { PROMPTS } from "../config/prompts";
 import { showToast } from "../lib/notifications";
+import { useEntries } from "../context/EntriesContext";
+import { parseAISplitResponse } from "../lib/fileSplitter";
 
 const FEED_TTL = 2 * 60 * 60 * 1000; // 2 hours (quick + insights)
 const MERGE_TTL = 24 * 60 * 60 * 1000; // 24 hours — merges don't change that fast
+const AUDIT_TTL = 24 * 60 * 60 * 1000; // 24 hours — audit runs once per brain per day
 
 function quickCacheKey(brainId: string) { return `feed_quick_cache:${brainId}`; }
 function insightsCacheKey(brainId: string) { return `feed_insights_cache:${brainId}`; }
@@ -16,6 +19,7 @@ function mergeCacheKey(brainId: string) { return `merge_cache:${brainId}`; }
 function ignoredMergesKey(brainId: string) { return `ignored_merges:${brainId}`; }
 function ignoredQuestionsKey(brainId: string) { return `ignored_questions:${brainId}`; }
 function wowFeedbackKey(brainId: string) { return `wow_feedback:${brainId}`; }
+function auditCacheKey(brainId: string) { return `audit_run_at:${brainId}`; }
 function mergeId(ids: string[]) { return [...ids].sort().join(":"); }
 
 function readCache<T>(key: string, ttl = FEED_TTL): T | null {
@@ -67,6 +71,17 @@ interface MergeSuggestion {
   reason: string;
 }
 
+interface AuditFlag {
+  type:
+    | "TYPE_MISMATCH" | "PHONE_FOUND" | "EMAIL_FOUND" | "URL_FOUND"
+    | "DATE_FOUND"    | "TITLE_POOR"  | "SPLIT_SUGGESTED"
+    | "MERGE_SUGGESTED" | "CONTENT_WEAK" | "TAG_SUGGESTED" | "SENSITIVE_DATA";
+  field: string;
+  currentValue: string;
+  suggestedValue: string;
+  reason: string;
+}
+
 interface QuickData {
   greeting: string;
   resurfaced: FeedEntry[];
@@ -111,10 +126,19 @@ export default function FeedView({
   onEnrich,
   onCreated,
 }: FeedViewProps) {
+  const { entries, entriesLoaded, handleUpdate, handleDelete } = useEntries();
+
   const [quickData, setQuickData] = useState<QuickData | null>(null);
   const [quickLoading, setQuickLoading] = useState(true);
   const [insightsData, setInsightsData] = useState<InsightsData | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(true);
+
+  // Audit state
+  const [localAuditFlags, setLocalAuditFlags] = useState<Map<string, AuditFlag[]>>(new Map());
+  const [splitPreview, setSplitPreview] = useState<{ entryId: string; entries: Array<{ title: string; type: string; content: string }> } | null>(null);
+  const [splitPreviewLoading, setSplitPreviewLoading] = useState<string | null>(null);
+  const [auditActionLoading, setAuditActionLoading] = useState<string | null>(null);
+  const auditInitRef = useRef(false);
 
   // Merge state
   const [ignoredMerges, setIgnoredMerges] = useState<Set<string>>(new Set());
@@ -165,6 +189,35 @@ export default function FeedView({
       if (raw) setWowFeedback(JSON.parse(raw));
     } catch { /* ignore */ }
   }, [brainId]);
+
+  // Init localAuditFlags once from entries that already have persisted flags
+  useEffect(() => {
+    if (!entriesLoaded || auditInitRef.current) return;
+    auditInitRef.current = true;
+    const init = new Map<string, AuditFlag[]>();
+    for (const e of entries) {
+      const flags = (e.metadata as any)?.audit_flags as AuditFlag[] | undefined;
+      if (flags?.length) init.set(e.id, flags);
+    }
+    if (init.size > 0) setLocalAuditFlags(init);
+  }, [entries, entriesLoaded]);
+
+  // Sync: remove flags for entries whose audit_flags were cleared server-side (e.g. after edit)
+  useEffect(() => {
+    setLocalAuditFlags((prev) => {
+      if (!prev.size) return prev;
+      let changed = false;
+      const next = new Map(prev);
+      for (const e of entries) {
+        const contextFlags: AuditFlag[] | undefined = (e.metadata as any)?.audit_flags;
+        if (prev.has(e.id) && (!contextFlags || contextFlags.length === 0)) {
+          next.delete(e.id);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [entries]);
 
   useEffect(() => {
     if (!brainId) return;
@@ -234,6 +287,32 @@ export default function FeedView({
         })
         .catch((err) => console.error("[FeedView/merges]", err))
         .finally(() => setInsightsLoading(false));
+    }
+
+    // Audit auto-run — background, parallel with quick/insights, once per 24h per brain
+    const lastAuditTs = (() => {
+      try { return Number(localStorage.getItem(auditCacheKey(brainId))) || 0; } catch { return 0; }
+    })();
+    if (Date.now() - lastAuditTs > AUDIT_TTL) {
+      authFetch("/api/audit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brain_id: brainId }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: { flagged: number; entries: Record<string, AuditFlag[] | null> } | null) => {
+          if (!d) return;
+          try { localStorage.setItem(auditCacheKey(brainId), String(Date.now())); } catch { /* ignore */ }
+          setLocalAuditFlags((prev) => {
+            const next = new Map(prev);
+            for (const [id, flags] of Object.entries(d.entries)) {
+              if (flags?.length) next.set(id, flags);
+              else next.delete(id);
+            }
+            return next;
+          });
+        })
+        .catch(() => { /* silent — audit_run_at not written, retries next load */ });
     }
   }, [brainId]);
 
@@ -503,6 +582,151 @@ export default function FeedView({
     }
   }
 
+  function removeAuditFlag(entryId: string, flagType: string) {
+    setLocalAuditFlags((prev) => {
+      const next = new Map(prev);
+      const remaining = (prev.get(entryId) ?? []).filter((f) => f.type !== flagType);
+      if (remaining.length > 0) next.set(entryId, remaining);
+      else next.delete(entryId);
+      return next;
+    });
+  }
+
+  async function persistAuditFlags(entryId: string, newFlags: AuditFlag[]) {
+    const entry = entries.find((e) => e.id === entryId);
+    const newMeta = { ...(entry?.metadata ?? {}), audit_flags: newFlags.length ? newFlags : null };
+    const r = await authFetch("/api/update-entry", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: entryId, metadata: newMeta }),
+    }).catch(() => null);
+    return r?.ok ?? false;
+  }
+
+  async function handleAuditDismiss(entryId: string, flag: AuditFlag) {
+    const prevFlags = localAuditFlags.get(entryId) ?? [];
+    const newFlags = prevFlags.filter((f) => f.type !== flag.type);
+    removeAuditFlag(entryId, flag.type);
+    const ok = await persistAuditFlags(entryId, newFlags);
+    if (!ok) {
+      showToast("Couldn't dismiss. Try again.", "error");
+      setLocalAuditFlags((prev) => {
+        const next = new Map(prev);
+        next.set(entryId, prevFlags);
+        return next;
+      });
+    }
+  }
+
+  async function handleAuditApply(entryId: string, flag: AuditFlag) {
+    const actionKey = `${entryId}:${flag.type}`;
+    setAuditActionLoading(actionKey);
+    const prevFlags = localAuditFlags.get(entryId) ?? [];
+    const newFlags = prevFlags.filter((f) => f.type !== flag.type);
+    const entry = entries.find((e) => e.id === entryId);
+    if (!entry) { setAuditActionLoading(null); return; }
+
+    // Build the field change from the flag
+    const patch: any = {};
+    if (flag.field === "type") {
+      patch.type = flag.suggestedValue;
+    } else if (flag.field === "tags") {
+      const suggested = flag.suggestedValue.split(",").map((t) => t.trim()).filter(Boolean);
+      patch.tags = [...new Set([...(entry.tags ?? []), ...suggested])];
+    } else if (flag.field.startsWith("metadata.")) {
+      const metaKey = flag.field.slice("metadata.".length);
+      patch.metadata = { ...(entry.metadata ?? {}), [metaKey]: flag.suggestedValue };
+    }
+    // Always update audit_flags in metadata
+    patch.metadata = { ...(entry.metadata ?? {}), ...(patch.metadata ?? {}), audit_flags: newFlags.length ? newFlags : null };
+
+    // Optimistic flag removal
+    removeAuditFlag(entryId, flag.type);
+
+    try {
+      await handleUpdate(entryId, patch, { silent: true });
+    } catch {
+      showToast("Couldn't apply fix. Try again.", "error");
+      setLocalAuditFlags((prev) => {
+        const next = new Map(prev);
+        next.set(entryId, prevFlags);
+        return next;
+      });
+    } finally {
+      setAuditActionLoading(null);
+    }
+  }
+
+  async function handleAuditSplitPreview(entryId: string) {
+    const entry = entries.find((e) => e.id === entryId);
+    if (!entry) return;
+    setSplitPreviewLoading(entryId);
+    try {
+      const r = await authFetch("/api/llm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system: PROMPTS.QA_PARSE,
+          messages: [{ role: "user", content: `Title: ${entry.title}\n\n${entry.content ?? ""}` }],
+          max_tokens: 1200,
+        }),
+      });
+      if (!r.ok) throw new Error("LLM failed");
+      const data = await r.json();
+      const text: string = data?.content?.[0]?.text || data?.text || "";
+      const parsed = parseAISplitResponse(text);
+      if (!parsed.length) throw new Error("No entries parsed");
+      setSplitPreview({ entryId, entries: parsed.map((e) => ({ title: e.title, type: e.type, content: e.content })) });
+    } catch {
+      showToast("Couldn't generate preview. Try again.", "error");
+    } finally {
+      setSplitPreviewLoading(null);
+    }
+  }
+
+  async function handleAuditSplitConfirm(entryId: string) {
+    if (!brainId || !splitPreview || splitPreview.entryId !== entryId) return;
+    const actionKey = `${entryId}:SPLIT_SUGGESTED`;
+    setAuditActionLoading(actionKey);
+    try {
+      // Create new entries
+      for (const e of splitPreview.entries) {
+        const r = await authFetch("/api/capture", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ p_title: e.title, p_content: e.content, p_type: e.type, p_tags: [], p_brain_id: brainId }),
+        });
+        if (r.ok) {
+          const newEntry = await r.json();
+          onCreated?.({
+            id: newEntry.id,
+            title: e.title,
+            content: e.content,
+            type: e.type,
+            metadata: {},
+            tags: [],
+            brain_id: brainId,
+            created_at: new Date().toISOString(),
+          });
+        }
+      }
+      // Delete original
+      await authFetch("/api/delete-entry", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: entryId }),
+      });
+      handleDelete(entryId);
+      removeAuditFlag(entryId, "SPLIT_SUGGESTED");
+      setSplitPreview(null);
+      showToast(`Split into ${splitPreview.entries.length} entries.`, "success");
+    } catch {
+      showToast("Split failed. Try again.", "error");
+    } finally {
+      setAuditActionLoading(null);
+    }
+  }
+
   async function submitAnswer() {
     if (!activeQ || !answer.trim() || !brainId) return;
     setSaving(true);
@@ -583,6 +807,23 @@ export default function FeedView({
     }
   }
 
+  const AUTO_APPLY = new Set(["PHONE_FOUND", "EMAIL_FOUND", "URL_FOUND", "DATE_FOUND", "TAG_SUGGESTED", "SENSITIVE_DATA"]);
+  const OPEN_EDIT = new Set(["TYPE_MISMATCH", "TITLE_POOR", "CONTENT_WEAK"]);
+
+  const sortedAuditCards = useMemo(() => {
+    const cards: Array<{ entryId: string; entry: any; flag: AuditFlag }> = [];
+    for (const [entryId, flags] of localAuditFlags) {
+      const entry = entries.find((e) => e.id === entryId);
+      if (!entry || !flags?.length) continue;
+      for (const flag of flags) cards.push({ entryId, entry, flag });
+    }
+    return cards.sort((a, b) => {
+      if (a.flag.type === "SENSITIVE_DATA" && b.flag.type !== "SENSITIVE_DATA") return -1;
+      if (a.flag.type !== "SENSITIVE_DATA" && b.flag.type === "SENSITIVE_DATA") return 1;
+      return 0;
+    });
+  }, [localAuditFlags, entries]);
+
   // Full-page skeleton only on very first load (no cache at all)
   if (quickLoading && !quickData) {
     return (
@@ -601,15 +842,26 @@ export default function FeedView({
   if (!quickLoading && quickData && quickData.stats.entries === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-        <div className="text-5xl">🧠</div>
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+          <circle cx="24" cy="24" r="19" stroke="var(--color-outline)" strokeWidth="1.5"/>
+          <circle cx="24" cy="24" r="5" fill="var(--color-primary)" opacity="0.5"/>
+          <line x1="24" y1="5" x2="24" y2="19" stroke="var(--color-outline)" strokeWidth="1.25" strokeLinecap="round"/>
+          <line x1="24" y1="29" x2="24" y2="43" stroke="var(--color-outline)" strokeWidth="1.25" strokeLinecap="round"/>
+          <line x1="5" y1="24" x2="19" y2="24" stroke="var(--color-outline)" strokeWidth="1.25" strokeLinecap="round"/>
+          <line x1="29" y1="24" x2="43" y2="24" stroke="var(--color-outline)" strokeWidth="1.25" strokeLinecap="round"/>
+          <circle cx="24" cy="5" r="2.5" fill="var(--color-outline-variant)"/>
+          <circle cx="24" cy="43" r="2.5" fill="var(--color-outline-variant)"/>
+          <circle cx="5" cy="24" r="2.5" fill="var(--color-outline-variant)"/>
+          <circle cx="43" cy="24" r="2.5" fill="var(--color-outline-variant)"/>
+        </svg>
         <h2
-          className="text-on-surface text-xl font-bold"
+          className="text-on-surface text-xl font-medium"
           style={{ fontFamily: "'Lora', Georgia, serif" }}
         >
-          Your brain is empty. Let's fix that.
+          Start capturing your thoughts.
         </h2>
         <p className="text-on-surface-variant max-w-sm text-sm">
-          Capture your first thought and watch your brain grow.
+          Your first entry is the beginning of a knowledge graph that grows smarter over time.
         </p>
         <button
           onClick={onCapture}
@@ -714,7 +966,10 @@ export default function FeedView({
           <div className="text-on-surface-variant mt-2 flex flex-wrap gap-4 text-xs">
             <span>{quickData.stats.entries} memories</span>
             {quickData.streak.current > 0 && (
-              <span>🔥 {quickData.streak.current}-day streak</span>
+              <span className="flex items-center gap-1.5">
+                <span aria-hidden="true" className="inline-block h-2 w-2 rounded-full" style={{ background: "var(--color-status-medium)" }} />
+                {quickData.streak.current}-day streak
+              </span>
             )}
           </div>
         </div>
@@ -724,7 +979,7 @@ export default function FeedView({
       {quickData && quickData.resurfaced.length > 0 && (
         <div className="space-y-2">
           <p
-            className="text-xs font-semibold tracking-widest uppercase"
+            className="text-[11px] font-semibold tracking-widest uppercase"
             style={{ color: "var(--color-on-surface-variant)" }}
           >
             From your memory
@@ -762,8 +1017,8 @@ export default function FeedView({
       ) : insightsData && insightsData.wows.length > 0 ? (
         <div className="space-y-2">
           <p
-            className="text-xs font-semibold tracking-widest uppercase"
-            style={{ color: "var(--color-status-medium)" }}
+            className="text-sm font-medium italic"
+            style={{ fontFamily: "'Lora', Georgia, serif", color: "var(--color-status-medium)" }}
           >
             Your brain just connected the dots
           </p>
@@ -790,25 +1045,27 @@ export default function FeedView({
                 <div className="mt-2 flex items-center gap-2">
                   <button
                     onClick={() => handleWowVote(wow.headline, "up")}
+                    aria-label="Mark insight as correct"
+                    aria-pressed={fb.vote === "up"}
                     className="rounded-lg px-2 py-0.5 text-sm border transition-opacity"
                     style={{
                       borderColor: "color-mix(in oklch, var(--color-status-medium) 40%, transparent)",
                       opacity: fb.vote === "up" ? 1 : 0.4,
                     }}
-                    title="This is correct"
                   >
-                    👍
+                    <span aria-hidden="true">👍</span>
                   </button>
                   <button
                     onClick={() => handleWowVote(wow.headline, "down")}
+                    aria-label="Mark insight as incorrect"
+                    aria-pressed={fb.vote === "down"}
                     className="rounded-lg px-2 py-0.5 text-sm border transition-opacity"
                     style={{
                       borderColor: "color-mix(in oklch, var(--color-status-medium) 40%, transparent)",
                       opacity: fb.vote === "down" ? 1 : 0.4,
                     }}
-                    title="This is wrong"
                   >
-                    👎
+                    <span aria-hidden="true">👎</span>
                   </button>
                   {fb.vote === "down" && (
                     <span className="text-[10px]" style={{ color: "var(--color-on-surface-variant)" }}>
@@ -822,6 +1079,7 @@ export default function FeedView({
                       value={fb.correction}
                       onChange={(e) => handleWowCorrection(wow.headline, e.target.value)}
                       placeholder="e.g. My staff are not suppliers"
+                      aria-label="Describe what's incorrect about this insight"
                       maxLength={200}
                       className="flex-1 rounded-lg border px-2 py-1 text-xs outline-none"
                       style={{
@@ -834,8 +1092,9 @@ export default function FeedView({
                       <button
                         onClick={() => handleSaveWowFeedback(wow.headline, fb.correction)}
                         disabled={savingInsightFeedback.has(wow.headline) || savedInsightFeedback.has(wow.headline)}
+                        aria-busy={savingInsightFeedback.has(wow.headline)}
                         className="rounded-lg px-2 py-1 text-[10px] font-semibold disabled:opacity-50"
-                        style={{ background: "var(--color-error)", color: "#fff" }}
+                        style={{ background: "var(--color-error)", color: "var(--color-on-error)" }}
                       >
                         {savingInsightFeedback.has(wow.headline) ? "Fixing…" : savedInsightFeedback.has(wow.headline) ? "Fixed ✓" : "Save"}
                       </button>
@@ -857,7 +1116,7 @@ export default function FeedView({
       ) : insightsData && insightsData.suggestions.filter((s) => !ignoredQuestions.has(s.q)).length > 0 ? (
         <div className="space-y-2">
           <p
-            className="text-xs font-semibold tracking-widest uppercase"
+            className="text-[11px] font-semibold tracking-widest uppercase"
             style={{ color: "var(--color-on-surface-variant)" }}
           >
             Your brain is asking
@@ -885,9 +1144,23 @@ export default function FeedView({
                     setAnswer("");
                     setQaError(null);
                   }}
+                  aria-expanded={isOpen}
+                  aria-label={`${isOpen ? "Collapse" : "Expand"} question: ${s.q}`}
                   className="press-scale flex w-full items-start gap-3 p-4 text-left"
                 >
-                  <span className="text-base">{isDone ? "✅" : "💬"}</span>
+                  <span aria-hidden="true" className="mt-0.5 flex-shrink-0">
+                    {isDone ? (
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--color-primary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="8" cy="8" r="6.5"/>
+                        <path d="M5.5 8l2 2 3-3"/>
+                      </svg>
+                    ) : (
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--color-on-surface-variant)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="8" cy="8" r="6.5"/>
+                        <circle cx="8" cy="8" r="1.5" fill="var(--color-on-surface-variant)" stroke="none"/>
+                      </svg>
+                    )}
+                  </span>
                   <div className="flex-1 min-w-0">
                     <p
                       className="text-xs font-semibold uppercase tracking-wide mb-0.5"
@@ -906,16 +1179,16 @@ export default function FeedView({
                     <div className="flex items-center gap-1 self-center flex-shrink-0">
                       <button
                         onClick={(e) => { e.stopPropagation(); handleIgnoreQuestion(s.q); }}
+                        aria-label={`Ignore question: ${s.q}`}
                         className="rounded-lg px-2 py-0.5 text-[10px] font-medium border"
                         style={{
                           borderColor: "color-mix(in oklch, var(--color-secondary) 30%, transparent)",
                           color: "var(--color-on-surface-variant)",
                         }}
-                        title="Ignore this question"
                       >
                         Ignore
                       </button>
-                      <span className="text-on-surface-variant text-xs">{isOpen ? "↑" : "↓"}</span>
+                      <span aria-hidden="true" className="text-on-surface-variant text-xs">{isOpen ? "↑" : "↓"}</span>
                     </div>
                   )}
                 </button>
@@ -926,6 +1199,7 @@ export default function FeedView({
                       value={answer}
                       onChange={(e) => setAnswer(e.target.value)}
                       placeholder="Type your answer…"
+                      aria-label={`Your answer to: ${s.q}`}
                       rows={3}
                       className="w-full rounded-xl border px-3 py-2 text-sm resize-none outline-none"
                       style={{
@@ -937,27 +1211,39 @@ export default function FeedView({
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => fileInputRef.current?.click()}
+                        aria-label="Attach a file as your answer"
                         className="rounded-lg px-3 py-1.5 text-xs font-medium border"
                         style={{ borderColor: "var(--color-outline-variant)", color: "var(--color-on-surface-variant)" }}
-                        title="Upload file"
                       >
-                        📎 File
+                        <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="inline-block">
+                          <path d="M10.5 5.5L5.5 10.5a3 3 0 01-4.24-4.24l5-5a1.75 1.75 0 012.47 2.47L3.73 8.73a.5.5 0 01-.71-.71L8 3"/>
+                        </svg> File
                       </button>
                       <button
                         onClick={listening ? stopVoice : startVoice}
+                        aria-label={listening ? "Stop voice recording" : "Start voice recording"}
+                        aria-pressed={listening}
                         className="rounded-lg px-3 py-1.5 text-xs font-medium border"
                         style={{
                           borderColor: listening ? "var(--color-error)" : "var(--color-outline-variant)",
                           color: listening ? "var(--color-error)" : "var(--color-on-surface-variant)",
                         }}
-                        title="Voice input"
                       >
-                        {listening ? "⏹ Stop" : "🎤 Voice"}
+                        {listening ? (
+                          <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="currentColor" className="inline-block"><rect x="2" y="2" width="8" height="8" rx="1.5"/></svg>
+                        ) : (
+                          <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="inline-block">
+                            <rect x="4" y="1" width="4" height="6" rx="2"/>
+                            <path d="M2 6.5a4 4 0 008 0"/>
+                            <line x1="6" y1="10.5" x2="6" y2="9"/>
+                          </svg>
+                        )} {listening ? "Stop" : "Voice"}
                       </button>
                       <div className="flex-1" />
                       <button
                         onClick={submitAnswer}
                         disabled={!answer.trim() || saving}
+                        aria-busy={saving}
                         className="rounded-xl px-4 py-1.5 text-xs font-semibold disabled:opacity-40"
                         style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
                       >
@@ -991,8 +1277,8 @@ export default function FeedView({
       ) : insightsData && insightsData.merges && insightsData.merges.filter((m) => !ignoredMerges.has(mergeId(m.ids))).length > 0 ? (
         <div className="space-y-2">
           <p
-            className="text-xs font-semibold tracking-widest uppercase"
-            style={{ color: "var(--color-on-surface-variant)" }}
+            className="text-[10px] font-medium tracking-wider uppercase"
+            style={{ color: "var(--color-on-surface-variant)", opacity: 0.7 }}
           >
             Consider merging
           </p>
@@ -1033,6 +1319,7 @@ export default function FeedView({
                         value={pendingMergeAction.note}
                         onChange={(e) => setPendingMergeAction((p) => p ? { ...p, note: e.target.value } : p)}
                         placeholder={pendingMergeAction.action === "ignore" ? "Why are you ignoring this? (optional)" : "Why are you merging these? (optional)"}
+                        aria-label={pendingMergeAction.action === "ignore" ? "Reason for ignoring (optional)" : "Reason for merging (optional)"}
                         rows={2}
                         maxLength={300}
                         className="w-full rounded-xl border px-3 py-2 text-xs resize-none outline-none"
@@ -1059,6 +1346,7 @@ export default function FeedView({
                             else handleMerge(m, pendingMergeAction.note || undefined);
                           }}
                           disabled={isMerging}
+                          aria-busy={isMerging}
                           className="flex-[2] rounded-xl py-2 text-xs font-semibold disabled:opacity-40"
                           style={{
                             background: pendingMergeAction.action === "merge" ? "var(--color-tertiary)" : "var(--color-surface-container-high)",
@@ -1085,6 +1373,7 @@ export default function FeedView({
                       <button
                         onClick={() => setPendingMergeAction({ mergeKey: key, action: "merge", note: "" })}
                         disabled={isMerging || !!mergingId}
+                        aria-busy={isMerging}
                         className="flex-[2] rounded-xl py-2 text-xs font-semibold transition-colors disabled:opacity-40"
                         style={{
                           background: "var(--color-tertiary)",
@@ -1100,6 +1389,235 @@ export default function FeedView({
             })}
         </div>
       ) : null}
+
+      {/* Consider fixing — audit flags */}
+      {sortedAuditCards.length > 0 && (
+        <div className="space-y-2">
+            <p className="text-[10px] font-medium tracking-wider uppercase" style={{ color: "var(--color-on-surface-variant)", opacity: 0.7 }}>
+              Consider fixing
+            </p>
+            {sortedAuditCards.map(({ entryId, entry, flag }) => {
+              const cardKey = `${entryId}:${flag.type}`;
+              const isLoading = auditActionLoading === cardKey;
+
+              // ── Merge card ──
+              if (flag.type === "MERGE_SUGGESTED") {
+                const asMerge: MergeSuggestion = {
+                  ids: [entryId, flag.suggestedValue],
+                  titles: flag.currentValue.split(" + "),
+                  reason: flag.reason,
+                };
+                const mKey = mergeId(asMerge.ids);
+                const isMerging = mergingId === mKey;
+                return (
+                  <div
+                    key={cardKey}
+                    className="rounded-2xl border p-4"
+                    style={{
+                      background: "color-mix(in oklch, var(--color-tertiary) 8%, var(--color-surface))",
+                      borderColor: "color-mix(in oklch, var(--color-tertiary) 20%, transparent)",
+                    }}
+                  >
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {asMerge.titles.map((t, j) => (
+                        <span key={j} className="rounded-full px-2.5 py-0.5 text-[10px] font-medium" style={{ background: "var(--color-tertiary-container)", color: "var(--color-on-tertiary-container)" }}>
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-xs leading-relaxed" style={{ color: "var(--color-on-surface-variant)" }}>{flag.reason}</p>
+                    {pendingMergeAction?.mergeKey === mKey ? (
+                      <div className="mt-3 space-y-2">
+                        <textarea
+                          value={pendingMergeAction.note}
+                          onChange={(e) => setPendingMergeAction((p) => p ? { ...p, note: e.target.value } : p)}
+                          placeholder={pendingMergeAction.action === "ignore" ? "Why are you ignoring this? (optional)" : "Why are you merging these? (optional)"}
+                          rows={2} maxLength={300}
+                          className="w-full rounded-xl border px-3 py-2 text-xs resize-none outline-none"
+                          style={{ background: "var(--color-surface-container-low)", borderColor: "var(--color-outline-variant)", color: "var(--color-on-surface)" }}
+                        />
+                        <div className="flex gap-2">
+                          <button onClick={() => setPendingMergeAction(null)} className="flex-1 rounded-xl border py-2 text-xs font-medium" style={{ borderColor: "color-mix(in oklch, var(--color-tertiary) 35%, transparent)", color: "var(--color-on-surface-variant)" }}>Cancel</button>
+                          <button
+                            onClick={async () => {
+                              if (pendingMergeAction.action === "ignore") { handleIgnore(asMerge, pendingMergeAction.note || undefined); removeAuditFlag(entryId, "MERGE_SUGGESTED"); }
+                              else { await handleMerge(asMerge, pendingMergeAction.note || undefined); removeAuditFlag(entryId, "MERGE_SUGGESTED"); }
+                            }}
+                            disabled={isMerging}
+                            className="flex-[2] rounded-xl py-2 text-xs font-semibold disabled:opacity-40"
+                            style={{ background: pendingMergeAction.action === "merge" ? "var(--color-tertiary)" : "var(--color-surface-container-high)", color: pendingMergeAction.action === "merge" ? "var(--color-on-tertiary)" : "var(--color-on-surface)" }}
+                          >
+                            {isMerging ? "Merging…" : `Confirm ${pendingMergeAction.action === "merge" ? "Merge" : "Ignore"}`}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          onClick={() => { handleIgnore(asMerge); removeAuditFlag(entryId, "MERGE_SUGGESTED"); }}
+                          disabled={isMerging}
+                          className="flex-1 rounded-xl border py-2 text-xs font-medium transition-colors disabled:opacity-40"
+                          style={{ borderColor: "color-mix(in oklch, var(--color-tertiary) 35%, transparent)", color: "var(--color-on-surface-variant)" }}
+                        >
+                          Ignore
+                        </button>
+                        <button
+                          onClick={() => setPendingMergeAction({ mergeKey: mKey, action: "merge", note: "" })}
+                          disabled={isMerging || !!mergingId}
+                          className="flex-[2] rounded-xl py-2 text-xs font-semibold transition-colors disabled:opacity-40"
+                          style={{ background: "var(--color-tertiary)", color: "var(--color-on-tertiary)" }}
+                        >
+                          {isMerging ? "Merging…" : "Merge"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // ── Split card ──
+              if (flag.type === "SPLIT_SUGGESTED") {
+                const isPreviewing = splitPreview?.entryId === entryId;
+                const isPreviewLoading = splitPreviewLoading === entryId;
+                const isConfirming = isLoading;
+                return (
+                  <div
+                    key={cardKey}
+                    className="rounded-2xl border p-4"
+                    style={{
+                      background: "color-mix(in oklch, var(--color-secondary) 8%, var(--color-surface))",
+                      borderColor: "color-mix(in oklch, var(--color-secondary) 20%, transparent)",
+                    }}
+                  >
+                    <p className="text-xs font-semibold mb-0.5" style={{ color: "var(--color-on-surface)" }}>{entry.title}</p>
+                    <p className="text-xs leading-relaxed mb-3" style={{ color: "var(--color-on-surface-variant)" }}>{flag.reason}</p>
+                    {isPreviewing && splitPreview ? (
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--color-on-surface-variant)" }}>Proposed split</p>
+                        {splitPreview.entries.map((e, i) => (
+                          <div key={i} className="rounded-xl border px-3 py-2" style={{ borderColor: "var(--color-outline-variant)", background: "var(--color-surface-container-low)" }}>
+                            <p className="text-xs font-semibold" style={{ color: "var(--color-on-surface)" }}>{e.title}</p>
+                            <p className="text-[10px]" style={{ color: "var(--color-on-surface-variant)" }}>{e.type}</p>
+                          </div>
+                        ))}
+                        <div className="flex gap-2 pt-1">
+                          <button onClick={() => setSplitPreview(null)} className="flex-1 rounded-xl border py-2 text-xs font-medium" style={{ borderColor: "var(--color-outline-variant)", color: "var(--color-on-surface-variant)" }}>Cancel</button>
+                          <button
+                            onClick={() => handleAuditSplitConfirm(entryId)}
+                            disabled={isConfirming}
+                            className="flex-[2] rounded-xl py-2 text-xs font-semibold disabled:opacity-40"
+                            style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
+                          >
+                            {isConfirming ? "Splitting…" : "Confirm Split"}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleAuditDismiss(entryId, flag)}
+                          className="flex-1 rounded-xl border py-2 text-xs font-medium"
+                          style={{ borderColor: "var(--color-outline-variant)", color: "var(--color-on-surface-variant)" }}
+                        >
+                          Dismiss
+                        </button>
+                        <button
+                          onClick={() => handleAuditSplitPreview(entryId)}
+                          disabled={isPreviewLoading}
+                          className="flex-[2] rounded-xl py-2 text-xs font-semibold disabled:opacity-40"
+                          style={{ background: "var(--color-secondary)", color: "var(--color-on-secondary)" }}
+                        >
+                          {isPreviewLoading ? "Loading…" : "Preview Split"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // ── Open-edit card ──
+              if (OPEN_EDIT.has(flag.type)) {
+                return (
+                  <div
+                    key={cardKey}
+                    className="rounded-2xl border p-4"
+                    style={{
+                      background: "color-mix(in oklch, var(--color-secondary) 6%, var(--color-surface))",
+                      borderColor: "color-mix(in oklch, var(--color-secondary) 18%, transparent)",
+                    }}
+                  >
+                    <p className="text-xs font-semibold mb-0.5" style={{ color: "var(--color-on-surface)" }}>{entry.title}</p>
+                    <p className="text-xs leading-relaxed mb-3" style={{ color: "var(--color-on-surface-variant)" }}>{flag.reason}</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleAuditDismiss(entryId, flag)}
+                        className="flex-1 rounded-xl border py-2 text-xs font-medium"
+                        style={{ borderColor: "var(--color-outline-variant)", color: "var(--color-on-surface-variant)" }}
+                      >
+                        Dismiss
+                      </button>
+                      <button
+                        onClick={() => onSelectEntry?.(entry)}
+                        className="flex-[2] rounded-xl py-2 text-xs font-semibold"
+                        style={{ background: "var(--color-secondary)", color: "var(--color-on-secondary)" }}
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
+              // ── Auto-apply card ──
+              if (AUTO_APPLY.has(flag.type)) {
+                return (
+                  <div
+                    key={cardKey}
+                    className="rounded-2xl border p-4"
+                    style={{
+                      background: flag.type === "SENSITIVE_DATA"
+                        ? "color-mix(in oklch, var(--color-error) 8%, var(--color-surface))"
+                        : "color-mix(in oklch, var(--color-primary) 6%, var(--color-surface))",
+                      borderColor: flag.type === "SENSITIVE_DATA"
+                        ? "color-mix(in oklch, var(--color-error) 20%, transparent)"
+                        : "color-mix(in oklch, var(--color-primary) 16%, transparent)",
+                    }}
+                  >
+                    <p className="text-xs font-semibold mb-0.5" style={{ color: "var(--color-on-surface)" }}>{entry.title}</p>
+                    <p className="text-xs leading-relaxed" style={{ color: "var(--color-on-surface-variant)" }}>{flag.reason}</p>
+                    {flag.suggestedValue && (
+                      <p className="text-[10px] mt-1 font-medium" style={{ color: flag.type === "SENSITIVE_DATA" ? "var(--color-error)" : "var(--color-primary)" }}>
+                        → {flag.suggestedValue.length > 60 ? flag.suggestedValue.slice(0, 60) + "…" : flag.suggestedValue}
+                      </p>
+                    )}
+                    <div className="flex gap-2 mt-3">
+                      <button
+                        onClick={() => handleAuditDismiss(entryId, flag)}
+                        className="flex-1 rounded-xl border py-2 text-xs font-medium"
+                        style={{ borderColor: "var(--color-outline-variant)", color: "var(--color-on-surface-variant)" }}
+                      >
+                        Dismiss
+                      </button>
+                      <button
+                        onClick={() => handleAuditApply(entryId, flag)}
+                        disabled={isLoading}
+                        className="flex-[2] rounded-xl py-2 text-xs font-semibold disabled:opacity-40"
+                        style={{
+                          background: flag.type === "SENSITIVE_DATA" ? "var(--color-error)" : "var(--color-primary)",
+                          color: flag.type === "SENSITIVE_DATA" ? "var(--color-on-error)" : "var(--color-on-primary)",
+                        }}
+                      >
+                        {isLoading ? "Fixing…" : "Fix"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
+              return null;
+            })}
+        </div>
+      )}
 
       <div className="pt-2 text-center">
         <button

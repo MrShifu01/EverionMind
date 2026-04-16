@@ -35,6 +35,13 @@
   --color-on-secondary: oklch(12% 0.01 75);
   --color-on-secondary-container: oklch(85% 0.018 75);
 
+  /* Tertiary — Muted Sage (merge/combine actions; warm green-grey) */
+  --color-tertiary: oklch(62% 0.10 145);
+  --color-tertiary-dim: oklch(54% 0.10 145);
+  --color-tertiary-container: oklch(22% 0.06 145);
+  --color-on-tertiary: oklch(12% 0.04 145);
+  --color-on-tertiary-container: oklch(84% 0.08 145);
+
   /* Semantic — Error */
   --color-error: oklch(62% 0.18 25);
   --color-error-dim: oklch(52% 0.18 25);
@@ -288,6 +295,13 @@ html:not(.dark) {
   --color-secondary-container: oklch(92% 0.012 75);
   --color-on-secondary: oklch(100% 0 0);
   --color-on-secondary-container: oklch(22% 0.018 75);
+
+  /* Tertiary — Muted Sage (merge/combine actions) */
+  --color-tertiary: oklch(44% 0.10 145);
+  --color-tertiary-dim: oklch(38% 0.10 145);
+  --color-tertiary-container: oklch(90% 0.06 145);
+  --color-on-tertiary: oklch(100% 0 0);
+  --color-on-tertiary-container: oklch(22% 0.08 145);
 
   /* Error */
   --color-error: oklch(50% 0.18 25);
