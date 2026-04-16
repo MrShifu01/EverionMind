@@ -44,6 +44,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   const { type } = req.body ?? {};
 
   if (type === "insight_correction") return handleInsightCorrection(req, res, user);
+  if (type === "merge_feedback") return handleMergeFeedback(req, res, user);
   return handleChatFeedback(req, res, user);
 }
 
@@ -110,7 +111,38 @@ async function handleChatFeedback(req: ApiRequest, res: ApiResponse, user: any):
   return res.status(200).json({ ok: true });
 }
 
-// ── Mode 2: Insight correction ───────────────────────────────────────────────
+// ── Mode 2: Merge feedback ───────────────────────────────────────────────────
+
+async function handleMergeFeedback(req: ApiRequest, res: ApiResponse, user: any): Promise<void> {
+  const { brain_id, titles, note } = req.body ?? {};
+  if (!brain_id || typeof brain_id !== "string" || brain_id.length > 100) {
+    return res.status(400).json({ error: "Invalid brain_id" });
+  }
+  if (!note || typeof note !== "string" || note.length < 1 || note.length > 1000) {
+    return res.status(400).json({ error: "note required (max 1000 chars)" });
+  }
+  const hasAccess = await checkBrainAccess(user.id, brain_id);
+  if (!hasAccess) return res.status(403).json({ error: "Forbidden" });
+
+  const titleStr = Array.isArray(titles) ? titles.join(" + ") : "";
+  await fetch(`${SB_URL}/rest/v1/query_feedback`, {
+    method: "POST",
+    headers: SB_HEADERS,
+    body: JSON.stringify({
+      brain_id,
+      query: `[merge_guidance] ${titleStr}`.slice(0, 500),
+      answer: note.trim(),
+      retrieved_entry_ids: [],
+      top_entry_ids: [],
+      feedback: 1,
+      confidence: "high",
+    }),
+  }).catch((e: any) => console.error("[feedback:merge]", e?.message));
+
+  return res.status(200).json({ ok: true });
+}
+
+// ── Mode 3: Insight correction ───────────────────────────────────────────────
 
 const INSIGHT_CORRECTION_SYSTEM = `You are a data quality assistant for a personal knowledge base.
 A user has flagged an AI-generated insight as incorrect and provided a correction.

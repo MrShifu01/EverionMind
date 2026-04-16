@@ -349,9 +349,14 @@ export default function FeedView({
       return next;
     });
     setPendingMergeAction(null);
-    // Remove from cache so it won't reappear
+    // Remove from cache — if list becomes empty, clear the key so next load re-generates
     setInsightsData((prev) => prev ? { ...prev, merges: prev.merges.filter((x) => mergeId(x.ids) !== key) } : prev);
-    writeCache(mergeCacheKey(brainId), (insightsData?.merges ?? []).filter((x) => mergeId(x.ids) !== key));
+    const updatedAfterIgnore = (insightsData?.merges ?? []).filter((x) => mergeId(x.ids) !== key);
+    if (updatedAfterIgnore.length > 0) {
+      writeCache(mergeCacheKey(brainId), updatedAfterIgnore);
+    } else {
+      try { localStorage.removeItem(mergeCacheKey(brainId)); } catch { /* ignore */ }
+    }
   }
 
   async function handleMerge(m: MergeSuggestion, note?: string) {
@@ -379,7 +384,7 @@ export default function FeedView({
         (acc: any, e: any) => ({ ...acc, ...(e.metadata || {}) }),
         { ...(primary.metadata || {}) },
       );
-      if (note) combinedMeta.merge_note = note;
+      // note goes to feedback system, not entry metadata
 
       // Use AI to synthesise a proper merged title + content
       const allEntryTexts = [primary, ...secondaries]
@@ -455,11 +460,24 @@ export default function FeedView({
         return next;
       });
 
-      // Remove from in-memory suggestions + cache
+      // Send merge note to feedback system for self-improvement
+      if (note?.trim()) {
+        authFetch("/api/feedback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "merge_feedback", brain_id: brainId, titles: m.titles, note: note.trim() }),
+        }).catch(() => { /* non-critical */ });
+      }
+
+      // Remove from in-memory suggestions + cache — if empty, clear key so next load re-generates
       setInsightsData((prev) => {
         if (!prev) return prev;
         const updated = prev.merges.filter((x) => mergeId(x.ids) !== key);
-        writeCache(mergeCacheKey(brainId), updated);
+        if (updated.length > 0) {
+          writeCache(mergeCacheKey(brainId), updated);
+        } else {
+          try { localStorage.removeItem(mergeCacheKey(brainId)); } catch { /* ignore */ }
+        }
         return { ...prev, merges: updated };
       });
 
