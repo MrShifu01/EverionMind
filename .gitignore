@@ -31,5 +31,8 @@ openbrain-dashboard.jsx
 # Git worktrees
 .worktrees
 
+# Local prompt audit (mock testing only, never commit)
+scripts/mock-prompt-audit/
+
 .vercel
 .env*.local

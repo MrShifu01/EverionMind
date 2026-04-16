@@ -28,6 +28,18 @@ async function extractViaAI(file: File): Promise<string> {
   return data.text || "";
 }
 
+async function extractExcel(buffer: ArrayBuffer): Promise<string> {
+  const XLSX = await import("xlsx");
+  const workbook = XLSX.read(new Uint8Array(buffer), { type: "array" });
+  const parts: string[] = [];
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    const csv = XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
+    if (csv.trim()) parts.push(`[Sheet: ${sheetName}]\n${csv.trim()}`);
+  }
+  return parts.join("\n\n");
+}
+
 async function extractPDF(buffer: ArrayBuffer): Promise<string> {
   const mod = await import("pdfjs-dist");
   const pdfjsLib = (mod as any).default ?? mod;
@@ -68,8 +80,10 @@ export async function extractTextFromFile(file: File): Promise<string> {
     return extractViaAI(file);
   }
 
-  // Excel files route through AI extraction to avoid client-side CVE exposure
-  if (name.endsWith(".xlsx") || name.endsWith(".xls")) return extractViaAI(file);
+  if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
+    const buffer = await file.arrayBuffer();
+    return extractExcel(buffer);
+  }
 
   const buffer = await file.arrayBuffer();
   if (name.endsWith(".pdf") || file.type === "application/pdf") {

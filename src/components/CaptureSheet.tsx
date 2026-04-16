@@ -289,10 +289,7 @@ export default function CaptureSheet({
             const f = e.target.files?.[0];
             e.target.value = "";
             if (!f) return;
-            if (onBackgroundFiles) {
-              onBackgroundFiles([f]);
-              onClose();
-            } else handleImageFile(f);
+            handleImageFile(f);
           }}
         />
         <input
@@ -305,10 +302,7 @@ export default function CaptureSheet({
             const f = e.target.files?.[0];
             e.target.value = "";
             if (!f) return;
-            if (onBackgroundFiles) {
-              onBackgroundFiles([f]);
-              onClose();
-            } else handleImageFile(f);
+            handleImageFile(f);
           }}
         />
         <input
@@ -321,10 +315,7 @@ export default function CaptureSheet({
             const files = Array.from(e.target.files ?? []);
             e.target.value = "";
             if (!files.length) return;
-            if (onBackgroundFiles) {
-              onBackgroundFiles(files);
-              onClose();
-            } else handleDocFiles(files).catch((err) => console.error("[docInput]", err));
+            handleDocFiles(files).catch((err) => console.error("[docInput]", err));
           }}
         />
 
