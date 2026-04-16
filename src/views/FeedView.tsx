@@ -3,6 +3,7 @@ import { authFetch } from "../lib/authFetch";
 import { fmtD } from "../data/constants";
 import { EarlyAccessBanner } from "../components/EarlyAccessBanner";
 import { PROMPTS } from "../config/prompts";
+import { showToast } from "../lib/notifications";
 
 const FEED_TTL = 2 * 60 * 60 * 1000; // 2 hours
 
@@ -11,6 +12,8 @@ function insightsCacheKey(brainId: string) { return `feed_insights_cache:${brain
 // Legacy key kept for invalidation only
 function feedCacheKey(brainId: string) { return `feed_cache:${brainId}`; }
 function mergeCacheKey(brainId: string) { return `merge_cache:${brainId}`; }
+function ignoredMergesKey(brainId: string) { return `ignored_merges:${brainId}`; }
+function mergeId(ids: string[]) { return [...ids].sort().join(":"); }
 
 function readCache<T>(key: string): T | null {
   try {
@@ -110,6 +113,10 @@ export default function FeedView({
   const [insightsData, setInsightsData] = useState<InsightsData | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(true);
 
+  // Merge state
+  const [ignoredMerges, setIgnoredMerges] = useState<Set<string>>(new Set());
+  const [mergingId, setMergingId] = useState<string | null>(null);
+
   // Question answering state
   const [activeQ, setActiveQ] = useState<Suggestion | null>(null);
   const [answer, setAnswer] = useState("");
@@ -120,6 +127,14 @@ export default function FeedView({
   const recognitionRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showEnrichDebug, setShowEnrichDebug] = useState(false);
+
+  useEffect(() => {
+    if (!brainId) return;
+    try {
+      const raw = localStorage.getItem(ignoredMergesKey(brainId));
+      setIgnoredMerges(new Set(raw ? JSON.parse(raw) : []));
+    } catch { /* ignore */ }
+  }, [brainId]);
 
   useEffect(() => {
     if (!brainId) return;
@@ -210,6 +225,85 @@ export default function FeedView({
     };
     reader.readAsText(file);
     e.target.value = "";
+  }
+
+  function handleIgnore(m: MergeSuggestion) {
+    if (!brainId) return;
+    const key = mergeId(m.ids);
+    setIgnoredMerges((prev) => {
+      const next = new Set(prev);
+      next.add(key);
+      try { localStorage.setItem(ignoredMergesKey(brainId), JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+    // Remove from cache so it won't reappear
+    setInsightsData((prev) => prev ? { ...prev, merges: prev.merges.filter((x) => mergeId(x.ids) !== key) } : prev);
+    writeCache(mergeCacheKey(brainId), (insightsData?.merges ?? []).filter((x) => mergeId(x.ids) !== key));
+  }
+
+  async function handleMerge(m: MergeSuggestion) {
+    if (!brainId || m.ids.length < 2 || mergingId) return;
+    const key = mergeId(m.ids);
+    setMergingId(key);
+    try {
+      // Fetch full entry data for both entries
+      const r = await authFetch(`/api/entries?brain_id=${encodeURIComponent(brainId)}`);
+      if (!r.ok) throw new Error("Failed to fetch entries");
+      const { entries: allEntries } = await r.json();
+
+      const [primary, ...secondaries] = m.ids
+        .map((id: string) => allEntries.find((e: any) => e.id === id))
+        .filter(Boolean);
+      if (!primary) throw new Error("Entries not found");
+
+      // Combine content, tags, metadata
+      const combinedContent = [primary, ...secondaries]
+        .map((e: any) => e.content)
+        .filter(Boolean)
+        .join("\n\n");
+      const combinedTags = [...new Set([
+        ...(primary.tags || []),
+        ...secondaries.flatMap((e: any) => e.tags || []),
+      ])];
+      const combinedMeta = secondaries.reduce(
+        (acc: any, e: any) => ({ ...acc, ...(e.metadata || {}) }),
+        { ...(primary.metadata || {}) },
+      );
+
+      // PATCH primary — entries.ts resets enrichment flags automatically on content change
+      const patchRes = await authFetch("/api/update-entry", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: primary.id,
+          content: combinedContent,
+          tags: combinedTags,
+          metadata: combinedMeta,
+        }),
+      });
+      if (!patchRes.ok) throw new Error("Failed to update entry");
+
+      // Soft-delete secondary entries
+      for (const secondary of secondaries) {
+        await authFetch("/api/delete-entry", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: secondary.id }),
+        });
+      }
+
+      // Remove from suggestions + cache
+      setInsightsData((prev) => prev ? { ...prev, merges: prev.merges.filter((x) => mergeId(x.ids) !== key) } : prev);
+      writeCache(mergeCacheKey(brainId), (insightsData?.merges ?? []).filter((x) => mergeId(x.ids) !== key));
+
+      showToast("Entries merged — re-enriching now…", "success");
+      onEnrich?.();
+    } catch (e: any) {
+      console.error("[merge]", e);
+      showToast("Merge failed. Try again.", "error");
+    } finally {
+      setMergingId(null);
+    }
   }
 
   async function submitAnswer() {
@@ -624,7 +718,7 @@ export default function FeedView({
           className="h-16 animate-pulse rounded-2xl"
           style={{ background: "var(--color-surface-container)" }}
         />
-      ) : insightsData && insightsData.merges && insightsData.merges.length > 0 ? (
+      ) : insightsData && insightsData.merges && insightsData.merges.filter((m) => !ignoredMerges.has(mergeId(m.ids))).length > 0 ? (
         <div className="space-y-2">
           <p
             className="text-xs font-semibold tracking-widest uppercase"
@@ -632,34 +726,64 @@ export default function FeedView({
           >
             Consider merging
           </p>
-          {insightsData.merges.map((m, i) => (
-            <div
-              key={i}
-              className="rounded-2xl border p-4"
-              style={{
-                background: "color-mix(in oklch, var(--color-tertiary) 8%, var(--color-surface))",
-                borderColor: "color-mix(in oklch, var(--color-tertiary) 20%, transparent)",
-              }}
-            >
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {m.titles.map((t, j) => (
-                  <span
-                    key={j}
-                    className="rounded-full px-2.5 py-0.5 text-[10px] font-medium"
-                    style={{
-                      background: "var(--color-tertiary-container)",
-                      color: "var(--color-on-tertiary-container)",
-                    }}
-                  >
-                    {t}
-                  </span>
-                ))}
-              </div>
-              <p className="text-xs leading-relaxed" style={{ color: "var(--color-on-surface-variant)" }}>
-                {m.reason}
-              </p>
-            </div>
-          ))}
+          {insightsData.merges
+            .filter((m) => !ignoredMerges.has(mergeId(m.ids)))
+            .map((m) => {
+              const key = mergeId(m.ids);
+              const isMerging = mergingId === key;
+              return (
+                <div
+                  key={key}
+                  className="rounded-2xl border p-4"
+                  style={{
+                    background: "color-mix(in oklch, var(--color-tertiary) 8%, var(--color-surface))",
+                    borderColor: "color-mix(in oklch, var(--color-tertiary) 20%, transparent)",
+                  }}
+                >
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {m.titles.map((t, j) => (
+                      <span
+                        key={j}
+                        className="rounded-full px-2.5 py-0.5 text-[10px] font-medium"
+                        style={{
+                          background: "var(--color-tertiary-container)",
+                          color: "var(--color-on-tertiary-container)",
+                        }}
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-xs leading-relaxed" style={{ color: "var(--color-on-surface-variant)" }}>
+                    {m.reason}
+                  </p>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => handleIgnore(m)}
+                      disabled={isMerging}
+                      className="flex-1 rounded-xl border py-2 text-xs font-medium transition-colors disabled:opacity-40"
+                      style={{
+                        borderColor: "color-mix(in oklch, var(--color-tertiary) 35%, transparent)",
+                        color: "var(--color-on-surface-variant)",
+                      }}
+                    >
+                      Ignore
+                    </button>
+                    <button
+                      onClick={() => handleMerge(m)}
+                      disabled={isMerging || !!mergingId}
+                      className="flex-[2] rounded-xl py-2 text-xs font-semibold transition-colors disabled:opacity-40"
+                      style={{
+                        background: "var(--color-tertiary)",
+                        color: "var(--color-on-tertiary)",
+                      }}
+                    >
+                      {isMerging ? "Merging…" : "Merge"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
         </div>
       ) : null}
 
