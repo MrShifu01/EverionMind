@@ -5,7 +5,8 @@ import { EarlyAccessBanner } from "../components/EarlyAccessBanner";
 import { PROMPTS } from "../config/prompts";
 import { showToast } from "../lib/notifications";
 
-const FEED_TTL = 2 * 60 * 60 * 1000; // 2 hours
+const FEED_TTL = 2 * 60 * 60 * 1000; // 2 hours (quick + insights)
+const MERGE_TTL = 24 * 60 * 60 * 1000; // 24 hours — merges don't change that fast
 
 function quickCacheKey(brainId: string) { return `feed_quick_cache:${brainId}`; }
 function insightsCacheKey(brainId: string) { return `feed_insights_cache:${brainId}`; }
@@ -17,12 +18,12 @@ function ignoredQuestionsKey(brainId: string) { return `ignored_questions:${brai
 function wowFeedbackKey(brainId: string) { return `wow_feedback:${brainId}`; }
 function mergeId(ids: string[]) { return [...ids].sort().join(":"); }
 
-function readCache<T>(key: string): T | null {
+function readCache<T>(key: string, ttl = FEED_TTL): T | null {
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return null;
     const { data, ts } = JSON.parse(raw);
-    if (Date.now() - ts > FEED_TTL) return null;
+    if (Date.now() - ts > ttl) return null;
     return data as T;
   } catch { return null; }
 }
@@ -177,11 +178,13 @@ export default function FeedView({
       setQuickLoading(true);
     }
 
-    // Serve insights from cache immediately
-    const cachedMerges = readCache<MergeSuggestion[]>(mergeCacheKey(brainId));
+    // Serve insights from cache immediately.
+    // Merges use their own longer TTL (24h) — never stored inside insightsCacheKey.
+    const cachedMerges = readCache<MergeSuggestion[]>(mergeCacheKey(brainId), MERGE_TTL);
     const cachedInsights = readCache<InsightsData>(insightsCacheKey(brainId));
     if (cachedInsights) {
-      setInsightsData(cachedInsights);
+      // Overlay fresh merge cache on top of cached wows/suggestions
+      setInsightsData({ ...cachedInsights, merges: cachedMerges ?? [] });
       setInsightsLoading(false);
     } else {
       setInsightsLoading(true);
@@ -210,10 +213,11 @@ export default function FeedView({
         .then((d: InsightsData | null) => {
           if (d) {
             const merges = cachedMerges ?? d.merges ?? [];
+            // Write merges to their own key (24h TTL applied at read time)
             if (!cachedMerges && d.merges?.length) writeCache(mergeCacheKey(brainId), d.merges);
-            const final = { ...d, merges };
-            setInsightsData(final);
-            writeCache(insightsCacheKey(brainId), final);
+            setInsightsData({ ...d, merges });
+            // Never cache merges inside insightsCacheKey — they have a separate TTL
+            writeCache(insightsCacheKey(brainId), { ...d, merges: [] });
           }
         })
         .catch((err) => console.error("[FeedView/insights]", err))

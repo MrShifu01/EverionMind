@@ -70,7 +70,7 @@ async function generateMergeSuggestions(
   if (!GEMINI_API_KEY || entries.length < 2) return [];
 
   const entryLines = entries
-    .map((e) => `- id:${e.id} [${e.type}] ${e.title}`)
+    .map((e) => `- id:${e.id} [${e.type}] ${e.title}${e.content ? ` — ${String(e.content).slice(0, 120)}` : ""}`)
     .join("\n");
 
   try {
@@ -99,7 +99,7 @@ async function generateMergeSuggestions(
     if (!Array.isArray(parsed.merges)) return [];
     return parsed.merges
       .filter((m: any) => Array.isArray(m.ids) && m.ids.length >= 2 && m.reason)
-      .slice(0, 3);
+      .slice(0, 5);
   } catch {
     return [];
   }
@@ -200,11 +200,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     // ── INSIGHTS section: LLM calls, returns in ~2-5s ─────────────────────────
     if (section === "insights") {
       const mergeOldestPromise = skipMerges ? Promise.resolve(null) : fetch(
-        `${SB_URL}/rest/v1/entries?brain_id=eq.${brainId}&deleted_at=is.null&select=id,title,type&order=created_at.asc&limit=25`,
+        `${SB_URL}/rest/v1/entries?brain_id=eq.${brainId}&deleted_at=is.null&select=id,title,type,content&order=created_at.asc&limit=40`,
         { headers: SB_HEADERS },
       );
       const mergeNewestPromise = skipMerges ? Promise.resolve(null) : fetch(
-        `${SB_URL}/rest/v1/entries?brain_id=eq.${brainId}&deleted_at=is.null&select=id,title,type&order=created_at.desc&limit=25`,
+        `${SB_URL}/rest/v1/entries?brain_id=eq.${brainId}&deleted_at=is.null&select=id,title,type,content&order=created_at.desc&limit=40`,
         { headers: SB_HEADERS },
       );
 
@@ -275,11 +275,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
 
     // ── ALL section: legacy full response (backward compat) ───────────────────
     const mergeOldestPromise = skipMerges ? Promise.resolve(null) : fetch(
-      `${SB_URL}/rest/v1/entries?brain_id=eq.${brainId}&deleted_at=is.null&select=id,title,type&order=created_at.asc&limit=25`,
+      `${SB_URL}/rest/v1/entries?brain_id=eq.${brainId}&deleted_at=is.null&select=id,title,type,content&order=created_at.asc&limit=40`,
       { headers: SB_HEADERS },
     );
     const mergeNewestPromise = skipMerges ? Promise.resolve(null) : fetch(
-      `${SB_URL}/rest/v1/entries?brain_id=eq.${brainId}&deleted_at=is.null&select=id,title,type&order=created_at.desc&limit=25`,
+      `${SB_URL}/rest/v1/entries?brain_id=eq.${brainId}&deleted_at=is.null&select=id,title,type,content&order=created_at.desc&limit=40`,
       { headers: SB_HEADERS },
     );
 
