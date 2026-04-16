@@ -15,6 +15,7 @@ import { rateLimit } from "./_lib/rateLimit.js";
 import { generateEmbedding } from "./_lib/generateEmbedding.js";
 import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
 import { applySecurityHeaders } from "./_lib/securityHeaders.js";
+import { getFeedbackBoosts, getQueryPatterns, getKnowledgeShortcuts } from "./_lib/feedback.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -530,6 +531,73 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     _cacheSet(_ckStr, retrievedEntries);
   } // end if (!cacheHit)
 
+  // ── Self-improving retrieval boosts ───────────────────────────────────────
+  // Applied after cache resolution so they run on every request (including hits).
+  // All three calls are fail-safe and run in parallel to keep latency low.
+  {
+    const entryIds = retrievedEntries.map((e: any) => e.id);
+    const [feedbackBoosts, patternBoosts, shortcuts] = await Promise.all([
+      getFeedbackBoosts(brainList[0], message, entryIds),
+      getQueryPatterns(brainList[0], message),
+      getKnowledgeShortcuts(brainList[0], message),
+    ]);
+
+    // Apply feedback and pattern boosts to existing entries
+    if (feedbackBoosts.size > 0 || patternBoosts.size > 0) {
+      retrievedEntries = retrievedEntries.map((e: any) => {
+        const boost = (feedbackBoosts.get(e.id) ?? 0) + (patternBoosts.get(e.id) ?? 0);
+        return boost > 0 ? { ...e, _score: (e._score ?? e.similarity ?? 0) + boost } : e;
+      });
+    }
+
+    // Inject shortcut entries and boost any already-present ones
+    if (shortcuts.length > 0) {
+      const existingIds = new Set(retrievedEntries.map((e: any) => e.id));
+      const idsToFetch: string[] = [];
+
+      for (const sc of shortcuts) {
+        const boost = sc.strong ? 0.1 : 0.03;
+        for (const id of sc.entry_ids) {
+          if (existingIds.has(id)) {
+            retrievedEntries = retrievedEntries.map((e: any) =>
+              e.id === id ? { ...e, _score: (e._score ?? e.similarity ?? 0) + boost } : e,
+            );
+          } else {
+            idsToFetch.push(id);
+          }
+        }
+      }
+
+      // Fetch and inject shortcut entries not yet in the pool
+      if (idsToFetch.length > 0) {
+        try {
+          const scRes = await fetch(
+            `${SB_URL}/rest/v1/entries?id=in.(${idsToFetch.slice(0, 20).join(",")})&select=id,title,type,tags,content,metadata`,
+            { headers: SB_HEADERS },
+          );
+          if (scRes.ok) {
+            const scRows: any[] = await scRes.json();
+            for (const row of scRows) {
+              if (!existingIds.has(row.id)) {
+                // Find the matching shortcut's boost
+                const sc = shortcuts.find((s) => s.entry_ids.includes(row.id));
+                const boost = sc?.strong ? 0.1 : 0.03;
+                retrievedEntries.push({ ...row, similarity: 0, _score: boost });
+                existingIds.add(row.id);
+              }
+            }
+          }
+        } catch { /* non-fatal */ }
+      }
+
+      // Re-sort after boost application
+      retrievedEntries.sort((a: any, b: any) =>
+        (b._score ?? b.similarity ?? 0) - (a._score ?? a.similarity ?? 0),
+      );
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   const sourceIds: string[] = noSemanticResults ? [] : retrievedEntries.filter((e: any) => e.similarity > 0).map((e: any) => e.id);
 
   // 3. Fetch links for those entries only
@@ -839,7 +907,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
           const retryResult = await callGemini(expandedSystem, messages);
           if (retryResult.ok) {
             const allSourceIds = [...sourceIds, ...expansionEntries.map((e: any) => e.id)];
-            return res.status(200).json({ content: [{ type: "text", text: retryResult.text }], sources: allSourceIds });
+            return res.status(200).json({ content: [{ type: "text", text: retryResult.text }], sources: allSourceIds, confidence: _confidence });
           }
         }
       } catch (e2: any) {
@@ -849,7 +917,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     }
     // ─────────────────────────────────────────────────────────────────────
 
-    return res.status(200).json({ content: [{ type: "text", text: firstText }], sources: sourceIds });
+    return res.status(200).json({ content: [{ type: "text", text: firstText }], sources: sourceIds, confidence: _confidence });
   } catch (e: any) {
     console.error("[chat:llm]", e.message);
     return res.status(502).json({ error: e.message });
