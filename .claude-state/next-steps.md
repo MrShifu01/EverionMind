@@ -1,59 +1,32 @@
-# Next Steps — 2026-04-03
+# Next Steps — 2026-04-16
 
-## Immediate (do first) — Apply Migration 008
+## Immediate (do first)
 
-Migration `supabase/migrations/008_pgvector.sql` is committed but NOT applied to Supabase yet.
+1. **Set APP_URL in Vercel** — Dashboard → EverionMind project → Settings → Environment Variables → add `APP_URL=https://your-production-domain.com` (Production only). Without it, ask_everionmind routes to VERCEL_URL which may be a preview deployment. See `Audits/Manual/manual-tasks.md` M-11.
 
-Apply it:
-```
-SUPABASE_DB_PASSWORD="..." npx supabase db push --linked
-```
-Or paste the migration SQL directly in the Supabase dashboard SQL editor.
+2. **Fix remaining OpenBrain references in prompts.ts** — Two occurrences not fixed this session:
+   - `src/config/prompts.ts` line 62: `CHAT: \`You are OpenBrain, a sharp personal knowledge assistant\`` → change to EverionMind
+   - `src/config/prompts.ts` line 244: `"separate, focused OpenBrain entries"` in FILE_SPLIT → change to EverionMind
 
-After applying, verify:
-- `SELECT * FROM pg_extension WHERE extname = 'vector';` — should return a row
-- `SELECT column_name FROM information_schema.columns WHERE table_name='entries' AND column_name='embedding';` — should return 'embedding'
-- `SELECT routine_name FROM information_schema.routines WHERE routine_name='match_entries';` — should return row
+## Soon (this milestone)
 
-Then go to Settings → Semantic Search & RAG, add an OpenAI or Gemini key, and click "Embed all entries".
+- **Sequential hydration on Feedback view** — User reported: whole page skeleton until all loads at once. Implement staggered reveal: fetch all data in parallel but render each section as its own data resolves. Use per-section loading state rather than one global flag. Find the feedback view at src/views/ or similar.
 
-## Soon
+- **Clean up stale concept graph data** — Existing entries may still have instance-level concept labels (e.g. "father's South African ID Number"). Open each affected entry in DetailModal → Edit → click ✦ Rewrite to regenerate. Or build a bulk re-audit that runs COMBINED_AUDIT across all entries.
 
-### Complete AI-models.md Phase 2 + 3 (from prior session)
-
-**Phase 2: Add task: params to all callAI() sites**
-
-**OpenBrain.jsx** — grep for `callAI({` and add task param:
-- Nudge useEffect → `task: "chat"`
-- Onboarding batch parse → `task: "capture"`
-- QuickCapture callAI → `task: "capture"`
-
-**SuggestionsView.jsx**:
-1. ~line 168: image upload `authFetch("/api/anthropic")` → replace with `callAI({ messages: [...], max_tokens: 600, task: "vision" })`
-2. FILL_BRAIN callAI() → add `task: "questions"`
-3. QA_PARSE callAI() → add `task: "capture"`
-
-**RefineView.jsx**:
-1. ENTRY_AUDIT callAI() → add `task: "refine"`
-2. LINK_DISCOVERY callAI() → add `task: "refine"`
-
-**Phase 3:** Settings UI per-task model selection (see prior next-steps.md for full code snippet)
-
-### Clean up
-- Review/delete `supabase/functions/test-secret.ts` — untracked, unknown purpose
-- Delete SupplierPanel dead code from `src/OpenBrain.jsx` (component still imported but tab removed)
-- Fix QuickCapture offline path — missing `p_brain_id` in `enqueue()` body in `src/OpenBrain.jsx`
+- **Verify MCP ask_everionmind end-to-end** — Connect Claude Desktop or another MCP client using an `em_` API key. Call ask_everionmind with a query that has a known answer. Confirm: (1) answer is correct, (2) no `[mcp] WARNING` in Vercel function logs, (3) submit_everionmind_feedback with 1/-1 both succeed.
 
 ## Deferred
-- AI-models.md Phase 4 (Voice/Whisper) — separate transcription API, needs design
-- Wire GraphView + CalendarView to live entries (currently use INITIAL_ENTRIES)
-- TodoView DB sync (currently localStorage-only)
-- E2EE implementation — documented in GAPS.md
-- Distributed rate limiting (Upstash Redis) — documented in GAPS.md as critical security gap
-- Cross-brain semantic search (match_entries currently scoped to `brain_id` only, not entry_brains junction)
+
+- M-3 (Upstash Redis rate limiting) — in-memory rate limiter still live; see Audits/Manual/manual-tasks.md
+- M-4 (Move API keys to Supabase Vault) — see Audits/Manual/manual-tasks.md
+- M-10 (Staging environment) — see Audits/Manual/manual-tasks.md
+- AI-models.md Phase 2+3 (per-task model routing) — deferred from prior sessions
+- Full brain re-audit tooling — bulk concept rewrite for all entries in a brain
 
 ## Warnings
-- ⚠️ Migration 008 NOT applied yet — `match_entries()` function doesn't exist until it's applied. `/api/search` and `/api/chat` will return 502 until then.
-- ⚠️ SuggestionsView.jsx image upload is still hardcoded `authFetch("/api/anthropic")` — bypasses model routing
-- ⚠️ In-memory rate limiter still live — serverless instances each have separate counters
-- ⚠️ `src/config/prompts.js` EXISTS — use `PROMPTS.*` constants, do not revert to inline strings
+
+- ⚠️ APP_URL not set in Vercel — ask_everionmind will log a warning on every cold start and may route to wrong deployment. Verify by checking Vercel function logs after first MCP call.
+- ⚠️ `src/config/prompts.ts` still has 2 "OpenBrain" occurrences (lines 62, 244) — grep to confirm: `grep -n "OpenBrain" src/config/prompts.ts`
+- ⚠️ Existing concept graph data has stale instance-level labels — not auto-cleaned. Use ✦ Rewrite button per entry or build bulk re-audit.
+- ⚠️ Pre-existing TS errors in DetailModal.tsx (BrainTypeIcon unused, setEditTags unused, editExtraBrainIds unused) — predate this session, not a regression.

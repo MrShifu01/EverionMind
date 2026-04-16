@@ -6,44 +6,34 @@ import { PROMPTS } from "../config/prompts";
 
 const FEED_TTL = 2 * 60 * 60 * 1000; // 2 hours
 
+function quickCacheKey(brainId: string) { return `feed_quick_cache:${brainId}`; }
+function insightsCacheKey(brainId: string) { return `feed_insights_cache:${brainId}`; }
+// Legacy key kept for invalidation only
 function feedCacheKey(brainId: string) { return `feed_cache:${brainId}`; }
 function mergeCacheKey(brainId: string) { return `merge_cache:${brainId}`; }
 
-function readFeedCache(brainId: string): FeedData | null {
+function readCache<T>(key: string): T | null {
   try {
-    const raw = localStorage.getItem(feedCacheKey(brainId));
+    const raw = localStorage.getItem(key);
     if (!raw) return null;
     const { data, ts } = JSON.parse(raw);
     if (Date.now() - ts > FEED_TTL) return null;
-    return data as FeedData;
+    return data as T;
   } catch { return null; }
 }
 
-function writeFeedCache(brainId: string, data: FeedData) {
+function writeCache(key: string, data: unknown) {
   try {
-    localStorage.setItem(feedCacheKey(brainId), JSON.stringify({ data, ts: Date.now() }));
-  } catch { /* storage full — ignore */ }
-}
-
-function readMergeCache(brainId: string): MergeSuggestion[] | null {
-  try {
-    const raw = localStorage.getItem(mergeCacheKey(brainId));
-    if (!raw) return null;
-    const { data, ts } = JSON.parse(raw);
-    if (Date.now() - ts > FEED_TTL) return null;
-    return data as MergeSuggestion[];
-  } catch { return null; }
-}
-
-function writeMergeCache(brainId: string, merges: MergeSuggestion[]) {
-  try {
-    localStorage.setItem(mergeCacheKey(brainId), JSON.stringify({ data: merges, ts: Date.now() }));
+    localStorage.setItem(key, JSON.stringify({ data, ts: Date.now() }));
   } catch { /* storage full — ignore */ }
 }
 
 export function invalidateFeedCache(brainId: string) {
-  // Only bust the main feed cache — merge cache has its own 2-hour TTL
-  try { localStorage.removeItem(feedCacheKey(brainId)); } catch { /* ignore */ }
+  try {
+    localStorage.removeItem(feedCacheKey(brainId));
+    localStorage.removeItem(quickCacheKey(brainId));
+    localStorage.removeItem(insightsCacheKey(brainId));
+  } catch { /* ignore */ }
 }
 
 interface FeedEntry {
@@ -71,14 +61,17 @@ interface MergeSuggestion {
   reason: string;
 }
 
-interface FeedData {
+interface QuickData {
   greeting: string;
   resurfaced: FeedEntry[];
-  wows: Wow[];
-  suggestions: Suggestion[];
-  merges?: MergeSuggestion[];
   streak: { current: number; longest: number };
   stats: { entries: number; connections: number; insights: number };
+}
+
+interface InsightsData {
+  wows: Wow[];
+  suggestions: Suggestion[];
+  merges: MergeSuggestion[];
 }
 
 interface UnenrichedDetail {
@@ -112,8 +105,10 @@ export default function FeedView({
   onEnrich,
   onCreated,
 }: FeedViewProps) {
-  const [data, setData] = useState<FeedData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [quickData, setQuickData] = useState<QuickData | null>(null);
+  const [quickLoading, setQuickLoading] = useState(true);
+  const [insightsData, setInsightsData] = useState<InsightsData | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(true);
 
   // Question answering state
   const [activeQ, setActiveQ] = useState<Suggestion | null>(null);
@@ -129,32 +124,57 @@ export default function FeedView({
   useEffect(() => {
     if (!brainId) return;
 
-    // Serve from cache instantly if fresh — no loading state shown
-    const cached = readFeedCache(brainId);
-    if (cached) {
-      setData(cached);
-      setLoading(false);
-      return;
+    // Serve quick data from cache immediately
+    const cachedQuick = readCache<QuickData>(quickCacheKey(brainId));
+    if (cachedQuick) {
+      setQuickData(cachedQuick);
+      setQuickLoading(false);
+    } else {
+      setQuickLoading(true);
     }
 
-    const cachedMerges = readMergeCache(brainId);
-    const url = `/api/feed?brain_id=${encodeURIComponent(brainId)}${cachedMerges ? "&skip_merges=true" : ""}`;
+    // Serve insights from cache immediately
+    const cachedMerges = readCache<MergeSuggestion[]>(mergeCacheKey(brainId));
+    const cachedInsights = readCache<InsightsData>(insightsCacheKey(brainId));
+    if (cachedInsights) {
+      setInsightsData(cachedInsights);
+      setInsightsLoading(false);
+    } else {
+      setInsightsLoading(true);
+    }
 
-    setLoading(true);
-    authFetch(url)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (d) {
-          // Use fresh merge cache if API skipped merges, otherwise cache what API returned
-          const merges = cachedMerges ?? d.merges ?? [];
-          if (!cachedMerges && d.merges?.length) writeMergeCache(brainId, d.merges);
-          const finalData = { ...d, merges };
-          setData(finalData);
-          writeFeedCache(brainId, finalData);
-        }
-      })
-      .catch((err) => console.error("[FeedView]", err))
-      .finally(() => setLoading(false));
+    // Fire both fetches in parallel
+    const quickUrl = `/api/feed?brain_id=${encodeURIComponent(brainId)}&section=quick`;
+    const insightsUrl = `/api/feed?brain_id=${encodeURIComponent(brainId)}&section=insights${cachedMerges ? "&skip_merges=true" : ""}`;
+
+    if (!cachedQuick) {
+      authFetch(quickUrl)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: QuickData | null) => {
+          if (d) {
+            setQuickData(d);
+            writeCache(quickCacheKey(brainId), d);
+          }
+        })
+        .catch((err) => console.error("[FeedView/quick]", err))
+        .finally(() => setQuickLoading(false));
+    }
+
+    if (!cachedInsights) {
+      authFetch(insightsUrl)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: InsightsData | null) => {
+          if (d) {
+            const merges = cachedMerges ?? d.merges ?? [];
+            if (!cachedMerges && d.merges?.length) writeCache(mergeCacheKey(brainId), d.merges);
+            const final = { ...d, merges };
+            setInsightsData(final);
+            writeCache(insightsCacheKey(brainId), final);
+          }
+        })
+        .catch((err) => console.error("[FeedView/insights]", err))
+        .finally(() => setInsightsLoading(false));
+    }
   }, [brainId]);
 
   function startVoice() {
@@ -199,7 +219,6 @@ export default function FeedView({
     try {
       const rawText = `Q: ${activeQ.q}\nA: ${answer.trim()}`;
 
-      // 1. Parse with CAPTURE prompt for full structure
       let title = activeQ.q;
       let content = answer.trim();
       let type = "note";
@@ -235,10 +254,8 @@ export default function FeedView({
         }
       }
 
-      // Store the raw Q&A source so Full Content shows in the detail modal
       if (!metadata.full_text) metadata = { ...metadata, full_text: rawText };
 
-      // 2. Save via capture API (auto-embeds)
       const capRes = await authFetch("/api/capture", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -254,7 +271,6 @@ export default function FeedView({
       if (!capRes.ok) throw new Error("save failed");
       const newEntry = await capRes.json();
 
-      // 3. Fire concepts + insight in background via handleCreated
       onCreated?.({
         id: newEntry.id,
         title,
@@ -276,7 +292,8 @@ export default function FeedView({
     }
   }
 
-  if (loading) {
+  // Full-page skeleton only on very first load (no cache at all)
+  if (quickLoading && !quickData) {
     return (
       <div className="space-y-4">
         {[0, 1, 2].map((i) => (
@@ -290,7 +307,7 @@ export default function FeedView({
     );
   }
 
-  if (!data || data.stats.entries === 0) {
+  if (!quickLoading && quickData && quickData.stats.entries === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
         <div className="text-5xl">🧠</div>
@@ -317,12 +334,12 @@ export default function FeedView({
   return (
     <div className="space-y-4">
       <div aria-live="polite" aria-atomic="true" className="sr-only">
-        {loading ? "Loading your entries…" : `${data?.stats.entries ?? 0} entries loaded`}
+        {quickLoading ? "Loading your entries…" : `${quickData?.stats.entries ?? 0} entries loaded`}
       </div>
 
       <EarlyAccessBanner />
 
-      {/* Bulk enrichment banner — only when there are unenriched entries */}
+      {/* Bulk enrichment banner */}
       {(unenrichedCount > 0 || enriching) && onEnrich && (
         <div
           className="rounded-2xl border overflow-hidden"
@@ -387,59 +404,31 @@ export default function FeedView({
         </div>
       )}
 
-      {/* Greeting + stats */}
-      <div
-        className="rounded-3xl border px-5 py-4"
-        style={{
-          background: "color-mix(in oklch, var(--color-primary) 8%, var(--color-surface))",
-          borderColor: "color-mix(in oklch, var(--color-primary) 18%, transparent)",
-        }}
-      >
-        <p className="text-on-surface text-base font-bold" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-          {data.greeting} Here's what your brain surfaced today:
-        </p>
-        <div className="text-on-surface-variant mt-2 flex flex-wrap gap-4 text-xs">
-          <span>{data.stats.entries} memories</span>
-          {data.streak.current > 0 && (
-            <span>🔥 {data.streak.current}-day streak</span>
-          )}
-        </div>
-      </div>
+      {/* ── FAST sections (DB-backed) ── */}
 
-      {/* Wow moments */}
-      {data.wows && data.wows.length > 0 && (
-        <div className="space-y-2">
-          <p
-            className="text-xs font-semibold tracking-widest uppercase"
-            style={{ color: "var(--color-status-medium)" }}
-          >
-            Your brain just connected the dots
+      {/* Greeting + stats */}
+      {quickData && (
+        <div
+          className="rounded-3xl border px-5 py-4"
+          style={{
+            background: "color-mix(in oklch, var(--color-primary) 8%, var(--color-surface))",
+            borderColor: "color-mix(in oklch, var(--color-primary) 18%, transparent)",
+          }}
+        >
+          <p className="text-on-surface text-base font-bold" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+            {quickData.greeting} Here's what your brain surfaced today:
           </p>
-          {data.wows.map((wow, i) => (
-            <div
-              key={i}
-              className="rounded-2xl border p-4"
-              style={{
-                background: "color-mix(in oklch, var(--color-status-medium) 10%, var(--color-surface))",
-                borderColor: "color-mix(in oklch, var(--color-status-medium) 22%, transparent)",
-              }}
-            >
-              <p
-                className="text-sm font-bold leading-snug"
-                style={{ color: "var(--color-on-surface)" }}
-              >
-                {wow.headline}
-              </p>
-              <p className="text-on-surface-variant mt-1 text-xs leading-relaxed">
-                {wow.detail}
-              </p>
-            </div>
-          ))}
+          <div className="text-on-surface-variant mt-2 flex flex-wrap gap-4 text-xs">
+            <span>{quickData.stats.entries} memories</span>
+            {quickData.streak.current > 0 && (
+              <span>🔥 {quickData.streak.current}-day streak</span>
+            )}
+          </div>
         </div>
       )}
 
       {/* Resurfaced memories */}
-      {data.resurfaced.length > 0 && (
+      {quickData && quickData.resurfaced.length > 0 && (
         <div className="space-y-2">
           <p
             className="text-xs font-semibold tracking-widest uppercase"
@@ -447,7 +436,7 @@ export default function FeedView({
           >
             From your memory
           </p>
-          {data.resurfaced.map((entry) => (
+          {quickData.resurfaced.map((entry) => (
             <button
               key={entry.id}
               onClick={() => onSelectEntry?.(entry)}
@@ -469,8 +458,52 @@ export default function FeedView({
         </div>
       )}
 
+      {/* ── SLOW sections (LLM-backed) ── */}
+
+      {/* Wow moments */}
+      {insightsLoading ? (
+        <div
+          className="h-20 animate-pulse rounded-2xl"
+          style={{ background: "var(--color-surface-container)" }}
+        />
+      ) : insightsData && insightsData.wows.length > 0 ? (
+        <div className="space-y-2">
+          <p
+            className="text-xs font-semibold tracking-widest uppercase"
+            style={{ color: "var(--color-status-medium)" }}
+          >
+            Your brain just connected the dots
+          </p>
+          {insightsData.wows.map((wow, i) => (
+            <div
+              key={i}
+              className="rounded-2xl border p-4"
+              style={{
+                background: "color-mix(in oklch, var(--color-status-medium) 10%, var(--color-surface))",
+                borderColor: "color-mix(in oklch, var(--color-status-medium) 22%, transparent)",
+              }}
+            >
+              <p
+                className="text-sm font-bold leading-snug"
+                style={{ color: "var(--color-on-surface)" }}
+              >
+                {wow.headline}
+              </p>
+              <p className="text-on-surface-variant mt-1 text-xs leading-relaxed">
+                {wow.detail}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       {/* Brain suggestions */}
-      {data.suggestions && data.suggestions.length > 0 && (
+      {insightsLoading ? (
+        <div
+          className="h-20 animate-pulse rounded-2xl"
+          style={{ background: "var(--color-surface-container)" }}
+        />
+      ) : insightsData && insightsData.suggestions.length > 0 ? (
         <div className="space-y-2">
           <p
             className="text-xs font-semibold tracking-widest uppercase"
@@ -478,7 +511,7 @@ export default function FeedView({
           >
             Your brain is asking
           </p>
-          {data.suggestions.map((s, i) => {
+          {insightsData.suggestions.map((s, i) => {
             const isDone = doneQs.has(s.q);
             const isOpen = activeQ?.q === s.q;
             return (
@@ -583,10 +616,15 @@ export default function FeedView({
             );
           })}
         </div>
-      )}
+      ) : null}
 
       {/* Merge suggestions */}
-      {data.merges && data.merges.length > 0 && (
+      {insightsLoading ? (
+        <div
+          className="h-16 animate-pulse rounded-2xl"
+          style={{ background: "var(--color-surface-container)" }}
+        />
+      ) : insightsData && insightsData.merges && insightsData.merges.length > 0 ? (
         <div className="space-y-2">
           <p
             className="text-xs font-semibold tracking-widest uppercase"
@@ -594,7 +632,7 @@ export default function FeedView({
           >
             Consider merging
           </p>
-          {data.merges.map((m, i) => (
+          {insightsData.merges.map((m, i) => (
             <div
               key={i}
               className="rounded-2xl border p-4"
@@ -623,7 +661,7 @@ export default function FeedView({
             </div>
           ))}
         </div>
-      )}
+      ) : null}
 
       <div className="pt-2 text-center">
         <button

@@ -149,3 +149,15 @@ RefineView, SuggestionsView, and image upload now use `callAI()`. The `/api/anth
 
 ## Per-task model selection: AI-models.md roadmap (not yet implemented)
 4-phase plan documented in `AI-models.md`. Phase 1: DB columns + helpers. Phase 2: task param on callAI(). Phase 3: settings UI. Phase 4: Voice/Whisper (separate API, deferred). Vision task uses OpenRouter modality filter (`text+image->text`) rather than a manual allowlist.
+
+## MCP ask_everionmind proxies to /api/chat via internal HTTP bypass
+Rather than duplicating the 700-line retrieval pipeline, ask_everionmind calls /api/chat with x-internal-uid + service-role bearer key. chat.ts validates this pair and skips JWT auth. Trade-off: ~100ms extra latency vs. zero maintenance overhead — pipeline improvements automatically flow to MCP. Files: api/mcp.ts, api/chat.ts.
+
+## Concept labels must be categorical themes, not instance-specific
+Prompt rule + post-processing both enforced. "identity documents" not "father's South African ID number". Word cap of 3 as safety net. sanitizeConceptLabel() in conceptGraph.ts strips possessives and truncates on every AI response. Files: src/config/prompts.ts, src/lib/conceptGraph.ts.
+
+## Per-entry concept rewrite in DetailModal edit mode
+Added ✦ Rewrite button in edit form that re-audits a single entry's concepts using the strict prompt rules, strips old mappings from the graph, and saves fresh ones immediately. No backend changes needed — uses existing /api/llm + graph save path. File: src/views/DetailModal.tsx.
+
+## System prompt delivered three ways from MCP
+serverInfo.instructions (broadest compat), prompts/list + prompts/get (MCP spec), and tool descriptions (always read). Covers all MCP client implementations. File: api/mcp.ts.
