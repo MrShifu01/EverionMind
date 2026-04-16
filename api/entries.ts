@@ -382,6 +382,50 @@ async function handlePatch(req: ApiRequest, res: ApiResponse): Promise<void> {
 }
 
 // ── /api/audit (rewritten to /api/entries?resource=audit) ──
+const AUDIT_GEMINI_BATCH = 50;  // entries per Gemini call
+const AUDIT_MAX_TOKENS  = 4096; // output tokens per batch (2 flags × 50 entries × ~40 tokens)
+const AUDIT_DB_PAGE     = 500;  // rows per Supabase fetch
+
+async function runGeminiBatch(
+  lines: string,
+  batchSet: Set<string>,
+  apiKey: string,
+  model: string,
+  batchNum: number,
+): Promise<any[]> {
+  try {
+    const r = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: lines }] }],
+          systemInstruction: { parts: [{ text: SERVER_PROMPTS.ENTRY_AUDIT }] },
+          generationConfig: { maxOutputTokens: AUDIT_MAX_TOKENS },
+        }),
+      },
+    );
+    if (!r.ok) {
+      const err = await r.text().catch(() => "");
+      console.log(`[audit] batch ${batchNum} error:`, r.status, err.slice(0, 200));
+      return [];
+    }
+    const data = await r.json();
+    const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    console.log(`[audit] batch ${batchNum} text:`, text.slice(0, 200));
+    const cleaned = text.replace(/```json|```/g, "").trim();
+    const match = cleaned.match(/\[[\s\S]*\]/);
+    if (!match) return [];
+    const parsed = JSON.parse(match[0]);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((f: any) => f?.entryId && batchSet.has(f.entryId));
+  } catch (e) {
+    console.log(`[audit] batch ${batchNum} exception:`, e);
+    return [];
+  }
+}
+
 async function handleAudit(req: ApiRequest, res: ApiResponse): Promise<void> {
   if (!(await rateLimit(req, 10))) return res.status(429).json({ error: "Too many requests" });
   const user: any = await verifyAuth(req);
@@ -395,80 +439,61 @@ async function handleAudit(req: ApiRequest, res: ApiResponse): Promise<void> {
   const access = await checkBrainAccess(user.id, brain_id);
   if (!access) return res.status(403).json({ error: "Forbidden" });
 
-  // Fetch 25 newest entries for this brain
-  const entriesRes = await fetch(
-    `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brain_id)}&select=id,title,content,type,tags,metadata&order=created_at.desc&limit=25`,
-    { headers: sbHeadersNoContent() },
-  );
-  if (!entriesRes.ok) return res.status(502).json({ error: "Database error" });
-  const entries: any[] = await entriesRes.json();
+  // Fetch ALL entries for this brain (paginated)
+  const allEntries: any[] = [];
+  let offset = 0;
+  while (true) {
+    const r = await fetch(
+      `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brain_id)}&select=id,title,content,type,tags,metadata&order=created_at.desc&limit=${AUDIT_DB_PAGE}&offset=${offset}`,
+      { headers: sbHeadersNoContent() },
+    );
+    if (!r.ok) return res.status(502).json({ error: "Database error" });
+    const page: any[] = await r.json();
+    allEntries.push(...page);
+    if (page.length < AUDIT_DB_PAGE) break;
+    offset += AUDIT_DB_PAGE;
+  }
 
-  if (!entries.length) return res.status(200).json({ flagged: 0, entries: {} });
-
-  const entrySet = new Set(entries.map((e: any) => e.id));
-  const entryLines = entries
-    .map((e: any) =>
-      `ID: ${e.id}\nTitle: ${e.title}\nType: ${e.type}\nTags: ${(e.tags || []).join(", ")}\nContent: ${String(e.content || "").slice(0, 500)}\nMetadata: ${JSON.stringify(e.metadata || {})}`,
-    )
-    .join("\n\n---\n\n");
+  if (!allEntries.length) return res.status(200).json({ flagged: 0, entries: {} });
 
   const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
-  const GEMINI_MODEL = (process.env.GEMINI_MODEL || "gemini-2.5-flash-lite").trim();
-  console.log("[audit] model:", GEMINI_MODEL, "key set:", !!GEMINI_API_KEY, "entries:", entries.length);
+  const GEMINI_MODEL   = (process.env.GEMINI_MODEL || "gemini-2.5-flash-lite").trim();
+  console.log("[audit] model:", GEMINI_MODEL, "key set:", !!GEMINI_API_KEY, "total entries:", allEntries.length);
 
-  let flags: any[] = [];
-  try {
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: entryLines }] }],
-          systemInstruction: { parts: [{ text: SERVER_PROMPTS.ENTRY_AUDIT }] },
-          generationConfig: { maxOutputTokens: 2048 },
-        }),
-      },
-    );
-    if (geminiRes.ok) {
-      const geminiData = await geminiRes.json();
-      const text: string = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      console.log("[audit] gemini raw text:", text.slice(0, 300));
-      const cleaned = text.replace(/```json|```/g, "").trim();
-      const match = cleaned.match(/\[[\s\S]*\]/);
-      if (match) {
-        try {
-          const parsed = JSON.parse(match[0]);
-          if (Array.isArray(parsed)) {
-            // Hallucination guard: only accept flags for entryIds in the fetched batch
-            flags = parsed.filter((f: any) => f?.entryId && entrySet.has(f.entryId));
-          }
-        } catch { /* invalid JSON — no flags */ }
-      }
-    } else {
-      const errText = await geminiRes.text().catch(() => "");
-      console.log("[audit] gemini error:", geminiRes.status, errText.slice(0, 200));
-    }
-  } catch (e) { console.log("[audit] gemini exception:", e); }
+  // Run Gemini sequentially over batches of AUDIT_GEMINI_BATCH entries
+  const allFlags: any[] = [];
+  for (let i = 0; i < allEntries.length; i += AUDIT_GEMINI_BATCH) {
+    const batch = allEntries.slice(i, i + AUDIT_GEMINI_BATCH);
+    const batchSet = new Set(batch.map((e: any) => e.id));
+    const lines = batch
+      .map((e: any) =>
+        `ID: ${e.id}\nTitle: ${e.title}\nType: ${e.type}\nTags: ${(e.tags || []).join(", ")}\nContent: ${String(e.content || "").slice(0, 500)}\nMetadata: ${JSON.stringify(e.metadata || {})}`,
+      )
+      .join("\n\n---\n\n");
+    const batchFlags = await runGeminiBatch(lines, batchSet, GEMINI_API_KEY, GEMINI_MODEL, Math.floor(i / AUDIT_GEMINI_BATCH) + 1);
+    allFlags.push(...batchFlags);
+  }
 
   // Group flags by entryId
   const flagsByEntry: Record<string, any[]> = {};
-  for (const flag of flags) {
+  for (const flag of allFlags) {
     if (!flagsByEntry[flag.entryId]) flagsByEntry[flag.entryId] = [];
     flagsByEntry[flag.entryId].push({
-      type: flag.type,
-      field: flag.field,
-      currentValue: flag.currentValue ?? "",
+      type:           flag.type,
+      field:          flag.field,
+      currentValue:   flag.currentValue ?? "",
       suggestedValue: flag.suggestedValue ?? "",
-      reason: String(flag.reason || "").slice(0, 90),
+      reason:         String(flag.reason || "").slice(0, 90),
     });
   }
 
-  // PATCH every entry in the batch: write flags or clear stale ones
+  // PATCH only entries whose flags changed to avoid unnecessary writes
   await Promise.all(
-    entries.map(async (entry: any) => {
-      const entryFlags = flagsByEntry[entry.id] ?? null;
-      const newMeta = { ...(entry.metadata || {}), audit_flags: entryFlags };
+    allEntries.map(async (entry: any) => {
+      const newFlags = flagsByEntry[entry.id] ?? null;
+      const oldFlags = (entry.metadata as any)?.audit_flags ?? null;
+      if (!newFlags?.length && !oldFlags?.length) return; // no change — skip
+      const newMeta = { ...(entry.metadata || {}), audit_flags: newFlags };
       await fetch(
         `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entry.id)}`,
         {
@@ -476,13 +501,13 @@ async function handleAudit(req: ApiRequest, res: ApiResponse): Promise<void> {
           headers: sbHeaders({ Prefer: "return=minimal" }),
           body: JSON.stringify({ metadata: newMeta }),
         },
-      ).catch(() => {}); // best-effort per entry
+      ).catch(() => {});
     }),
   );
 
-  // Return flag map so the client can update local state without a full re-fetch
+  // Return full flag map for client to update local state without a re-fetch
   const responseEntries: Record<string, any[] | null> = {};
-  for (const entry of entries) {
+  for (const entry of allEntries) {
     responseEntries[entry.id] = flagsByEntry[entry.id] ?? null;
   }
 
