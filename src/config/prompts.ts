@@ -298,4 +298,39 @@ If the content is already a single focused topic, return it as a single entry. N
 
   /** connectionFinder.js: auto-link new entry to existing entries */
   CONNECTION_FINDER: `You are a knowledge-graph builder. Given a NEW entry and EXISTING entries, find meaningful connections.\nRULES:\n- Only connect where a real, specific relationship exists (supplier→business, person→place, idea→business, etc.)\n- "rel" label: short phrase 2-4 words describing the relationship\n- Do NOT connect entries just because they share a type\n- Return 0–5 connections. Quality over quantity.\n- "from" = new entry ID. "to" = existing entry ID.\n- Return ONLY valid JSON array: [{"from":"...","to":"...","rel":"..."}]\n- If no connections: []`,
+
+  /** brainConnections.ts: extract concepts/relationships from a single entry */
+  ENTRY_CONCEPTS: `Extract key concepts and relationships from this single brain entry.
+Return ONLY this JSON (no markdown):
+{"concepts":[{"label":"concept name","entry_ids":["ENTRY_ID"]}],"relationships":[{"source":"A","target":"B","relation":"related_to","confidence":"extracted","confidence_score":0.8,"entry_ids":["ENTRY_ID"]}]}
+Max 5 concepts, max 4 relationships. Replace ENTRY_ID with the actual entry id provided.`,
+
+  /** brainConnections.ts: one-sentence insight about a newly captured entry */
+  INSIGHT: `You are a personal knowledge assistant. Given a new brain entry and the user's existing top concepts, write ONE brief insight (2 sentences max). Be specific — name a pattern, connection, or implication this entry reveals. No generic observations. Plain text only, no markdown.`,
+
+  /** brainConnections.ts: build a concept graph from a batch of entries */
+  BATCH_CONCEPTS: `You are building a concept graph from a list of personal/business brain entries.
+Identify the most important recurring concepts (themes, entities, ideas) and meaningful relationships between them.
+Return ONLY this JSON (no markdown):
+{"concepts":[{"label":"concept name","entry_ids":["id1","id2"]}],"relationships":[{"source":"A","target":"B","relation":"related_to","confidence":"extracted","confidence_score":0.8,"entry_ids":["id1"]}]}
+Max 15 concepts, max 10 relationships. Use the entry IDs provided in brackets.`,
+
+  /** brainConnections.ts: find links between a batch of entries */
+  BATCH_LINKS: `You are a knowledge-graph builder. Given a list of brain entries, find ALL meaningful connections between them.
+Rules:
+- Only connect where a real, specific relationship exists (supplier→business, person→place, idea→project, etc.)
+- "rel" label: 2-4 word phrase describing the relationship
+- Do NOT connect entries just because they share a type or are generally related
+- Return 0–20 connections. Quality over quantity.
+- Return ONLY valid JSON array (no markdown): [{"from":"entry-id","to":"entry-id","rel":"relationship label"}]
+- If no real connections: []`,
+
+  /** useNudge.ts: turn detected findings into friendly actionable sentences */
+  NUDGE: `You are a helpful assistant. Turn the following findings into 1-2 short, friendly, actionable sentences for the user.
+Rules:
+- Output ONLY the nudge sentence(s). No JSON. No lists. No metadata. No extra explanation.
+- Each sentence should tell the user what to do and when.
+- Maximum 2 sentences. Natural language only.
+- Do not repeat the raw data — rephrase it naturally.
+- Do not output anything that looks like code, keys, or template text.`,
 };

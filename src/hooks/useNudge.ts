@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { callAI } from "../lib/ai";
 import { extractNudgeText } from "../lib/extractNudgeText";
+import { PROMPTS } from "../config/prompts";
 import type { Entry, Brain } from "../types";
 
 interface UseNudgeParams {
@@ -89,15 +90,7 @@ export function useNudge({ entriesLoaded, entries, activeBrain }: UseNudgeParams
     // We pass ONLY the curated findings, not raw entry JSON
     const findingsText = candidates.map((c, i) => `${i + 1}. ${c}`).join("\n");
 
-    const systemPrompt = [
-      "You are a helpful assistant. Turn the following findings into 1-2 short, friendly, actionable sentences for the user.",
-      "Rules:",
-      "- Output ONLY the nudge sentence(s). No JSON. No lists. No metadata. No extra explanation.",
-      "- Each sentence should tell the user what to do and when.",
-      "- Maximum 2 sentences. Natural language only.",
-      "- Do not repeat the raw data — rephrase it naturally.",
-      "- Do not output anything that looks like code, keys, or template text.",
-    ].join("\n");
+    const systemPrompt = PROMPTS.NUDGE;
 
     callAI({
       max_tokens: 120,

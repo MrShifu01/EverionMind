@@ -1,5 +1,6 @@
 import { authFetch } from "./authFetch";
 import { callAI } from "./ai";
+import { PROMPTS } from "../config/prompts";
 import {
   extractConcepts,
   extractRelationships,
@@ -7,12 +8,8 @@ import {
 } from "./conceptGraph";
 import { writeConceptsToGraph } from "./graphWriter";
 
-const ENTRY_CONCEPTS_PROMPT = `Extract key concepts and relationships from this single brain entry.
-Return ONLY this JSON (no markdown):
-{"concepts":[{"label":"concept name","entry_ids":["ENTRY_ID"]}],"relationships":[{"source":"A","target":"B","relation":"related_to","confidence":"extracted","confidence_score":0.8,"entry_ids":["ENTRY_ID"]}]}
-Max 5 concepts, max 4 relationships. Replace ENTRY_ID with the actual entry id provided.`;
-
-const INSIGHT_PROMPT = `You are a personal knowledge assistant. Given a new brain entry and the user's existing top concepts, write ONE brief insight (2 sentences max). Be specific — name a pattern, connection, or implication this entry reveals. No generic observations. Plain text only, no markdown.`;
+const ENTRY_CONCEPTS_PROMPT = PROMPTS.ENTRY_CONCEPTS;
+const INSIGHT_PROMPT = PROMPTS.INSIGHT;
 
 interface EntryRef {
   id: string;
@@ -142,20 +139,8 @@ export async function generateEntryInsight(
   return insightText;
 }
 
-const BATCH_CONCEPTS_PROMPT = `You are building a concept graph from a list of personal/business brain entries.
-Identify the most important recurring concepts (themes, entities, ideas) and meaningful relationships between them.
-Return ONLY this JSON (no markdown):
-{"concepts":[{"label":"concept name","entry_ids":["id1","id2"]}],"relationships":[{"source":"A","target":"B","relation":"related_to","confidence":"extracted","confidence_score":0.8,"entry_ids":["id1"]}]}
-Max 15 concepts, max 10 relationships. Use the entry IDs provided in brackets.`;
-
-const BATCH_LINKS_PROMPT = `You are a knowledge-graph builder. Given a list of brain entries, find ALL meaningful connections between them.
-Rules:
-- Only connect where a real, specific relationship exists (supplier→business, person→place, idea→project, etc.)
-- "rel" label: 2-4 word phrase describing the relationship
-- Do NOT connect entries just because they share a type or are generally related
-- Return 0–20 connections. Quality over quantity.
-- Return ONLY valid JSON array (no markdown): [{"from":"entry-id","to":"entry-id","rel":"relationship label"}]
-- If no real connections: []`;
+const BATCH_CONCEPTS_PROMPT = PROMPTS.BATCH_CONCEPTS;
+const BATCH_LINKS_PROMPT = PROMPTS.BATCH_LINKS;
 
 function parseConceptsChunk(text: string): { concepts: any[]; relationships: any[] } {
   const jsonMatch = text.match(/\{[\s\S]*\}/);

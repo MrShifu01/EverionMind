@@ -2,6 +2,7 @@ import type { ApiRequest, ApiResponse } from "./_lib/types";
 import { verifyAuth } from "./_lib/verifyAuth.js";
 import { rateLimit } from "./_lib/rateLimit.js";
 import { applySecurityHeaders } from "./_lib/securityHeaders.js";
+import { SERVER_PROMPTS } from "./_lib/prompts.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -9,70 +10,9 @@ const SB_HEADERS: Record<string, string> = { apikey: SB_KEY!, Authorization: `Be
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
 const GEMINI_MODEL = (process.env.GEMINI_MODEL || "gemini-2.5-flash-lite").trim();
 
-const SUGGESTIONS_PROMPT = `You are a second brain assistant helping a user build a rich personal knowledge base. Given a list of entries already captured and a random category seed, generate exactly 3 questions.
-
-MIX RULE: Each set of 3 questions must blend two modes — vary this randomly based on the seed:
-- DEEPEN (grounded): questions that fill specific gaps in existing entries (e.g. they have suppliers but no pricing → ask about pricing)
-- EXPLORE (expansive): questions from the Second Brain category list below that the user has NOT covered yet
-
-SECOND BRAIN CATEGORY LIST (use as inspiration, rephrase naturally, pick randomly based on seed):
-- Memories of significant life events you don't want to fade
-- Personal reflections and lessons learned from the past year
-- Random shower ideas or spontaneous insights you haven't written down
-- Stories or anecdotes — yours or someone else's — worth remembering
-- Realizations from conversations that shifted your perspective
-- Personal breakthroughs from meditation, therapy, or meaningful experiences
-- Observations on your own recurring patterns or habits
-- Inspiring quotes that evoke wonder or curiosity
-- Surprising facts that challenged your beliefs
-- Takeaways from a course, conference, or book you recently finished
-- Answers to questions you frequently get asked
-- A project retrospective — what went well, what didn't
-- A checklist or template you use repeatedly
-- Household facts (appliance models, paint colors, maintenance history)
-- Health records or goals (exercise routines, supplements, doctor notes)
-- Financial research (investments, budget notes, tax info)
-- Travel itineraries or dream destinations
-- Industry trends you want to track
-- Your Twelve Favourite Problems — open questions you keep returning to
-- Mental models that help you make better decisions
-- Hobby research (recipes, gear reviews, language notes)
-- Drafts or brainstorms for creative projects
-- Books you own or plan to read
-- Strategic career questions (how to spend more time on high-value work)
-- People worth keeping closer contact with and why
-
-Rules:
-- Aim for roughly 1-2 DEEPEN + 1-2 EXPLORE per set (vary the ratio randomly)
-- DEEPEN questions must reference something specific already in the brain
-- EXPLORE questions should feel personal and curious, not corporate or generic
-- All questions must be concise, directly answerable, and feel like a friend asked them
-- cat is a short label (1-3 words) for the domain
-- Return ONLY valid JSON, no markdown: {"suggestions":[{"q":"...","cat":"..."},{"q":"...","cat":"..."},{"q":"...","cat":"..."}]}`;
-
-const MERGE_PROMPT = `You are a personal knowledge assistant reviewing a user's second-brain entries.
-
-Identify groups of 2-3 entries that are clearly fragmented pieces of the same real-world entity and should be merged into one entry. The most common case is a person/contact split across multiple entries (e.g. one entry has their phone number, another has their ID, another has their address). Also flag near-duplicate notes or entries where one is a clear subset of another.
-
-Rules:
-- Only suggest merges you are highly confident about — false positives are worse than misses
-- Each group must have a plain-English reason (1 sentence)
-- At most 3 suggestions
-- Return ONLY valid JSON, no markdown: {"merges":[{"ids":["id1","id2"],"titles":["title1","title2"],"reason":"..."}]}
-- If no clear candidates, return {"merges":[]}`;
-
-const WOW_PROMPT = `You are a personal insight synthesizer for a second-brain app.
-
-Given the user's recent AI-generated insights AND their top brain concepts and relationships, find 1-3 genuine "wow" moments — surprising cross-domain connections, unexpected patterns, or profound implications the user has NOT consciously noticed.
-
-Rules:
-- Be specific to THIS user's actual data, never generic advice
-- Name the real connection — e.g. "Your supplier notes and pricing research both circle the same margin pressure"
-- Headline: under 10 words, punchy, specific
-- Detail: 1-2 sentences, direct and insightful
-- Skip anything obvious or motivational-poster-level generic
-- Return ONLY valid JSON, no markdown: {"wows":[{"headline":"...","detail":"..."}]}
-- If data is too sparse for genuine wow moments, return {"wows":[]}`;
+const SUGGESTIONS_PROMPT = SERVER_PROMPTS.SUGGESTIONS;
+const MERGE_PROMPT = SERVER_PROMPTS.MERGE;
+const WOW_PROMPT = SERVER_PROMPTS.WOW;
 
 function getGreeting(name?: string): string {
   return name ? `Hi, ${name}.` : `Hi there.`;

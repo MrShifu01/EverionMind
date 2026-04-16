@@ -1,4 +1,5 @@
 import type { ApiRequest, ApiResponse } from "./_lib/types";
+import { SERVER_PROMPTS } from "./_lib/prompts.js";
 import { verifyAuth } from "./_lib/verifyAuth.js";
 import { rateLimit } from "./_lib/rateLimit.js";
 import { applySecurityHeaders } from "./_lib/securityHeaders.js";
@@ -85,7 +86,7 @@ async function handleGemini(res: ApiResponse, { messages, max_tokens, system }: 
 // ── File extraction ──────────────────────────────────────────────────────────
 
 const MAX_FILE_B64 = 20 * 1024 * 1024;
-const EXTRACT_PROMPT = "Extract all text and information from this file. Preserve structure. Output only the extracted content, no commentary.";
+const EXTRACT_PROMPT = SERVER_PROMPTS.EXTRACT_FILE;
 
 async function handleExtractFile(req: ApiRequest, res: ApiResponse): Promise<void> {
   if (!GEMINI_API_KEY) return res.status(500).json({ error: "AI not configured" });
