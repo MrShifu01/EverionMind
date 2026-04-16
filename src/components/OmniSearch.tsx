@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Entry } from "../types";
+import { scoreEntry } from "../lib/searchIndex";
 
 interface OmniSearchProps {
   entries: Entry[];
@@ -39,24 +40,16 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
 
   const runSearch = useCallback(
     (q: string) => {
-      const trimmed = q.trim().toLowerCase();
+      const trimmed = q.trim();
       if (!trimmed) {
         setResults([]);
         return;
       }
-      setResults(
-        entries
-          .filter((e) => {
-            const metaValues = e.metadata && typeof e.metadata === "object"
-              ? Object.values(e.metadata as Record<string, unknown>)
-                  .map((v) => (typeof v === "string" ? v : ""))
-                  .join(" ")
-              : "";
-            const hay = `${e.title} ${e.content || ""} ${(e.tags || []).join(" ")} ${metaValues}`.toLowerCase();
-            return hay.includes(trimmed);
-          })
-          .slice(0, 12),
-      );
+      const scored = entries
+        .map((e) => ({ entry: e, score: scoreEntry(e, trimmed) }))
+        .filter(({ score }) => score > 0);
+      scored.sort((a, b) => b.score - a.score);
+      setResults(scored.slice(0, 12).map(({ entry }) => entry));
       setHighlighted(0);
     },
     [entries],

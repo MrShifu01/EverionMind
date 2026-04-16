@@ -19,7 +19,7 @@ import { useRole } from "./hooks/useRole";
 import { useOfflineSync } from "./hooks/useOfflineSync";
 import { useNudge } from "./hooks/useNudge";
 import { useChat } from "./hooks/useChat";
-import { searchIndex, indexEntryConcepts } from "./lib/searchIndex";
+import { searchIndex, indexEntryConcepts, scoreEntry } from "./lib/searchIndex";
 import { applyEntryFilters, getEntryTypes } from "./lib/entryFilters";
 import GridFilters from "./components/GridFilters";
 import { PinGate } from "./lib/pin";
@@ -946,7 +946,12 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
       const ids = searchIndex(appShell.search);
       if (ids) r = r.filter((e) => ids.has(e.id));
     }
-    return applyEntryFilters(r, appShell.gridFilters);
+    const result = applyEntryFilters(r, appShell.gridFilters);
+    // When a search is active, override date/pinned sort with relevance ranking
+    if (appShell.search) {
+      result.sort((a, b) => scoreEntry(b, appShell.search) - scoreEntry(a, appShell.search));
+    }
+    return result;
   }, [appShell.search, appShell.gridFilters, appShell.workspace, dataLayer.entries]);
 
   const sortedTimeline = useMemo(
