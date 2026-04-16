@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { authFetch } from "../lib/authFetch";
 import { fmtD } from "../data/constants";
 import { EarlyAccessBanner } from "../components/EarlyAccessBanner";
@@ -6,6 +6,7 @@ import { PROMPTS } from "../config/prompts";
 import { showToast } from "../lib/notifications";
 import { useEntries } from "../context/EntriesContext";
 import { parseAISplitResponse } from "../lib/fileSplitter";
+import { usePullToRefresh } from "../hooks/usePullToRefresh";
 
 const FEED_TTL = 2 * 60 * 60 * 1000; // 2 hours (quick + insights)
 const MERGE_TTL = 24 * 60 * 60 * 1000; // 24 hours — merges don't change that fast
@@ -132,13 +133,22 @@ export default function FeedView({
   const [quickLoading, setQuickLoading] = useState(true);
   const [insightsData, setInsightsData] = useState<InsightsData | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handleRefresh = useCallback(async () => {
+    if (!brainId) return;
+    try { localStorage.removeItem(quickCacheKey(brainId)); } catch { /* ignore */ }
+    try { localStorage.removeItem(insightsCacheKey(brainId)); } catch { /* ignore */ }
+    setRefreshKey((k) => k + 1);
+  }, [brainId]);
+
+  const { pullDistance, refreshing } = usePullToRefresh(handleRefresh);
 
   // Audit state
   const [localAuditFlags, setLocalAuditFlags] = useState<Map<string, AuditFlag[]>>(new Map());
   const [splitPreview, setSplitPreview] = useState<{ entryId: string; entries: Array<{ title: string; type: string; content: string }> } | null>(null);
   const [splitPreviewLoading, setSplitPreviewLoading] = useState<string | null>(null);
   const [auditActionLoading, setAuditActionLoading] = useState<string | null>(null);
-  const auditInitRef = useRef(false);
 
   // Merge state
   const [ignoredMerges, setIgnoredMerges] = useState<Set<string>>(new Set());
@@ -190,16 +200,24 @@ export default function FeedView({
     } catch { /* ignore */ }
   }, [brainId]);
 
-  // Init localAuditFlags once from entries that already have persisted flags
+  // Merge persisted audit_flags from entries into localAuditFlags whenever entries update.
+  // Uses merge (not replace) so audit-API-set flags aren't clobbered by a stale cache hit.
   useEffect(() => {
-    if (!entriesLoaded || auditInitRef.current) return;
-    auditInitRef.current = true;
-    const init = new Map<string, AuditFlag[]>();
+    if (!entriesLoaded) return;
+    const additions = new Map<string, AuditFlag[]>();
     for (const e of entries) {
       const flags = (e.metadata as any)?.audit_flags as AuditFlag[] | undefined;
-      if (flags?.length) init.set(e.id, flags);
+      if (flags?.length) additions.set(e.id, flags);
     }
-    if (init.size > 0) setLocalAuditFlags(init);
+    if (!additions.size) return;
+    setLocalAuditFlags((prev) => {
+      let changed = false;
+      const next = new Map(prev);
+      for (const [id, flags] of additions) {
+        if (!next.has(id)) { next.set(id, flags); changed = true; }
+      }
+      return changed ? next : prev;
+    });
   }, [entries, entriesLoaded]);
 
   // Sync: remove flags for entries whose audit_flags were cleared server-side (e.g. after edit)
@@ -314,7 +332,7 @@ export default function FeedView({
         })
         .catch(() => { /* silent — audit_run_at not written, retries next load */ });
     }
-  }, [brainId]);
+  }, [brainId, refreshKey]);
 
   function startVoice() {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -876,6 +894,54 @@ export default function FeedView({
 
   return (
     <div className="space-y-4">
+      {/* Pull-to-refresh indicator */}
+      {(pullDistance > 0 || refreshing) && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 50,
+            display: "flex",
+            justifyContent: "center",
+            transform: `translateY(${refreshing ? 52 : pullDistance - 4}px)`,
+            transition: refreshing ? "none" : "transform 0.05s linear",
+            pointerEvents: "none",
+          }}
+        >
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: "50%",
+              background: "var(--color-surface)",
+              border: "1.5px solid color-mix(in oklch, var(--color-primary) 30%, transparent)",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              style={{
+                color: "var(--color-primary)",
+                animation: refreshing ? "spin 0.8s linear infinite" : "none",
+                opacity: refreshing ? 1 : Math.min(1, pullDistance / 48),
+                transform: refreshing ? undefined : `rotate(${(pullDistance / 96) * 270}deg)`,
+              }}
+            >
+              <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" strokeDasharray="28" strokeDashoffset="10" strokeLinecap="round" />
+            </svg>
+          </div>
+        </div>
+      )}
+
       <div aria-live="polite" aria-atomic="true" className="sr-only">
         {quickLoading ? "Loading your entries…" : `${quickData?.stats.entries ?? 0} entries loaded`}
       </div>
