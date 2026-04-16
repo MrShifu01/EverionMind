@@ -87,7 +87,7 @@ async function generateMergeSuggestions(
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: `My entries:\n${entryLines}` }] }],
           systemInstruction: { parts: [{ text: MERGE_PROMPT }] },
-          generationConfig: { maxOutputTokens: 512 },
+          generationConfig: { maxOutputTokens: 1024 },
         }),
       },
     );
