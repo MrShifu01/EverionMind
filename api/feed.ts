@@ -67,8 +67,13 @@ async function generateSuggestions(
 async function generateMergeSuggestions(
   entries: any[],
 ): Promise<Array<{ ids: string[]; titles: string[]; reason: string }>> {
-  if (!GEMINI_API_KEY || entries.length < 2) return [];
+  if (!GEMINI_API_KEY) {
+    console.error("[feed:merges] GEMINI_API_KEY not configured");
+    return [];
+  }
+  if (entries.length < 2) return [];
 
+  const validIds = new Set(entries.map((e) => e.id));
   const entryLines = entries
     .map((e) => `- id:${e.id} [${e.type}] ${e.title}${e.content ? ` — ${String(e.content).slice(0, 120)}` : ""}`)
     .join("\n");
@@ -86,21 +91,33 @@ async function generateMergeSuggestions(
         }),
       },
     );
-    if (!res.ok) return [];
+    if (!res.ok) {
+      console.error("[feed:merges] Gemini HTTP error", res.status, await res.text().catch(() => ""));
+      return [];
+    }
     const data: any = await res.json();
     const text: string = (data.candidates?.[0]?.content?.parts || [])
       .filter((p: any) => !p.thought)
       .map((p: any) => p.text || "")
       .join("")
       .trim();
+    console.log("[feed:merges] LLM response chars:", text.length, "| preview:", text.slice(0, 300));
     const match = text.match(/\{[\s\S]*\}/);
-    if (!match) return [];
+    if (!match) {
+      console.log("[feed:merges] no JSON object found in response");
+      return [];
+    }
     const parsed = JSON.parse(match[0]);
     if (!Array.isArray(parsed.merges)) return [];
-    return parsed.merges
+    const results = parsed.merges
       .filter((m: any) => Array.isArray(m.ids) && m.ids.length >= 2 && m.reason)
+      // Reject any suggestion containing IDs the LLM hallucinated
+      .filter((m: any) => m.ids.every((id: string) => validIds.has(id)))
       .slice(0, 5);
-  } catch {
+    console.log("[feed:merges] valid suggestions:", results.length, "/ raw:", parsed.merges.length);
+    return results;
+  } catch (e: any) {
+    console.error("[feed:merges] exception:", e?.message ?? e);
     return [];
   }
 }
