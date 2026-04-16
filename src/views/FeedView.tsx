@@ -220,15 +220,18 @@ export default function FeedView({
     });
   }, [entries, entriesLoaded]);
 
-  // Sync: remove flags for entries whose audit_flags were cleared server-side (e.g. after edit)
+  // Sync: remove flags only when audit_flags was explicitly cleared server-side (key exists but is null/empty).
+  // If audit_flags is simply absent from metadata (stale cache), keep the flag — don't mistake
+  // a stale cache hit for a server-side clear.
   useEffect(() => {
     setLocalAuditFlags((prev) => {
       if (!prev.size) return prev;
       let changed = false;
       const next = new Map(prev);
       for (const e of entries) {
-        const contextFlags: AuditFlag[] | undefined = (e.metadata as any)?.audit_flags;
-        if (prev.has(e.id) && (!contextFlags || contextFlags.length === 0)) {
+        const meta = (e.metadata ?? {}) as any;
+        const explicitlyCleared = "audit_flags" in meta && !meta.audit_flags?.length;
+        if (prev.has(e.id) && explicitlyCleared) {
           next.delete(e.id);
           changed = true;
         }
