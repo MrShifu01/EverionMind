@@ -80,6 +80,23 @@ export function useDataLayer({
       .catch((err) => console.error("[OpenBrain] /api/vault check failed", err));
   }, []);
 
+  const refreshEntries = useCallback(async () => {
+    if (!activeBrainId) return;
+    setEntriesLoaded(false);
+    try {
+      const r = await authFetch(`/api/entries?brain_id=${encodeURIComponent(activeBrainId)}&limit=1000`);
+      const data = r.ok ? await r.json() : null;
+      const fetched: Entry[] = Array.isArray(data) ? data : (data?.entries ?? []);
+      if (fetched.length > 0) {
+        setEntries(fetched);
+        writeEntriesCache(fetched);
+        fetched.filter((e) => e.type !== "secret").forEach(indexEntry);
+      }
+    } finally {
+      setEntriesLoaded(true);
+    }
+  }, [activeBrainId]);
+
   // Fetch entries + prefetch links when brain changes.
   // prevBrainIdRef guards against clearing entries on initial mount
   // (which would flash-blank the cached list before the API returns).
@@ -91,19 +108,7 @@ export function useDataLayer({
       setLinks([]);
       prevBrainIdRef.current = activeBrainId;
     }
-    setEntriesLoaded(false);
-    authFetch(`/api/entries?brain_id=${encodeURIComponent(activeBrainId)}&limit=1000`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        const fetched = Array.isArray(data) ? data : (data?.entries ?? []);
-        if (fetched.length > 0) {
-          setEntries(fetched);
-          writeEntriesCache(fetched);
-          fetched.filter((e: Entry) => e.type !== "secret").forEach(indexEntry);
-        }
-        setEntriesLoaded(true);
-      })
-      .catch(() => setEntriesLoaded(true));
+    refreshEntries();
     authFetch(`/api/search?brain_id=${encodeURIComponent(activeBrainId)}&threshold=0.55`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -112,7 +117,7 @@ export function useDataLayer({
         if (arr.length > 0) setLinks(arr);
       })
       .catch((err) => console.error("[OpenBrain] /api/search prefetch failed", err));
-  }, [activeBrainId]);
+  }, [activeBrainId, refreshEntries]);
 
   // Write-back cache after entries settle
   useEffect(() => {
@@ -288,6 +293,7 @@ export function useDataLayer({
     entries,
     setEntries,
     entriesLoaded,
+    refreshEntries,
     links,
     setLinks,
     addLinks,

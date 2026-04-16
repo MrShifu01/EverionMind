@@ -127,7 +127,7 @@ export default function FeedView({
   onEnrich,
   onCreated,
 }: FeedViewProps) {
-  const { entries, entriesLoaded, handleUpdate, handleDelete } = useEntries();
+  const { entries, entriesLoaded, handleUpdate, handleDelete, refreshEntries } = useEntries();
 
   const [quickData, setQuickData] = useState<QuickData | null>(null);
   const [quickLoading, setQuickLoading] = useState(true);
@@ -140,7 +140,11 @@ export default function FeedView({
     try { localStorage.removeItem(quickCacheKey(brainId)); } catch { /* ignore */ }
     try { localStorage.removeItem(insightsCacheKey(brainId)); } catch { /* ignore */ }
     setRefreshKey((k) => k + 1);
-  }, [brainId]);
+    // Re-fetch entries so server-side changes (e.g. audit flags) surface immediately.
+    // Clear local flags first so the merge effect repopulates cleanly from fresh data.
+    setLocalAuditFlags(new Map());
+    await refreshEntries();
+  }, [brainId, refreshEntries]);
 
   const { pullDistance, refreshing } = usePullToRefresh(handleRefresh);
 

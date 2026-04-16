@@ -8,6 +8,7 @@ export interface EntriesContextValue {
   setSelected: Dispatch<SetStateAction<Entry | null>>;
   handleDelete: (id: string) => void;
   handleUpdate: (id: string, changes: Partial<Entry>, options?: { silent?: boolean }) => Promise<void>;
+  refreshEntries: () => Promise<void>;
 }
 
 export const EntriesContext = createContext<EntriesContextValue | null>(null);

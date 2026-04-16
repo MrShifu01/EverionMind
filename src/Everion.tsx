@@ -975,6 +975,7 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
       setSelected: appShell.setSelected,
       handleDelete: dataLayer.handleDelete,
       handleUpdate: dataLayer.handleUpdate,
+      refreshEntries: dataLayer.refreshEntries,
     }),
     [
       dataLayer.entries,
@@ -983,6 +984,7 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
       appShell.setSelected,
       dataLayer.handleDelete,
       dataLayer.handleUpdate,
+      dataLayer.refreshEntries,
     ],
   );
 
