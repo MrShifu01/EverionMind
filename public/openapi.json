@@ -1,0 +1,170 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "EverionMind",
+    "description": "Access your personal knowledge base. Retrieve memories, check upcoming dates, and save new information.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    { "url": "https://everionmind.vercel.app" }
+  ],
+  "paths": {
+    "/api/memory/retrieve": {
+      "post": {
+        "operationId": "retrieveMemory",
+        "summary": "Search the knowledge base",
+        "description": "Semantic search using embedding + vector search + keyword expansion + graph boost. Returns the most relevant entries with full metadata. Use this when asked to recall, look up, or find information.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["query", "brain_id"],
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "Natural language question or topic"
+                  },
+                  "brain_id": {
+                    "type": "string",
+                    "description": "Brain UUID (get from /api/mcp tools/list then list_brains)"
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "description": "Max results (1–50, default 15)",
+                    "default": 15
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Matching entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entries": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Entry" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/memory/upcoming": {
+      "get": {
+        "operationId": "getUpcoming",
+        "summary": "Get entries with upcoming dates",
+        "description": "Returns entries where due_date, deadline, expiry_date, or event_date falls within the next N days. Sorted by earliest date.",
+        "parameters": [
+          {
+            "name": "brain_id",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Brain UUID"
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 30 },
+            "description": "Look-ahead window in days (1–365)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Upcoming entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entries": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Entry" }
+                    },
+                    "days": { "type": "integer" },
+                    "from": { "type": "string", "format": "date" },
+                    "to": { "type": "string", "format": "date" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mcp": {
+      "post": {
+        "operationId": "mcpRpc",
+        "summary": "MCP JSON-RPC endpoint (list_brains, create_entry, get_entry)",
+        "description": "JSON-RPC 2.0 endpoint. Supports methods: initialize, tools/list, tools/call. Tools: list_brains, retrieve_memory, get_upcoming, get_entry, create_entry.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["jsonrpc", "method"],
+                "properties": {
+                  "jsonrpc": { "type": "string", "enum": ["2.0"] },
+                  "id": { "type": ["string", "number", "null"] },
+                  "method": { "type": "string" },
+                  "params": { "type": "object" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "JSON-RPC response",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Entry": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "content": { "type": "string" },
+          "type": { "type": "string" },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "metadata": {
+            "type": "object",
+            "description": "Structured fields: due_date, deadline, expiry_date, event_date (YYYY-MM-DD), phone, email, url, etc."
+          },
+          "brain_id": { "type": "string" },
+          "similarity": { "type": "number" }
+        }
+      }
+    },
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "EverionMind API key (em_...). Generate one in Settings → AI Integrations."
+      }
+    }
+  },
+  "security": [{ "ApiKeyAuth": [] }]
+}

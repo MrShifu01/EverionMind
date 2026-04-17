@@ -1,0 +1,175 @@
+/**
+ * Core retrieval pipeline shared by /api/memory/retrieve and /api/mcp.
+ * embed → vector search → keyword expand → tag siblings → metadata hydrate → graph boost
+ */
+import { generateEmbedding } from "./generateEmbedding.js";
+
+const SB_URL = process.env.SUPABASE_URL!;
+const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const SB_HEADERS: Record<string, string> = {
+  "Content-Type": "application/json",
+  apikey: SB_KEY,
+  Authorization: `Bearer ${SB_KEY}`,
+};
+
+export interface RetrievedEntry {
+  id: string;
+  title: string;
+  content: string;
+  type: string;
+  tags: string[];
+  metadata: Record<string, any> | null;
+  brain_id: string;
+  similarity: number;
+  _score: number;
+}
+
+function applyGraphBoost(entries: any[], graph: any): any[] {
+  if (!graph || entries.length < 2) return entries;
+  const top3Ids = new Set(entries.slice(0, 3).map((e: any) => e.id));
+  const boosts = new Map<string, number>();
+  for (const concept of graph.concepts ?? []) {
+    const srcs: string[] = concept.source_entries ?? [];
+    if (srcs.some((id) => top3Ids.has(id))) {
+      for (const id of srcs) {
+        if (!top3Ids.has(id)) boosts.set(id, (boosts.get(id) ?? 0) + 0.05);
+      }
+    }
+  }
+  for (const rel of graph.relationships ?? []) {
+    const relIds: string[] = rel.entry_ids ?? [];
+    if (relIds.some((id) => top3Ids.has(id))) {
+      for (const id of relIds) {
+        if (!top3Ids.has(id)) boosts.set(id, (boosts.get(id) ?? 0) + 0.08);
+      }
+    }
+  }
+  if (!boosts.size) return entries;
+  const boosted = entries.map((e: any) => {
+    const b = Math.min(boosts.get(e.id) ?? 0, 0.15);
+    return b > 0 ? { ...e, _score: (e._score ?? e.similarity ?? 0) + b } : e;
+  });
+  boosted.sort((a: any, b: any) => (b._score ?? b.similarity ?? 0) - (a._score ?? a.similarity ?? 0));
+  return boosted;
+}
+
+const STOP = new Set([
+  "this","that","with","from","have","been","they","will","your","what","about",
+  "which","when","than","some","more","also","into","over","after","their","there",
+  "these","those","were","does","would","could","should","just","very","even",
+  "back","most","such","both","each","much","only","then","them","make","like",
+  "well","take","come","good","know","need","feel","seem","same",
+]);
+
+export async function retrieveEntries(
+  query: string,
+  brainId: string,
+  geminiApiKey: string,
+  limit = 15,
+): Promise<RetrievedEntry[]> {
+  const embedding = await generateEmbedding(query, geminiApiKey);
+  if (!embedding) throw new Error("Embedding failed");
+
+  // 1. Vector search
+  const rpcRes = await fetch(`${SB_URL}/rest/v1/rpc/match_entries`, {
+    method: "POST",
+    headers: SB_HEADERS,
+    body: JSON.stringify({
+      query_embedding: `[${embedding.join(",")}]`,
+      p_brain_id: brainId,
+      match_count: 20,
+    }),
+  });
+  let entries: any[] = rpcRes.ok ? await rpcRes.json() : [];
+  entries = entries.map((e) => ({ ...e, brain_id: brainId }));
+  const existingIds = new Set(entries.map((e: any) => e.id));
+
+  // 2. Keyword expand
+  const qTokens = query.trim().split(/\s+/)
+    .map((w) => w.replace(/[^a-zA-Z0-9]/g, ""))
+    .filter((w) => w.length > 3 && !STOP.has(w.toLowerCase()))
+    .slice(0, 6);
+  if (qTokens.length > 0) {
+    const orFilter = qTokens.map((kw) => `title.ilike.*${kw}*`).join(",");
+    const kwRes = await fetch(
+      `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&or=(${encodeURIComponent(orFilter)})&select=id,title,type,tags,content&limit=10`,
+      { headers: SB_HEADERS },
+    );
+    if (kwRes.ok) {
+      const rows: any[] = await kwRes.json();
+      for (const r of rows) {
+        if (!existingIds.has(r.id)) {
+          existingIds.add(r.id);
+          entries.push({ ...r, brain_id: brainId, similarity: 0 });
+        }
+      }
+    }
+  }
+
+  // 3. Tag sibling expand
+  const tagTokens = new Set<string>();
+  entries.slice(0, 5).forEach((e: any) => {
+    (e.tags ?? []).forEach((tag: string) => {
+      String(tag).toLowerCase().split(/[\s',./_\-]+/).forEach((w) => {
+        const clean = w.replace(/[^a-z0-9]/g, "");
+        if (clean.length > 3 && !STOP.has(clean) && !/^\d+$/.test(clean)) tagTokens.add(clean);
+      });
+    });
+  });
+  if (tagTokens.size > 0) {
+    const orFilter = Array.from(tagTokens).slice(0, 8).map((kw) => `title.ilike.*${kw}*`).join(",");
+    const sibRes = await fetch(
+      `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&or=(${encodeURIComponent(orFilter)})&select=id,title,type,tags,content,metadata&limit=10`,
+      { headers: SB_HEADERS },
+    );
+    if (sibRes.ok) {
+      const rows: any[] = await sibRes.json();
+      for (const r of rows) {
+        if (!existingIds.has(r.id)) {
+          existingIds.add(r.id);
+          entries.push({ ...r, brain_id: brainId, similarity: 0 });
+        }
+      }
+    }
+  }
+
+  // 4. Metadata hydrate
+  if (entries.length > 0) {
+    const ids = entries.map((e: any) => e.id).join(",");
+    const metaRes = await fetch(
+      `${SB_URL}/rest/v1/entries?id=in.(${ids})&select=id,metadata`,
+      { headers: SB_HEADERS },
+    );
+    if (metaRes.ok) {
+      const metaRows: any[] = await metaRes.json();
+      const metaMap = new Map(metaRows.map((r: any) => [r.id, r.metadata]));
+      entries = entries.map((e: any) => ({ ...e, metadata: metaMap.get(e.id) ?? e.metadata ?? null }));
+    }
+  }
+
+  // 5. Hybrid score + sort
+  const queryTokens = query.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
+  entries.forEach((e: any) => {
+    const sim = e.similarity ?? 0;
+    if (!queryTokens.length) { e._score = sim; return; }
+    const text = `${e.title ?? ""} ${e.content ?? ""}`.toLowerCase();
+    const kw = queryTokens.filter((t) => text.includes(t)).length / queryTokens.length;
+    e._score = sim * 0.7 + kw * 0.3;
+  });
+  entries.sort((a: any, b: any) => b._score - a._score);
+  entries = entries.slice(0, 40);
+
+  // 6. Graph boost
+  try {
+    const graphRes = await fetch(
+      `${SB_URL}/rest/v1/concept_graphs?brain_id=eq.${encodeURIComponent(brainId)}&select=graph`,
+      { headers: SB_HEADERS },
+    );
+    if (graphRes.ok) {
+      const rows: any[] = await graphRes.json();
+      if (rows[0]?.graph) entries = applyGraphBoost(entries, rows[0].graph);
+    }
+  } catch { /* non-fatal */ }
+
+  return entries.slice(0, limit) as RetrievedEntry[];
+}

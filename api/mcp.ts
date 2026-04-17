@@ -5,16 +5,19 @@
  * The raw key is SHA-256 hashed and compared against user_api_keys.key_hash.
  *
  * Knowledge base tools:
- *   list_brains      — list the user's brains
- *   search_entries   — low-level semantic search within a brain
- *   get_entry        — fetch a single entry by ID
- *   create_entry     — create a new entry with embedding
+ *   list_brains       — list the user's brains
+ *   retrieve_memory   — full RAG retrieval (embed → vector → expand → graph boost)
+ *   get_upcoming      — entries with due/deadline/expiry dates in the next N days
+ *   get_entry         — fetch a single entry by ID
+ *   create_entry      — create a new entry with embedding (use for "save this to Everion")
+ *   search_entries    — low-level vector search (use retrieve_memory for best results)
  */
 import { createHash, randomUUID } from "crypto";
 import type { ApiRequest, ApiResponse } from "./_lib/types";
 import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 import { rateLimit } from "./_lib/rateLimit.js";
 import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
+import { retrieveEntries } from "./_lib/retrievalCore.js";
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
@@ -29,27 +32,39 @@ const hdrs = (extra: Record<string, string> = {}): Record<string, string> => ({
 // ── MCP tool definitions ──────────────────────────────────────────────────────
 
 const TOOLS = [
-  // ── Knowledge base management ──────────────────────────────────────────────
   {
     name: "list_brains",
-    description: "List all brains (knowledge bases) for the authenticated user.",
+    description: "List all brains (knowledge bases) for the authenticated user. Call this first to get brain IDs needed by other tools.",
     inputSchema: { type: "object", properties: {}, required: [] },
   },
   {
-    name: "search_entries",
-    description: "Semantic search across entries in a brain.",
+    name: "retrieve_memory",
+    description: "Full semantic retrieval from a brain. Uses embedding + vector search + keyword expansion + graph boost to return the most relevant entries with complete metadata. Use this when the user asks about something stored in their knowledge base.",
     inputSchema: {
       type: "object",
       properties: {
-        query: { type: "string", description: "Natural language search query" },
-        brain_id: { type: "string", description: "Brain UUID to search. Uses first brain if omitted." },
+        query: { type: "string", description: "Natural language question or topic to search for" },
+        brain_id: { type: "string", description: "Brain UUID to search (from list_brains)" },
+        limit: { type: "number", description: "Max entries to return (1–50, default 15)" },
       },
-      required: ["query"],
+      required: ["query", "brain_id"],
+    },
+  },
+  {
+    name: "get_upcoming",
+    description: "Return entries with upcoming due dates, deadlines, expiry dates, or event dates. Use this when the user asks what is coming up, what is due soon, or what is expiring.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        brain_id: { type: "string", description: "Brain UUID (from list_brains)" },
+        days: { type: "number", description: "Look-ahead window in days (1–365, default 30)" },
+      },
+      required: ["brain_id"],
     },
   },
   {
     name: "get_entry",
-    description: "Fetch a single entry by ID.",
+    description: "Fetch a single entry by its UUID.",
     inputSchema: {
       type: "object",
       properties: { id: { type: "string", description: "Entry UUID" } },
@@ -58,17 +73,29 @@ const TOOLS = [
   },
   {
     name: "create_entry",
-    description: "Create a new entry in a brain. Generates an embedding for semantic search.",
+    description: "Save new information to the user's knowledge base. Use this when the user says things like 'add this to Everion', 'save this note', 'remember that', 'store this phone number', or 'add this idea to my memory'. Always call list_brains first to get the brain_id.",
     inputSchema: {
       type: "object",
       properties: {
-        title: { type: "string", description: "Entry title (max 200 chars)" },
-        content: { type: "string", description: "Entry content" },
-        brain_id: { type: "string", description: "Brain UUID to save into" },
-        type: { type: "string", description: "Entry type (e.g. note, person, recipe). Defaults to note." },
-        tags: { type: "array", items: { type: "string" }, description: "Optional tags" },
+        title: { type: "string", description: "Short descriptive title (max 200 chars)" },
+        content: { type: "string", description: "Full content to store" },
+        brain_id: { type: "string", description: "Brain UUID to save into (from list_brains)" },
+        type: { type: "string", description: "Entry type: note, person, recipe, task, event, document, idea, contact. Defaults to note." },
+        tags: { type: "array", items: { type: "string" }, description: "Optional tags for categorisation" },
       },
       required: ["title", "content", "brain_id"],
+    },
+  },
+  {
+    name: "search_entries",
+    description: "Low-level vector-only search. Prefer retrieve_memory for most queries — it has better coverage. Use this only when you need raw similarity scores.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Natural language search query" },
+        brain_id: { type: "string", description: "Brain UUID to search. Uses first brain if omitted." },
+      },
+      required: ["query"],
     },
   },
 ];
@@ -101,6 +128,69 @@ async function resolveUserFromKey(rawKey: string): Promise<{ userId: string; key
 }
 
 // ── Tool implementations ──────────────────────────────────────────────────────
+
+const DATE_FIELDS_MCP = ["due_date", "deadline", "expiry_date", "event_date"] as const;
+
+async function retrieveMemory(userId: string, query: string, brainId: string, limit = 15): Promise<unknown> {
+  const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
+  if (!GEMINI_API_KEY) throw new Error("Embedding not configured on server");
+
+  // Verify brain ownership
+  const access = await fetch(
+    `${SB_URL}/rest/v1/brains?id=eq.${encodeURIComponent(brainId)}&owner_id=eq.${encodeURIComponent(userId)}&select=id&limit=1`,
+    { headers: hdrs() },
+  );
+  const owned: any[] = await access.json();
+  if (!owned.length) throw new Error("Brain not found or access denied");
+
+  const safeLimit = Math.min(Math.max(1, limit), 50);
+  return retrieveEntries(query, brainId, GEMINI_API_KEY, safeLimit);
+}
+
+async function getUpcoming(userId: string, brainId: string, days = 30): Promise<unknown> {
+  // Verify brain ownership
+  const access = await fetch(
+    `${SB_URL}/rest/v1/brains?id=eq.${encodeURIComponent(brainId)}&owner_id=eq.${encodeURIComponent(userId)}&select=id&limit=1`,
+    { headers: hdrs() },
+  );
+  const owned: any[] = await access.json();
+  if (!owned.length) throw new Error("Brain not found or access denied");
+
+  const safeDays = Math.min(Math.max(1, days), 365);
+  const today = new Date().toISOString().slice(0, 10);
+  const future = new Date(Date.now() + safeDays * 86400000).toISOString().slice(0, 10);
+
+  const fetches = await Promise.all(
+    DATE_FIELDS_MCP.map(async (field) => {
+      const params = new URLSearchParams({
+        "brain_id": `eq.${brainId}`,
+        "deleted_at": "is.null",
+        [`metadata->>${field}`]: `gte.${today}`,
+        "select": "id,title,type,tags,content,metadata,created_at",
+        "limit": "100",
+      });
+      const url = `${SB_URL}/rest/v1/entries?${params.toString()}&metadata->>${field}=lte.${future}`;
+      const r = await fetch(url, { headers: hdrs() });
+      if (!r.ok) return [];
+      const rows: any[] = await r.json();
+      return rows.map((e) => ({ ...e, _date_field: field }));
+    }),
+  );
+
+  const seen = new Set<string>();
+  const merged: any[] = [];
+  for (const rows of fetches) {
+    for (const row of rows) {
+      if (!seen.has(row.id)) { seen.add(row.id); merged.push(row); }
+    }
+  }
+  merged.sort((a, b) => {
+    const aDate = DATE_FIELDS_MCP.map((f) => a.metadata?.[f]).filter(Boolean).sort()[0] ?? "9999";
+    const bDate = DATE_FIELDS_MCP.map((f) => b.metadata?.[f]).filter(Boolean).sort()[0] ?? "9999";
+    return aDate.localeCompare(bDate);
+  });
+  return { entries: merged, days: safeDays, from: today, to: future };
+}
 
 async function listBrains(userId: string): Promise<unknown> {
   const r = await fetch(
@@ -289,6 +379,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
 
       if (toolName === "list_brains") {
         result = await listBrains(userId);
+      } else if (toolName === "retrieve_memory") {
+        if (!args.query) return res.status(200).json(jsonRpcErr(id, -32602, "query is required"));
+        if (!args.brain_id) return res.status(200).json(jsonRpcErr(id, -32602, "brain_id is required"));
+        result = await retrieveMemory(userId, args.query, args.brain_id, args.limit);
+      } else if (toolName === "get_upcoming") {
+        if (!args.brain_id) return res.status(200).json(jsonRpcErr(id, -32602, "brain_id is required"));
+        result = await getUpcoming(userId, args.brain_id, args.days);
       } else if (toolName === "search_entries") {
         if (!args.query) return res.status(200).json(jsonRpcErr(id, -32602, "query is required"));
         result = await searchEntries(userId, args.query, args.brain_id);

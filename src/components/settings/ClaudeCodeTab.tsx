@@ -90,10 +90,10 @@ export default function ClaudeCodeTab() {
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="text-sm font-semibold" style={{ color: "var(--color-on-surface)" }}>
-            MCP Access
+            AI Integrations
           </p>
           <p className="text-xs mt-0.5" style={{ color: "var(--color-on-surface-variant)" }}>
-            Generate API keys for any MCP-compatible client (Claude Code, Cursor, etc.)
+            Connect your AI assistant (ChatGPT, Claude, Cursor, etc.) to your knowledge base
           </p>
         </div>
         {!showForm && (
@@ -217,19 +217,21 @@ export default function ClaudeCodeTab() {
         </div>
       )}
 
-      {/* MCP config snippet */}
+      {/* Platform setup guides */}
       {keys.length > 0 && !revealedKey && (
-        <details className="group">
-          <summary
-            className="cursor-pointer text-xs select-none"
-            style={{ color: "var(--color-on-surface-variant)" }}
-          >
-            Show Claude Code config →
-          </summary>
-          <pre
-            className="mt-2 rounded-xl p-3 text-xs overflow-x-auto"
-            style={{ background: "var(--color-surface-container-high)", color: "var(--color-on-surface)" }}
-          >{`{
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium" style={{ color: "var(--color-on-surface-variant)" }}>
+            Setup guides
+          </p>
+
+          <details className="group">
+            <summary className="cursor-pointer text-xs select-none py-1" style={{ color: "var(--color-on-surface-variant)" }}>
+              Claude Code / Cursor (MCP) →
+            </summary>
+            <pre
+              className="mt-2 rounded-xl p-3 text-xs overflow-x-auto"
+              style={{ background: "var(--color-surface-container-high)", color: "var(--color-on-surface)" }}
+            >{`{
   "mcpServers": {
     "everionmind": {
       "type": "http",
@@ -240,7 +242,53 @@ export default function ClaudeCodeTab() {
     }
   }
 }`}</pre>
-        </details>
+            <p className="mt-1.5 text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
+              Add to <code className="text-xs">~/.claude/claude_desktop_config.json</code> (Claude) or <code className="text-xs">~/.cursor/mcp.json</code> (Cursor).
+            </p>
+          </details>
+
+          <details className="group">
+            <summary className="cursor-pointer text-xs select-none py-1" style={{ color: "var(--color-on-surface-variant)" }}>
+              ChatGPT (Custom GPT Actions) →
+            </summary>
+            <div className="mt-2 space-y-2">
+              <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
+                1. Open ChatGPT → Explore GPTs → Create a GPT → Configure → Add actions.<br />
+                2. Import from URL:
+              </p>
+              <code
+                className="block rounded-lg px-3 py-2 text-xs break-all"
+                style={{ background: "var(--color-surface-container-high)", color: "var(--color-on-surface)" }}
+              >
+                https://everionmind.vercel.app/openapi.json
+              </code>
+              <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
+                3. Under Authentication, choose <strong>API Key</strong>, type <strong>Bearer</strong>, paste your key.<br />
+                4. Save and test: ask your GPT "what's in my Everion?" or "what's due this week?".
+              </p>
+            </div>
+          </details>
+
+          <details className="group">
+            <summary className="cursor-pointer text-xs select-none py-1" style={{ color: "var(--color-on-surface-variant)" }}>
+              Saving to Everion via chat →
+            </summary>
+            <div className="mt-2 space-y-1">
+              <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
+                Once connected, tell your AI assistant to save information naturally:
+              </p>
+              <ul className="text-xs space-y-1 list-none pl-2" style={{ color: "var(--color-on-surface)" }}>
+                <li>"Add this to Everion: John's number is 082 555 1234"</li>
+                <li>"Save this idea to my memory: [your idea]"</li>
+                <li>"Store this recipe in Everion"</li>
+                <li>"Remember that my passport expires 2027-03-15"</li>
+              </ul>
+              <p className="text-xs mt-1" style={{ color: "var(--color-on-surface-variant)" }}>
+                The AI will use the <strong>create_entry</strong> tool to save it with the right type and tags.
+              </p>
+            </div>
+          </details>
+        </div>
       )}
     </div>
   );
