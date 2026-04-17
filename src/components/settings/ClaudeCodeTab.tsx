@@ -182,11 +182,11 @@ export default function ClaudeCodeTab() {
                 className="flex-1 rounded-lg px-3 py-2 text-xs break-all select-all"
                 style={{ background: "var(--color-surface-container-high)", color: "var(--color-on-surface)" }}
               >
-                https://everionmind.vercel.app/v1/
+                https://everion.smashburgerbar.co.za/v1/
               </code>
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText("https://everionmind.vercel.app/v1/").then(() => {
+                  navigator.clipboard.writeText("https://everion.smashburgerbar.co.za/v1/").then(() => {
                     setCopiedSnippet("url");
                     setTimeout(() => setCopiedSnippet(null), 2000);
                   });
@@ -286,7 +286,7 @@ curl -s -X POST https://everion.smashburgerbar.co.za/v1/ingest -H "Authorization
             </summary>
             <div className="mt-2 space-y-3">
               <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-                All endpoints are <code className="text-xs">POST</code> to <code className="text-xs">https://everionmind.vercel.app/v1/&lt;action&gt;</code> with your key as a Bearer token.
+                All endpoints are <code className="text-xs">POST</code> to <code className="text-xs">https://everion.smashburgerbar.co.za/v1/&lt;action&gt;</code> with your key as a Bearer token.
               </p>
 
               {(
@@ -323,7 +323,7 @@ curl -s -X POST https://everion.smashburgerbar.co.za/v1/ingest -H "Authorization
                   },
                 ] as { id: string; label: string; body: string; response: string }[]
               ).map(({ id, label, body, response }) => {
-                const curl = `curl -X POST https://everionmind.vercel.app/v1/${id} \\\n  -H "Authorization: Bearer <your_key>" \\\n  -H "Content-Type: application/json" \\\n  -d '${body}'`;
+                const curl = `curl -X POST https://everion.smashburgerbar.co.za/v1/${id} \\\n  -H "Authorization: Bearer <your_key>" \\\n  -H "Content-Type: application/json" \\\n  -d '${body}'`;
                 return (
                   <div key={id} className="space-y-1">
                     <p className="text-xs font-semibold" style={{ color: "var(--color-on-surface)" }}>
@@ -411,10 +411,10 @@ curl -s -X POST https://everion.smashburgerbar.co.za/v1/ingest -H "Authorization
                 <pre
                   className="rounded-xl px-3 py-2 text-xs overflow-x-auto pr-16"
                   style={{ background: "var(--color-surface-container-high)", color: "var(--color-on-surface)" }}
-                >{`claude mcp add --transport http everionmind https://everionmind.vercel.app/api/mcp \\\n  -H "Authorization: Bearer <your_key>"`}</pre>
+                >{`claude mcp add --transport http everionmind https://everion.smashburgerbar.co.za/api/mcp \\\n  -H "Authorization: Bearer <your_key>"`}</pre>
                 <button
                   onClick={() => {
-                    navigator.clipboard.writeText(`claude mcp add --transport http everionmind https://everionmind.vercel.app/api/mcp -H "Authorization: Bearer <your_key>"`).then(() => {
+                    navigator.clipboard.writeText(`claude mcp add --transport http everionmind https://everion.smashburgerbar.co.za/api/mcp -H "Authorization: Bearer <your_key>"`).then(() => {
                       setCopiedSnippet("mcp-install");
                       setTimeout(() => setCopiedSnippet(null), 2000);
                     });
@@ -436,7 +436,7 @@ curl -s -X POST https://everion.smashburgerbar.co.za/v1/ingest -H "Authorization
   "mcpServers": {
     "everionmind": {
       "type": "http",
-      "url": "https://everionmind.vercel.app/api/mcp",
+      "url": "https://everion.smashburgerbar.co.za/api/mcp",
       "headers": {
         "Authorization": "Bearer <your_key>"
       }
@@ -445,7 +445,7 @@ curl -s -X POST https://everion.smashburgerbar.co.za/v1/ingest -H "Authorization
 }`}</pre>
                 <button
                   onClick={() => {
-                    navigator.clipboard.writeText(`{\n  "mcpServers": {\n    "everionmind": {\n      "type": "http",\n      "url": "https://everionmind.vercel.app/api/mcp",\n      "headers": {\n        "Authorization": "Bearer <your_key>"\n      }\n    }\n  }\n}`).then(() => {
+                    navigator.clipboard.writeText(`{\n  "mcpServers": {\n    "everionmind": {\n      "type": "http",\n      "url": "https://everion.smashburgerbar.co.za/api/mcp",\n      "headers": {\n        "Authorization": "Bearer <your_key>"\n      }\n    }\n  }\n}`).then(() => {
                       setCopiedSnippet("mcp-json");
                       setTimeout(() => setCopiedSnippet(null), 2000);
                     });
@@ -472,7 +472,7 @@ curl -s -X POST https://everion.smashburgerbar.co.za/v1/ingest -H "Authorization
                 className="block rounded-lg px-3 py-2 text-xs break-all"
                 style={{ background: "var(--color-surface-container-high)", color: "var(--color-on-surface)" }}
               >
-                https://everionmind.vercel.app/openapi.json
+                https://everion.smashburgerbar.co.za/openapi.json
               </code>
               <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
                 3. Under Authentication, choose <strong>API Key</strong>, type <strong>Bearer</strong>, paste your key.<br />
