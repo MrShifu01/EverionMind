@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { useCaptureSheetParse } from "../hooks/useCaptureSheetParse";
-import { BrainTypeIcon } from "./icons/BrainTypeIcon";
 import { useBrain as useBrainCtx } from "../context/BrainContext";
 import { CANONICAL_TYPES } from "../types";
 import type { Brain, Entry } from "../types";

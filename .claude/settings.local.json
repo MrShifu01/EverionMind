@@ -2,7 +2,16 @@
   "permissions": {
     "allow": [
       "Bash(mkdir -p __TRACKED_VAR__/.claude/skills/production-audit/evals)",
-      "Bash(mkdir -p __TRACKED_VAR__/.claude/skills/production-audit-workspace/iteration-1)"
+      "Bash(mkdir -p __TRACKED_VAR__/.claude/skills/production-audit-workspace/iteration-1)",
+      "Bash(python3 -m json.tool)",
+      "Read(//c/Users/Administrator/.claude/**)",
+      "Bash(curl *)",
+      "Bash(xargs grep *)",
+      "mcp__everionmind__list_brains",
+      "mcp__everionmind__retrieve_memory",
+      "Bash(grep -E \"\\\\.\\(ts|tsx|js\\)$\")",
+      "Bash(npx tsc *)",
+      "mcp__everionmind__create_entry"
     ]
   }
 }

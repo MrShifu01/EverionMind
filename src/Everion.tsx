@@ -15,7 +15,6 @@ import { getEmbedHeaders } from "./lib/aiSettings";
 import { PROMPTS } from "./config/prompts";
 import { registerTypeIcon } from "./lib/typeIcons";
 import { useBrain as useBrainHook } from "./hooks/useBrain";
-import { useRole } from "./hooks/useRole";
 import { useOfflineSync } from "./hooks/useOfflineSync";
 import { useNudge } from "./hooks/useNudge";
 import { searchIndex, indexEntryConcepts, scoreEntry } from "./lib/searchIndex";
@@ -791,7 +790,7 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
 
   patchEntryIdRef.current = dataLayer.patchEntryId;
 
-  const { canWrite } = useRole(activeBrain);
+  const canWrite = true;
   const { nudge, setNudge } = useNudge({
     entriesLoaded: dataLayer.entriesLoaded,
     entries: dataLayer.entries,

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import { BrainTypeIcon } from "../components/icons/BrainTypeIcon";
 import { TC } from "../data/constants";
 import { resolveIcon } from "../lib/typeIcons";
 import { useEntryEdit } from "../hooks/useEntryEdit";

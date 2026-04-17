@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { cn } from "../lib/cn";
 import { NavIcon } from "./icons/NavIcons";
 import { EverionLogo } from "./ui/EverionLogo";
-import { isMultiBrainEnabled } from "../lib/featureFlags";
 
 interface NavView {
   id: string;
@@ -231,26 +230,6 @@ export default function DesktopSidebar({
               {isDark ? SUN_ICON : MOON_ICON}
             </button>
 
-            {/* New brain */}
-            {isMultiBrainEnabled() && (
-            <button
-              onClick={onShowCreateBrain}
-              aria-label="Create new brain"
-              className="text-on-surface-variant hover:text-primary hover:bg-surface-container press-scale flex min-h-[44px] items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-all"
-            >
-              <svg
-                aria-hidden="true"
-                className="h-3.5 w-3.5 flex-shrink-0"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
-              New brain
-            </button>
-            )}
           </div>
         </div>
       </div>

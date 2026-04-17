@@ -33,3 +33,12 @@ DROP TABLE IF EXISTS entry_brains CASCADE;
 ALTER TABLE brains DROP CONSTRAINT IF EXISTS brains_type_check;
 ALTER TABLE brains DROP COLUMN IF EXISTS type;
 ALTER TABLE brains ADD CONSTRAINT brains_one_per_user UNIQUE (owner_id);
+
+-- Step 5: Fix signup trigger — remove type column and brain_members insertion
+CREATE OR REPLACE FUNCTION create_personal_brain_for_new_user()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  INSERT INTO brains (name, owner_id) VALUES ('My Brain', NEW.id);
+  RETURN NEW;
+END;
+$$;
