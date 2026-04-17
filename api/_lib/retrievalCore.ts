@@ -3,6 +3,7 @@
  * embed → vector search → keyword expand → tag siblings → metadata hydrate → graph boost
  */
 import { generateEmbedding } from "./generateEmbedding.js";
+import { SERVER_PROMPTS } from "./prompts.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -11,6 +12,8 @@ const SB_HEADERS: Record<string, string> = {
   apikey: SB_KEY,
   Authorization: `Bearer ${SB_KEY}`,
 };
+const GEMINI_MODEL = (process.env.GEMINI_MODEL || "gemini-2.5-flash-lite").trim();
+const REBUILD_DEBOUNCE_MS = 10 * 60 * 1000; // 10 minutes
 
 export interface RetrievedEntry {
   id: string;
@@ -22,6 +25,11 @@ export interface RetrievedEntry {
   brain_id: string;
   similarity: number;
   _score: number;
+}
+
+export interface RetrievalResult {
+  entries: RetrievedEntry[];
+  concepts: Array<{ name: string; description?: string }>;
 }
 
 function applyGraphBoost(entries: any[], graph: any): any[] {
@@ -66,7 +74,7 @@ export async function retrieveEntries(
   brainId: string,
   geminiApiKey: string,
   limit = 15,
-): Promise<RetrievedEntry[]> {
+): Promise<RetrievalResult> {
   const embedding = await generateEmbedding(query, geminiApiKey);
   if (!embedding) throw new Error("Embedding failed");
 
@@ -160,7 +168,8 @@ export async function retrieveEntries(
   entries.sort((a: any, b: any) => b._score - a._score);
   entries = entries.slice(0, 40);
 
-  // 6. Graph boost
+  // 6. Graph boost + concept collection
+  const matchedConcepts: Array<{ name: string; description?: string }> = [];
   try {
     const graphRes = await fetch(
       `${SB_URL}/rest/v1/concept_graphs?brain_id=eq.${encodeURIComponent(brainId)}&select=graph`,
@@ -168,9 +177,91 @@ export async function retrieveEntries(
     );
     if (graphRes.ok) {
       const rows: any[] = await graphRes.json();
-      if (rows[0]?.graph) entries = applyGraphBoost(entries, rows[0].graph);
+      const graph = rows[0]?.graph;
+      if (graph) {
+        entries = applyGraphBoost(entries, graph);
+        const finalIds = new Set(entries.slice(0, limit).map((e: any) => e.id));
+        for (const c of graph.concepts ?? []) {
+          if (c.name && (c.source_entries ?? []).some((id: string) => finalIds.has(id))) {
+            matchedConcepts.push({ name: c.name, ...(c.description ? { description: c.description } : {}) });
+          }
+        }
+      }
     }
   } catch { /* non-fatal */ }
 
-  return entries.slice(0, limit) as RetrievedEntry[];
+  return { entries: entries.slice(0, limit) as RetrievedEntry[], concepts: matchedConcepts };
+}
+
+export async function rebuildConceptGraph(brainId: string, geminiApiKey: string): Promise<void> {
+  try {
+    // Debounce: skip if rebuilt within last 10 minutes
+    const checkRes = await fetch(
+      `${SB_URL}/rest/v1/concept_graphs?brain_id=eq.${encodeURIComponent(brainId)}&select=updated_at&limit=1`,
+      { headers: SB_HEADERS },
+    );
+    if (checkRes.ok) {
+      const rows: any[] = await checkRes.json();
+      if (rows[0]?.updated_at) {
+        const age = Date.now() - new Date(rows[0].updated_at).getTime();
+        if (age < REBUILD_DEBOUNCE_MS) return;
+      }
+    }
+
+    // Fetch top 100 entries by recency
+    const entriesRes = await fetch(
+      `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&select=id,title,type,tags,content&order=created_at.desc&limit=100`,
+      { headers: SB_HEADERS },
+    );
+    if (!entriesRes.ok) return;
+    const entries: any[] = await entriesRes.json();
+    if (entries.length < 3) return;
+
+    const entryLines = entries.map((e) => {
+      const snippet = (e.content ?? "").slice(0, 150).replace(/\n/g, " ");
+      const tags = (e.tags ?? []).join(", ");
+      return `${e.id} | ${e.title ?? ""} | ${e.type ?? "note"} | ${tags} | ${snippet}`;
+    }).join("\n");
+
+    const prompt = SERVER_PROMPTS.CONCEPT_GRAPH.replace("{{ENTRIES}}", entryLines);
+
+    const gemRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(geminiApiKey)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: { maxOutputTokens: 2048 },
+        }),
+      },
+    );
+    if (!gemRes.ok) return;
+    const gemData: any = await gemRes.json();
+    const text = (gemData.candidates?.[0]?.content?.parts ?? [])
+      .filter((p: any) => !p.thought)
+      .map((p: any) => p.text ?? "")
+      .join("").trim();
+
+    let graph: any;
+    try {
+      const clean = text.replace(/^```[a-z]*\n?/, "").replace(/\n?```$/, "").trim();
+      graph = JSON.parse(clean);
+    } catch { return; }
+
+    if (!Array.isArray(graph.concepts) || !Array.isArray(graph.relationships)) return;
+
+    await fetch(`${SB_URL}/rest/v1/concept_graphs`, {
+      method: "POST",
+      headers: { ...SB_HEADERS, Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify({
+        brain_id: brainId,
+        graph: {
+          concepts: graph.concepts.slice(0, 500),
+          relationships: graph.relationships.slice(0, 500),
+        },
+        updated_at: new Date().toISOString(),
+      }),
+    });
+  } catch { /* non-fatal */ }
 }

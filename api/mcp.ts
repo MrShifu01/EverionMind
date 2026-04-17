@@ -17,7 +17,7 @@ import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 import { rateLimit } from "./_lib/rateLimit.js";
 import { resolveApiKey } from "./_lib/resolveApiKey.js";
 import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
-import { retrieveEntries } from "./_lib/retrievalCore.js";
+import { retrieveEntries, rebuildConceptGraph } from "./_lib/retrievalCore.js";
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
@@ -249,6 +249,7 @@ async function createEntry(
     throw new Error(`Failed to create entry: ${err}`);
   }
   const rows: any[] = await r.json();
+  if (GEMINI_API_KEY) await rebuildConceptGraph(resolvedBrainId, GEMINI_API_KEY);
   return rows[0];
 }
 
@@ -292,6 +293,7 @@ async function updateEntry(
   );
   if (!r.ok) throw new Error(`Update failed: ${await r.text().catch(() => r.status)}`);
   const updated: any[] = await r.json();
+  if (GEMINI_API_KEY) await rebuildConceptGraph(brainId, GEMINI_API_KEY);
   return updated[0];
 }
 

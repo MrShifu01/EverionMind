@@ -16,6 +16,7 @@ const MAX_CHARS = 8000;
 //   /api/user-data?resource=api_keys → MCP API key management
 //   /api/notification-prefs → /api/user-data?resource=prefs
 //   /api/push-subscribe     → /api/user-data?resource=push
+//   /api/brains             → /api/user-data?resource=brains
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
   applySecurityHeaders(res);
   const resource = req.query.resource as string | undefined;
@@ -27,8 +28,44 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   if (resource === "api_keys") return handleApiKeys(req, res);
   if (resource === "prefs") return handleNotificationPrefs(req, res);
   if (resource === "push") return handlePushSubscribe(req, res);
+  if (resource === "brains") return handleBrains(req, res);
   // Default: memory
   return handleMemory(req, res);
+}
+
+// ── /api/brains (rewritten to /api/user-data?resource=brains) ──
+async function handleBrains(req: ApiRequest, res: ApiResponse): Promise<void> {
+  if (!(await rateLimit(req, 60))) return void res.status(429).json({ error: "Too many requests" });
+  const user: any = await verifyAuth(req);
+  if (!user) return void res.status(401).json({ error: "Unauthorized" });
+
+  if (req.method === "GET") {
+    const owned = await fetch(
+      `${SB_URL}/rest/v1/brains?owner_id=eq.${encodeURIComponent(user.id)}&order=created_at.asc`,
+      { headers: hdrs() },
+    );
+    if (!owned.ok) return void res.status(502).json({ error: "Failed to fetch brains" });
+    let ownedData: any[] = await owned.json();
+
+    if (ownedData.length === 0) {
+      const createRes = await fetch(`${SB_URL}/rest/v1/brains`, {
+        method: "POST",
+        headers: hdrs({ Prefer: "return=representation" }),
+        body: JSON.stringify({ name: "My Brain", owner_id: user.id }),
+      });
+      if (createRes.ok) {
+        const [newBrain]: any[] = await createRes.json();
+        await fetch(
+          `${SB_URL}/rest/v1/entries?user_id=eq.${encodeURIComponent(user.id)}&brain_id=is.null`,
+          { method: "PATCH", headers: hdrs({ Prefer: "return=minimal" }), body: JSON.stringify({ brain_id: newBrain.id }) },
+        ).catch(() => {});
+        ownedData = [newBrain];
+      }
+    }
+    return void res.status(200).json(ownedData);
+  }
+
+  return void res.status(405).json({ error: "Method not allowed" });
 }
 
 // ── /api/memory (rewritten to /api/user-data?resource=memory) ──

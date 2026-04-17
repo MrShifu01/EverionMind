@@ -13,7 +13,7 @@ import type { ApiRequest, ApiResponse } from "./_lib/types";
 import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 import { rateLimit } from "./_lib/rateLimit.js";
 import { resolveApiKey } from "./_lib/resolveApiKey.js";
-import { retrieveEntries } from "./_lib/retrievalCore.js";
+import { retrieveEntries, rebuildConceptGraph } from "./_lib/retrievalCore.js";
 import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
@@ -36,9 +36,9 @@ async function handleContext({ brainId }: Auth, body: any) {
   if (!query || typeof query !== "string") throw { status: 400, message: "query is required" };
   if (!GEMINI_API_KEY) throw { status: 500, message: "Embedding not configured on server" };
 
-  const safeLimit = Math.min(Math.max(1, Number(limit) || 5), 50);
-  const results = await retrieveEntries(query, brainId, GEMINI_API_KEY, safeLimit);
-  return { results };
+  const safeLimit = Math.min(Math.max(1, Number(limit) || 15), 50);
+  const { entries, concepts } = await retrieveEntries(query, brainId, GEMINI_API_KEY, safeLimit);
+  return { results: entries, concepts };
 }
 
 // ── /v1/answer ────────────────────────────────────────────────────────────────
@@ -85,8 +85,8 @@ async function handleAnswer({ brainId }: Auth, body: any) {
   if (!api_key || typeof api_key !== "string") throw { status: 400, message: "api_key is required" };
   if (!GEMINI_API_KEY) throw { status: 500, message: "Embedding not configured on server" };
 
-  const safeLimit = Math.min(Math.max(1, Number(limit) || 5), 50);
-  const entries = await retrieveEntries(query, brainId, GEMINI_API_KEY, safeLimit);
+  const safeLimit = Math.min(Math.max(1, Number(limit) || 15), 50);
+  const { entries } = await retrieveEntries(query, brainId, GEMINI_API_KEY, safeLimit);
 
   const contextBlock = entries.map((e) => `### ${e.title}\n${e.content}`).join("\n\n");
   const systemPrompt = `You are a helpful assistant with access to the user's personal knowledge base. Answer using ONLY the context below. If the context is insufficient, say so clearly.\n\nContext:\n${contextBlock}`;
@@ -138,6 +138,7 @@ async function handleIngest({ userId, brainId }: Auth, body: any) {
   });
   if (!r.ok) throw new Error(`Failed to create entry: ${await r.text().catch(() => String(r.status))}`);
   const rows: any[] = await r.json();
+  if (GEMINI_API_KEY) await rebuildConceptGraph(brainId, GEMINI_API_KEY);
   return { id: rows[0].id, title: rows[0].title, created_at: rows[0].created_at };
 }
 
@@ -179,6 +180,7 @@ async function handleUpdate({ brainId }: Auth, body: any) {
   });
   if (!r.ok) throw new Error(`Update failed: ${await r.text().catch(() => String(r.status))}`);
   const updated: any[] = await r.json();
+  if (GEMINI_API_KEY) await rebuildConceptGraph(brainId, GEMINI_API_KEY);
   return { id: updated[0].id, title: updated[0].title, content: updated[0].content, updated_at: updated[0].updated_at };
 }
 
