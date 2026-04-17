@@ -90,7 +90,7 @@ export async function retrieveEntries(
     .filter((w) => w.length > 3 && !STOP.has(w.toLowerCase()))
     .slice(0, 6);
   if (qTokens.length > 0) {
-    const orFilter = qTokens.map((kw) => `title.ilike.*${kw}*`).join(",");
+    const orFilter = qTokens.map((kw) => `title.ilike.*${kw}*,content.ilike.*${kw}*`).join(",");
     const kwRes = await fetch(
       `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&or=(${encodeURIComponent(orFilter)})&select=id,title,type,tags,content&limit=10`,
       { headers: SB_HEADERS },
@@ -152,7 +152,8 @@ export async function retrieveEntries(
   entries.forEach((e: any) => {
     const sim = e.similarity ?? 0;
     if (!queryTokens.length) { e._score = sim; return; }
-    const text = `${e.title ?? ""} ${e.content ?? ""}`.toLowerCase();
+    const metaText = e.metadata ? Object.entries(e.metadata).map(([k, v]) => `${k} ${typeof v === "string" ? v : ""}`).join(" ") : "";
+    const text = `${e.title ?? ""} ${e.content ?? ""} ${metaText}`.toLowerCase();
     const kw = queryTokens.filter((t) => text.includes(t)).length / queryTokens.length;
     e._score = sim * 0.7 + kw * 0.3;
   });
