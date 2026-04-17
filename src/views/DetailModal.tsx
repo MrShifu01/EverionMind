@@ -1,34 +1,14 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { BrainTypeIcon } from "../components/icons/BrainTypeIcon";
 import { TC } from "../data/constants";
 import { resolveIcon } from "../lib/typeIcons";
 import { useEntryEdit } from "../hooks/useEntryEdit";
-import { ConnectionsPanel } from "../components/ConnectionsPanel";
 import { EntryQuickActions } from "../components/EntryQuickActions";
 import { authFetch } from "../lib/authFetch";
-import { loadGraphFromDB, getRelatedEntries, getConceptsForEntry, mergeGraph, extractConcepts, saveGraphToDB } from "../lib/conceptGraph";
-import type { ConceptGraph } from "../lib/conceptGraph";
 import { CANONICAL_TYPES } from "../types";
 import type { Entry, Brain, EntryType } from "../types";
 import { SKIP_META_KEYS } from "../lib/entryConstants";
 
-// Mirror the same logic as isFullyEnriched / getEnrichmentGaps in enrichEntry.ts
-function getHealthChecks(entry: Entry, entryConcepts: any[], conceptRelated: any[], conceptsLoading: boolean) {
-  const enr = (entry.metadata as any)?.enrichment ?? {};
-  const embedded = enr.embedded ?? Boolean((entry as any).embedded_at);
-  const hasConcepts = (enr.concepts_count ?? 0) > 0 || entryConcepts.length > 0;
-  const hasInsight = !!(entry.metadata as any)?.ai_insight || enr.has_insight === true;
-  const parsed =
-    enr.parsed === true ||
-    Object.keys(entry.metadata ?? {}).filter((k) => !SKIP_META_KEYS.has(k)).length > 0;
-  return [
-    { label: "insight",    ok: hasInsight,                        enrichable: true  },
-    { label: "parsing",    ok: parsed,                            enrichable: true  },
-    { label: "embedding",  ok: embedded,                          enrichable: true  },
-    { label: "concepts",   ok: conceptsLoading ? null : hasConcepts, enrichable: true  },
-    { label: "related",    ok: conceptsLoading ? null : conceptRelated.length > 0, enrichable: false },
-  ];
-}
 
 interface DetailLink {
   from: string;
@@ -89,8 +69,6 @@ export default function DetailModal({
   const [typeOpen, setTypeOpen] = useState(false);
   const [aiTyping, setAiTyping] = useState(false);
   const [aiMsg, setAiMsg] = useState<{ text: string; ok: boolean } | null>(null);
-  const [conceptsRewriting, setConceptsRewriting] = useState(false);
-  const [conceptsMsg, setConceptsMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const typeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -144,57 +122,6 @@ No explanation, no punctuation, just one word.`,
     setAiTyping(false);
   }
 
-  async function rewriteConcepts() {
-    const _brainId = entry.brain_id;
-    if (!_brainId) return;
-    setConceptsRewriting(true);
-    setConceptsMsg(null);
-    try {
-      const entryContext = `Title: ${editTitle}\nType: ${editType}\nContent: ${(editContent || "").slice(0, 1000)}`;
-      const res = await authFetch("/api/llm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          system: `Extract concepts for this single knowledge base entry. Return ONLY valid JSON, no markdown.
-
-CONCEPT LABEL RULES:
-- Max 3 words, aim for 1–2
-- Categorical themes only — never instance-specific. "identity documents" not "father's South African ID number". "family contacts" not "Henk Stander".
-- No possessives (no apostrophes, no "father's", "mum's")
-- No proper nouns (no person names, country names, brand names)
-- Must be reusable — a valid label could apply to 3+ different entries
-- Good: "identity documents", "financial accounts", "family contacts", "health records", "vehicles", "passwords"
-- Bad: "father's ID number", "Henk Stander", "South African passport"
-
-Return: {"concepts": [{"label": "concept name", "entry_ids": ["${entry.id}"]}]}
-Max 5 concepts. If none clearly apply, return {"concepts": []}.`,
-          messages: [{ role: "user", content: entryContext }],
-          max_tokens: 300,
-        }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      const raw = (data.content?.[0]?.text || "").trim().replace(/^```json\n?|```$/g, "");
-      const parsed = JSON.parse(raw);
-      const newConcepts = extractConcepts(parsed.concepts || []);
-
-      // Load graph, strip this entry from all existing concepts, merge in fresh ones
-      const graph = await loadGraphFromDB(_brainId);
-      const stripped = {
-        ...graph,
-        concepts: graph.concepts
-          .map((c) => ({ ...c, source_entries: c.source_entries.filter((id) => id !== entry.id) }))
-          .filter((c) => c.source_entries.length > 0),
-      };
-      const updated = mergeGraph(stripped, { concepts: newConcepts, relationships: [] });
-      await saveGraphToDB(_brainId, updated);
-      setConceptGraph(updated);
-      setConceptsMsg({ text: `✓ ${newConcepts.length} concept${newConcepts.length !== 1 ? "s" : ""} updated`, ok: true });
-    } catch (err: any) {
-      setConceptsMsg({ text: err?.message || "Failed", ok: false });
-    }
-    setConceptsRewriting(false);
-  }
 
   const {
     saving,
@@ -209,39 +136,7 @@ Max 5 concepts. If none clearly apply, return {"concepts": []}.`,
   } = useEntryEdit({ entry, editing, onUpdate, onTypeIconChange, brains });
   const isSecret = entry.type === "secret";
   const cfg = { ...(TC[editType as EntryType] || TC.note), i: resolveIcon(editType, typeIcons) };
-  const related = links
-    .filter((l) => l.from === entry.id || l.to === entry.id)
-    .map((l) => ({
-      ...l,
-      other: entries.find((e) => e.id === (l.from === entry.id ? l.to : l.from)),
-      dir: l.from === entry.id ? "→" : "←",
-    }));
-  // Concept graph: load async from DB so we always get fresh data
-  const brainId = entry.brain_id;
-  const [conceptGraph, setConceptGraph] = useState<ConceptGraph | null>(null);
-  const [conceptsLoading, setConceptsLoading] = useState(true);
-  useEffect(() => {
-    if (!brainId) return;
-    setConceptsLoading(true);
-    loadGraphFromDB(brainId)
-      .then((g) => { setConceptGraph(g); setConceptsLoading(false); })
-      .catch(() => setConceptsLoading(false));
-  }, [brainId, entry.id]);
-  const entryConcepts = useMemo(() => {
-    if (!conceptGraph) return [];
-    return getConceptsForEntry(conceptGraph, entry.id);
-  }, [conceptGraph, entry.id]);
-  const conceptRelated = useMemo(() => {
-    if (!conceptGraph) return [];
-    return getRelatedEntries(conceptGraph, entry.id)
-      .slice(0, 5)
-      .map((r) => ({
-        ...r,
-        entry: entries.find((e) => e.id === r.entryId),
-      }))
-      .filter((r) => r.entry);
-  }, [conceptGraph, entry.id, entries]);
-  const [showFullContent, setShowFullContent] = useState(false);
+const [showFullContent, setShowFullContent] = useState(false);
   const [showFullText, setShowFullText] = useState(false);
   const CONTENT_PREVIEW_LIMIT = 300;
   const meta = Object.entries(entry.metadata || {}).filter(([k]) => !SKIP_META_KEYS.has(k));
@@ -342,40 +237,6 @@ Max 5 concepts. If none clearly apply, return {"concepts": []}.`,
                 {editTitle}
               </h2>
             )}
-            {!editing && (() => {
-              const checks = getHealthChecks(entry, entryConcepts, conceptRelated, conceptsLoading);
-              return (
-                <div className="mt-2 flex items-center gap-3">
-                  {checks.map(({ label, ok, enrichable }) => {
-                    const bg =
-                      ok === null ? "var(--color-outline-variant)"
-                      : ok         ? "rgb(22,163,74)"
-                      : enrichable ? "rgb(220,38,38)"
-                      :              "rgb(217,119,6)"; // amber — informational, not enrichable
-                    const hint =
-                      ok === null ? "loading"
-                      : ok        ? "present"
-                      : enrichable ? "missing — will auto-enrich"
-                      :              "no siblings yet";
-                    return (
-                      <div key={label} className="flex flex-col items-center gap-0.5">
-                        <span
-                          className="block h-2 w-2 rounded-full"
-                          style={{ background: bg }}
-                          title={`${label}: ${hint}`}
-                        />
-                        <span
-                          className="text-[8px] font-medium leading-none"
-                          style={{ color: "var(--color-on-surface-variant)" }}
-                        >
-                          {label}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
           </div>
           <div className="ml-3 flex flex-shrink-0 items-center gap-2">
             {!canWrite && <span className="text-on-surface-variant/60 text-xs">🔒 View only</span>}
@@ -536,62 +397,6 @@ Max 5 concepts. If none clearly apply, return {"concepts": []}.`,
                   }}
                 />
               </div>
-              {/* Concepts section */}
-              <div>
-                <div className="mb-1.5 flex items-center justify-between">
-                  <label
-                    className="block text-[10px] font-semibold tracking-widest uppercase"
-                    style={{ color: "var(--color-on-surface-variant)" }}
-                  >
-                    Concepts
-                  </label>
-                  <div className="flex items-center gap-1.5">
-                    {conceptsMsg && (
-                      <span
-                        className="text-[9px]"
-                        style={{ color: conceptsMsg.ok ? "var(--color-primary)" : "var(--color-error)" }}
-                      >
-                        {conceptsMsg.text}
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={rewriteConcepts}
-                      disabled={conceptsRewriting}
-                      className="rounded-lg px-2 py-0.5 text-[10px] font-semibold transition-all disabled:opacity-50"
-                      style={{
-                        background: "var(--color-primary-container)",
-                        color: "var(--color-primary)",
-                      }}
-                    >
-                      {conceptsRewriting ? "Rewriting…" : "✦ Rewrite"}
-                    </button>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-1.5 rounded-xl px-3 py-2.5 min-h-[44px]"
-                  style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)" }}
-                >
-                  {entryConcepts.length === 0 ? (
-                    <span className="text-[11px] self-center" style={{ color: "var(--color-on-surface-variant)" }}>
-                      {conceptsLoading ? "Loading…" : "No concepts yet"}
-                    </span>
-                  ) : (
-                    entryConcepts.map((c) => (
-                      <span
-                        key={c.id}
-                        className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                        style={{
-                          background: "var(--color-secondary-container)",
-                          color: "var(--color-on-secondary-container)",
-                        }}
-                      >
-                        {c.label}
-                      </span>
-                    ))
-                  )}
-                </div>
-              </div>
-
               <div className="flex gap-3 pt-2">
                 <button
                   className="text-on-surface-variant hover:text-on-surface press-scale flex-1 rounded-xl py-3 text-sm font-semibold transition-all"
@@ -700,13 +505,7 @@ Max 5 concepts. If none clearly apply, return {"concepts": []}.`,
                   )}
                 </>
               )}
-              <ConnectionsPanel
-                related={related}
-                entryConcepts={entryConcepts}
-                conceptRelated={conceptRelated}
-                typeIcons={typeIcons}
-                conceptsLoading={conceptsLoading}
-              />
+
             </div>
           )}
 
