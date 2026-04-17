@@ -1,12 +1,5 @@
-import type { Brain, RolePermissions } from "../types";
+import type { Brain } from "../types";
 
-export function useRole(brain: Brain | null | undefined): RolePermissions {
-  const role = brain?.myRole ?? "viewer";
-  return {
-    canWrite: role === "owner" || role === "member",
-    canInvite: role === "owner",
-    canDelete: role === "owner" || role === "member",
-    canManageMembers: role === "owner",
-    role,
-  };
+export function useRole(_brain: Brain | null | undefined): { canWrite: boolean; canDelete: boolean } {
+  return { canWrite: true, canDelete: true };
 }

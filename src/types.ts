@@ -78,8 +78,6 @@ export interface PriorityConfig {
 export interface Brain {
   id: string;
   name: string;
-  type?: string;
-  myRole?: string;
   owner_id?: string;
   created_at?: string;
 }
@@ -123,10 +121,3 @@ export interface OfflineOp {
   tempId?: string;
 }
 
-export interface RolePermissions {
-  canWrite: boolean;
-  canInvite: boolean;
-  canDelete: boolean;
-  canManageMembers: boolean;
-  role: string;
-}

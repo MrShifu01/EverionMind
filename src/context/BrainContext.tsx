@@ -6,9 +6,6 @@ export interface BrainContextValue {
   brains: Brain[];
   setActiveBrain: (brain: Brain | null) => void;
   refresh: () => Promise<void>;
-  canInvite: boolean;
-  canManageMembers: boolean;
-  deleteBrain: (brainId: string) => Promise<void>;
 }
 
 export const BrainContext = createContext<BrainContextValue | null>(null);

@@ -18,11 +18,9 @@ import { useBrain as useBrainHook } from "./hooks/useBrain";
 import { useRole } from "./hooks/useRole";
 import { useOfflineSync } from "./hooks/useOfflineSync";
 import { useNudge } from "./hooks/useNudge";
-import { useChat } from "./hooks/useChat";
 import { searchIndex, indexEntryConcepts, scoreEntry } from "./lib/searchIndex";
 import { applyEntryFilters, getEntryTypes } from "./lib/entryFilters";
 import GridFilters from "./components/GridFilters";
-import { PinGate } from "./lib/pin";
 import { inferWorkspace } from "./lib/workspaceInfer";
 import { EntriesContext } from "./context/EntriesContext";
 import { BrainContext } from "./context/BrainContext";
@@ -32,11 +30,8 @@ import { NudgeBanner } from "./components/NudgeBanner";
 import { BackgroundTaskToast } from "./components/BackgroundTaskToast";
 import { useBackgroundCapture } from "./hooks/useBackgroundCapture";
 import { VirtualGrid, VirtualTimeline } from "./components/EntryList";
-import BrainSwitcher from "./components/BrainSwitcher";
 import BulkActionBar from "./components/BulkActionBar";
-import CreateBrainModal from "./components/CreateBrainModal";
 import OnboardingModal from "./components/OnboardingModal";
-import BrainTipCard from "./components/BrainTipCard";
 import BottomNav from "./components/BottomNav";
 import MobileHeader from "./components/MobileHeader";
 const CaptureSheet = lazy(() => import("./components/CaptureSheet"));
@@ -45,7 +40,6 @@ import LoadingScreen from "./components/LoadingScreen";
 import SkeletonCard from "./components/SkeletonCard";
 import OmniSearch from "./components/OmniSearch";
 import SettingsView from "./views/SettingsView";
-import FeedView, { invalidateFeedCache } from "./views/FeedView";
 import FloatingCaptureButton from "./components/FloatingCaptureButton";
 import { useAppShell, type AppShellState } from "./hooks/useAppShell";
 import { useDataLayer } from "./hooks/useDataLayer";
@@ -75,8 +69,6 @@ function lazyRetry(fn: () => Promise<any>) {
 const TodoView = lazyRetry(() => import("./views/TodoView"));
 const DetailModal = lazyRetry(() => import("./views/DetailModal"));
 const VaultView = lazyRetry(() => import("./views/VaultView"));
-const AskView = lazyRetry(() => import("./views/AskView"));
-
 function Loader() {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -84,9 +76,6 @@ function Loader() {
     </div>
   );
 }
-
-// PERF-9: compiled once at module level — generic phone pattern
-const PHONE_REGEX = /(\+?[0-9]{7,15})/;
 
 const NAV_VIEWS = [
   { id: "memory", l: "Memory", ic: "▦" },
@@ -122,7 +111,6 @@ interface EverionContentProps {
   canWrite: boolean;
   nudge: any;
   setNudge: (n: any) => void;
-  chat: ReturnType<typeof useChat>;
   bgTasks: any[];
   bgProcessFiles: (files: File[], brainId: string | undefined, onCreated: (e: Entry) => void) => void;
   bgQueueDirectSave: (entry: { title: string; content: string; type: string; tags: string[]; metadata: Record<string, any>; rawContent?: string }, brainId: string | undefined, onCreated: (e: Entry) => void) => void;
@@ -159,7 +147,6 @@ function EverionContent({
   canWrite,
   nudge,
   setNudge,
-  chat,
   bgTasks,
   bgProcessFiles,
   bgQueueDirectSave,
@@ -194,27 +181,6 @@ function EverionContent({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [appShell.setShowCapture]);
 
-  // Prefetch feed in background when brain loads so it's cached before the user navigates there
-  useEffect(() => {
-    if (!activeBrain?.id) return;
-    try {
-      const raw = localStorage.getItem(`feed_cache:${activeBrain.id}`);
-      if (raw) {
-        const { ts } = JSON.parse(raw);
-        if (Date.now() - ts < 2 * 60 * 60 * 1000) return; // still fresh
-      }
-    } catch { /* ignore */ }
-    const id = activeBrain.id;
-    import("./lib/authFetch").then(({ authFetch }) => {
-      authFetch(`/api/feed?brain_id=${encodeURIComponent(id)}`)
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => {
-          if (d) localStorage.setItem(`feed_cache:${id}`, JSON.stringify({ data: d, ts: Date.now() }));
-        })
-        .catch(() => {});
-    });
-  }, [activeBrain?.id]);
-
   return (
     <>
       <DesktopSidebar
@@ -231,21 +197,9 @@ function EverionContent({
         isOnline={isOnline}
         pendingCount={pendingCount}
         entryCount={entries.length}
-        onShowCreateBrain={() => appShell.setShowCreateBrain(true)}
+        onShowCreateBrain={() => {}}
         navViews={NAV_VIEWS}
       >
-        {brains.length > 0 && (
-          <BrainSwitcher
-            brains={brains}
-            activeBrain={activeBrain}
-            onSwitch={setActiveBrain}
-            onBrainCreated={async (brain) => {
-              await refresh();
-              setActiveBrain(brain);
-            }}
-            onBrainTip={(brain) => appShell.setShowBrainTip(brain)}
-          />
-        )}
       </DesktopSidebar>
 
       <div className="w-full overflow-x-hidden">
@@ -263,30 +217,8 @@ function EverionContent({
               )
             }
           >
-            {brains.length > 0 && (
-              <BrainSwitcher
-                brains={brains}
-                activeBrain={activeBrain}
-                onSwitch={setActiveBrain}
-                onBrainCreated={async (brain) => {
-                  await refresh();
-                  setActiveBrain(brain);
-                }}
-                onBrainTip={(brain) => appShell.setShowBrainTip(brain)}
-              />
-            )}
           </MobileHeader>
 
-          {appShell.showBrainTip && (
-            <BrainTipCard
-              brain={appShell.showBrainTip}
-              onDismiss={() => appShell.setShowBrainTip(null)}
-              onFill={() => {
-                appShell.setShowBrainTip(null);
-                appShell.setView("suggest");
-              }}
-            />
-          )}
           {appShell.view === "memory" && nudge && (
             <NudgeBanner
               nudge={nudge}
@@ -315,18 +247,6 @@ function EverionContent({
                 Dismiss
               </button>
             </div>
-          )}
-
-          {appShell.showCreateBrain && (
-            <CreateBrainModal
-              onClose={() => appShell.setShowCreateBrain(false)}
-              onCreate={async (brain) => {
-                await refresh();
-                setActiveBrain(brain);
-                appShell.setShowBrainTip(brain);
-                appShell.setShowCreateBrain(false);
-              }}
-            />
           )}
 
           <OmniSearch entries={entries} onSelect={setSelected} onNavigate={appShell.setView} />
@@ -717,26 +637,6 @@ function EverionContent({
             </div>
           )}
 
-          {chat.showPinGate && (
-            <PinGate
-              isSetup={chat.pinGateIsSetup}
-              onSuccess={() => {
-                if (chat.pendingSecureMsg) {
-                  chat.setChatMsgs((p) => [
-                    ...p,
-                    { role: "assistant", content: chat.pendingSecureMsg!.content },
-                  ]);
-                  chat.setPendingSecureMsg(null);
-                }
-                chat.setShowPinGate(false);
-              }}
-              onCancel={() => {
-                chat.setPendingSecureMsg(null);
-                chat.setShowPinGate(false);
-              }}
-            />
-          )}
-
           {appShell.showOnboarding && (
             <OnboardingModal
               onComplete={(_selected, answeredItems, skippedQs) => {
@@ -818,7 +718,7 @@ function EverionContent({
             <CaptureSheet
               isOpen={appShell.showCapture}
               onClose={() => { appShell.setShowCapture(false); }}
-              onCreated={(e) => { if (activeBrain?.id) invalidateFeedCache(activeBrain.id); handleCreated(e); }}
+              onCreated={(e) => { handleCreated(e); }}
               brainId={activeBrain?.id}
               cryptoKey={cryptoKey}
               isOnline={isOnline}
@@ -827,7 +727,6 @@ function EverionContent({
                 bgProcessFiles(files, activeBrain?.id, handleCreatedBulk)
               }
               onBackgroundSave={(entry) => {
-                if (activeBrain?.id) invalidateFeedCache(activeBrain.id);
                 bgQueueDirectSave(entry, activeBrain?.id, handleCreated);
               }}
               onNavigate={(id) => {
@@ -859,7 +758,7 @@ function EverionContent({
 // EverionContent (which calls useConceptGraph inside ConceptGraphProvider).
 
 export default function Everion({ initialShowCapture }: { initialShowCapture?: boolean } = {}) {
-  const { brains, activeBrain, setActiveBrain, deleteBrain, refresh, loading: brainsLoading } =
+  const { brains, activeBrain, setActiveBrain, refresh, loading: brainsLoading } =
     useBrainHook();
 
   const patchEntryIdRef = useRef<(tempId: string, realId: string) => void>(() => {});
@@ -892,21 +791,11 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
 
   patchEntryIdRef.current = dataLayer.patchEntryId;
 
-  const { canWrite, canInvite, canManageMembers } = useRole(activeBrain);
+  const { canWrite } = useRole(activeBrain);
   const { nudge, setNudge } = useNudge({
     entriesLoaded: dataLayer.entriesLoaded,
     entries: dataLayer.entries,
     activeBrain,
-  });
-
-  const chat = useChat({
-    entries: dataLayer.entries,
-    activeBrain,
-    brains,
-    links: dataLayer.links,
-    cryptoKey: dataLayer.cryptoKey,
-    handleVaultUnlock: dataLayer.handleVaultUnlock,
-    vaultExists: dataLayer.vaultExists,
   });
 
   const { tasks: bgTasks, processFiles: bgProcessFiles, queueDirectSave: bgQueueDirectSave, dismissTask: bgDismissTask, dismissAll: bgDismissAll } =
@@ -971,11 +860,8 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
       brains,
       setActiveBrain,
       refresh,
-      canInvite,
-      canManageMembers,
-      deleteBrain,
     }),
-    [activeBrain, brains, setActiveBrain, refresh, canInvite, canManageMembers, deleteBrain],
+    [activeBrain, brains, setActiveBrain, refresh],
   );
 
   if (brainsLoading)
@@ -1040,7 +926,6 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
             canWrite={canWrite}
             nudge={nudge}
             setNudge={setNudge}
-            chat={chat}
             bgTasks={bgTasks}
             bgProcessFiles={bgProcessFiles}
             bgQueueDirectSave={bgQueueDirectSave}

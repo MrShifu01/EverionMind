@@ -17,8 +17,7 @@ export function useBrain(onBrainSwitch?: (brain: Brain | null) => void) {
       const data: Brain[] = await res.json();
       setBrains(data);
 
-      const personal = data.find((b) => b.type === "personal");
-      const initial = personal || data[0] || null;
+      const initial = data[0] || null;
 
       setActiveBrainState((prev) => {
         if (prev && data.find((b) => b.id === prev.id)) return prev;
@@ -44,45 +43,6 @@ export function useBrain(onBrainSwitch?: (brain: Brain | null) => void) {
     [onBrainSwitch],
   );
 
-  const createBrain = useCallback(async (name: string, type: string = "family"): Promise<Brain> => {
-    const res = await authFetch("/api/brains", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, type }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || "Failed to create brain");
-    }
-    const brain: Brain = await res.json();
-    setBrains((prev) => [...prev, brain]);
-    return brain;
-  }, []);
-
-  const deleteBrain = useCallback(
-    async (brain_id: string) => {
-      const res = await authFetch("/api/brains", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brain_id }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Failed to delete brain");
-      }
-      setBrains((prev) => prev.filter((b) => b.id !== brain_id));
-      setActiveBrainState((prev) => {
-        if (prev?.id === brain_id) {
-          const personal = brains.find((b) => b.type === "personal");
-          if (personal && onBrainSwitch) onBrainSwitch(personal);
-          return personal || null;
-        }
-        return prev;
-      });
-    },
-    [brains, onBrainSwitch],
-  );
-
   return {
     brains,
     activeBrain,
@@ -90,7 +50,5 @@ export function useBrain(onBrainSwitch?: (brain: Brain | null) => void) {
     loading,
     error,
     refresh: fetchBrains,
-    createBrain,
-    deleteBrain,
   };
 }

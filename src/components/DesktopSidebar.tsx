@@ -11,13 +11,11 @@ interface NavView {
 }
 
 const NAV_ICONS: Record<string, ReactNode> = {
-  feed: NavIcon.feed,
   capture: NavIcon.capture,
   memory: NavIcon.grid,
   todos: NavIcon.todos,
   timeline: NavIcon.timeline,
   vault: NavIcon.vault,
-  ask: NavIcon.chat,
   settings: NavIcon.settings,
 };
 
@@ -55,7 +53,6 @@ const SUN_ICON = (
   </svg>
 );
 
-const CAPTURE_NAV: NavView = { id: "feed", l: "Feed", ic: "📰" };
 
 interface DesktopSidebarProps {
   activeBrainName: string;

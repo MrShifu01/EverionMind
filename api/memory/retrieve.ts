@@ -14,7 +14,6 @@ import type { ApiRequest, ApiResponse } from "../_lib/types";
 import { applySecurityHeaders } from "../_lib/securityHeaders.js";
 import { rateLimit } from "../_lib/rateLimit.js";
 import { verifyAuth } from "../_lib/verifyAuth.js";
-import { checkBrainAccess } from "../_lib/checkBrainAccess.js";
 import { retrieveEntries } from "../_lib/retrievalCore.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
@@ -55,18 +54,24 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   if (!query || typeof query !== "string" || !query.trim()) {
     return res.status(400).json({ error: "query required" });
   }
-  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (!brain_id || !uuidRe.test(brain_id)) {
-    return res.status(400).json({ error: "brain_id required (UUID)" });
-  }
 
-  const access = await checkBrainAccess(userId, brain_id);
-  if (!access) return res.status(403).json({ error: "Forbidden" });
+  let resolvedBrainId = brain_id;
+  if (!resolvedBrainId) {
+    // Look up the user's brain
+    const brainRes = await fetch(
+      `${SB_URL}/rest/v1/brains?owner_id=eq.${encodeURIComponent(userId)}&select=id&limit=1`,
+      { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } },
+    );
+    if (!brainRes.ok) return res.status(502).json({ error: "Failed to fetch brain" });
+    const brains: any[] = await brainRes.json();
+    if (!brains.length) return res.status(404).json({ error: "No brain found" });
+    resolvedBrainId = brains[0].id;
+  }
 
   const safeLimit = Math.min(Math.max(1, parseInt(String(limit)) || 15), 50);
 
   try {
-    const entries = await retrieveEntries(query.trim(), brain_id, GEMINI_API_KEY, safeLimit);
+    const entries = await retrieveEntries(query.trim(), resolvedBrainId, GEMINI_API_KEY, safeLimit);
     return res.status(200).json({ entries });
   } catch (e: any) {
     return res.status(502).json({ error: e.message });

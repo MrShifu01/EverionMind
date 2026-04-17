@@ -7,7 +7,6 @@ import BrainTab from "../components/settings/BrainTab";
 import StorageTab from "../components/settings/StorageTab";
 import DangerTab from "../components/settings/DangerTab";
 import ClaudeCodeTab from "../components/settings/ClaudeCodeTab";
-import { isMultiBrainEnabled } from "../lib/featureFlags";
 import { authFetch } from "../lib/authFetch";
 
 type TabId = "profile" | "advanced" | "claude";
@@ -30,9 +29,6 @@ function AuditCard({ brainId }: { brainId: string }) {
   async function runAudit() {
     setState({ status: "loading" });
     try {
-      // Clear the 24h TTL so FeedView re-runs automatically on next load too
-      try { localStorage.removeItem(`audit_run_at:${brainId}`); } catch { /* ignore */ }
-
       const r = await authFetch("/api/audit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -83,7 +79,7 @@ function AuditCard({ brainId }: { brainId: string }) {
           <div className="mt-3 space-y-2">
             <p className="text-xs font-medium" style={{ color: "var(--color-on-surface)" }}>
               {state.flagged === 0 ? "No issues found." : `${state.flagged} entr${state.flagged === 1 ? "y" : "ies"} flagged.`}
-              {state.flagged > 0 && " Pull to refresh on Feed to see them."}
+              {state.flagged > 0 && " Run again after fixing entries to verify."}
             </p>
             {Object.entries(state.entries).map(([id, flags]) =>
               flags?.length ? (
@@ -180,7 +176,7 @@ interface SettingsViewProps {
 }
 
 export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
-  const { activeBrain, canInvite, canManageMembers, refresh, deleteBrain } = useBrain();
+  const { activeBrain, refresh } = useBrain();
   const [activeTab, setActiveTab] = useState<TabId>("profile");
   const [email, setEmail] = useState(() => {
     try { return localStorage.getItem("everion_email") || ""; } catch { return ""; }
@@ -237,11 +233,9 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
         {activeTab === "profile" && (
           <>
             <AccountTab email={email} brainId={activeBrain?.id} />
-            {isMultiBrainEnabled() && activeBrain && (
+            {activeBrain && (
               <BrainTab
                 activeBrain={activeBrain}
-                canInvite={canInvite}
-                canManageMembers={canManageMembers}
                 onRefreshBrains={refresh}
               />
             )}
@@ -256,8 +250,8 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
             {activeBrain && (
               <DangerTab
                 activeBrain={activeBrain}
-                deleteBrain={deleteBrain}
-                isOwner={activeBrain.myRole === "owner"}
+                deleteBrain={async (_id: string) => { /* single brain — no-op */ }}
+                isOwner={true}
                 deleteAccount={async () => {
                   const session = await supabase.auth.getSession();
                   const token = session.data.session?.access_token;

@@ -11,7 +11,7 @@ vi.mock("../../../lib/supabase", () => ({
 import DangerTab from "../../settings/DangerTab";
 import type { Brain } from "../../../types";
 
-const brain: Brain = { id: "b1", name: "Test Brain", myRole: "owner" };
+const brain: Brain = { id: "b1", name: "Test Brain" };
 
 describe("DangerTab", () => {
   it("renders the delete brain button for owners", () => {

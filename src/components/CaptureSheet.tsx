@@ -445,7 +445,7 @@ export default function CaptureSheet({
                 className="text-on-surface-variant flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg"
                 style={{ background: "var(--color-surface-container-high)" }}
               >
-                <BrainTypeIcon type={ctxActiveBrain.type ?? "personal"} className="h-3.5 w-3.5" />
+                <BrainTypeIcon className="h-3.5 w-3.5" />
               </div>
               <span className="text-on-surface flex-1 truncate text-left text-sm font-semibold">
                 {ctxActiveBrain.name}
@@ -487,7 +487,7 @@ export default function CaptureSheet({
                     className="hover:bg-surface-container flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors"
                   >
                     <span className="text-on-surface-variant flex-shrink-0">
-                      <BrainTypeIcon type={b.type ?? "personal"} className="h-4 w-4" />
+                      <BrainTypeIcon className="h-4 w-4" />
                     </span>
                     <span className="text-on-surface flex-1 truncate text-sm font-medium">
                       {b.name}
