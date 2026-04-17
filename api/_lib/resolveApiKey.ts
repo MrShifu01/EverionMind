@@ -32,3 +32,14 @@ export async function resolveApiKey(rawKey: string): Promise<{ userId: string; k
 
   return { userId: rows[0].user_id, keyId: rows[0].id };
 }
+
+export async function getUserBrainId(userId: string): Promise<string> {
+  const r = await fetch(
+    `${SB_URL}/rest/v1/brains?owner_id=eq.${encodeURIComponent(userId)}&select=id&limit=1`,
+    { headers: hdrs() },
+  );
+  if (!r.ok) throw new Error("Failed to fetch brain");
+  const rows: any[] = await r.json();
+  if (!rows.length) throw new Error("No brain found for user");
+  return rows[0].id;
+}

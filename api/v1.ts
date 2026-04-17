@@ -12,7 +12,7 @@ import { randomUUID } from "crypto";
 import type { ApiRequest, ApiResponse } from "./_lib/types";
 import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 import { rateLimit } from "./_lib/rateLimit.js";
-import { resolveApiKey } from "./_lib/resolveApiKey.js";
+import { resolveApiKey, getUserBrainId } from "./_lib/resolveApiKey.js";
 import { retrieveEntries } from "./_lib/retrievalCore.js";
 import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
 
@@ -26,17 +26,6 @@ const hdrs = (extra: Record<string, string> = {}): Record<string, string> => ({
   Authorization: `Bearer ${SB_KEY}`,
   ...extra,
 });
-
-async function getUserBrainId(userId: string): Promise<string> {
-  const r = await fetch(
-    `${SB_URL}/rest/v1/brains?owner_id=eq.${encodeURIComponent(userId)}&select=id&limit=1`,
-    { headers: hdrs() },
-  );
-  if (!r.ok) throw new Error("Failed to fetch brain");
-  const rows: any[] = await r.json();
-  if (!rows.length) throw new Error("No brain found for user");
-  return rows[0].id;
-}
 
 // ── /v1/context ───────────────────────────────────────────────────────────────
 

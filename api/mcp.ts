@@ -15,7 +15,7 @@ import { randomUUID } from "crypto";
 import type { ApiRequest, ApiResponse } from "./_lib/types";
 import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 import { rateLimit } from "./_lib/rateLimit.js";
-import { resolveApiKey } from "./_lib/resolveApiKey.js";
+import { resolveApiKey, getUserBrainId } from "./_lib/resolveApiKey.js";
 import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
 import { retrieveEntries } from "./_lib/retrievalCore.js";
 const SB_URL = process.env.SUPABASE_URL!;
@@ -119,17 +119,6 @@ const TOOLS = [
 
 
 // ── Tool implementations ──────────────────────────────────────────────────────
-
-async function getUserBrainId(userId: string): Promise<string> {
-  const r = await fetch(
-    `${SB_URL}/rest/v1/brains?owner_id=eq.${encodeURIComponent(userId)}&select=id&limit=1`,
-    { headers: hdrs() },
-  );
-  if (!r.ok) throw new Error("Failed to fetch brain");
-  const rows: any[] = await r.json();
-  if (!rows.length) throw new Error("No brain found for user");
-  return rows[0].id;
-}
 
 const DATE_FIELDS_MCP = ["due_date", "deadline", "expiry_date", "event_date"] as const;
 
