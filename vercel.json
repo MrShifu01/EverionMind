@@ -29,6 +29,7 @@
     { "source": "/.well-known/:path*", "destination": "/api/mcp?_wk=1" },
     { "source": "/token", "destination": "/api/mcp?_oauth=token" },
     { "source": "/register", "destination": "/api/mcp?_oauth=register" },
+    { "source": "/authorize", "destination": "/api/mcp?_oauth=authorize" },
     { "source": "/((?!api/|assets/|v1/).*)", "destination": "/index.html" }
   ],
   "headers": [

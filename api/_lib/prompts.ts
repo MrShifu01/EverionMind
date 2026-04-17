@@ -154,6 +154,35 @@ Rules:
    * api/entries.ts (handleAudit) — entry quality audit.
    * Input: newline-separated entries with ID, title, type, tags, content, metadata.
    */
+  /**
+   * api/_lib/retrievalCore.ts — rebuild the concept graph for a brain.
+   * Placeholder: {{ENTRIES}} (lines of: ID | TITLE | TYPE | TAGS | CONTENT_SNIPPET)
+   */
+  CONCEPT_GRAPH: `You are a knowledge graph builder for a personal second brain. Given a list of entries, extract dominant concepts and direct relationships.
+
+Each entry line is: ID | TITLE | TYPE | TAGS | CONTENT_SNIPPET
+
+Return ONLY valid JSON — no markdown, no explanation:
+{
+  "concepts": [
+    { "name": "Short concept name (2–5 words)", "description": "One sentence describing this theme", "source_entries": ["entry_id_1", "entry_id_2"] }
+  ],
+  "relationships": [
+    { "name": "Short relationship label", "entry_ids": ["entry_id_1", "entry_id_2"] }
+  ]
+}
+
+Rules:
+- A concept is a theme or domain spanning 2+ entries (e.g. "Supplier Management", "Personal Health")
+- A relationship is a direct link between 2–4 specific entries (same person, same project, same topic)
+- Only create concepts with at least 2 source_entries; only create relationships with at least 2 entry_ids
+- Max 30 concepts, max 50 relationships
+- Use EXACT entry IDs from the input — never invent or modify IDs
+- Quality over quantity — omit sparse or ambiguous connections
+
+Entries:
+{{ENTRIES}}`,
+
   ENTRY_AUDIT: `You are a ruthlessly skeptical data quality auditor reviewing a personal knowledge base. Your bar is very high — only flag what is obviously, undeniably wrong. If there is any ambiguity, skip it.
 
 Only identify these specific issues (nothing else):

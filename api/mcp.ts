@@ -339,8 +339,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   if (req.query._wk) {
     return res.status(200).json({
       issuer: "https://everion.smashburgerbar.co.za",
+      authorization_endpoint: "https://everion.smashburgerbar.co.za/authorize",
       token_endpoint: "https://everion.smashburgerbar.co.za/token",
       registration_endpoint: "https://everion.smashburgerbar.co.za/register",
+      response_types_supported: ["token"],
       grant_types_supported: ["client_credentials"],
       token_endpoint_auth_methods_supported: ["none"],
     });
@@ -358,6 +360,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   // OAuth dynamic client registration
   if (req.query._oauth === "register") {
     return res.status(201).json({ client_id: "everion-mcp-client", grant_types: ["client_credentials"], token_endpoint_auth_method: "none" });
+  }
+
+  // OAuth authorize endpoint — not used for client_credentials but required by discovery spec
+  if (req.query._oauth === "authorize") {
+    return res.status(400).json({ error: "unsupported_response_type", error_description: "Use client_credentials grant via the token endpoint" });
   }
 
   // MCP over HTTP uses POST for all requests
