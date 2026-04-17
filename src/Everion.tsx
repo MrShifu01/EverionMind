@@ -90,7 +90,6 @@ const PHONE_REGEX = /(\+?[0-9]{7,15})/;
 
 const NAV_VIEWS = [
   { id: "memory", l: "Memory", ic: "▦" },
-  { id: "ask", l: "Ask", ic: "◈" },
 ];
 
 // ─── EverionContent ──────────────────────────────────────────────────────────
@@ -250,7 +249,7 @@ function EverionContent({
       </DesktopSidebar>
 
       <div className="w-full overflow-x-hidden">
-        <div className={`bg-background lg:ml-72 lg:max-w-[calc(75vw)] ${appShell.view === "ask" ? "flex h-dvh flex-col overflow-hidden" : "min-h-dvh"}`}>
+        <div className="bg-background lg:ml-72 lg:max-w-[calc(75vw)] min-h-dvh">
           <MobileHeader
             brainName={activeBrain?.name || "Everion"}
             brainEmoji="🧠"
@@ -332,7 +331,7 @@ function EverionContent({
 
           <OmniSearch entries={entries} onSelect={setSelected} onNavigate={appShell.setView} />
 
-          <div key={appShell.view} className={`animate-view-enter mx-auto max-w-6xl px-4 sm:px-6 lg:pb-8 ${appShell.view === "ask" ? "flex flex-1 flex-col overflow-hidden" : "pt-4 pb-32"}`}>
+          <div key={appShell.view} className="animate-view-enter mx-auto max-w-6xl px-4 sm:px-6 lg:pb-8 pt-4 pb-32">
             {appShell.view === "memory" && (
               <div className="space-y-3">
                 <div
@@ -481,26 +480,7 @@ function EverionContent({
                 />
               </Suspense>
             )}
-            {appShell.view === "ask" && (
-              <Suspense fallback={<Loader />}>
-                <AskView {...chat} brains={brains} phoneRegex={PHONE_REGEX} onOpenCapture={appShell.openCapture} />
-              </Suspense>
-            )}
             {appShell.view === "settings" && <SettingsView onNavigate={appShell.setView} />}
-            {appShell.view === "feed" && (
-              <FeedView
-                brainId={activeBrain?.id}
-                onCapture={() => appShell.setShowCapture(true)}
-                onSelectEntry={setSelected}
-                onNavigate={appShell.setView}
-                unenrichedCount={unenrichedCount}
-                unenrichedDetails={unenrichedDetails}
-                enriching={enriching}
-                enrichProgress={enrichProgress}
-                onEnrich={runBulkEnrich}
-                onCreated={(e) => { if (activeBrain?.id) invalidateFeedCache(activeBrain.id); handleCreated(e); }}
-              />
-            )}
             {appShell.view === "capture" &&
               (() => {
                 if (!entriesLoaded)
@@ -572,7 +552,6 @@ function EverionContent({
                   )
                   .slice(0, 5);
                 const quickActions = [
-                  { id: "ask", label: "Ask Brain", icon: NavIcon.chat },
                   { id: "todos", label: "Todos", icon: NavIcon.todos },
                   { id: "memory", label: "Memory Grid", icon: NavIcon.grid },
                 ] as { id: string; label: string; icon: ReactNode }[];
@@ -831,7 +810,7 @@ function EverionContent({
                   }
                 }
                 appShell.setShowOnboarding(false);
-                appShell.setView("feed");
+                appShell.setView("memory");
               }}
               brainId={activeBrain?.id}
             />

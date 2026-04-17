@@ -133,7 +133,7 @@ export default function DesktopSidebar({
   navViews,
   children,
 }: DesktopSidebarProps) {
-  const allItems = [CAPTURE_NAV, ...navViews];
+  const allItems = [...navViews];
 
   const isOffline = !isOnline;
   const isSyncing = isOnline && pendingCount > 0;

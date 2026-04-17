@@ -49,7 +49,7 @@ export function useAppShell({
   activeBrainId,
 }: UseAppShellOptions = {}): AppShellState {
   // Navigation
-  const [view, setView] = useState("feed");
+  const [view, setView] = useState("memory");
   const [selected, setSelected] = useState<Entry | null>(null);
 
   // Modals

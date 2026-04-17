@@ -4,10 +4,8 @@ import { NavIcon } from "./icons/NavIcons";
 import { useKeyboardVisible } from "../hooks/useKeyboardVisible";
 
 const NAV_ITEMS = [
-  { id: "feed", label: "Feed", icon: NavIcon.feed },
   { id: "memory", label: "Memory", icon: NavIcon.grid },
   { id: "_capture_fab", label: "New Entry", isFAB: true, icon: NavIcon.add },
-  { id: "ask", label: "Ask", icon: NavIcon.chat },
   { id: "settings", label: "Settings", icon: NavIcon.settings },
 ];
 
