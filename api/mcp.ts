@@ -98,6 +98,32 @@ const TOOLS = [
       required: ["query"],
     },
   },
+  {
+    name: "update_entry",
+    description: "Update an existing entry's title, content, tags, or type. Use this after the user approves a suggested edit, merge target, or data correction. Regenerates the embedding automatically when content changes.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "Entry UUID to update" },
+        title: { type: "string", description: "New title (optional)" },
+        content: { type: "string", description: "New content (optional)" },
+        type: { type: "string", description: "New entry type (optional)" },
+        tags: { type: "array", items: { type: "string" }, description: "New tags array (optional, replaces existing)" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "delete_entry",
+    description: "Soft-delete an entry (moves it to trash, recoverable). Use this after the user approves removing a duplicate, stale, or merged entry.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "Entry UUID to delete" },
+      },
+      required: ["id"],
+    },
+  },
 ];
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -319,6 +345,85 @@ async function createEntry(
   return rows[0];
 }
 
+async function updateEntry(
+  userId: string,
+  id: string,
+  fields: { title?: string; content?: string; type?: string; tags?: string[] },
+): Promise<unknown> {
+  // Fetch entry to verify ownership via brain
+  const entryRes = await fetch(
+    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&deleted_at=is.null&select=id,brain_id,title,content,tags&limit=1`,
+    { headers: hdrs() },
+  );
+  if (!entryRes.ok) throw new Error("Failed to fetch entry");
+  const rows: any[] = await entryRes.json();
+  if (!rows.length) throw new Error("Entry not found");
+
+  const brainCheck = await fetch(
+    `${SB_URL}/rest/v1/brains?id=eq.${encodeURIComponent(rows[0].brain_id)}&owner_id=eq.${encodeURIComponent(userId)}&select=id&limit=1`,
+    { headers: hdrs() },
+  );
+  const owned: any[] = await brainCheck.json();
+  if (!owned.length) throw new Error("Access denied");
+
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (fields.title !== undefined) patch.title = fields.title.trim().slice(0, 200);
+  if (fields.content !== undefined) patch.content = fields.content.slice(0, 10000);
+  if (fields.type !== undefined) patch.type = fields.type.trim().slice(0, 50).toLowerCase();
+  if (fields.tags !== undefined) patch.tags = fields.tags.slice(0, 20).map((t) => String(t).slice(0, 50));
+
+  // Regenerate embedding if searchable fields changed
+  if (GEMINI_API_KEY && (fields.title !== undefined || fields.content !== undefined || fields.tags !== undefined)) {
+    const merged = {
+      title: (patch.title ?? rows[0].title) as string,
+      content: (patch.content ?? rows[0].content) as string,
+      tags: (patch.tags ?? rows[0].tags ?? []) as string[],
+    };
+    const embedding = await generateEmbedding(buildEntryText(merged), GEMINI_API_KEY);
+    if (embedding) patch.embedding = embedding;
+  }
+
+  const r = await fetch(
+    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      headers: hdrs({ Prefer: "return=representation" }),
+      body: JSON.stringify(patch),
+    },
+  );
+  if (!r.ok) throw new Error(`Update failed: ${await r.text().catch(() => r.status)}`);
+  const updated: any[] = await r.json();
+  return updated[0];
+}
+
+async function deleteEntry(userId: string, id: string): Promise<unknown> {
+  const entryRes = await fetch(
+    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&deleted_at=is.null&select=id,brain_id&limit=1`,
+    { headers: hdrs() },
+  );
+  if (!entryRes.ok) throw new Error("Failed to fetch entry");
+  const rows: any[] = await entryRes.json();
+  if (!rows.length) throw new Error("Entry not found");
+
+  const brainCheck = await fetch(
+    `${SB_URL}/rest/v1/brains?id=eq.${encodeURIComponent(rows[0].brain_id)}&owner_id=eq.${encodeURIComponent(userId)}&select=id&limit=1`,
+    { headers: hdrs() },
+  );
+  const owned: any[] = await brainCheck.json();
+  if (!owned.length) throw new Error("Access denied");
+
+  const r = await fetch(
+    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      headers: hdrs({ Prefer: "return=minimal" }),
+      body: JSON.stringify({ deleted_at: new Date().toISOString() }),
+    },
+  );
+  if (!r.ok) throw new Error(`Delete failed: ${await r.text().catch(() => r.status)}`);
+  return { id, deleted: true };
+}
+
 // ── JSON-RPC helpers ──────────────────────────────────────────────────────────
 
 function jsonRpcOk(id: unknown, result: unknown) {
@@ -397,6 +502,15 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
           return res.status(200).json(jsonRpcErr(id, -32602, "title, content, and brain_id are required"));
         }
         result = await createEntry(userId, args.title, args.content, args.brain_id, args.type, args.tags);
+      } else if (toolName === "update_entry") {
+        if (!args.id) return res.status(200).json(jsonRpcErr(id, -32602, "id is required"));
+        if (args.title === undefined && args.content === undefined && args.type === undefined && args.tags === undefined) {
+          return res.status(200).json(jsonRpcErr(id, -32602, "At least one field to update is required"));
+        }
+        result = await updateEntry(userId, args.id, { title: args.title, content: args.content, type: args.type, tags: args.tags });
+      } else if (toolName === "delete_entry") {
+        if (!args.id) return res.status(200).json(jsonRpcErr(id, -32602, "id is required"));
+        result = await deleteEntry(userId, args.id);
       } else {
         return res.status(200).json(jsonRpcErr(id, -32601, `Unknown tool: ${toolName}`));
       }
