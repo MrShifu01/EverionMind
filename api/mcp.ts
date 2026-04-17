@@ -335,6 +335,9 @@ function mcpToolResult(content: unknown) {
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
   applySecurityHeaders(res);
 
+  // OAuth discovery — tell SDK there is no OAuth server, use Bearer token directly
+  if (req.method === "GET") return res.status(404).json({ error: "No OAuth server" });
+
   // MCP over HTTP uses POST for all requests
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   if (!(await rateLimit(req, 30))) return res.status(429).json({ error: "Too many requests" });
