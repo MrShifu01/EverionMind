@@ -335,8 +335,30 @@ function mcpToolResult(content: unknown) {
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
   applySecurityHeaders(res);
 
-  // OAuth discovery — tell SDK there is no OAuth server, use Bearer token directly
-  if (req.method === "GET") return res.status(404).json({ error: "No OAuth server" });
+  // OAuth discovery
+  if (req.query._wk) {
+    return res.status(200).json({
+      issuer: "https://everion.smashburgerbar.co.za",
+      token_endpoint: "https://everion.smashburgerbar.co.za/token",
+      registration_endpoint: "https://everion.smashburgerbar.co.za/register",
+      grant_types_supported: ["client_credentials"],
+      token_endpoint_auth_methods_supported: ["none"],
+    });
+  }
+
+  // OAuth token endpoint — validate em_ key and echo it back as access token
+  if (req.query._oauth === "token") {
+    const authHeader = (req.headers["authorization"] as string) || "";
+    const key = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+    const auth = key ? await resolveApiKey(key) : null;
+    if (!auth) return res.status(401).json({ error: "invalid_client", error_description: "Invalid or missing API key" });
+    return res.status(200).json({ access_token: key, token_type: "Bearer", expires_in: 86400 });
+  }
+
+  // OAuth dynamic client registration
+  if (req.query._oauth === "register") {
+    return res.status(201).json({ client_id: "everion-mcp-client", grant_types: ["client_credentials"], token_endpoint_auth_method: "none" });
+  }
 
   // MCP over HTTP uses POST for all requests
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });

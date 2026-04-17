@@ -26,7 +26,9 @@
     { "source": "/api/vault",            "destination": "/api/user-data?resource=vault" },
     { "source": "/api/audit",            "destination": "/api/entries?resource=audit" },
     { "source": "/v1/:action",           "destination": "/api/v1?action=:action" },
-    { "source": "/.well-known/:path*", "destination": "/api/mcp" },
+    { "source": "/.well-known/:path*", "destination": "/api/mcp?_wk=1" },
+    { "source": "/token", "destination": "/api/mcp?_oauth=token" },
+    { "source": "/register", "destination": "/api/mcp?_oauth=register" },
     { "source": "/((?!api/|assets/|v1/).*)", "destination": "/index.html" }
   ],
   "headers": [
