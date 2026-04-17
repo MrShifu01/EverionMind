@@ -173,8 +173,7 @@ export default function ClaudeCodeTab() {
             </button>
           </div>
           <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-            Add to your Claude Code MCP config:{" "}
-            <code className="text-xs">Authorization: Bearer {revealedKey.key.slice(0, 12)}…</code>
+            Use as <code className="text-xs">Authorization: Bearer {revealedKey.key.slice(0, 12)}…</code> — see setup guides below.
           </p>
           <button
             onClick={() => setRevealedKey(null)}
