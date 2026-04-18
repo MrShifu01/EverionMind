@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 import type { Brain } from "../types";
 
-export interface BrainContextValue {
+interface BrainContextValue {
   activeBrain: Brain | null;
   brains: Brain[];
   setActiveBrain: (brain: Brain | null) => void;

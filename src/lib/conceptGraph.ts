@@ -124,12 +124,12 @@ export function mergeGraph(existing: ConceptGraph, incoming: ConceptGraph): Conc
 }
 
 /** Get all concepts that reference a given entry */
-export function getConceptsForEntry(graph: ConceptGraph, entryId: string): Concept[] {
+function getConceptsForEntry(graph: ConceptGraph, entryId: string): Concept[] {
   return graph.concepts.filter((c) => c.source_entries.includes(entryId));
 }
 
 /** Get entries related to a given entry via shared concepts */
-export function getRelatedEntries(
+function getRelatedEntries(
   graph: ConceptGraph,
   entryId: string,
 ): Array<{ entryId: string; sharedConcepts: string[] }> {
@@ -294,7 +294,7 @@ export async function saveGraphToDB(brainId: string, graph: ConceptGraph): Promi
 
 
 /** Phase 7: Apply user feedback to strengthen/weaken relationship confidence */
-export async function applyFeedback(
+async function applyFeedback(
   brainId: string,
   action: "accept" | "reject",
   entryIdA: string,

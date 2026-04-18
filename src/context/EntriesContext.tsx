@@ -1,7 +1,7 @@
 import { createContext, useContext, type Dispatch, type SetStateAction } from "react";
 import type { Entry } from "../types";
 
-export interface EntriesContextValue {
+interface EntriesContextValue {
   entries: Entry[];
   entriesLoaded: boolean;
   selected: Entry | null;

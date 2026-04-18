@@ -12,6 +12,7 @@ interface NavView {
 const NAV_ICONS: Record<string, ReactNode> = {
   capture: NavIcon.capture,
   memory: NavIcon.grid,
+  chat: NavIcon.chat,
   todos: NavIcon.todos,
   timeline: NavIcon.timeline,
   vault: NavIcon.vault,

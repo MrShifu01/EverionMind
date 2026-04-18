@@ -29,7 +29,6 @@ export type Priority = "high" | "medium" | "low";
 
 export type Workspace = "business" | "personal" | "both";
 
-export type ConfidenceLevel = "extracted" | "inferred" | "ambiguous";
 
 interface EntryMetadata {
   phone?: string;

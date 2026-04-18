@@ -299,7 +299,7 @@ export function getLearningsContext(brainId: string): string {
 }
 
 /** Get raw decision count for display purposes. */
-export function getDecisionCount(brainId: string): number {
+function getDecisionCount(brainId: string): number {
   return readDecisions(brainId).length;
 }
 

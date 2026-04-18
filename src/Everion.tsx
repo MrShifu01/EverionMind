@@ -68,6 +68,7 @@ function lazyRetry(fn: () => Promise<any>) {
 const TodoView = lazyRetry(() => import("./views/TodoView"));
 const DetailModal = lazyRetry(() => import("./views/DetailModal"));
 const VaultView = lazyRetry(() => import("./views/VaultView"));
+const ChatView = lazyRetry(() => import("./views/ChatView"));
 function Loader() {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -78,6 +79,7 @@ function Loader() {
 
 const NAV_VIEWS = [
   { id: "memory", l: "Memory", ic: "▦" },
+  { id: "chat", l: "Chat", ic: "💬" },
 ];
 
 // ─── EverionContent ──────────────────────────────────────────────────────────
@@ -373,6 +375,11 @@ function EverionContent({
               </div>
             )}
 
+            {appShell.view === "chat" && (
+              <Suspense fallback={<Loader />}>
+                <ChatView brainId={activeBrain?.id} />
+              </Suspense>
+            )}
             {appShell.view === "todos" && (
               <Suspense fallback={<Loader />}>
                 <TodoView entries={entries} typeIcons={appShell.typeIcons} />

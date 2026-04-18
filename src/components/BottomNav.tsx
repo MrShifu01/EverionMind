@@ -5,6 +5,7 @@ import { useKeyboardVisible } from "../hooks/useKeyboardVisible";
 
 const NAV_ITEMS = [
   { id: "memory", label: "Memory", icon: NavIcon.grid },
+  { id: "chat", label: "Chat", icon: NavIcon.chat },
   { id: "_capture_fab", label: "New Entry", isFAB: true, icon: NavIcon.add },
   { id: "settings", label: "Settings", icon: NavIcon.settings },
 ];

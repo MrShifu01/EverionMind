@@ -91,3 +91,18 @@ Surface the platform features in the Everion UI.
 - Upgrade prompt (when billing is live)
 
 **Depends on:** Usage Tracking (sub-project 2), Billing Layer (sub-project 4)
+
+---
+
+## Sub-project 7 — Entry Chunking
+
+Long entries (documents, SOPs, meeting notes) are embedded as a single vector. If the relevant detail is buried deep, the entry may score too low to surface.
+
+**What to build:**
+- On `create_entry`/`update_entry`, if content exceeds a threshold (~500 words), split into overlapping chunks (~300 words, 50-word overlap)
+- Store each chunk in an `entry_chunks` table: `id`, `entry_id`, `chunk_index`, `content`, `embedding`
+- `match_entries` RPC updated to search both `entries.embedding` and `entry_chunks.embedding`, deduplicating by `entry_id`
+- Retrieval returns the parent entry (with full content), but chunk hits contribute to scoring
+- Chunk embeddings regenerated on entry update
+
+**Depends on:** REST Gateway (sub-project 1)

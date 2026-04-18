@@ -1,438 +1,127 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { authFetch } from "../lib/authFetch";
-import { callAI } from "../lib/ai";
-import { extractNudgeText } from "../lib/extractNudgeText";
-import { scoreEntriesForQuery } from "../lib/chatContext";
-import { loadGraph } from "../lib/conceptGraph";
-import { withGraphLock } from "../lib/graphWriter";
-import { recordDecision } from "../lib/learningEngine";
-import { getEmbedHeaders } from "../lib/aiSettings";
-import { unlockVault, decryptVaultKeyFromRecovery, decryptEntry } from "../lib/crypto";
-import { PROMPTS } from "../config/prompts";
-import { getStoredPinHash } from "../lib/pin";
-import type { Entry, Brain } from "../types";
-import type { AIResponseBody, VaultData, DecryptedSecret } from "../lib/ai.types";
 
-/**
- * Build a concept-graph context snippet for a chat query.
- * Finds concepts matching query terms and surfaces cross-concept
- * relationships that pure keyword/vector search would miss.
- */
-function buildGraphContext(brainId: string, query: string, entries: Entry[]): string {
-  const graph = loadGraph(brainId);
-  if (graph.concepts.length === 0) return "";
-
-  const terms = query.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
-  if (terms.length === 0) return "";
-
-  // Find concepts matching query terms
-  const matchedConcepts = graph.concepts.filter((c) =>
-    terms.some((t) => c.label.toLowerCase().includes(t)),
-  );
-  if (matchedConcepts.length === 0) return "";
-
-  const entryMap = new Map(entries.map((e) => [e.id, e]));
-  const lines: string[] = [];
-
-  // Surface concept relationships
-  for (const concept of matchedConcepts.slice(0, 5)) {
-    const relatedRels = graph.relationships.filter(
-      (r) => r.source_concept === concept.id || r.target_concept === concept.id,
-    );
-    if (relatedRels.length > 0) {
-      const relStrs = relatedRels.slice(0, 4).map((r) => {
-        const other = r.source_concept === concept.id ? r.target_concept : r.source_concept;
-        const otherConcept = graph.concepts.find((c) => c.id === other);
-        return `${concept.label} --${r.relation}--> ${otherConcept?.label || other}`;
-      });
-      lines.push(...relStrs);
-    }
-
-    // Surface entries connected through this concept
-    const entryTitles = concept.source_entries
-      .slice(0, 4)
-      .map((eid) => entryMap.get(eid)?.title)
-      .filter(Boolean);
-    if (entryTitles.length > 0) {
-      lines.push(`"${concept.label}" connects: ${entryTitles.join(", ")}`);
-    }
-  }
-
-  if (lines.length === 0) return "";
-  return `\n\n<concept_graph>\n${lines.join("\n")}\n</concept_graph>`;
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  ts: string;
+  tool_calls?: Array<{ tool: string; result: unknown }>;
 }
 
-/**
- * Feed chat queries back into the concept graph.
- * If the user asks about concepts that already exist, boost their frequency.
- * This strengthens the graph based on what the user actually cares about.
- */
-function feedQueryToGraph(brainId: string, query: string): void {
-  const graph = loadGraph(brainId);
-  if (graph.concepts.length === 0) return;
+export interface PendingAction {
+  tool: string;
+  args: Record<string, any>;
+  label: string;
+}
 
-  const terms = query.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
-  if (terms.length === 0) return;
+const HISTORY_LIMIT = 30;
+const storageKey = (brainId: string) => `chat_history_${brainId}`;
 
-  let changed = false;
-  for (const concept of graph.concepts) {
-    if (terms.some((t) => concept.label.toLowerCase().includes(t))) {
-      concept.frequency += 1;
-      changed = true;
-    }
-  }
-  if (changed) {
-    withGraphLock(brainId, async () => {
-      const { saveGraphToDB } = await import("../lib/conceptGraph");
-      await saveGraphToDB(brainId, graph);
-    });
+function loadHistory(brainId: string): ChatMessage[] {
+  try {
+    const raw = localStorage.getItem(storageKey(brainId));
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch {
+    return [];
   }
 }
 
-interface ChatLink {
-  from?: string;
-  to?: string;
-  [key: string]: unknown;
+function saveHistory(brainId: string, messages: ChatMessage[]) {
+  try {
+    localStorage.setItem(storageKey(brainId), JSON.stringify(messages.slice(-100)));
+  } catch { /* storage full — non-fatal */ }
 }
 
-const SECRET_QUERY_RE =
-  /\b(password|passcode|passphrase|credentials|login|wifi\s*(key|password)|network\s*key|bank\s*(account|pin|number|detail)|credit\s*card|cvv|routing\s*number|secret|vault)\b/i;
+export function useChat(brainId: string | undefined) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [pendingMessage, setPendingMessage] = useState<string>("");
 
-// ── Save-intent detection ─────────────────────────────────────────────────────
-// Detects messages where the user wants to store something in their brain,
-// e.g. "add this as an entry", "remember that John called", "save this: ..."
-const SAVE_INTENT_RE =
-  /\b(add|save|remember|log|capture|store|record|note down|write down|keep)\b.{0,40}\b(this|that|it|entry|to my brain|to brain|to my memory)\b/i;
+  useEffect(() => {
+    if (!brainId) return;
+    setMessages(loadHistory(brainId));
+    setPendingAction(null);
+  }, [brainId]);
 
-function extractSaveContent(msg: string): string {
-  // "add this: content" / "save to brain: content" — take everything after the colon
-  const colonIdx = msg.indexOf(":");
-  if (colonIdx > 0 && colonIdx < 80) {
-    const after = msg.slice(colonIdx + 1).trim();
-    if (after.length > 4) return after;
-  }
-  // "remember that content" / "add that content"
-  const thatMatch = msg.match(/\b(?:remember|add|save|log)\s+that\s+(.+)/i);
-  if (thatMatch) return thatMatch[1].trim();
-  // Strip the leading intent phrase and return what's left
-  const stripped = msg
-    .replace(/^(add|save|remember|log|capture|store|record|note down|write down|keep)\s+(this|that|it|an?\s+entry\s+(for|about)?|to\s+(my\s+)?(brain|memory))[:\s,]*/i, "")
-    .trim();
-  return stripped || msg.trim();
-}
+  const send = useCallback(async (message: string, confirmed = false) => {
+    if (!brainId || !message.trim()) return;
 
-function containsSensitiveContent(text: string): boolean {
-  return SECRET_QUERY_RE.test(text);
-}
+    const userMsg: ChatMessage = { role: "user", content: message.trim(), ts: new Date().toISOString() };
+    const nextMessages = confirmed ? messages : [...messages, userMsg];
 
-interface UseChatParams {
-  entries: Entry[];
-  activeBrain: Brain | null;
-  brains: Brain[];
-  links: ChatLink[];
-  cryptoKey: CryptoKey | null;
-  handleVaultUnlock: (key: CryptoKey | null) => void;
-  vaultExists: boolean;
-}
+    if (!confirmed) setMessages(nextMessages);
+    setLoading(true);
+    setPendingAction(null);
 
-export function useChat({
-  entries,
-  activeBrain,
-  brains,
-  links,
-  cryptoKey,
-  handleVaultUnlock,
-  vaultExists,
-}: UseChatParams) {
-  const [chatInput, setChatInput] = useState("");
-  const [searchAllBrains, setSearchAllBrains] = useState(false);
-  const [chatMsgs, setChatMsgs] = useState<
-    { role: string; content: string; sources?: string[]; confidence?: string; query?: string }[]
-  >([
-    {
-      role: "assistant",
-      content:
-        'Hey! Ask me about your memories — "What\'s my ID number?", "Who are my suppliers?", etc.',
-    },
-  ]);
-  const [chatLoading, setChatLoading] = useState(false);
-  const [pendingCapture, setPendingCapture] = useState<string | null>(null);
-  const [pendingSecureMsg, setPendingSecureMsg] = useState<{ content: string } | null>(null);
-  const [showPinGate, setShowPinGate] = useState(false);
-  const [pinGateIsSetup, setPinGateIsSetup] = useState(false);
-  const [vaultUnlockModal, setVaultUnlockModal] = useState<{
-    vaultData: VaultData;
-    pendingMsg: string;
-  } | null>(null);
-  const [vaultModalInput, setVaultModalInput] = useState("");
-  const [vaultModalMode, setVaultModalMode] = useState<"passphrase" | "recovery">("passphrase");
-  const [vaultModalError, setVaultModalError] = useState("");
-  const [vaultModalBusy, setVaultModalBusy] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement | null>(null);
+    const historyForApi = nextMessages.slice(-HISTORY_LIMIT).map((m) => ({ role: m.role, content: m.content }));
 
-  const sendChat = useCallback(
-    async (msg: string, overrideSecrets?: DecryptedSecret[]) => {
-      setChatLoading(true);
-      const saveContent = SAVE_INTENT_RE.test(msg) ? extractSaveContent(msg) : null;
-      try {
-        const secrets: DecryptedSecret[] =
-          overrideSecrets ||
-          (cryptoKey
-            ? entries
-                .filter((e) => e.type === "secret")
-                .map((e) => ({
-                  title: e.title,
-                  content: typeof e.content === "string" ? e.content.slice(0, 500) : undefined,
-                  tags: e.tags,
-                }))
-            : []);
-
-        const embedHeaders = getEmbedHeaders();
-        // Build concept graph context for richer answers
-        const graphCtx = activeBrain?.id ? buildGraphContext(activeBrain.id, msg, entries) : "";
-        // Feed query back into the graph to boost frequently-asked concepts
-        if (activeBrain?.id) {
-          feedQueryToGraph(activeBrain.id, msg);
-          recordDecision(activeBrain.id, {
-            source: "chat",
-            type: "CHAT_QUERY",
-            action: "accept",
-            field: "query",
-            originalValue: msg,
-          });
-        }
-
-        let data: AIResponseBody;
-        if (embedHeaders && activeBrain?.id) {
-          const history = chatMsgs.slice(-10);
-          const isAllBrains = searchAllBrains && brains.length > 1;
-          const keywordFallback = isAllBrains
-            ? []
-            : scoreEntriesForQuery(
-                entries.map((e) => ({
-                  id: e.id,
-                  title: e.title,
-                  type: e.type,
-                  tags: e.tags || [],
-                  content: typeof e.content === "string" ? e.content.slice(0, 200) : undefined,
-                  metadata: e.metadata,
-                })),
-                msg,
-              ).slice(0, 40);
-          const brainParam = isAllBrains
-            ? { brain_ids: brains.map((b) => b.id) }
-            : { brain_id: activeBrain.id };
-          // Append concept graph context to message so the server-side LLM sees it
-          const enrichedMsg = graphCtx ? `${msg}\n\n[Concept graph context — use to surface cross-concept connections:]${graphCtx}` : msg;
-          const res = await authFetch("/api/chat", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", ...embedHeaders },
-            body: JSON.stringify({
-              message: enrichedMsg,
-              ...brainParam,
-              history,
-              secrets,
-              ...(isAllBrains ? {} : { fallback_entries: keywordFallback }),
-            }),
-          });
-          data = await res.json();
-        } else {
-          const relevantEntries = scoreEntriesForQuery(
-            entries.map((e) => ({
-              id: e.id,
-              title: e.title,
-              type: e.type,
-              tags: e.tags || [],
-              content: typeof e.content === "string" ? e.content.slice(0, 200) : undefined,
-              metadata: e.metadata,
-            })),
-            msg,
-          ).slice(0, 60);
-          const contextWithSecrets = secrets.length
-            ? [...relevantEntries, ...secrets.map((s) => ({ ...s, type: "secret" }))]
-            : relevantEntries;
-          // Include concept graph in system prompt for client-side path
-          const systemPrompt = PROMPTS.CHAT.replace(
-            "{{MEMORIES}}",
-            JSON.stringify(contextWithSecrets),
-          ).replace("{{LINKS}}", JSON.stringify(links)) + graphCtx;
-          const res = await callAI({
-            max_tokens: 1000,
-            system: systemPrompt,
-            brainId: activeBrain?.id,
-            messages: [{ role: "user", content: msg }],
-          });
-          data = (await res.json()) as AIResponseBody;
-        }
-        // Surface actual API errors instead of generic "Couldn't process"
-        const errorMsg = typeof data.error === "string"
-          ? data.error
-          : (data.error as any)?.message;
-        const rawContent = errorMsg
-          ? `Sorry, something went wrong: ${errorMsg}`
-          : extractNudgeText(data) ||
-            data.content?.map((c) => c.text || "").join("") ||
-            "Couldn't process.";
-        // Extract [NO_INFO:topic] tag if present
-        const noInfoMatch = rawContent.match(/\[NO_INFO:([^\]]+)\]\s*$/);
-        const content = noInfoMatch ? rawContent.replace(noInfoMatch[0], "").trimEnd() : rawContent;
-        if (noInfoMatch) setPendingCapture(noInfoMatch[1].trim());
-        else if (saveContent) setPendingCapture(saveContent);
-        const assistantMsg = {
-          role: "assistant",
-          content,
-          sources: data.sources ?? [],
-          confidence: data.confidence,
-          query: msg,
-        };
-        if (containsSensitiveContent(content)) {
-          const hasPinSet = !!getStoredPinHash();
-          setPendingSecureMsg({ content });
-          setPinGateIsSetup(!hasPinSet);
-          setShowPinGate(true);
-        } else {
-          setChatMsgs((p) => [...p, assistantMsg]);
-        }
-      } catch {
-        setChatMsgs((p) => [...p, { role: "assistant", content: "Connection error." }]);
-      }
-      setChatLoading(false);
-    },
-    [cryptoKey, entries, links, chatMsgs, activeBrain, searchAllBrains, brains],
-  );
-
-  const sendFeedback = useCallback(
-    async (msgIdx: number, vote: 1 | -1) => {
-      const msg = chatMsgs[msgIdx];
-      if (!msg || msg.role !== "assistant" || !activeBrain?.id) return;
-      try {
-        await authFetch("/api/feedback", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            brain_id: activeBrain.id,
-            query: msg.query ?? "",
-            answer: msg.content,
-            retrieved_entry_ids: msg.sources ?? [],
-            top_entry_ids: msg.sources ?? [],
-            feedback: vote,
-            confidence: msg.confidence ?? "medium",
-          }),
-        });
-      } catch {
-        /* non-fatal — feedback failure is silent */
-      }
-    },
-    [chatMsgs, activeBrain],
-  );
-
-  const handleChat = useCallback(async () => {
-    if (!chatInput.trim()) return;
-    const msg = chatInput.trim();
-    setChatInput("");
-    setChatMsgs((p) => [...p, { role: "user", content: msg }]);
-
-    if (!cryptoKey && vaultExists && SECRET_QUERY_RE.test(msg)) {
-      try {
-        const r = await authFetch("/api/vault");
-        const vd = r.ok ? await r.json() : null;
-        if (vd?.exists) {
-          setVaultUnlockModal({ vaultData: vd, pendingMsg: msg });
-          setVaultModalInput("");
-          setVaultModalMode("passphrase");
-          setVaultModalError("");
-          setChatMsgs((p) => [
-            ...p,
-            {
-              role: "assistant",
-              content:
-                "🔐 That looks like a question about your vault secrets. Please unlock your vault to continue.",
-            },
-          ]);
-          return;
-        }
-      } catch {
-        // vault check failed, proceed without vault
-      }
-    }
-
-    await sendChat(msg);
-  }, [chatInput, cryptoKey, vaultExists, sendChat]);
-
-  const handleVaultModalUnlock = useCallback(async () => {
-    if (!vaultUnlockModal || !vaultModalInput.trim()) return;
-    setVaultModalBusy(true);
-    setVaultModalError("");
-    const { vaultData, pendingMsg } = vaultUnlockModal;
     try {
-      let key: CryptoKey | null;
-      if (vaultModalMode === "passphrase") {
-        key = await unlockVault(vaultModalInput, vaultData.salt, vaultData.verify_token);
-      } else {
-        key = await decryptVaultKeyFromRecovery(
-          vaultData.recovery_blob,
-          vaultModalInput.trim().toUpperCase(),
-        );
-      }
-      if (!key) {
-        setVaultModalError(
-          vaultModalMode === "passphrase" ? "Wrong passphrase" : "Wrong recovery key",
-        );
-        setVaultModalBusy(false);
-        return;
-      }
-      handleVaultUnlock(key);
-      setVaultUnlockModal(null);
-      const decryptedEntries = await Promise.all(
-        entries
-          .filter((e) => e.type === "secret")
-          .map(
-            (e) =>
-              decryptEntry(
-                e as unknown as { content?: string; [k: string]: unknown },
-                key!,
-              ) as unknown as Promise<Entry>,
-          ),
-      );
-      const secrets: DecryptedSecret[] = decryptedEntries.map((e) => ({
-        title: e.title,
-        content: typeof e.content === "string" ? e.content.slice(0, 500) : undefined,
-        tags: e.tags,
-      }));
-      await sendChat(pendingMsg, secrets);
-    } catch {
-      setVaultModalError("Unlock failed");
-    }
-    setVaultModalBusy(false);
-  }, [vaultUnlockModal, vaultModalInput, vaultModalMode, handleVaultUnlock, entries, sendChat]);
+      const body: Record<string, any> = {
+        message: message.trim(),
+        brain_id: brainId,
+        history: historyForApi,
+        confirmed,
+      };
+      if (confirmed && pendingAction) body.pending_action = pendingAction;
 
-  return {
-    chatInput,
-    setChatInput,
-    searchAllBrains,
-    setSearchAllBrains,
-    chatMsgs,
-    setChatMsgs,
-    chatLoading,
-    pendingCapture,
-    setPendingCapture,
-    pendingSecureMsg,
-    setPendingSecureMsg,
-    showPinGate,
-    setShowPinGate,
-    pinGateIsSetup,
-    vaultUnlockModal,
-    setVaultUnlockModal,
-    vaultModalInput,
-    setVaultModalInput,
-    vaultModalMode,
-    setVaultModalMode,
-    vaultModalError,
-    vaultModalBusy,
-    chatEndRef,
-    sendChat,
-    handleChat,
-    handleVaultModalUnlock,
-    sendFeedback,
-  };
+      const res = await authFetch("/api/llm?action=chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+
+      if (data.pending_action) {
+        const assistantMsg: ChatMessage = { role: "assistant", content: data.reply, ts: new Date().toISOString() };
+        const updated = [...nextMessages, assistantMsg];
+        setMessages(updated);
+        saveHistory(brainId, updated);
+        setPendingAction(data.pending_action);
+        setPendingMessage(message.trim());
+      } else {
+        const assistantMsg: ChatMessage = {
+          role: "assistant",
+          content: data.reply || "No response.",
+          ts: new Date().toISOString(),
+          tool_calls: data.tool_calls,
+        };
+        const updated = [...nextMessages, assistantMsg];
+        setMessages(updated);
+        saveHistory(brainId, updated);
+      }
+    } catch {
+      const errMsg: ChatMessage = {
+        role: "assistant",
+        content: "Something went wrong. Please try again.",
+        ts: new Date().toISOString(),
+      };
+      const updated = [...nextMessages, errMsg];
+      setMessages(updated);
+      saveHistory(brainId, updated);
+    }
+
+    setLoading(false);
+  }, [brainId, messages, pendingAction]);
+
+  const confirm = useCallback(() => {
+    if (!pendingAction || !pendingMessage) return;
+    send(pendingMessage, true);
+    setPendingMessage("");
+  }, [pendingAction, pendingMessage, send]);
+
+  const cancel = useCallback(() => {
+    setPendingAction(null);
+    setPendingMessage("");
+  }, []);
+
+  const clearHistory = useCallback(() => {
+    if (!brainId) return;
+    setMessages([]);
+    localStorage.removeItem(storageKey(brainId));
+  }, [brainId]);
+
+  return { messages, loading, pendingAction, send, confirm, cancel, clearHistory };
 }
