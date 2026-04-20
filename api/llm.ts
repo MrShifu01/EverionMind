@@ -7,6 +7,7 @@ import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 import { retrieveEntries } from "./_lib/retrievalCore.js";
 import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
 import { rebuildConceptGraph } from "./_lib/retrievalCore.js";
+import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
 
 export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
 
@@ -240,7 +241,7 @@ async function execTool(name: string, args: Record<string, any>, userId: string,
       const emb = await generateEmbedding(buildEntryText(merged), GEMINI_API_KEY);
       if (emb) patch.embedding = `[${emb.join(",")}]`;
     }
-    const r = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(args.id)}`, {
+    const r = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(args.id)}&brain_id=eq.${encodeURIComponent(brainId)}`, {
       method: "PATCH",
       headers: { ...sbHdrs(), Prefer: "return=representation" },
       body: JSON.stringify(patch),
@@ -251,7 +252,7 @@ async function execTool(name: string, args: Record<string, any>, userId: string,
     return updated[0];
   }
   if (name === "delete_entry") {
-    const r = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(args.id)}`, {
+    const r = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(args.id)}&brain_id=eq.${encodeURIComponent(brainId)}&user_id=eq.${encodeURIComponent(userId)}`, {
       method: "PATCH",
       headers: { ...sbHdrs(), Prefer: "return=minimal" },
       body: JSON.stringify({ deleted_at: new Date().toISOString() }),
@@ -269,6 +270,9 @@ async function handleChat(req: ApiRequest, res: ApiResponse, user: any): Promise
   const { message, brain_id, history = [], confirmed = false, pending_action } = req.body;
   if (!message || typeof message !== "string") return res.status(400).json({ error: "message required" });
   if (!brain_id || typeof brain_id !== "string") return res.status(400).json({ error: "brain_id required" });
+
+  const brainAccess = await checkBrainAccess(user.id, brain_id);
+  if (!brainAccess) return res.status(403).json({ error: "Forbidden" });
 
   // If confirmed=true and there's a pending destructive action, execute it directly
   if (confirmed && pending_action?.tool && pending_action?.args) {

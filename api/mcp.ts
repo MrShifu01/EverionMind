@@ -335,6 +335,7 @@ function mcpToolResult(content: unknown) {
 
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
   applySecurityHeaders(res);
+  if (!(await rateLimit(req, 30))) return res.status(429).json({ error: "Too many requests" });
 
   // OAuth discovery
   if (req.query._wk) {
@@ -370,7 +371,6 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
 
   // MCP over HTTP uses POST for all requests
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-  if (!(await rateLimit(req, 30))) return res.status(429).json({ error: "Too many requests" });
 
   // Auth
   const authHeader = (req.headers["authorization"] as string) || "";

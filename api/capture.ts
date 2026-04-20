@@ -64,6 +64,12 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
     ...(p_brain_id && typeof p_brain_id === "string" ? { p_brain_id } : {}),
   };
 
+  // Verify user has access to the primary brain
+  if (p_brain_id && typeof p_brain_id === "string") {
+    const primaryAccess = await checkBrainAccess(user.id, p_brain_id);
+    if (!primaryAccess) return res.status(403).json({ error: "Forbidden" });
+  }
+
   // Verify user is a member/owner of each extra brain before inserting
   if (Array.isArray(p_extra_brain_ids) && p_extra_brain_ids.length > 0) {
     for (const brainId of p_extra_brain_ids) {
@@ -78,13 +84,23 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
   // S3-4: URL deduplication — merge instead of duplicate when same URL exists
   const sourceUrl = safeBody.p_metadata?.source_url || safeBody.p_metadata?.url;
   if (sourceUrl && p_brain_id) {
-    const dedupRes = await fetch(`${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(p_brain_id)}&select=id,metadata`, { headers: sbHeadersNoContent() });
+    const dedupRes = await fetch(`${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(p_brain_id)}&deleted_at=is.null&select=id,metadata`, { headers: sbHeadersNoContent() });
     if (dedupRes.ok) {
       const existing: any[] = await dedupRes.json();
       const dupe = existing.find((e: any) => e.metadata?.source_url === sourceUrl || e.metadata?.url === sourceUrl);
       if (dupe) {
-        const merged = { ...dupe.metadata, sources: [...(dupe.metadata?.sources || [sourceUrl]), sourceUrl] };
+        const merged = { ...dupe.metadata, sources: [...(dupe.metadata?.sources || []), sourceUrl] };
         await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(dupe.id)}`, { method: "PATCH", headers: sbHeaders({ Prefer: "return=representation" }), body: JSON.stringify({ metadata: merged }) });
+        if (Array.isArray(p_extra_brain_ids) && p_extra_brain_ids.length > 0) {
+          const extraIds = p_extra_brain_ids.filter((id: any) => typeof id === "string" && id !== p_brain_id);
+          if (extraIds.length > 0) {
+            fetch(`${SB_URL}/rest/v1/entry_brains`, {
+              method: "POST",
+              headers: sbHeaders({ Prefer: "resolution=ignore-duplicates" }),
+              body: JSON.stringify(extraIds.map((brain_id: string) => ({ entry_id: dupe.id, brain_id }))),
+            }).catch((err: any) => console.error('[capture:dedup:entry_brains]', err));
+          }
+        }
         return res.status(200).json({ id: dupe.id, merged: true });
       }
     }
@@ -232,6 +248,11 @@ async function handleSaveLinks(req: ApiRequest, res: ApiResponse): Promise<void>
 
   const { links, brain_id } = req.body;
   if (!Array.isArray(links)) return res.status(400).json({ error: "links must be an array" });
+
+  if (brain_id && typeof brain_id === "string") {
+    const access = await checkBrainAccess(user.id, brain_id);
+    if (!access) return res.status(403).json({ error: "Forbidden" });
+  }
 
   // Validate link structure and rel whitelist
   const valid = links.filter((l: any) => {

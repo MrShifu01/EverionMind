@@ -232,6 +232,12 @@ async function handlePatch(req: ApiRequest, res: ApiResponse): Promise<void> {
   const access = await checkBrainAccess(user.id, entry.brain_id);
   if (!access) return res.status(403).json({ error: "Forbidden" });
 
+  // If moving the entry to a different brain, verify access to the target brain
+  if (patch.brain_id !== undefined && patch.brain_id !== entry.brain_id) {
+    const targetAccess = await checkBrainAccess(user.id, patch.brain_id);
+    if (!targetAccess) return res.status(403).json({ error: "Forbidden" });
+  }
+
   // Recalculate completeness score with merged values
   const mergedTitle = patch.title ?? entry.title ?? "";
   const mergedContent = patch.content ?? entry.content ?? "";
