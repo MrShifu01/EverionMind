@@ -28,19 +28,6 @@ async function extractViaAI(file: File): Promise<string> {
   return data.text || "";
 }
 
-async function extractExcel(buffer: ArrayBuffer): Promise<string> {
-  const XLSX = await import("xlsx");
-  const workbook = XLSX.read(new Uint8Array(buffer), { type: "array" });
-  const parts: string[] = [];
-  for (const sheetName of workbook.SheetNames) {
-    const sheet = workbook.Sheets[sheetName];
-    // Use tab-separated output — avoids double-quote wrapping that breaks AI JSON generation
-    const tsv = XLSX.utils.sheet_to_txt(sheet, { blankrows: false } as any);
-    if (tsv.trim()) parts.push(`[Sheet: ${sheetName}]\n${tsv.trim()}`);
-  }
-  return parts.join("\n\n");
-}
-
 async function extractPDF(buffer: ArrayBuffer): Promise<string> {
   const mod = await import("pdfjs-dist");
   const pdfjsLib = (mod as any).default ?? mod;
@@ -82,8 +69,7 @@ export async function extractTextFromFile(file: File): Promise<string> {
   }
 
   if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
-    const buffer = await file.arrayBuffer();
-    return extractExcel(buffer);
+    return extractViaAI(file);
   }
 
   const buffer = await file.arrayBuffer();

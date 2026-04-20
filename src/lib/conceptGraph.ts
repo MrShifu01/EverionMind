@@ -29,14 +29,13 @@ function normalize(label: string): string {
     .replace(/[^a-z0-9\s]/g, "");
 }
 
-/** Strip possessives and truncate to max 3 words — safety net for AI label drift */
+/** Truncate to max 3 words — safety net for AI label drift. Possessives are normalised by normalize(). */
 function sanitizeConceptLabel(label: string): string {
   return label
-    .replace(/[''\u2019]\s*s\b/gi, "")  // strip possessives: "father's" → "father"
     .replace(/\s+/g, " ")
     .trim()
     .split(/\s+/)
-    .slice(0, 3)                         // enforce 3-word max
+    .slice(0, 3)
     .join(" ");
 }
 

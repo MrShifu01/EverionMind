@@ -2,6 +2,53 @@
 
 ---
 
+## [AUDIT] Full App Audit — 2026-04-20 (pass 7)
+**Tags**: AUDIT
+
+### Overall Score: 81/100 — B
+**Verdict:** PASS WITH WARNINGS
+
+| Dimension | Score |
+|-----------|-------|
+| Security | 85 |
+| Performance | 83 |
+| Architecture | 82 |
+| Code Quality / Types | 73 |
+| UX / UI | 82 |
+| Maintainability | 80 |
+| User Perspective | 82 |
+
+### Progress since pass 6 (79/100)
+- ✅ `Permissions-Policy: microphone=(self)` — FIXED (was `microphone=()`, 3× consecutive flagged)
+- ✅ `computeCompletenessScore` extracted to `api/_lib/completeness.ts` — FIXED
+- ✅ `sendDefaultPii: false` — FIXED
+- ✅ Sentry DSN → `VITE_SENTRY_DSN` env var — FIXED
+- ✅ `RefineView.tsx` (1,883 lines, 3× unfixed) — DELETED from codebase
+- ✅ `DetailModal.tsx` reduced from 1,037 → 608 lines
+- ❌ Tests: REGRESSED — 12 failing / 7 failed files (was 8 failing in pass 6)
+- ❌ `xlsx` HIGH CVEs — STILL PRESENT (5 high, 1 moderate), CI blocks on audit
+
+### CRITICAL & HIGH Findings
+
+**[HIGH]** 12 failing tests across 7 files — CI blocked on every push. `CreateBrainModal.tsx` referenced in test but file doesn't exist (ENOENT crash). Remaining: conceptGraph possessive normalization (3), entry-brains mock setup (5), LoadingScreen brand text (1), OnboardingModal button label (1), useEntryActions state (1), fileSplitter type (1).
+
+**[HIGH]** `xlsx` dependency — 5 unpatched HIGH CVEs (prototype pollution + ReDoS). No upstream fix. CI `npm audit --audit-level=high` blocks every push. — `package.json:33`
+
+**[MEDIUM]** CSP missing `worker-src blob:` — pdfjs-dist loads worker as blob URL. PDF parsing silently fails in strict CSP environments. — `vercel.json:40`
+
+**[MEDIUM]** ChatView messages container has no `aria-live` — screen readers don't announce new AI responses. — `src/views/ChatView.tsx:148`
+
+**[MEDIUM]** `FeedView.tsx` is 1,755 lines — new largest file in codebase after RefineView deleted. — `src/views/FeedView.tsx`
+
+### Top 5 Actions
+1. [HIGH] Fix 12 failing tests: delete/fix CreateBrainModal test (ENOENT), fix possessive normalization in conceptGraph, fix entry-brains mock
+2. [HIGH] Replace `xlsx` with `exceljs` or move Excel parsing server-side (5 unpatched HIGH CVEs, CI audit blocks)
+3. [MEDIUM] Add `worker-src blob:` to CSP in vercel.json:40 — one word, prevents silent PDF breakage
+4. [MEDIUM] Add `aria-live="polite"` to ChatView messages container at ChatView.tsx:148
+5. [MEDIUM] Begin decomposing FeedView.tsx (1,755 lines) — new god component
+
+---
+
 ## [AUDIT] Full App Audit — 2026-04-14 (pass 6)
 **Tags**: AUDIT
 

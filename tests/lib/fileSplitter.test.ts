@@ -102,7 +102,7 @@ Instructions: Mix until smooth. Cook on pan.
     });
 
     it("wraps single object with valid title into array", () => {
-      expect(parseAISplitResponse('{"title":"test"}')).toEqual([{ title: "test" }]);
+      expect(parseAISplitResponse('{"title":"test"}')).toEqual([{ title: "test", type: "note" }]);
     });
 
     it("filters out entries without title", () => {

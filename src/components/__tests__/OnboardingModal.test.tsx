@@ -50,6 +50,7 @@ describe("OnboardingModal — capture step", () => {
   it("'Teach my brain' button is disabled when textarea is empty", () => {
     render(<OnboardingModal onComplete={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /let's go/i }));
+    fireEvent.click(screen.getByRole("button", { name: /skip for now/i }));
     const btn = screen.getByRole("button", { name: /teach my brain/i });
     expect(btn).toBeDisabled();
   });
