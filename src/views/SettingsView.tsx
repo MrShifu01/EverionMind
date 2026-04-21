@@ -9,6 +9,7 @@ import DangerTab from "../components/settings/DangerTab";
 import ClaudeCodeTab from "../components/settings/ClaudeCodeTab";
 import NotificationSettings from "../components/NotificationSettings";
 import AppearanceTab from "../components/settings/AppearanceTab";
+import AdminTab from "../components/settings/AdminTab";
 import SettingsRow, { SettingsButton } from "../components/settings/SettingsRow";
 import { authFetch } from "../lib/authFetch";
 
@@ -20,9 +21,12 @@ type SectionId =
   | "storage"
   | "integrations"
   | "appearance"
-  | "danger";
+  | "danger"
+  | "admin";
 
-const SECTIONS: { id: SectionId; label: string }[] = [
+const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
+
+const BASE_SECTIONS: { id: SectionId; label: string }[] = [
   { id: "account", label: "Account" },
   { id: "brain", label: "Brain" },
   { id: "providers", label: "AI providers" },
@@ -222,6 +226,11 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
       try { if (e) localStorage.setItem("everion_email", e); } catch { /* ignore */ }
     });
   }, []);
+
+  const isAdmin = Boolean(ADMIN_EMAIL && email && email === ADMIN_EMAIL);
+  const SECTIONS = isAdmin
+    ? [...BASE_SECTIONS, { id: "admin" as SectionId, label: "Admin" }]
+    : BASE_SECTIONS;
 
   return (
     <div
@@ -499,6 +508,16 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
                   subtitle="MCP and REST endpoints for the agents you already use."
                 />
                 <ClaudeCodeTab />
+              </>
+            )}
+
+            {section === "admin" && isAdmin && (
+              <>
+                <SectionHeader
+                  title="Admin"
+                  subtitle="connection tests and diagnostics. only visible to you."
+                />
+                <AdminTab />
               </>
             )}
 
