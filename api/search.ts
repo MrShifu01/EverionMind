@@ -24,6 +24,7 @@ function _setCache(k: string, r: unknown) { _cache.set(k, { r, ts: Date.now() })
 
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
   applySecurityHeaders(res);
+  res.setHeader("Cache-Control", "private, max-age=60");
   if (req.method === "GET") return handleGraph(req, res);
   if (req.method === "POST") return handleSearch(req, res);
   return res.status(405).json({ error: "Method not allowed" });

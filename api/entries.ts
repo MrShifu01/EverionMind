@@ -69,6 +69,7 @@ async function handleGet(req: ApiRequest, res: ApiResponse): Promise<void> {
     const hasMore = rows.length > limit;
     const results = hasMore ? rows.slice(0, limit) : rows;
     const nextCursor = hasMore ? results[results.length - 1].created_at : null;
+    res.setHeader("Cache-Control", "private, max-age=300");
     return res.status(200).json({ entries: results, nextCursor, hasMore });
   }
 

@@ -22,6 +22,7 @@ const REL_PATTERN = /^[a-zA-Z0-9 _\-']{1,50}$/;
 // Dispatched via rewrite: /api/save-links → /api/capture?action=links
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
   applySecurityHeaders(res);
+  res.setHeader("Cache-Control", "no-store");
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   if (req.query.action === "links") return handleSaveLinks(req, res);

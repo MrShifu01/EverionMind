@@ -15,6 +15,7 @@ const SB_URL = process.env.SUPABASE_URL;
 
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
   applySecurityHeaders(res);
+  res.setHeader("Cache-Control", "private, max-age=3600");
   if (req.method !== "GET" && req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   if (!(await rateLimit(req, 30))) return res.status(429).json({ error: "Too many requests" });
 

@@ -25,6 +25,7 @@ const sbHdrs = () => ({ "Content-Type": "application/json", apikey: SB_KEY, Auth
 //   /api/extract-file → /api/llm?action=extract-file
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
   applySecurityHeaders(res);
+  res.setHeader("Cache-Control", "no-store");
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const action = (req.query.action as string) || "";
