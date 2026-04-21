@@ -8,6 +8,47 @@ interface OmniSearchProps {
   onNavigate: (view: string) => void;
 }
 
+const MOD = typeof navigator !== "undefined" && /Mac/.test(navigator.platform) ? "⌘" : "Ctrl";
+
+const COMMANDS: { label: string; view: string; kbd: string[] }[] = [
+  { label: "Remember something", view: "capture", kbd: ["N"] },
+  { label: "Go to chat", view: "chat", kbd: ["J"] },
+  { label: "Go to graph", view: "graph", kbd: ["G"] },
+  { label: "Open todos", view: "todos", kbd: ["T"] },
+];
+
+function Kbd({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      className="f-sans"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        minWidth: 18,
+        height: 18,
+        padding: "0 5px",
+        background: "var(--surface-low)",
+        border: "1px solid var(--line)",
+        borderRadius: 4,
+        fontSize: 11,
+        color: "var(--ink-faint)",
+        fontWeight: 500,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function Micro({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <div className="micro" style={style}>
+      {children}
+    </div>
+  );
+}
+
 export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearchProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -15,7 +56,6 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
   const [highlighted, setHighlighted] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Global Cmd+K / Ctrl+K shortcut
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -28,7 +68,6 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  // Focus input when opened
   useEffect(() => {
     if (open) {
       setQuery("");
@@ -49,7 +88,7 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
         .map((e) => ({ entry: e, score: scoreEntry(e, trimmed) }))
         .filter(({ score }) => score > 0);
       scored.sort((a, b) => b.score - a.score);
-      setResults(scored.slice(0, 12).map(({ entry }) => entry));
+      setResults(scored.slice(0, 8).map(({ entry }) => entry));
       setHighlighted(0);
     },
     [entries],
@@ -60,18 +99,28 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
     return () => clearTimeout(t);
   }, [query, runSearch]);
 
+  const filteredCommands = COMMANDS.filter(
+    (c) => !query.trim() || c.label.toLowerCase().includes(query.toLowerCase()),
+  );
+
   function handleKeyDown(e: React.KeyboardEvent) {
+    const total = results.length + filteredCommands.length;
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setHighlighted((h) => Math.min(h + 1, results.length - 1));
+      setHighlighted((h) => Math.min(h + 1, total - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setHighlighted((h) => Math.max(h - 1, 0));
     } else if (e.key === "Enter") {
-      const item = results[highlighted];
-      if (item) {
-        onSelect(item);
+      if (highlighted < results.length) {
+        onSelect(results[highlighted]);
         setOpen(false);
+      } else {
+        const cmd = filteredCommands[highlighted - results.length];
+        if (cmd) {
+          onNavigate(cmd.view);
+          setOpen(false);
+        }
       }
     }
   }
@@ -80,76 +129,100 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
     return (
       <button
         onClick={() => setOpen(true)}
-        aria-label="Search (⌘K)"
-        className="hidden items-center gap-2 rounded-xl border px-3 py-1.5 text-sm transition-colors lg:flex"
+        aria-label={`Search (${MOD}K)`}
+        className="hidden lg:flex press items-center gap-2"
         style={{
-          borderColor: "var(--color-outline-variant)",
-          color: "var(--color-on-surface-variant)",
-          background: "var(--color-surface-container-low)",
+          padding: "0 12px 0 14px",
+          height: 36,
+          minHeight: 36,
+          border: "1px solid var(--line-soft)",
+          borderRadius: 8,
+          background: "var(--surface)",
+          color: "var(--ink-faint)",
+          fontFamily: "var(--f-sans)",
+          fontSize: 13,
+          cursor: "pointer",
         }}
       >
         <svg
-          className="h-4 w-4"
+          width="14"
+          height="14"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
           viewBox="0 0 24 24"
+          aria-hidden="true"
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
-          />
+          <circle cx="11" cy="11" r="6.5" />
+          <path d="m20 20-3.5-3.5" />
         </svg>
-        <span>Search</span>
-        <kbd
-          className="ml-2 rounded px-1.5 py-0.5 text-[10px]"
-          style={{ background: "var(--color-surface-container-high)" }}
-        >
-          ⌘K
-        </kbd>
+        <span>search everything</span>
+        <span style={{ marginLeft: 6, display: "inline-flex", gap: 2 }}>
+          <Kbd>{MOD}</Kbd>
+          <Kbd>K</Kbd>
+        </span>
       </button>
     );
   }
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-start justify-center lg:pt-[10vh]"
+      className="fixed inset-0 z-[200] flex items-start justify-center"
       style={{
-        background: "var(--color-scrim)",
-        paddingTop: "max(0px, env(safe-area-inset-top))",
+        background: "var(--scrim)",
+        paddingTop: "12vh",
+        paddingLeft: 16,
+        paddingRight: 16,
       }}
       onClick={(e) => e.target === e.currentTarget && setOpen(false)}
     >
       <div
-        className="flex h-full w-full flex-col overflow-hidden border shadow-2xl lg:h-auto lg:max-w-xl lg:rounded-2xl"
-        style={{ background: "var(--color-surface)", borderColor: "var(--color-outline-variant)" }}
+        className="anim-scale-in-design"
+        style={{
+          width: 640,
+          maxWidth: "92vw",
+          background: "var(--surface-high)",
+          border: "1px solid var(--line)",
+          borderRadius: 18,
+          boxShadow: "var(--lift-3)",
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+        }}
       >
         {/* Search input */}
         <div
-          className="flex items-center gap-3 border-b px-4 py-4 lg:py-5"
-          style={{ borderColor: "var(--color-outline-variant)" }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: "18px 20px",
+            borderBottom: "1px solid var(--line-soft)",
+          }}
         >
           <svg
-            className="h-5 w-5 flex-shrink-0"
+            width="18"
+            height="18"
             fill="none"
             stroke="currentColor"
-            strokeWidth="2"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
             viewBox="0 0 24 24"
-            style={{ color: "var(--color-primary)" }}
+            style={{ color: "var(--ink-faint)", flexShrink: 0 }}
+            aria-hidden="true"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
-            />
+            <circle cx="11" cy="11" r="6.5" />
+            <path d="m20 20-3.5-3.5" />
           </svg>
           <input
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Search all memories…"
+            placeholder="search everything…"
             type="search"
             enterKeyHint="search"
             autoCapitalize="none"
@@ -160,38 +233,17 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
             aria-haspopup="listbox"
             aria-controls="omnisearch-listbox"
             aria-autocomplete="list"
-            aria-activedescendant={results.length > 0 ? `omnisearch-option-${highlighted}` : undefined}
-            className="flex-1 border-none bg-transparent text-base outline-none lg:text-sm"
-            style={{ color: "var(--color-on-surface)" }}
+            aria-activedescendant={
+              results.length > 0 ? `omnisearch-option-${highlighted}` : undefined
+            }
+            className="f-serif flex-1 border-none bg-transparent outline-none"
+            style={{
+              fontSize: 17,
+              fontStyle: query ? "normal" : "italic",
+              color: "var(--ink)",
+            }}
           />
-          <kbd
-            className="hidden rounded px-2 py-1 text-xs lg:inline-block"
-            style={{
-              background: "var(--color-surface-container-high)",
-              color: "var(--color-on-surface-variant)",
-            }}
-          >
-            Esc
-          </kbd>
-          <button
-            onClick={() => setOpen(false)}
-            aria-label="Close search"
-            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full transition-colors lg:hidden"
-            style={{
-              color: "var(--color-on-surface-variant)",
-              background: "var(--color-surface-container)",
-            }}
-          >
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <Kbd>esc</Kbd>
         </div>
 
         <div aria-live="polite" aria-atomic="true" className="sr-only">
@@ -202,92 +254,148 @@ export default function OmniSearch({ entries, onSelect, onNavigate }: OmniSearch
               : ""}
         </div>
 
-        {/* Results */}
-        {results.length > 0 ? (
-          <ul id="omnisearch-listbox" role="listbox" className="flex-1 overflow-y-auto py-2 lg:max-h-96 lg:flex-none">
-            {results.map((entry, i) => (
-              <li key={entry.id} id={`omnisearch-option-${i}`} role="option" aria-selected={i === highlighted}>
-                <button
-                  className="flex w-full items-start gap-3 px-4 py-2.5 text-left transition-colors"
-                  style={{
-                    background:
-                      i === highlighted ? "var(--color-surface-container)" : "transparent",
-                  }}
-                  onClick={() => {
-                    onSelect(entry);
-                    setOpen(false);
-                  }}
-                  onMouseEnter={() => setHighlighted(i)}
-                >
-                  <span
-                    className="mt-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase"
+        <div
+          className="scrollbar-hide"
+          style={{ maxHeight: 480, overflowY: "auto" }}
+        >
+          {/* Entries section */}
+          {results.length > 0 && (
+            <>
+              <Micro style={{ padding: "14px 20px 6px" }}>entries</Micro>
+              <ul id="omnisearch-listbox" role="listbox" style={{ margin: 0, padding: 0, listStyle: "none" }}>
+                {results.map((entry, i) => {
+                  const active = i === highlighted;
+                  return (
+                    <li
+                      key={entry.id}
+                      id={`omnisearch-option-${i}`}
+                      role="option"
+                      aria-selected={active}
+                    >
+                      <button
+                        className="press"
+                        style={{
+                          display: "flex",
+                          width: "100%",
+                          padding: "10px 20px",
+                          gap: 12,
+                          textAlign: "left",
+                          alignItems: "center",
+                          minHeight: 44,
+                          background: active ? "var(--surface)" : "transparent",
+                          border: "none",
+                          cursor: "pointer",
+                          transition: "background 120ms",
+                        }}
+                        onClick={() => {
+                          onSelect(entry);
+                          setOpen(false);
+                        }}
+                        onMouseEnter={() => setHighlighted(i)}
+                      >
+                        <span
+                          className="f-sans"
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 600,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.06em",
+                            color: "var(--ink-faint)",
+                            flexShrink: 0,
+                            minWidth: 56,
+                          }}
+                        >
+                          {entry.type || "note"}
+                        </span>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div
+                            className="f-serif truncate"
+                            style={{ fontSize: 15, fontWeight: 450, color: "var(--ink)" }}
+                          >
+                            {entry.title}
+                          </div>
+                          {entry.content && (
+                            <div
+                              className="f-serif truncate"
+                              style={{
+                                fontSize: 12,
+                                color: "var(--ink-faint)",
+                                fontStyle: "italic",
+                                marginTop: 2,
+                              }}
+                            >
+                              {entry.content.slice(0, 80)}
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+
+          {/* Commands section */}
+          {filteredCommands.length > 0 && (
+            <>
+              <Micro style={{ padding: "14px 20px 6px" }}>commands</Micro>
+              {filteredCommands.map((c, i) => {
+                const idx = results.length + i;
+                const active = idx === highlighted;
+                return (
+                  <button
+                    key={c.label}
+                    onClick={() => {
+                      onNavigate(c.view);
+                      setOpen(false);
+                    }}
+                    onMouseEnter={() => setHighlighted(idx)}
+                    className="press"
                     style={{
-                      background: "var(--color-primary-container)",
-                      color: "var(--color-primary)",
-                      flexShrink: 0,
+                      display: "flex",
+                      width: "100%",
+                      padding: "10px 20px",
+                      gap: 12,
+                      textAlign: "left",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      minHeight: 40,
+                      background: active ? "var(--surface)" : "transparent",
+                      border: "none",
+                      cursor: "pointer",
                     }}
                   >
-                    {entry.type || "note"}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-on-surface truncate text-sm font-medium">{entry.title}</p>
-                    {entry.content && (
-                      <p
-                        className="mt-0.5 truncate text-xs"
-                        style={{ color: "var(--color-on-surface-variant)" }}
-                      >
-                        {entry.content.slice(0, 80)}
-                      </p>
-                    )}
-                  </div>
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : query.trim() ? (
-          <div
-            className="flex-1 px-4 py-8 text-center text-sm lg:flex-none"
-            style={{ color: "var(--color-on-surface-variant)" }}
-          >
-            No results for "{query}"
-          </div>
-        ) : (
-          <div className="flex-1 px-4 py-6 lg:flex-none">
-            <p
-              className="mb-3 text-xs font-semibold uppercase"
-              style={{ color: "var(--color-on-surface-variant)" }}
-            >
-              Quick Nav
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {["grid", "todos", "chat"].map((view) => (
-                <button
-                  key={view}
-                  className="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
-                  style={{
-                    borderColor: "var(--color-outline-variant)",
-                    color: "var(--color-on-surface-variant)",
-                  }}
-                  onClick={() => {
-                    onNavigate(view);
-                    setOpen(false);
-                  }}
-                >
-                  {view.charAt(0).toUpperCase() + view.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+                    <span className="f-sans" style={{ fontSize: 14, color: "var(--ink)" }}>
+                      {c.label}
+                    </span>
+                    <span style={{ display: "inline-flex", gap: 2 }}>
+                      <Kbd>{MOD}</Kbd>
+                      {c.kbd.map((k) => (
+                        <Kbd key={k}>{k}</Kbd>
+                      ))}
+                    </span>
+                  </button>
+                );
+              })}
+            </>
+          )}
 
-        <div
-          className="hidden border-t px-4 py-2 text-xs lg:block"
-          style={{
-            borderColor: "var(--color-outline-variant)",
-            color: "var(--color-on-surface-variant)",
-          }}
-        >
-          ↑↓ navigate · Enter open · Esc close
+          {/* Empty state */}
+          {query.trim() && results.length + filteredCommands.length === 0 && (
+            <div
+              className="f-serif"
+              style={{
+                padding: 32,
+                textAlign: "center",
+                fontSize: 15,
+                color: "var(--ink-faint)",
+                fontStyle: "italic",
+              }}
+            >
+              nothing here yet. try a looser word.
+            </div>
+          )}
         </div>
       </div>
     </div>

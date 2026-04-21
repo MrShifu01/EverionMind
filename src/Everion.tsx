@@ -254,9 +254,66 @@ function EverionContent({
 
           <OmniSearch entries={entries} onSelect={setSelected} onNavigate={appShell.setView} />
 
-          <div key={appShell.view} className="animate-view-enter mx-auto max-w-6xl px-4 sm:px-6 lg:pb-8 pt-4 pb-32">
+          <div key={appShell.view} className="animate-view-enter">
             {appShell.view === "memory" && (
-              <div className="space-y-3">
+              <>
+                {/* Memory top bar — serif title, subtitle, Remember primary */}
+                <header
+                  className="hidden lg:flex"
+                  style={{
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "18px 32px",
+                    borderBottom: "1px solid var(--line-soft)",
+                    minHeight: 68,
+                    background: "var(--bg)",
+                    gap: 20,
+                  }}
+                >
+                  <div>
+                    <h1
+                      className="f-serif"
+                      style={{
+                        fontSize: 22,
+                        fontWeight: 450,
+                        letterSpacing: "-0.01em",
+                        margin: 0,
+                        color: "var(--ink)",
+                      }}
+                    >
+                      Memory
+                    </h1>
+                    <div
+                      className="f-serif"
+                      style={{
+                        fontSize: 13,
+                        color: "var(--ink-faint)",
+                        fontStyle: "italic",
+                        marginTop: 2,
+                      }}
+                    >
+                      {entriesLoaded && entries.length > 0
+                        ? `${entries.length} entries`
+                        : "everything you've written down."}
+                    </div>
+                  </div>
+                  <button
+                    className="design-btn-primary press"
+                    onClick={() => appShell.setShowCapture(true)}
+                  >
+                    <svg
+                      width="14" height="14"
+                      fill="none" stroke="currentColor" strokeWidth="1.5"
+                      strokeLinecap="round" strokeLinejoin="round"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path d="M5 19c3-9 8-14 14-14-1 6-4 12-12 14M8 12l4 4"/>
+                    </svg>
+                    Remember
+                  </button>
+                </header>
+                <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:pb-8 pt-4 pb-32 space-y-3">
                 <div
                   className="flex items-center gap-3 px-4"
                   style={{
@@ -415,7 +472,8 @@ function EverionContent({
                     </button>
                   </div>
                 )}
-              </div>
+                </div>
+              </>
             )}
 
             {appShell.view === "chat" && (
@@ -429,11 +487,13 @@ function EverionContent({
               </Suspense>
             )}
             {appShell.view === "timeline" && (
-              <VirtualTimeline
-                sorted={sortedTimeline}
-                setSelected={setSelected}
-                typeIcons={appShell.typeIcons}
-              />
+              <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:pb-8 pt-4 pb-32">
+                <VirtualTimeline
+                  sorted={sortedTimeline}
+                  setSelected={setSelected}
+                  typeIcons={appShell.typeIcons}
+                />
+              </div>
             )}
             {appShell.view === "vault" && (
               <Suspense fallback={<Loader />}>
@@ -448,8 +508,9 @@ function EverionContent({
               </Suspense>
             )}
             {appShell.view === "settings" && <SettingsView onNavigate={appShell.setView} />}
-            {appShell.view === "capture" &&
-              (() => {
+            {appShell.view === "capture" && (
+              <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:pb-8 pt-4 pb-32">
+                {(() => {
                 if (!entriesLoaded)
                   return (
                     <div className="space-y-6">
@@ -523,57 +584,56 @@ function EverionContent({
                   { id: "memory", label: "Memory Grid", icon: NavIcon.grid },
                 ] as { id: string; label: string; icon: ReactNode }[];
                 return (
-                  <div className="space-y-6">
+                  <div className="space-y-8">
                     {/* Welcome */}
-                    <div
-                      className="rounded-3xl border px-5 py-4"
-                      style={{
-                        background:
-                          "color-mix(in oklch, var(--color-primary) 8%, var(--color-surface))",
-                        borderColor: "color-mix(in oklch, var(--color-primary) 18%, transparent)",
-                      }}
-                    >
-                      <p
-                        className="text-base font-bold"
-                        style={{ color: "var(--color-on-surface)" }}
+                    <div>
+                      <h2
+                        className="f-serif"
+                        style={{
+                          fontSize: 32, fontWeight: 400, letterSpacing: "-0.015em",
+                          color: "var(--ink)", margin: 0, lineHeight: 1.15,
+                        }}
                       >
-                        👋 Welcome back
-                      </p>
+                        welcome back.
+                      </h2>
                       <p
-                        className="mt-0.5 text-sm"
-                        style={{ color: "var(--color-on-surface-variant)" }}
+                        className="f-serif"
+                        style={{
+                          fontSize: 15, fontStyle: "italic",
+                          color: "var(--ink-faint)", margin: "6px 0 0",
+                        }}
                       >
-                        {activeBrain?.name ?? "Your brain"} is active · {entries.length}{" "}
-                        {entries.length === 1 ? "memory" : "memories"}
+                        {activeBrain?.name ?? "your brain"} · {entries.length}{" "}
+                        {entries.length === 1 ? "entry" : "entries"}
                       </p>
                     </div>
 
-                    {/* Quick actions grid */}
+                    {/* Quick actions */}
                     <div>
-                      <p
-                        className="mb-3 text-xs font-semibold tracking-widest uppercase"
-                        style={{ color: "var(--color-on-surface-variant)" }}
-                      >
-                        Quick Nav
-                      </p>
+                      <div className="micro" style={{ marginBottom: 12 }}>Quick nav</div>
                       <div className="grid grid-cols-2 gap-3">
                         {quickActions.map((v) => (
                           <button
                             key={v.id}
                             onClick={() => appShell.setView(v.id)}
-                            className="press-scale flex flex-col items-start gap-3 rounded-2xl border p-4 text-left transition-all"
+                            className="press design-card"
                             style={{
-                              background: "var(--color-surface-container-low)",
-                              borderColor: "var(--color-outline-variant)",
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "flex-start",
+                              gap: 10,
+                              padding: 16,
+                              textAlign: "left",
+                              cursor: "pointer",
                             }}
                           >
-                            <div style={{ color: "var(--color-primary)" }}>{v.icon}</div>
-                            <div
-                              className="text-sm font-bold"
-                              style={{ color: "var(--color-on-surface)" }}
+                            <span style={{ color: "var(--ink-faint)" }}>{v.icon}</span>
+                            <span
+                              className="f-serif"
+                              style={{ fontSize: 16, fontWeight: 450, color: "var(--ink)" }}
                             >
                               {v.label}
-                            </div>
+                            </span>
                           </button>
                         ))}
                       </div>
@@ -582,41 +642,42 @@ function EverionContent({
                     {/* Recent activity */}
                     {recentEntries.length > 0 && (
                       <div>
-                        <p
-                          className="mb-3 text-xs font-semibold tracking-widest uppercase"
-                          style={{ color: "var(--color-on-surface-variant)" }}
-                        >
-                          Recent Activity
-                        </p>
-                        <div
-                          className="overflow-hidden rounded-2xl border"
-                          style={{
-                            borderColor: "var(--color-outline-variant)",
-                            background: "var(--color-surface-container-low)",
-                          }}
-                        >
-                          {recentEntries.map((entry, i) => (
+                        <div className="micro" style={{ marginBottom: 12 }}>Recent</div>
+                        <div style={{ display: "grid", gap: 8 }}>
+                          {recentEntries.map((entry) => (
                             <button
                               key={entry.id}
                               onClick={() => setSelected(entry)}
-                              className="press-scale flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:brightness-95"
+                              className="press design-card"
                               style={{
-                                borderTop:
-                                  i > 0 ? `1px solid var(--color-outline-variant)` : undefined,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 12,
+                                padding: "12px 16px",
+                                textAlign: "left",
+                                cursor: "pointer",
                               }}
                             >
-                              <span className="text-base leading-none">
+                              <span style={{ fontSize: 14 }} aria-hidden="true">
                                 {appShell.typeIcons[entry.type] ?? "📝"}
                               </span>
                               <span
-                                className="flex-1 truncate text-sm font-medium"
-                                style={{ color: "var(--color-on-surface)" }}
+                                className="f-serif truncate flex-1"
+                                style={{
+                                  fontSize: 15, fontWeight: 450, color: "var(--ink)",
+                                }}
                               >
                                 {entry.title}
                               </span>
                               <span
-                                className="flex-shrink-0 text-xs capitalize"
-                                style={{ color: "var(--color-on-surface-variant)" }}
+                                className="f-sans"
+                                style={{
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.06em",
+                                  color: "var(--ink-faint)",
+                                }}
                               >
                                 {entry.type}
                               </span>
@@ -628,6 +689,8 @@ function EverionContent({
                   </div>
                 );
               })()}
+              </div>
+            )}
           </div>
 
           <Suspense fallback={null}>

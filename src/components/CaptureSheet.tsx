@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { useCaptureSheetParse } from "../hooks/useCaptureSheetParse";
 import { useBrain as useBrainCtx } from "../context/BrainContext";
 import { CANONICAL_TYPES } from "../types";
-import type { Brain, Entry } from "../types";
+import type { Entry } from "../types";
 
 interface CaptureSheetProps {
   isOpen: boolean;
@@ -14,9 +14,152 @@ interface CaptureSheetProps {
   isOnline?: boolean;
   initialText?: string;
   onBackgroundFiles?: (files: File[]) => void;
-  onBackgroundSave?: (entry: { title: string; content: string; type: string; tags: string[]; metadata: Record<string, any>; rawContent?: string }) => void;
+  onBackgroundSave?: (entry: {
+    title: string;
+    content: string;
+    type: string;
+    tags: string[];
+    metadata: Record<string, any>;
+    rawContent?: string;
+  }) => void;
   onNavigate?: (id: string) => void;
 }
+
+// Line-art icons for the capture sheet.
+const IconMic = ({ on = false }: { on?: boolean }) =>
+  on ? (
+    <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="6" y="6" width="12" height="12" rx="2" />
+    </svg>
+  ) : (
+    <svg
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <rect x="9" y="3" width="6" height="12" rx="3" />
+      <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+    </svg>
+  );
+
+const IconAttach = (
+  <svg
+    width="18"
+    height="18"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+  >
+    <path d="M21 11.5 12 20.5a5 5 0 0 1-7-7l9-9a3.5 3.5 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8-8" />
+  </svg>
+);
+
+const IconVault = (
+  <svg
+    width="18"
+    height="18"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+  >
+    <rect x="4" y="10" width="16" height="10" rx="2" />
+    <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+  </svg>
+);
+
+const IconSend = (
+  <svg
+    width="14"
+    height="14"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+  >
+    <path d="M4 12 20 4l-7 16-2-7-7-1z" />
+  </svg>
+);
+
+const IconX = (
+  <svg
+    width="14"
+    height="14"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+  >
+    <path d="M6 6l12 12M18 6L6 18" />
+  </svg>
+);
+
+const IconCamera = (
+  <svg
+    width="18"
+    height="18"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+  >
+    <path d="M4 8h3l1-2h8l1 2h3v12H4z" />
+    <circle cx="12" cy="13" r="4" />
+  </svg>
+);
+
+const IconArrowLeft = (
+  <svg
+    width="14"
+    height="14"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+  >
+    <path d="M15 6l-6 6 6 6M4 12h16" />
+  </svg>
+);
+
+const TYPE_LABEL: Record<string, string> = {
+  note: "note",
+  link: "link",
+  reminder: "reminder",
+  idea: "idea",
+  contact: "contact",
+  person: "contact",
+  file: "file",
+  document: "file",
+};
+
+const SHEET_TYPE_CHIPS = ["note", "link", "reminder", "idea", "contact", "file"];
+
+const MOD = typeof navigator !== "undefined" && /Mac/.test(navigator.platform) ? "⌘" : "Ctrl";
 
 export default function CaptureSheet({
   isOpen,
@@ -26,7 +169,7 @@ export default function CaptureSheet({
   cryptoKey,
   isOnline = true,
   initialText,
-  onBackgroundFiles,
+  onBackgroundFiles: _onBackgroundFiles,
   onBackgroundSave,
   onNavigate,
 }: CaptureSheetProps) {
@@ -36,13 +179,9 @@ export default function CaptureSheet({
   const [secretContent, setSecretContent] = useState("");
   const [secretSaving, setSecretSaving] = useState(false);
   const [secretError, setSecretError] = useState("");
-  const [brainPickerOpen, setBrainPickerOpen] = useState(false);
 
-  const brainCtx = useBrainCtx() ?? {};
-  const ctxBrains: Brain[] = brainCtx.brains ?? [];
-  const ctxActiveBrain: Brain | null = brainCtx.activeBrain ?? null;
-  const setActiveBrain: ((b: Brain) => void) | undefined = brainCtx.setActiveBrain;
-  const brainPickerRef = useRef<HTMLDivElement>(null);
+  useBrainCtx(); // keep context subscription warm for offline/online syncs
+  const [showSavedWhisper, setShowSavedWhisper] = useState(false);
 
   // Drag-to-close + entrance animation
   const [dragY, setDragY] = useState(0);
@@ -73,7 +212,6 @@ export default function CaptureSheet({
     handleDocFiles,
   } = useCaptureSheetParse({ brainId, isOnline, cryptoKey, onCreated, onClose, onBackgroundSave });
 
-  // Voice
   const { listening, startVoice, resetListening } = useVoiceRecorder({
     onTranscript: (t) => setText((prev) => (prev ? `${prev} ${t}` : t)),
     onStatus: setStatus,
@@ -93,10 +231,15 @@ export default function CaptureSheet({
   const docRef = useRef<HTMLInputElement>(null);
   const typeRef = useRef<HTMLDivElement>(null);
 
-  function handleSecretTab() {
-    setActiveTab("secret");
-    requestAnimationFrame(() => secretTitleRef.current?.focus());
-  }
+  // Infer the likely type from the current text for the chip row highlight.
+  const inferredType = useMemo(() => {
+    const t = text;
+    if (/https?:\/\/|\.com|\.co\/|aeon|substack/i.test(t)) return "link";
+    if (/remind|tomorrow|call|email|text|pick up|don.t forget/i.test(t)) return "reminder";
+    if (/idea|what if|maybe|concept|story about/i.test(t)) return "idea";
+    if (/\+\d|@\w/.test(t)) return "contact";
+    return "note";
+  }, [text]);
 
   useEffect(() => {
     if (!typeOpen) return;
@@ -108,30 +251,12 @@ export default function CaptureSheet({
   }, [typeOpen]);
 
   useEffect(() => {
-    if (!brainPickerOpen) return;
-    function handleClick(e: MouseEvent) {
-      if (brainPickerRef.current && !brainPickerRef.current.contains(e.target as Node)) {
-        setBrainPickerOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [brainPickerOpen]);
-
-  // Close brain picker when the sheet closes
-  useEffect(() => {
-    if (!isOpen) setBrainPickerOpen(false);
-  }, [isOpen]);
-
-  useEffect(() => {
     if (isOpen) {
       if (initialText) setText(initialText);
-      // Lock body scroll on iOS (overflow:hidden is ignored; position:fixed is required)
       const scrollY = window.scrollY;
       document.body.style.position = "fixed";
       document.body.style.top = `-${scrollY}px`;
       document.body.style.width = "100%";
-      // One RAF gives browser a frame to paint translateY(100%) before transitioning to 0
       requestAnimationFrame(() => {
         setVisible(true);
         requestAnimationFrame(() => textareaRef.current?.focus());
@@ -159,7 +284,6 @@ export default function CaptureSheet({
     if (preview) requestAnimationFrame(() => titleInputRef.current?.focus());
   }, [preview]);
 
-  // Drag-to-close via handle only — non-passive to block pull-to-refresh
   useEffect(() => {
     const handle = handleRef.current;
     if (!handle || !isOpen) return;
@@ -177,7 +301,6 @@ export default function CaptureSheet({
     const onEnd = () => {
       setDragY((prev) => {
         if (prev > 80) {
-          // animate out fully before calling onClose
           setVisible(false);
           setTimeout(onClose, 280);
         }
@@ -233,24 +356,58 @@ export default function CaptureSheet({
     return () => document.removeEventListener("keydown", handler);
   }, [isOpen, onClose, preview]);
 
-  // Keep mounted so CSS transition plays; hide from a11y when closed
+  // Flash a serif italic "saved." for 900ms after a successful save.
+  useEffect(() => {
+    if (status === "saved") {
+      setShowSavedWhisper(true);
+      const t = setTimeout(() => setShowSavedWhisper(false), 900);
+      return () => clearTimeout(t);
+    }
+  }, [status]);
+
   if (!isOpen && !visible) return null;
 
   const statusLabel: Record<string, string> = {
-    thinking: "Reading your entry…",
-    saving: "Saving…",
-    saved: "Saved!",
-    reading: "Reading image…",
-    transcribing: "Transcribing…",
-    splitting: "Splitting document into entries…",
+    thinking: "reading your entry…",
+    saving: "saving…",
+    saved: "saved.",
+    reading: "reading image…",
+    transcribing: "transcribing…",
+    splitting: "splitting document into entries…",
+  };
+
+  // ── render ────────────────────────────────────────────────────────────────
+  const canSave =
+    activeTab === "entry"
+      ? text.trim().length > 0 || uploadedFiles.length > 0
+      : secretTitle.trim().length > 0 && secretContent.trim().length > 0;
+
+  const handleSave = () => {
+    if (activeTab === "entry") capture(text, () => setText(""));
+  };
+
+  const toggleVault = () => {
+    // Flip between regular entry mode and secret/vault mode.
+    if (activeTab === "entry") {
+      if (!cryptoKey) {
+        if (onNavigate) onNavigate("vault");
+        return;
+      }
+      setActiveTab("secret");
+      requestAnimationFrame(() => secretTitleRef.current?.focus());
+    } else {
+      setActiveTab("entry");
+      requestAnimationFrame(() => textareaRef.current?.focus());
+    }
   };
 
   return (
     <>
+      {/* Scrim */}
       <div
         className="fixed inset-0 z-50"
         style={{
-          background: "var(--color-scrim)",
+          background: "var(--scrim)",
           opacity: visible ? Math.max(0, 1 - dragY / 350) : 0,
           transition: dragY > 0 ? "none" : "opacity 0.32s ease",
         }}
@@ -258,665 +415,152 @@ export default function CaptureSheet({
         aria-hidden="true"
       />
 
+      {/* Hidden file inputs */}
+      <input
+        ref={imgRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (!f) return;
+          handleImageFile(f);
+        }}
+      />
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (!f) return;
+          handleImageFile(f);
+        }}
+      />
+      <input
+        ref={docRef}
+        type="file"
+        accept="image/*,.pdf,.docx,.xlsx,.xls,.txt,.md,.csv,.json"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? []);
+          e.target.value = "";
+          if (!files.length) return;
+          handleDocFiles(files).catch((err) => console.error("[docInput]", err));
+        }}
+      />
+
+      {/* Sheet container */}
       <div
         ref={sheetRef}
         role="dialog"
         aria-modal="true"
-        aria-label={preview ? "Confirm entry" : "New entry"}
-        className="fixed right-0 bottom-0 left-0 z-50 rounded-t-3xl border-t px-5 pt-3 lg:right-auto lg:bottom-6 lg:left-1/2 lg:w-full lg:max-w-lg lg:-translate-x-1/2 lg:rounded-3xl"
+        aria-label={preview ? "Confirm entry" : "Remember something"}
+        className="fixed z-50 right-0 bottom-0 left-0 lg:right-auto lg:left-1/2 lg:-translate-x-1/2 lg:bottom-12"
         style={{
-          background: "var(--color-surface-container-low)",
-          borderColor: "var(--color-outline-variant)",
-          boxShadow: "var(--shadow-lg)",
+          background: "var(--surface-high)",
+          border: "1px solid var(--line)",
+          borderTopLeftRadius: 28,
+          borderTopRightRadius: 28,
+          borderBottomLeftRadius: 0,
+          borderBottomRightRadius: 0,
+          boxShadow: "var(--lift-3)",
           transform:
             dragY > 0 ? `translateY(${dragY}px)` : visible ? "translateY(0)" : "translateY(100%)",
           transition: dragY > 0 ? "none" : "transform 0.35s cubic-bezier(0.32, 0.72, 0, 1)",
-          paddingBottom: "calc(env(safe-area-inset-bottom) + 110px)",
+          maxHeight: "85vh",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          width: "100%",
+          ...(typeof window !== "undefined" && window.innerWidth >= 1024
+            ? { width: 720, maxWidth: "96vw", borderRadius: 28 }
+            : {}),
         }}
       >
         <div aria-live="polite" aria-atomic="true" className="sr-only">
-          {loading ? "Processing your entry…" : (status ?? "")}
+          {loading ? "Processing your entry…" : status ?? ""}
         </div>
 
-        {/* Hidden file inputs */}
-        <input
-          ref={imgRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            e.target.value = "";
-            if (!f) return;
-            handleImageFile(f);
-          }}
-        />
-        <input
-          ref={cameraRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            e.target.value = "";
-            if (!f) return;
-            handleImageFile(f);
-          }}
-        />
-        <input
-          ref={docRef}
-          type="file"
-          accept="image/*,.pdf,.docx,.xlsx,.xls,.txt,.md,.csv,.json"
-          multiple
-          className="hidden"
-          onChange={(e) => {
-            const files = Array.from(e.target.files ?? []);
-            e.target.value = "";
-            if (!files.length) return;
-            handleDocFiles(files).catch((err) => console.error("[docInput]", err));
-          }}
-        />
-
+        {/* Drag handle (mobile) */}
         <div
           ref={handleRef}
-          className="-mx-5 flex cursor-grab touch-none items-center justify-center px-5 pb-3 active:cursor-grabbing lg:hidden"
-          style={{ height: 28 }}
+          className="touch-none lg:hidden"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            paddingTop: 10,
+            paddingBottom: 6,
+            cursor: "grab",
+          }}
         >
-          <div className="h-1 w-10 rounded-full" style={{ background: "var(--color-outline)" }} />
-        </div>
-
-        <div className="mb-4 flex items-center justify-between">
-          {preview ? (
-            <h2
-              className="f-serif"
-              style={{ fontSize: 20, fontWeight: 450, letterSpacing: "-0.005em", color: "var(--ink)" }}
-            >
-              before saving
-            </h2>
-          ) : (
-            <div
-              className="flex flex-1 overflow-hidden rounded-xl border lg:mr-3"
-              style={{ borderColor: "var(--color-outline-variant)" }}
-            >
-              <button
-                type="button"
-                onClick={() => setActiveTab("entry")}
-                className="flex-1 py-2 text-sm font-medium transition-colors"
-                style={{
-                  background: activeTab === "entry" ? "var(--color-primary)" : "transparent",
-                  color:
-                    activeTab === "entry"
-                      ? "var(--color-on-primary)"
-                      : "var(--color-on-surface-variant)",
-                }}
-              >
-                New Entry
-              </button>
-              {cryptoKey && (
-              <button
-                type="button"
-                onClick={handleSecretTab}
-                className="flex flex-1 items-center justify-center gap-1.5 py-2 text-sm font-medium transition-colors"
-                style={{
-                  background: activeTab === "secret" ? "var(--color-primary)" : "transparent",
-                  color:
-                    activeTab === "secret"
-                      ? "var(--color-on-primary)"
-                      : "var(--color-on-surface-variant)",
-                }}
-              >
-                <svg
-                  className="h-3.5 w-3.5 shrink-0"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
-                  />
-                </svg>
-                Add Secret
-              </button>
-              )}
-            </div>
-          )}
-          <button
-            onClick={() => {
-              if (preview) {
-                setPreview(null);
-                setText(preview._raw || "");
-              } else onClose();
+          <div
+            style={{
+              width: 36,
+              height: 4,
+              borderRadius: 2,
+              background: "var(--line)",
             }}
-            aria-label={preview ? "Back to capture" : "Close"}
-            className={`text-on-surface-variant hover:text-on-surface h-11 w-11 shrink-0 items-center justify-center rounded-lg transition-colors ${preview ? "flex" : "hidden lg:flex"}`}
-          >
-            {preview ? (
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
-                />
-              </svg>
-            ) : (
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            )}
-          </button>
+          />
         </div>
 
-        {/* Brain destination confirmation — hidden for MVP (single personal brain) */}
-        {false && !preview && ctxActiveBrain && (
-          <div ref={brainPickerRef} className="relative mb-3">
-            <button
-              type="button"
-              onClick={() => setBrainPickerOpen((o) => !o)}
-              className="press-scale flex w-full items-center gap-2 rounded-xl border px-3 py-2 transition-colors"
-              style={{
-                background: "var(--color-surface-container)",
-                borderColor: "var(--color-outline-variant)",
-              }}
-            >
-              <span
-                className="text-[11px] font-semibold tracking-[0.15em] uppercase"
-                style={{ color: "var(--color-on-surface-variant)" }}
+        {/* Body */}
+        {preview ? (
+          // ── PREVIEW PHASE ──
+          <div
+            style={{
+              padding: "20px 24px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 14,
+              overflowY: "auto",
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <h2
+                className="f-serif"
+                style={{ fontSize: 20, fontWeight: 450, color: "var(--ink)", margin: 0 }}
               >
-                Saving to
-              </span>
-              <div
-                className="text-on-surface-variant flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg"
-                style={{ background: "var(--color-surface-container-high)" }}
+                before saving
+              </h2>
+              <button
+                className="design-btn-ghost press"
+                onClick={() => {
+                  setPreview(null);
+                  setText(preview._raw || "");
+                }}
+                aria-label="Back"
+                style={{ width: 32, height: 32, minHeight: 32, padding: 0 }}
               >
-                <BrainTypeIcon className="h-3.5 w-3.5" />
-              </div>
-              <span className="text-on-surface flex-1 truncate text-left text-sm font-semibold">
-                {ctxActiveBrain.name}
-              </span>
-              {ctxBrains.length > 1 && (
-                <svg
-                  className={`text-on-surface-variant h-3.5 w-3.5 flex-shrink-0 transition-transform ${brainPickerOpen ? "rotate-180" : ""}`}
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M19.5 8.25l-7.5 7.5-7.5-7.5"
-                  />
-                </svg>
-              )}
-            </button>
-            {brainPickerOpen && ctxBrains.length > 1 && (
-              <div
-                className="absolute top-full right-0 left-0 z-50 mt-1.5 overflow-hidden rounded-xl border py-1"
+                {IconArrowLeft}
+              </button>
+            </div>
+
+            {errorDetail && (
+              <p
                 style={{
-                  background: "var(--color-surface)",
-                  borderColor: "var(--color-outline-variant)",
-                  boxShadow: "var(--shadow-lg)",
-                  animation: "zoom-in-95 0.15s ease-out",
+                  fontFamily: "var(--f-mono)",
+                  fontSize: 12,
+                  color: "var(--blood)",
+                  wordBreak: "break-all",
+                  margin: 0,
                 }}
               >
-                {ctxBrains.map((b) => (
-                  <button
-                    key={b.id}
-                    type="button"
-                    onClick={() => {
-                      if (setActiveBrain && b.id !== ctxActiveBrain.id) setActiveBrain(b);
-                      setBrainPickerOpen(false);
-                    }}
-                    className="hover:bg-surface-container flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors"
-                  >
-                    <span className="text-on-surface-variant flex-shrink-0">
-                      <BrainTypeIcon className="h-4 w-4" />
-                    </span>
-                    <span className="text-on-surface flex-1 truncate text-sm font-medium">
-                      {b.name}
-                    </span>
-                    {b.id === ctxActiveBrain.id && (
-                      <svg
-                        className="text-primary h-3.5 w-3.5 flex-shrink-0"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M4.5 12.75l6 6 9-13.5"
-                        />
-                      </svg>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Add Secret tab ── */}
-        {!preview && activeTab === "secret" && (
-          <div className="space-y-3">
-            {!cryptoKey ? (
-              <div className="flex flex-col items-center gap-3 py-6 text-center">
-                <div
-                  className="flex h-14 w-14 items-center justify-center rounded-2xl text-3xl"
-                  style={{
-                    background: "color-mix(in oklch, var(--color-outline) 15%, transparent)",
-                  }}
-                >
-                  🔒
-                </div>
-                <div>
-                  <p className="text-sm font-medium" style={{ color: "var(--color-on-surface)" }}>
-                    Vault is locked
-                  </p>
-                  <p className="mt-1 text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-                    Go to the Vault tab and unlock with your passphrase, then come back to add a
-                    secret.
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    if (onNavigate) onNavigate("vault");
-                    else onClose();
-                  }}
-                  className="mt-1 rounded-xl px-5 py-2 text-sm font-semibold transition-opacity hover:opacity-90"
-                  style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
-                >
-                  Go to Vault
-                </button>
-              </div>
-            ) : (
-              <>
-                <div
-                  className="flex items-center gap-2 rounded-xl px-3 py-2"
-                  style={{
-                    background: "color-mix(in oklch, var(--color-primary) 8%, transparent)",
-                  }}
-                >
-                  <svg
-                    className="h-4 w-4 shrink-0"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    viewBox="0 0 24 24"
-                    style={{ color: "var(--color-primary)" }}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
-                    />
-                  </svg>
-                  <p className="text-xs" style={{ color: "var(--color-primary)" }}>
-                    AI never reads this. Encrypted on your device before saving.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="text-on-surface-variant mb-1.5 block text-xs font-medium">
-                    Label
-                  </label>
-                  <input
-                    ref={secretTitleRef}
-                    value={secretTitle}
-                    onChange={(e) => setSecretTitle(e.target.value)}
-                    placeholder="e.g. Netflix Password, Visa Card, SSH Key…"
-                    className="text-on-surface placeholder:text-on-surface-variant/40 w-full rounded-xl border bg-transparent px-3 py-2.5 text-sm transition-colors outline-none"
-                    style={{ borderColor: "var(--color-outline-variant)" }}
-                  />
-                </div>
-
-                <div>
-                  <label className="text-on-surface-variant mb-1.5 block text-xs font-medium">
-                    Secret
-                  </label>
-                  <textarea
-                    value={secretContent}
-                    onChange={(e) => setSecretContent(e.target.value)}
-                    placeholder="Paste or type your password, PIN, key, card details…"
-                    rows={5}
-                    className="text-on-surface placeholder:text-on-surface-variant/40 w-full resize-none rounded-xl border bg-transparent px-3 py-2.5 text-sm leading-relaxed transition-colors outline-none"
-                    style={{ borderColor: "var(--color-outline-variant)" }}
-                  />
-                </div>
-
-                {secretError && (
-                  <p
-                    className="font-mono text-xs break-all"
-                    style={{ color: "var(--color-error)" }}
-                  >
-                    {secretError}
-                  </p>
-                )}
-
-                <div
-                  className="flex gap-3 border-t pt-3"
-                  style={{ borderColor: "var(--color-outline-variant)" }}
-                >
-                  <button
-                    onClick={onClose}
-                    className="text-on-surface-variant press-scale flex-1 rounded-xl border py-2.5 text-sm transition-colors"
-                    style={{ borderColor: "var(--color-outline-variant)" }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    disabled={!secretTitle.trim() || !secretContent.trim() || secretSaving}
-                    onClick={async () => {
-                      if (!secretTitle.trim() || !secretContent.trim()) return;
-                      setSecretSaving(true);
-                      setSecretError("");
-                      await doSave({
-                        title: secretTitle.trim(),
-                        content: secretContent,
-                        type: "secret",
-                        tags: [],
-                        metadata: {},
-                      });
-                      setSecretSaving(false);
-                      // If doSave set an error, it's in errorDetail
-                      if (errorDetail) setSecretError(errorDetail);
-                      else {
-                        setSecretTitle("");
-                        setSecretContent("");
-                      }
-                    }}
-                    className="press-scale flex-[2] rounded-xl py-2.5 text-sm font-bold transition-colors disabled:opacity-40"
-                    style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
-                  >
-                    {secretSaving ? (
-                      <span className="flex justify-center gap-1">
-                        <span className="typing-dot" />
-                        <span className="typing-dot" />
-                        <span className="typing-dot" />
-                      </span>
-                    ) : (
-                      "Save to Vault"
-                    )}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {!preview && activeTab === "entry" && (
-          <>
-            <textarea
-              ref={textareaRef}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") capture(text, () => setText(""));
-              }}
-              disabled={loading}
-              placeholder={
-                listening
-                  ? "Listening… tap stop when done"
-                  : uploadedFiles.length > 0
-                    ? "Optional: describe what this is or how to structure it…"
-                    : "Capture a thought, paste a link, log anything…"
-              }
-              rows={7}
-              className="text-on-surface placeholder:text-on-surface-variant/40 w-full resize-none bg-transparent text-base leading-relaxed outline-none"
-            />
-
-            {/* Uploaded file chips */}
-            {uploadedFiles.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {uploadedFiles.map((f) => (
-                  <span
-                    key={f.name}
-                    className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium"
-                    style={{
-                      borderColor: "var(--color-outline-variant)",
-                      color: "var(--color-on-surface-variant)",
-                      background: "var(--color-surface-container)",
-                    }}
-                  >
-                    <svg
-                      className="h-3 w-3 shrink-0"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
-                      />
-                    </svg>
-                    <span className="max-w-[140px] truncate">{f.name}</span>
-                    <button
-                      onClick={() => removeUploadedFile(f.name)}
-                      className="hover:text-on-surface ml-0.5 transition-colors"
-                      aria-label={`Remove ${f.name}`}
-                    >
-                      <svg
-                        className="h-3 w-3"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Status / error */}
-            {(status || errorDetail) && (
-              <div className="mt-1 mb-2">
-                {status && status !== "error" && (
-                  <p
-                    className="text-xs"
-                    style={{
-                      color:
-                        status === "saved"
-                          ? "var(--color-primary)"
-                          : "var(--color-on-surface-variant)",
-                    }}
-                  >
-                    {statusLabel[status] ?? status}
-                  </p>
-                )}
-                {errorDetail && (
-                  <p
-                    className="font-mono text-xs break-all"
-                    style={{ color: "var(--color-error)" }}
-                  >
-                    {errorDetail}
-                  </p>
-                )}
-              </div>
-            )}
-
-            <div
-              className="mt-1 flex items-center justify-between border-t pt-3"
-              style={{ borderColor: "var(--color-outline-variant)" }}
-            >
-              {/* Input mode buttons */}
-              <div className="flex items-center gap-1">
-                {/* Voice */}
-                <button
-                  onClick={startVoice}
-                  disabled={loading && !listening}
-                  aria-label={listening ? "Stop recording" : "Voice note"}
-                  title={listening ? "Stop recording" : "Voice note"}
-                  className="flex h-11 w-11 items-center justify-center rounded-xl transition-colors hover:bg-white/10 disabled:opacity-40"
-                  style={
-                    listening
-                      ? {
-                          background: "color-mix(in oklch, var(--color-error) 15%, transparent)",
-                          color: "var(--color-error)",
-                        }
-                      : { color: "var(--color-on-surface-variant)" }
-                  }
-                >
-                  {listening ? (
-                    <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                      <rect x="6" y="6" width="12" height="12" rx="2" />
-                    </svg>
-                  ) : (
-                    <svg
-                      className="h-4 w-4"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z"
-                      />
-                    </svg>
-                  )}
-                </button>
-
-                {/* Camera (take photo) — mobile only */}
-                <button
-                  onClick={() => cameraRef.current?.click()}
-                  disabled={loading}
-                  aria-label="Take photo"
-                  title="Take photo"
-                  className="flex h-11 w-11 items-center justify-center rounded-xl transition-colors hover:bg-white/10 disabled:opacity-40 lg:hidden"
-                  style={{ color: "var(--color-on-surface-variant)" }}
-                >
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z"
-                    />
-                  </svg>
-                </button>
-
-                {/* Image upload — mobile only (desktop uses doc button) */}
-                <button
-                  onClick={() => imgRef.current?.click()}
-                  disabled={loading}
-                  aria-label="Upload image"
-                  title="Upload image"
-                  className="flex h-11 w-11 items-center justify-center rounded-xl transition-colors hover:bg-white/10 disabled:opacity-40 lg:hidden"
-                  style={{ color: "var(--color-on-surface-variant)" }}
-                >
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
-                    />
-                  </svg>
-                </button>
-
-                {/* Document upload (images + text files, multiple) */}
-                <button
-                  onClick={() => docRef.current?.click()}
-                  disabled={loading}
-                  aria-label="Add documents"
-                  title="Add documents"
-                  className="flex h-11 w-11 items-center justify-center rounded-xl transition-colors hover:bg-white/10 disabled:opacity-40"
-                  style={{ color: "var(--color-on-surface-variant)" }}
-                >
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
-                    />
-                  </svg>
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <p className="text-on-surface-variant/50 text-[11px]">
-                  {text.trim() ? `${text.trim().length} chars` : "⌘↵ to save"}
-                </p>
-                <button
-                  onClick={() => capture(text, () => setText(""))}
-                  disabled={loading || (!text.trim() && uploadedFiles.length === 0)}
-                  className="press-scale flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all disabled:opacity-30"
-                  style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
-                >
-                  {loading ? (
-                    <span className="flex gap-1">
-                      <span className="typing-dot" />
-                      <span className="typing-dot" />
-                      <span className="typing-dot" />
-                    </span>
-                  ) : (
-                    "Save"
-                  )}
-                </button>
-              </div>
-            </div>
-          </>
-        )}
-
-        {preview && (
-          <div className="space-y-3">
-            {errorDetail && (
-              <p className="font-mono text-xs break-all" style={{ color: "var(--color-error)" }}>
                 {errorDetail}
               </p>
             )}
+
             <div>
-              <label className="text-on-surface-variant mb-1.5 block text-xs font-medium">
+              <div className="micro" style={{ marginBottom: 6 }}>
                 Title
-              </label>
+              </div>
               <input
                 ref={titleInputRef}
                 value={previewTitle}
@@ -924,38 +568,60 @@ export default function CaptureSheet({
                 onKeyDown={(e) => {
                   if ((e.metaKey || e.ctrlKey) && e.key === "Enter") confirmSave();
                 }}
-                className="text-on-surface focus:border-primary w-full rounded-xl border bg-transparent px-3 py-2.5 text-sm transition-colors outline-none"
-                style={{ borderColor: "var(--color-outline-variant)" }}
+                className="design-input f-serif"
+                style={{ fontSize: 16 }}
               />
             </div>
-            <div ref={typeRef} className="relative">
-              <label className="text-on-surface-variant mb-1.5 block text-xs font-medium">
+
+            <div ref={typeRef} style={{ position: "relative" }}>
+              <div className="micro" style={{ marginBottom: 6 }}>
                 Type
-              </label>
+              </div>
               <button
                 type="button"
                 onClick={() => setTypeOpen((p) => !p)}
-                className="text-on-surface focus:border-primary flex w-full items-center justify-between rounded-xl border bg-transparent px-3 py-2.5 text-sm transition-colors outline-none"
-                style={{ borderColor: "var(--color-outline-variant)" }}
+                className="design-input f-sans"
+                style={{
+                  textAlign: "left",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  cursor: "pointer",
+                }}
               >
                 <span>{previewType.charAt(0).toUpperCase() + previewType.slice(1)}</span>
                 <svg
-                  className={`h-4 w-4 flex-shrink-0 transition-transform ${typeOpen ? "rotate-180" : ""}`}
+                  width="14"
+                  height="14"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="2"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                   viewBox="0 0 24 24"
+                  style={{
+                    flexShrink: 0,
+                    transform: typeOpen ? "rotate(180deg)" : "none",
+                    transition: "transform 180ms",
+                  }}
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  <path d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
               {typeOpen && (
                 <div
-                  className="absolute right-0 bottom-full left-0 z-20 mb-1 overflow-y-auto rounded-xl border shadow-lg"
                   style={{
-                    background: "var(--color-surface-container-high)",
-                    borderColor: "var(--color-outline-variant)",
-                    maxHeight: "200px",
+                    position: "absolute",
+                    left: 0,
+                    right: 0,
+                    bottom: "100%",
+                    zIndex: 20,
+                    marginBottom: 4,
+                    background: "var(--surface-high)",
+                    border: "1px solid var(--line)",
+                    borderRadius: 8,
+                    boxShadow: "var(--lift-2)",
+                    overflow: "hidden",
                   }}
                 >
                   {CANONICAL_TYPES.filter((t) => t !== "secret").map((t) => (
@@ -966,11 +632,17 @@ export default function CaptureSheet({
                         setPreviewType(t);
                         setTypeOpen(false);
                       }}
-                      className="w-full px-3 py-2.5 text-left text-sm transition-colors hover:bg-white/10"
+                      className="f-sans press"
                       style={{
-                        color: "var(--color-on-surface)",
-                        background:
-                          previewType === t ? "var(--color-primary-container)" : undefined,
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "10px 14px",
+                        minHeight: 36,
+                        fontSize: 14,
+                        color: "var(--ink)",
+                        background: previewType === t ? "var(--ember-wash)" : "transparent",
+                        border: "none",
+                        cursor: "pointer",
                       }}
                     >
                       {t.charAt(0).toUpperCase() + t.slice(1)}
@@ -979,10 +651,11 @@ export default function CaptureSheet({
                 </div>
               )}
             </div>
+
             <div>
-              <label className="text-on-surface-variant mb-1.5 block text-xs font-medium">
+              <div className="micro" style={{ marginBottom: 6 }}>
                 Tags
-              </label>
+              </div>
               <input
                 value={previewTags}
                 onChange={(e) => setPreviewTags(e.target.value)}
@@ -990,71 +663,484 @@ export default function CaptureSheet({
                   if ((e.metaKey || e.ctrlKey) && e.key === "Enter") confirmSave();
                 }}
                 placeholder="tag1, tag2"
-                className="text-on-surface focus:border-primary placeholder:text-on-surface-variant/40 w-full rounded-xl border bg-transparent px-3 py-2.5 text-sm transition-colors outline-none"
-                style={{ borderColor: "var(--color-outline-variant)" }}
+                className="design-input f-sans"
               />
             </div>
+
             <div
-              className="mt-1 border-t pt-3"
-              style={{ borderColor: "var(--color-outline-variant)" }}
+              style={{
+                display: "flex",
+                gap: 10,
+                marginTop: 4,
+                paddingTop: 12,
+                borderTop: "1px solid var(--line-soft)",
+              }}
             >
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setPreview(null);
-                    setText(preview._raw || "");
-                  }}
-                  className="text-on-surface-variant hover:bg-surface-container press-scale flex-1 rounded-xl border py-2.5 text-sm transition-colors"
-                  style={{ borderColor: "var(--color-outline-variant)" }}
+              <button
+                className="design-btn-secondary press"
+                onClick={() => {
+                  setPreview(null);
+                  setText(preview._raw || "");
+                }}
+                style={{ flex: 1 }}
+              >
+                Back
+              </button>
+              <button
+                onClick={() => confirmSave()}
+                disabled={!previewTitle.trim() || loading}
+                className="design-btn-primary press"
+                style={{ flex: 2 }}
+              >
+                {loading ? "Saving…" : previewType === "secret" ? "Save to vault" : "Save"}
+              </button>
+            </div>
+          </div>
+        ) : activeTab === "secret" ? (
+          // ── SECRET PHASE (triggered from vault toggle) ──
+          <div
+            style={{
+              padding: "20px 24px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 14,
+              overflowY: "auto",
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h2
+                  className="f-serif"
+                  style={{ fontSize: 20, fontWeight: 450, color: "var(--ink)", margin: 0 }}
                 >
-                  Back
+                  secret
+                </h2>
+                <p
+                  className="f-serif"
+                  style={{
+                    fontSize: 13,
+                    fontStyle: "italic",
+                    color: "var(--ember)",
+                    margin: "4px 0 0",
+                  }}
+                >
+                  encrypted on your device. AI never reads this.
+                </p>
+              </div>
+              <button
+                className="design-btn-ghost press"
+                onClick={toggleVault}
+                style={{ width: 32, height: 32, minHeight: 32, padding: 0 }}
+                aria-label="Back to entry"
+              >
+                {IconArrowLeft}
+              </button>
+            </div>
+
+            <div>
+              <div className="micro" style={{ marginBottom: 6 }}>
+                Label
+              </div>
+              <input
+                ref={secretTitleRef}
+                value={secretTitle}
+                onChange={(e) => setSecretTitle(e.target.value)}
+                placeholder="e.g. netflix password, visa card, ssh key"
+                className="design-input f-serif"
+                style={{ fontStyle: secretTitle ? "normal" : "italic", fontSize: 16 }}
+              />
+            </div>
+            <div>
+              <div className="micro" style={{ marginBottom: 6 }}>
+                Secret
+              </div>
+              <textarea
+                value={secretContent}
+                onChange={(e) => setSecretContent(e.target.value)}
+                placeholder="paste or type your password, pin, key, card details…"
+                rows={5}
+                className="design-input f-serif"
+                style={{
+                  resize: "none",
+                  padding: "12px 14px",
+                  height: "auto",
+                  fontSize: 16,
+                  lineHeight: 1.5,
+                }}
+              />
+            </div>
+            {secretError && (
+              <p
+                style={{
+                  fontFamily: "var(--f-mono)",
+                  fontSize: 12,
+                  color: "var(--blood)",
+                  wordBreak: "break-all",
+                  margin: 0,
+                }}
+              >
+                {secretError}
+              </p>
+            )}
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                paddingTop: 12,
+                borderTop: "1px solid var(--line-soft)",
+              }}
+            >
+              <button onClick={toggleVault} className="design-btn-secondary press" style={{ flex: 1 }}>
+                Back
+              </button>
+              <button
+                disabled={!secretTitle.trim() || !secretContent.trim() || secretSaving}
+                onClick={async () => {
+                  if (!secretTitle.trim() || !secretContent.trim()) return;
+                  setSecretSaving(true);
+                  setSecretError("");
+                  await doSave({
+                    title: secretTitle.trim(),
+                    content: secretContent,
+                    type: "secret",
+                    tags: [],
+                    metadata: {},
+                  });
+                  setSecretSaving(false);
+                  if (errorDetail) setSecretError(errorDetail);
+                  else {
+                    setSecretTitle("");
+                    setSecretContent("");
+                  }
+                }}
+                className="design-btn-primary press"
+                style={{ flex: 2 }}
+              >
+                {secretSaving ? "Saving…" : "Save to vault"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          // ── ENTRY PHASE (default) ──
+          <>
+            <div
+              style={{
+                padding: "22px 24px 10px",
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                minHeight: 160,
+                position: "relative",
+              }}
+            >
+              <textarea
+                ref={textareaRef}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={(e) => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") handleSave();
+                }}
+                disabled={loading}
+                placeholder={
+                  listening
+                    ? "listening… tap stop when done"
+                    : uploadedFiles.length > 0
+                      ? "optional: describe what this is…"
+                      : "remember something…"
+                }
+                rows={5}
+                className="f-serif"
+                style={{
+                  width: "100%",
+                  minHeight: 120,
+                  flex: 1,
+                  resize: "none",
+                  fontSize: 19,
+                  lineHeight: 1.55,
+                  color: "var(--ink)",
+                  fontStyle: text ? "normal" : "italic",
+                  background: "transparent",
+                  border: 0,
+                  outline: 0,
+                  padding: 0,
+                }}
+              />
+
+              {uploadedFiles.length > 0 && (
+                <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {uploadedFiles.map((f) => (
+                    <span key={f.name} className="design-chip">
+                      <span
+                        style={{
+                          maxWidth: 140,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {f.name}
+                      </span>
+                      <button
+                        onClick={() => removeUploadedFile(f.name)}
+                        aria-label={`Remove ${f.name}`}
+                        style={{
+                          marginLeft: 2,
+                          padding: 0,
+                          minHeight: 16,
+                          background: "transparent",
+                          color: "var(--ink-faint)",
+                          border: 0,
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                        }}
+                      >
+                        {IconX}
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Voice waveform — horizontal motes line while recording */}
+              {listening && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 4,
+                    marginTop: 12,
+                    height: 28,
+                  }}
+                  aria-hidden="true"
+                >
+                  {Array.from({ length: 32 }, (_, i) => (
+                    <span
+                      key={i}
+                      style={{
+                        width: 2,
+                        height: 4 + Math.random() * 20,
+                        background: "var(--ember)",
+                        opacity: 0.3 + Math.random() * 0.6,
+                        borderRadius: 2,
+                        animation: `design-breathe ${0.6 + Math.random() * 1.4}s ease-in-out infinite`,
+                        animationDelay: `-${Math.random() * 2}s`,
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Saved whisper */}
+              {showSavedWhisper && (
+                <div
+                  className="anim-fade-in-design"
+                  style={{
+                    position: "absolute",
+                    bottom: 12,
+                    left: 24,
+                    pointerEvents: "none",
+                  }}
+                >
+                  <span
+                    className="f-serif"
+                    style={{
+                      fontStyle: "italic",
+                      fontSize: 15,
+                      color: "var(--ink-faint)",
+                    }}
+                  >
+                    saved.
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Type chip suggestion row */}
+            <div
+              style={{
+                padding: "0 24px 14px",
+                display: "flex",
+                gap: 6,
+                flexWrap: "wrap",
+                alignItems: "center",
+              }}
+            >
+              <span
+                className="micro"
+                style={{ marginRight: 4 }}
+              >
+                inferred
+              </span>
+              {SHEET_TYPE_CHIPS.map((t) => {
+                const active = inferredType === t;
+                return (
+                  <span
+                    key={t}
+                    className="design-chip f-sans"
+                    style={{
+                      background: active ? "var(--ember-wash)" : "transparent",
+                      color: active ? "var(--ember)" : "var(--ink-faint)",
+                      padding: "0 10px",
+                      height: 24,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      border: "1px solid transparent",
+                    }}
+                  >
+                    {TYPE_LABEL[t] ?? t}
+                  </span>
+                );
+              })}
+            </div>
+
+            {/* Status line */}
+            {(status || errorDetail) && (
+              <div style={{ padding: "0 24px 10px" }}>
+                {status && status !== "error" && (
+                  <p
+                    className="f-serif"
+                    style={{
+                      margin: 0,
+                      fontSize: 13,
+                      fontStyle: "italic",
+                      color: status === "saved" ? "var(--ember)" : "var(--ink-faint)",
+                    }}
+                  >
+                    {statusLabel[status] ?? status}
+                  </p>
+                )}
+                {errorDetail && (
+                  <p
+                    style={{
+                      margin: 0,
+                      fontFamily: "var(--f-mono)",
+                      fontSize: 12,
+                      color: "var(--blood)",
+                      wordBreak: "break-all",
+                    }}
+                  >
+                    {errorDetail}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Bottom action bar */}
+            <div
+              style={{
+                padding: "14px 20px",
+                borderTop: "1px solid var(--line-soft)",
+                background: "var(--surface)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 10,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                <button
+                  onClick={startVoice}
+                  disabled={loading && !listening}
+                  aria-label={listening ? "Stop recording" : "Voice note"}
+                  className="design-btn-ghost press"
+                  style={{
+                    width: 40,
+                    height: 40,
+                    minHeight: 40,
+                    padding: 0,
+                    color: listening ? "var(--ember)" : "var(--ink-faint)",
+                  }}
+                >
+                  <IconMic on={listening} />
                 </button>
                 <button
-                  onClick={() => confirmSave()}
-                  disabled={!previewTitle.trim() || loading}
-                  className="press-scale flex-[2] rounded-xl py-2.5 text-sm font-bold transition-colors disabled:opacity-40"
-                  style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
+                  onClick={() => cameraRef.current?.click()}
+                  disabled={loading}
+                  aria-label="Take photo"
+                  className="design-btn-ghost press lg:hidden"
+                  style={{
+                    width: 40,
+                    height: 40,
+                    minHeight: 40,
+                    padding: 0,
+                    color: "var(--ink-faint)",
+                  }}
                 >
-                  {loading ? (
-                    <span className="flex justify-center gap-1">
-                      <span className="typing-dot" />
-                      <span className="typing-dot" />
-                      <span className="typing-dot" />
-                    </span>
-                  ) : previewType === "secret" ? (
-                    "Save to Vault"
-                  ) : (
-                    "Save to Everion"
-                  )}
+                  {IconCamera}
+                </button>
+                <button
+                  onClick={() => imgRef.current?.click()}
+                  disabled={loading}
+                  aria-label="Upload image"
+                  className="design-btn-ghost press lg:hidden"
+                  style={{
+                    width: 40,
+                    height: 40,
+                    minHeight: 40,
+                    padding: 0,
+                    color: "var(--ink-faint)",
+                  }}
+                >
+                  {IconAttach}
+                </button>
+                <button
+                  onClick={() => docRef.current?.click()}
+                  disabled={loading}
+                  aria-label="Add documents"
+                  className="design-btn-ghost press"
+                  style={{
+                    width: 40,
+                    height: 40,
+                    minHeight: 40,
+                    padding: 0,
+                    color: "var(--ink-faint)",
+                  }}
+                >
+                  {IconAttach}
+                </button>
+                <button
+                  onClick={toggleVault}
+                  className="design-btn-ghost press"
+                  aria-label="Save to vault"
+                  aria-pressed={activeTab === "secret"}
+                  style={{
+                    width: 40,
+                    height: 40,
+                    minHeight: 40,
+                    padding: 0,
+                    color:
+                      activeTab === "secret" ? "var(--ember)" : cryptoKey ? "var(--ink-faint)" : "var(--ink-ghost)",
+                  }}
+                  title={cryptoKey ? "Save to vault" : "Unlock vault first"}
+                >
+                  {IconVault}
                 </button>
               </div>
 
-              {/* Vault shortcut — only shown when not already a secret */}
-              {previewType !== "secret" && (
-                <button
-                  type="button"
-                  onClick={() => setPreviewType("secret")}
-                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-2 text-xs transition-colors hover:bg-white/5"
-                  style={{ color: "var(--color-on-surface-variant)", opacity: 0.6 }}
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span
+                  className="f-sans hidden lg:inline"
+                  style={{
+                    fontSize: 11,
+                    color: "var(--ink-ghost)",
+                  }}
                 >
-                  <svg
-                    className="h-3.5 w-3.5 shrink-0"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
-                    />
-                  </svg>
-                  Save to Vault instead
+                  {MOD}⏎ to save
+                </span>
+                <button
+                  onClick={handleSave}
+                  disabled={!canSave || loading}
+                  className="design-btn-primary press"
+                  style={{ height: 40, minHeight: 40 }}
+                >
+                  {IconSend}
+                  {loading ? "Saving…" : "Remember"}
                 </button>
-              )}
+              </div>
             </div>
-          </div>
+          </>
         )}
       </div>
     </>

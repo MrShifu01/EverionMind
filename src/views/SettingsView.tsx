@@ -7,16 +7,57 @@ import BrainTab from "../components/settings/BrainTab";
 import StorageTab from "../components/settings/StorageTab";
 import DangerTab from "../components/settings/DangerTab";
 import ClaudeCodeTab from "../components/settings/ClaudeCodeTab";
+import NotificationSettings from "../components/NotificationSettings";
 import AppearanceTab from "../components/settings/AppearanceTab";
 import { authFetch } from "../lib/authFetch";
 
-type TabId = "profile" | "advanced" | "claude";
+type SectionId =
+  | "appearance"
+  | "account"
+  | "brain"
+  | "providers"
+  | "notifications"
+  | "storage"
+  | "integrations"
+  | "danger";
 
-const TAB_DEFS: { id: TabId; label: string }[] = [
-  { id: "profile", label: "Profile" },
-  { id: "advanced", label: "Advanced" },
-  { id: "claude", label: "AI Integrations" },
+const SECTIONS: { id: SectionId; label: string }[] = [
+  { id: "appearance", label: "Appearance" },
+  { id: "account", label: "Account" },
+  { id: "brain", label: "Brain" },
+  { id: "providers", label: "AI providers" },
+  { id: "notifications", label: "Notifications" },
+  { id: "storage", label: "Storage" },
+  { id: "integrations", label: "Integrations" },
+  { id: "danger", label: "Danger zone" },
 ];
+
+function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <h2
+        className="f-serif"
+        style={{
+          fontSize: 28, fontWeight: 450, letterSpacing: "-0.01em",
+          color: "var(--ink)", margin: 0,
+        }}
+      >
+        {title}
+      </h2>
+      {subtitle && (
+        <p
+          className="f-serif"
+          style={{
+            fontSize: 14, color: "var(--ink-faint)", fontStyle: "italic",
+            marginTop: 6, marginBottom: 0, lineHeight: 1.5,
+          }}
+        >
+          {subtitle}
+        </p>
+      )}
+    </div>
+  );
+}
 
 function AuditCard({ brainId }: { brainId: string }) {
   type AuditState =
@@ -51,123 +92,131 @@ function AuditCard({ brainId }: { brainId: string }) {
 
   return (
     <div
-      className="rounded-2xl border"
       style={{
-        background: "var(--color-surface-container)",
-        borderColor: "var(--color-outline-variant)",
+        background: "var(--surface)",
+        border: "1px solid var(--line-soft)",
+        borderRadius: 12,
+        padding: 20,
       }}
     >
-      <div className="px-4 py-3.5">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-on-surface text-sm font-semibold">Quality Audit</p>
-            <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-              Run AI analysis on your 25 newest entries
-            </p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
+        <div>
+          <div className="f-serif" style={{ fontSize: 16, fontWeight: 450, color: "var(--ink)" }}>
+            Quality audit
           </div>
-          <button
-            onClick={runAudit}
-            disabled={state.status === "loading"}
-            aria-busy={state.status === "loading"}
-            className="press-scale flex-shrink-0 rounded-xl px-4 py-2 text-xs font-semibold transition-all disabled:opacity-50"
-            style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
-          >
-            {state.status === "loading" ? "Running…" : "Run audit"}
-          </button>
-        </div>
-
-        {state.status === "done" && (
-          <div className="mt-3 space-y-2">
-            <p className="text-xs font-medium" style={{ color: "var(--color-on-surface)" }}>
-              {state.flagged === 0 ? "No issues found." : `${state.flagged} entr${state.flagged === 1 ? "y" : "ies"} flagged.`}
-              {state.flagged > 0 && " Run again after fixing entries to verify."}
-            </p>
-            {Object.entries(state.entries).map(([id, flags]) =>
-              flags?.length ? (
-                <div
-                  key={id}
-                  className="rounded-xl p-3 text-xs space-y-1"
-                  style={{ background: "var(--color-surface)", border: "1px solid var(--color-outline-variant)" }}
-                >
-                  <p className="font-mono opacity-50 truncate">{id}</p>
-                  {flags.map((f, i) => (
-                    <p key={i} style={{ color: "var(--color-on-surface)" }}>
-                      <span className="font-semibold">{f.type}</span>
-                      {f.reason ? ` — ${f.reason}` : ""}
-                    </p>
-                  ))}
-                </div>
-              ) : null
-            )}
-          </div>
-        )}
-
-        {state.status === "error" && (
           <div
-            className="mt-3 rounded-xl p-3"
-            style={{ background: "color-mix(in oklch, var(--color-error) 10%, var(--color-surface))", border: "1px solid color-mix(in oklch, var(--color-error) 30%, transparent)" }}
+            className="f-serif"
+            style={{ fontSize: 13, color: "var(--ink-faint)", fontStyle: "italic", marginTop: 3 }}
           >
-            <p className="text-xs font-semibold mb-1" style={{ color: "var(--color-error)" }}>Audit failed</p>
-            <pre
-              className="text-xs whitespace-pre-wrap break-all"
-              style={{ color: "var(--color-on-surface)", fontFamily: "monospace", opacity: 0.85 }}
-            >
-              {state.message}
-            </pre>
+            ai analysis of your 25 newest entries.
           </div>
-        )}
+        </div>
+        <button
+          onClick={runAudit}
+          disabled={state.status === "loading"}
+          aria-busy={state.status === "loading"}
+          className="design-btn-secondary press"
+          style={{ height: 32, minHeight: 32, fontSize: 13, padding: "0 14px" }}
+        >
+          {state.status === "loading" ? "Running…" : "Run audit"}
+        </button>
       </div>
+
+      {state.status === "done" && (
+        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+          <p className="f-sans" style={{ fontSize: 13, color: "var(--ink)", margin: 0 }}>
+            {state.flagged === 0
+              ? "No issues found."
+              : `${state.flagged} entr${state.flagged === 1 ? "y" : "ies"} flagged. Run again after fixing entries to verify.`}
+          </p>
+          {Object.entries(state.entries).map(([id, flags]) =>
+            flags?.length ? (
+              <div
+                key={id}
+                className="f-sans"
+                style={{
+                  background: "var(--surface-low)",
+                  border: "1px solid var(--line-soft)",
+                  padding: 10,
+                  borderRadius: 8,
+                  fontSize: 12,
+                  color: "var(--ink-soft)",
+                }}
+              >
+                <p style={{ margin: 0, fontFamily: "var(--f-mono)", opacity: 0.5, fontSize: 11 }}>{id}</p>
+                {flags.map((f, i) => (
+                  <p key={i} style={{ margin: "2px 0 0" }}>
+                    <span style={{ fontWeight: 600, color: "var(--ink)" }}>{f.type}</span>
+                    {f.reason ? ` — ${f.reason}` : ""}
+                  </p>
+                ))}
+              </div>
+            ) : null,
+          )}
+        </div>
+      )}
+
+      {state.status === "error" && (
+        <div
+          style={{
+            marginTop: 14,
+            background: "var(--blood-wash)",
+            border: "1px solid var(--blood)",
+            padding: 12,
+            borderRadius: 8,
+          }}
+        >
+          <p className="f-sans" style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "var(--blood)" }}>
+            Audit failed
+          </p>
+          <pre
+            style={{
+              margin: "4px 0 0",
+              fontFamily: "var(--f-mono)",
+              fontSize: 11,
+              color: "var(--ink-soft)",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-all",
+            }}
+          >
+            {state.message}
+          </pre>
+        </div>
+      )}
     </div>
   );
 }
 
-function VaultCard({ onNavigate }: { onNavigate: (id: string) => void }) {
-  const [open, setOpen] = useState(false);
+function VaultRow({ onNavigate }: { onNavigate: (id: string) => void }) {
   return (
     <div
-      className="rounded-2xl border"
       style={{
-        background: "var(--color-surface-container)",
-        borderColor: "var(--color-outline-variant)",
+        padding: "18px 0",
+        borderBottom: "1px solid var(--line-soft)",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 32,
       }}
     >
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between px-4 py-3.5 text-left"
-      >
-        <div className="min-w-0">
-          <p className="text-on-surface text-sm font-semibold">Vault</p>
-          {!open && (
-            <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-              End-to-end encrypted secrets
-            </p>
-          )}
+      <div style={{ flex: 1 }}>
+        <div className="f-serif" style={{ fontSize: 16, fontWeight: 450, color: "var(--ink)" }}>
+          Vault
         </div>
-        <svg
-          className={`ml-3 h-4 w-4 flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
-          fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
-          style={{ color: "var(--color-on-surface-variant)" }}
+        <div
+          className="f-serif"
+          style={{ fontSize: 13, color: "var(--ink-faint)", fontStyle: "italic", marginTop: 3 }}
         >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-      <div style={{ display: "grid", gridTemplateRows: open ? "1fr" : "0fr" }}>
-        <div style={{ overflow: "hidden" }}>
-          <div className="px-4 pb-4">
-            <p className="mb-3 text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-              End-to-end encrypted secrets
-            </p>
-            <button
-              onClick={() => onNavigate("vault")}
-              className="press-scale rounded-xl px-4 py-2 text-xs font-semibold transition-all"
-              style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
-            >
-              Open Vault
-            </button>
-          </div>
+          end-to-end encrypted secrets.
         </div>
       </div>
+      <button
+        onClick={() => onNavigate("vault")}
+        className="design-btn-secondary press"
+        style={{ height: 32, minHeight: 32, fontSize: 13, padding: "0 14px" }}
+      >
+        Open vault
+      </button>
     </div>
   );
 }
@@ -178,7 +227,7 @@ interface SettingsViewProps {
 
 export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
   const { activeBrain, refresh } = useBrain();
-  const [activeTab, setActiveTab] = useState<TabId>("profile");
+  const [section, setSection] = useState<SectionId>("appearance");
   const [email, setEmail] = useState(() => {
     try { return localStorage.getItem("everion_email") || ""; } catch { return ""; }
   });
@@ -193,105 +242,216 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
 
   return (
     <div
-      className="min-h-screen"
       style={{
+        height: "100%",
         background: "var(--bg)",
         fontFamily: "var(--f-sans)",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
-      <div
-        className="border-b px-6 pt-6 pb-4"
-        style={{ borderColor: "var(--line-soft)" }}
+      {/* Top bar */}
+      <header
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "18px 32px",
+          borderBottom: "1px solid var(--line-soft)",
+          minHeight: 68,
+          background: "var(--bg)",
+          gap: 20,
+        }}
       >
-        <h2
-          className="f-serif"
-          style={{
-            fontSize: 28, fontWeight: 450, letterSpacing: "-0.01em",
-            color: "var(--ink)", margin: 0,
-          }}
-        >
-          Settings
-        </h2>
-        <p
-          className="f-serif"
-          style={{
-            fontSize: 14, fontStyle: "italic", color: "var(--ink-faint)",
-            marginTop: 4, marginBottom: 0,
-          }}
-        >
-          your room — how it looks, who runs the AI, what we keep.
-        </p>
-      </div>
-
-      <div
-        className="scrollbar-hide overflow-x-auto px-6 pt-3 pb-0"
-        style={{ WebkitOverflowScrolling: "touch" }}
-      >
-        <div className="flex gap-1">
-          {TAB_DEFS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className="f-sans press"
-              style={{
-                padding: "10px 14px", minHeight: 40,
-                fontSize: 13, fontWeight: 500, whiteSpace: "nowrap",
-                color: activeTab === tab.id ? "var(--ink)" : "var(--ink-faint)",
-                background: "transparent",
-                borderLeft: 0, borderRight: 0, borderTop: 0,
-                borderBottom: activeTab === tab.id ? "2px solid var(--ember)" : "2px solid transparent",
-                cursor: "pointer",
-                transition: "color 180ms, border-color 180ms",
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div style={{ minWidth: 0 }}>
+          <h1
+            className="f-serif"
+            style={{
+              fontSize: 22,
+              fontWeight: 450,
+              letterSpacing: "-0.01em",
+              margin: 0,
+              color: "var(--ink)",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            Settings
+          </h1>
+          <div
+            className="f-serif"
+            style={{ fontSize: 13, color: "var(--ink-faint)", fontStyle: "italic", marginTop: 2 }}
+          >
+            your room — how it looks, who runs the AI, what we keep.
+          </div>
         </div>
-      </div>
+      </header>
 
-      <div className="space-y-4 px-6 py-6" style={{ maxWidth: 860 }}>
-        {activeTab === "profile" && (
-          <>
-            <AppearanceTab />
-            <AccountTab email={email} brainId={activeBrain?.id} />
-            {activeBrain && (
-              <BrainTab
-                activeBrain={activeBrain}
-                onRefreshBrains={refresh}
-              />
-            )}
-          </>
-        )}
-        {activeTab === "advanced" && (
-          <>
-            <ProvidersTab activeBrain={activeBrain ?? undefined} />
-            <StorageTab activeBrain={activeBrain ?? undefined} />
-            {activeBrain && <AuditCard brainId={activeBrain.id} />}
-            {onNavigate && <VaultCard onNavigate={onNavigate} />}
-            {activeBrain && (
-              <DangerTab
-                activeBrain={activeBrain}
-                deleteBrain={async (_id: string) => { /* single brain — no-op */ }}
-                isOwner={true}
-                deleteAccount={async () => {
-                  const session = await supabase.auth.getSession();
-                  const token = session.data.session?.access_token;
-                  const r = await fetch("/api/user-data?resource=account", {
-                    method: "DELETE",
-                    headers: { Authorization: `Bearer ${token}` },
-                  });
-                  if (!r.ok) {
-                    const data = await r.json().catch(() => ({}));
-                    throw new Error(data.error || "Failed to delete account");
-                  }
-                  await supabase.auth.signOut();
+      {/* Body: left nav + content */}
+      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+        <nav
+          className="scrollbar-hide"
+          style={{
+            width: 220,
+            flexShrink: 0,
+            padding: "20px 12px",
+            borderRight: "1px solid var(--line-soft)",
+            background: "var(--surface-low)",
+            overflowY: "auto",
+          }}
+          aria-label="Settings sections"
+        >
+          {SECTIONS.map(({ id, label }) => {
+            const active = section === id;
+            return (
+              <button
+                key={id}
+                onClick={() => setSection(id)}
+                aria-current={active ? "page" : undefined}
+                className="press"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "0 14px",
+                  minHeight: 36,
+                  height: 36,
+                  borderRadius: 6,
+                  fontFamily: "var(--f-sans)",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: active ? "var(--ink)" : id === "danger" ? "var(--blood)" : "var(--ink-soft)",
+                  background: active ? "var(--surface)" : "transparent",
+                  border: "none",
+                  cursor: "pointer",
                 }}
-              />
+              >
+                {label}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div
+          className="scrollbar-hide"
+          style={{
+            flex: 1,
+            padding: "32px 40px",
+            overflowY: "auto",
+          }}
+        >
+          <div style={{ maxWidth: 720 }}>
+            {section === "appearance" && (
+              <>
+                <SectionHeader
+                  title="Appearance"
+                  subtitle="three rooms, two moods. pick the one you want to live in."
+                />
+                <AppearanceTab />
+              </>
             )}
-          </>
-        )}
-        {activeTab === "claude" && <ClaudeCodeTab />}
+
+            {section === "account" && (
+              <>
+                <SectionHeader
+                  title="Account"
+                  subtitle="your email, your profile, your sign-out."
+                />
+                <AccountTab email={email} brainId={activeBrain?.id} />
+              </>
+            )}
+
+            {section === "brain" && activeBrain && (
+              <>
+                <SectionHeader title="Brain" subtitle="what lives here, what extracts concepts." />
+                <BrainTab activeBrain={activeBrain} onRefreshBrains={refresh} />
+              </>
+            )}
+
+            {section === "providers" && (
+              <>
+                <SectionHeader
+                  title="AI providers"
+                  subtitle="bring your own key. routed on device. we never see the traffic."
+                />
+                <ProvidersTab activeBrain={activeBrain ?? undefined} />
+              </>
+            )}
+
+            {section === "notifications" && (
+              <>
+                <SectionHeader
+                  title="Notifications"
+                  subtitle="when we tap you on the shoulder — never more than once a day."
+                />
+                <div
+                  style={{
+                    background: "var(--surface)",
+                    border: "1px solid var(--line-soft)",
+                    borderRadius: 12,
+                    padding: 20,
+                  }}
+                >
+                  <NotificationSettings />
+                </div>
+              </>
+            )}
+
+            {section === "storage" && (
+              <>
+                <SectionHeader
+                  title="Storage"
+                  subtitle="entries, files, trash. export anywhere, anytime."
+                />
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <StorageTab activeBrain={activeBrain ?? undefined} />
+                  {activeBrain && <AuditCard brainId={activeBrain.id} />}
+                  {onNavigate && <VaultRow onNavigate={onNavigate} />}
+                </div>
+              </>
+            )}
+
+            {section === "integrations" && (
+              <>
+                <SectionHeader
+                  title="Integrations"
+                  subtitle="mcp and rest endpoints for the agents you already use."
+                />
+                <ClaudeCodeTab />
+              </>
+            )}
+
+            {section === "danger" && activeBrain && (
+              <>
+                <SectionHeader
+                  title="Danger zone"
+                  subtitle="all of these are irreversible. we've made them clear, not hidden."
+                />
+                <DangerTab
+                  activeBrain={activeBrain}
+                  deleteBrain={async (_id: string) => {
+                    /* single brain — no-op */
+                  }}
+                  isOwner={true}
+                  deleteAccount={async () => {
+                    const session = await supabase.auth.getSession();
+                    const token = session.data.session?.access_token;
+                    const r = await fetch("/api/user-data?resource=account", {
+                      method: "DELETE",
+                      headers: { Authorization: `Bearer ${token}` },
+                    });
+                    if (!r.ok) {
+                      const data = await r.json().catch(() => ({}));
+                      throw new Error(data.error || "Failed to delete account");
+                    }
+                    await supabase.auth.signOut();
+                  }}
+                />
+              </>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

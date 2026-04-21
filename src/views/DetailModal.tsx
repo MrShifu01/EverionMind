@@ -186,75 +186,123 @@ const [showFullContent, setShowFullContent] = useState(false);
       onClick={editing ? undefined : onClose}
     >
       <div
-        className="relative flex w-full max-w-lg flex-col rounded-t-2xl border lg:rounded-2xl"
+        className="relative flex w-full flex-col"
         style={{
-          background: "var(--color-surface-container-low)",
-          borderColor: "var(--color-outline-variant)",
-          boxShadow: "var(--shadow-lg)",
-          animation: "zoom-in-95 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
-          // Cap height to the actual available space so the header is never pushed above viewport.
-          // 96px = nav bar clearance; subtract safe-area so the header stays fully in view.
+          maxWidth: 720,
+          background: "var(--surface-high)",
+          border: "1px solid var(--line-soft)",
+          borderTopLeftRadius: 18,
+          borderTopRightRadius: 18,
+          borderBottomLeftRadius: 18,
+          borderBottomRightRadius: 18,
+          boxShadow: "var(--lift-3)",
+          animation: "design-scaleIn 0.22s cubic-bezier(0.16, 1, 0.3, 1)",
           maxHeight: "calc(100dvh - 96px - env(safe-area-inset-bottom) - env(safe-area-inset-top))",
         }}
         onClick={(e) => e.stopPropagation()}
         onTouchMove={(e) => e.stopPropagation()}
       >
-        {/* Header — always visible, never scrolls away */}
-        <div className="flex flex-shrink-0 items-start justify-between px-5 pt-5 pb-4">
-          <div className="min-w-0 flex-1">
-            <div className="mb-1.5 flex items-center gap-2">
-              <span className="text-lg">{cfg.i}</span>
+        {/* Header */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            padding: "16px 24px",
+            borderBottom: "1px solid var(--line-soft)",
+            gap: 12,
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--ink-faint)" }}>
+            <span style={{ fontSize: 14 }}>{cfg.i}</span>
+            <span
+              className="f-sans"
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+              }}
+            >
+              {editType}
+            </span>
+          </div>
+          {confidence.type && (() => {
+            const cl = confidence.type;
+            const color = cl === "extracted" ? "var(--moss)" : cl === "inferred" ? "var(--ember)" : "var(--blood)";
+            const label = cl === "extracted" ? "extracted" : cl === "inferred" ? "inferred" : "ambiguous";
+            return (
               <span
-                className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold tracking-widest uppercase"
+                className="f-sans"
                 style={{
-                  background: "var(--color-primary-container)",
-                  color: "var(--color-primary)",
+                  fontSize: 11,
+                  color,
+                  fontStyle: "italic",
                 }}
               >
-                {editType}
+                {label}
               </span>
-              {confidence.type && (() => {
-                const cl = confidence.type;
-                const dotColor = cl === "extracted" ? "rgb(22,163,74)" : cl === "inferred" ? "rgb(217,119,6)" : "rgb(220,38,38)";
-                const label = cl === "extracted" ? "Extracted" : cl === "inferred" ? "Inferred" : "Ambiguous";
-                return (
-                  <span
-                    className="rounded-full px-2 py-0.5 text-[9px] font-medium"
-                    style={{ background: `${dotColor}15`, color: dotColor }}
-                  >
-                    {label}
-                  </span>
-                );
-              })()}
-            </div>
-            {!editing && (
-              <h2
-                id="detail-modal-title"
-                className="text-on-surface truncate text-lg font-bold"
-                style={{ fontFamily: "var(--f-serif)" }}
-              >
-                {editTitle}
-              </h2>
-            )}
-          </div>
-          <div className="ml-3 flex flex-shrink-0 items-center gap-2">
-            {!canWrite && <span className="text-on-surface-variant/60 text-xs">🔒 View only</span>}
-            <button
-              aria-label="Close"
-              className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container press-scale flex h-11 w-11 items-center justify-center rounded-lg transition-all"
-              onClick={editing ? () => setEditing(false) : onClose}
+            );
+          })()}
+          <div style={{ flex: 1 }} />
+          {!canWrite && (
+            <span
+              className="f-serif"
+              style={{ fontSize: 12, fontStyle: "italic", color: "var(--ink-faint)" }}
             >
-              ✕
-            </button>
-          </div>
+              view only
+            </span>
+          )}
+          <button
+            aria-label="Close"
+            className="design-btn-ghost press"
+            onClick={editing ? () => setEditing(false) : onClose}
+            style={{ width: 32, height: 32, minHeight: 32, padding: 0 }}
+          >
+            <svg
+              width="14" height="14"
+              fill="none" stroke="currentColor" strokeWidth="1.5"
+              strokeLinecap="round" strokeLinejoin="round"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path d="M6 6l12 12M18 6L6 18"/>
+            </svg>
+          </button>
         </div>
+
+        {/* Title band (non-editing) */}
+        {!editing && (
+          <div
+            style={{
+              padding: "24px 32px 8px",
+              flexShrink: 0,
+            }}
+          >
+            <h2
+              id="detail-modal-title"
+              className="f-serif"
+              style={{
+                fontSize: 32,
+                lineHeight: 1.2,
+                fontWeight: 450,
+                letterSpacing: "-0.015em",
+                color: "var(--ink)",
+                margin: 0,
+              }}
+            >
+              {editTitle}
+            </h2>
+          </div>
+        )}
 
         {/* Scrollable body */}
         <div
           data-testid="detail-scroll-body"
-          className="flex-1 overflow-y-auto px-5 pb-8"
+          className="flex-1 overflow-y-auto"
           style={
             {
+              padding: "0 32px 32px",
               overscrollBehavior: "contain",
               WebkitOverflowScrolling: "touch",
             } as React.CSSProperties

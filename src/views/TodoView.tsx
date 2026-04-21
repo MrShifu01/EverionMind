@@ -397,7 +397,40 @@ export default function TodoView({ entries: propEntries, typeIcons = {} }: TodoV
   }
 
   return (
-    <div className="px-4 py-4" style={{ background: "var(--color-background)", minHeight: "100%" }}>
+    <div style={{ background: "var(--bg)", minHeight: "100%" }}>
+      <header
+        className="hidden lg:flex"
+        style={{
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "18px 32px",
+          borderBottom: "1px solid var(--line-soft)",
+          minHeight: 68,
+          gap: 20,
+        }}
+      >
+        <div>
+          <h1
+            className="f-serif"
+            style={{
+              fontSize: 22,
+              fontWeight: 450,
+              letterSpacing: "-0.01em",
+              margin: 0,
+              color: "var(--ink)",
+            }}
+          >
+            Todos
+          </h1>
+          <div
+            className="f-serif"
+            style={{ fontSize: 13, color: "var(--ink-faint)", fontStyle: "italic", marginTop: 2 }}
+          >
+            {total > 0 ? `${total} coming up` : "everything that has a date, gathered here."}
+          </div>
+        </div>
+      </header>
+      <div style={{ padding: "16px 24px 120px", maxWidth: 780, margin: "0 auto" }}>
       <MiniCalendar dateMap={dateMap} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
 
       {/* Selected day detail */}
@@ -528,6 +561,7 @@ export default function TodoView({ entries: propEntries, typeIcons = {} }: TodoV
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

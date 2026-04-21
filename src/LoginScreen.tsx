@@ -129,9 +129,9 @@ export default function LoginScreen(): JSX.Element {
       style={{
         minHeight: "100vh",
         width: "100%",
-        background: "var(--color-background)",
-        color: "var(--color-on-surface)",
-        fontFamily: "'Inter', system-ui, sans-serif",
+        background: "var(--bg)",
+        color: "var(--ink)",
+        fontFamily: "var(--f-sans)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -140,10 +140,6 @@ export default function LoginScreen(): JSX.Element {
         position: "relative",
       }}
     >
-      {/* Ambient background layers */}
-      <div className="synapse-bg" aria-hidden="true" />
-      <div className="grain" aria-hidden="true" />
-
       {/* ── DESKTOP: two-column layout ── */}
       <div
         style={{ position: "relative", zIndex: 1, width: "100%" }}
@@ -157,113 +153,90 @@ export default function LoginScreen(): JSX.Element {
           display: "flex",
           alignItems: "stretch",
           minHeight: 560,
-          border: "1px solid var(--color-outline-variant)",
-          borderRadius: 16,
+          border: "1px solid var(--line-soft)",
+          borderRadius: 18,
           overflow: "hidden",
+          background: "var(--bg)",
         }}
       >
-        {/* LEFT PANEL — branding + features */}
+        {/* LEFT PANEL — quote / testimonial */}
         <div
           style={{
             flex: 1,
             display: "flex",
             flexDirection: "column",
-            justifyContent: "center",
-            padding: "clamp(40px, 6vw, 80px) clamp(32px, 5vw, 72px)",
-            borderRight: "1px solid var(--color-outline-variant)",
+            justifyContent: "space-between",
+            padding: "56px clamp(40px, 5vw, 72px)",
+            borderRight: "1px solid var(--line-soft)",
+            background: "var(--surface-low)",
           }}
         >
-          <div style={{ marginBottom: 48 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-              <EverionLogo size={32} />
-              <h1
-                className="gradient-text font-headline"
-                style={{
-                  fontSize: "clamp(2rem, 3.5vw, 3rem)",
-                  fontWeight: 700,
-                  margin: 0,
-                  lineHeight: 1.1,
-                }}
-              >
-                Everion
-              </h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <EverionLogo size={22} />
+            <span
+              className="f-serif"
+              style={{
+                fontSize: 22,
+                fontWeight: 450,
+                letterSpacing: "-0.01em",
+                color: "var(--ink)",
+              }}
+            >
+              Everion
+            </span>
+            <span
+              aria-hidden="true"
+              style={{
+                width: 5,
+                height: 5,
+                borderRadius: "50%",
+                background: "var(--ember)",
+                animation: "design-breathe 3.5s ease-in-out infinite",
+              }}
+            />
+          </div>
+
+          <div>
+            <div className="micro" style={{ marginBottom: 14 }}>
+              from someone who lives here
             </div>
             <p
-              className="caps-label"
+              className="f-serif"
               style={{
-                color: "var(--color-secondary)",
-                margin: "0 0 8px",
-              }}
-            >
-              Neural Interface — Your second brain
-            </p>
-            <p
-              style={{
-                fontSize: 14,
-                lineHeight: 1.7,
-                color: "var(--color-on-surface-variant)",
+                fontSize: 24,
+                lineHeight: 1.35,
+                fontWeight: 400,
+                fontStyle: "italic",
+                color: "var(--ink)",
+                letterSpacing: "-0.005em",
                 margin: 0,
-                maxWidth: 440,
               }}
             >
-              Capture everything. Connect the dots. Ask anything. One AI-powered memory system that
-              grows with your life.
+              "It's the only app I keep open all day. The ritual of putting a thing down and
+              knowing where it went — I didn't know I needed that."
             </p>
+            <div
+              className="f-sans"
+              style={{
+                marginTop: 20,
+                fontSize: 13,
+                color: "var(--ink-faint)",
+              }}
+            >
+              — M., writer, lives in her Everion since last summer
+            </div>
           </div>
 
           <div
-            className="login-feature-list"
-            style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 480 }}
-          >
-            {FEATURES.map((f) => (
-              <div
-                key={f.label}
-                className="login-feature-item"
-                style={{ display: "flex", alignItems: "flex-start", gap: 14 }}
-              >
-                <span
-                  style={{ color: "var(--color-primary)", marginTop: 2, flexShrink: 0 }}
-                  aria-hidden="true"
-                >
-                  <f.Icon />
-                </span>
-                <div>
-                  <div
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: "var(--color-on-surface)",
-                      marginBottom: 2,
-                    }}
-                  >
-                    {f.label}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      lineHeight: 1.55,
-                      color: "var(--color-on-surface-variant)",
-                    }}
-                  >
-                    {f.desc}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <p
-            className="login-privacy-note"
+            className="f-serif"
             style={{
-              marginTop: 32,
-              fontSize: 12,
-              color: "var(--color-on-surface-variant)",
-              maxWidth: 440,
-              opacity: 0.7,
+              fontSize: 13,
+              fontStyle: "italic",
+              color: "var(--ink-ghost)",
             }}
           >
-            Your data is yours. Export everything, delete everything. No lock-in.
-          </p>
+            private · offline-first · end-to-end encrypted vault
+          </div>
         </div>
 
         {/* RIGHT PANEL — login form */}
@@ -315,25 +288,29 @@ export default function LoginScreen(): JSX.Element {
             {!showForm && !sent && !usePassword && (
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <h2
+                  className="f-serif"
                   style={{
-                    fontFamily: "var(--f-sans)",
-                    fontSize: 24,
-                    fontWeight: 700,
+                    fontSize: 40,
+                    fontWeight: 400,
                     letterSpacing: "-0.02em",
+                    lineHeight: 1.05,
                     margin: "0 0 4px",
-                    color: "var(--color-on-surface)",
+                    color: "var(--ink)",
                   }}
                 >
-                  Welcome to Everion
+                  welcome back.
                 </h2>
                 <p
+                  className="f-serif"
                   style={{
-                    fontSize: 14,
-                    color: "var(--color-on-surface-variant)",
-                    margin: "0 0 8px",
+                    fontSize: 16,
+                    fontStyle: "italic",
+                    color: "var(--ink-soft)",
+                    margin: "0 0 12px",
+                    lineHeight: 1.5,
                   }}
                 >
-                  Choose how you'd like to sign in.
+                  no passwords here. type your email and we'll send a link.
                 </p>
                 <button
                   onClick={switchToMagicLink}
