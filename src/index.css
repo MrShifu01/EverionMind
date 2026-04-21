@@ -2,10 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
-/* Legacy Lora + DM Sans kept for non-redesigned surfaces; design families override with Newsreader / Source Serif 4 / Fraunces / Inter Tight. */
-@import url("https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,700;1,400;1,700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap");
-/* Redesign fonts — loaded once, shared by all three families */
-@import url("https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&family=Source+Serif+4:ital,opsz,wght@0,8..60,300..700;1,8..60,300..600&family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..500&family=Inter+Tight:wght@400;450;500;600&family=Geist+Mono:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap");
+/* Google Fonts (Lora, DM Sans, Newsreader, Source Serif 4, Fraunces, Inter Tight, Geist Mono, JetBrains Mono) are loaded via <link rel="stylesheet"> in index.html so discovery happens during HTML parse rather than after CSSOM — drops first-paint blocking. */
 
 @import "./design/tokens.css";
 @import "./design/family-dusk.css";

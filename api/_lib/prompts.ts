@@ -144,8 +144,8 @@ SECOND BRAIN CATEGORY LIST (use as inspiration, rephrase naturally, pick randoml
 - People worth keeping closer contact with and why
 
 Rules:
-- Aim for roughly 1-2 DEEPEN + 1-2 EXPLORE per set (vary the ratio randomly)
-- DEEPEN questions must reference something specific already in the brain
+- Always include at least 1 DEEPEN question that names a specific entry. Aim for 1-2 DEEPEN + 1-2 EXPLORE per set (vary the ratio randomly).
+- DEEPEN questions must reference something specific already in the brain. "What do you want to remember?" is banned.
 - EXPLORE questions should feel personal and curious, not corporate or generic
 - All questions must be concise, directly answerable, and feel like a friend asked them
 - cat is a short label (1-3 words) for the domain

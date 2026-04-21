@@ -1,5 +1,4 @@
 import { authFetch } from "./authFetch";
-import { PROMPTS } from "../config/prompts";
 import type { Entry } from "../types";
 import { SKIP_META_KEYS } from "./entryConstants";
 
@@ -42,6 +41,7 @@ export async function enrichEntry(
   brainId: string,
   onUpdate: (id: string, changes: any) => Promise<void>,
 ): Promise<void> {
+  const { PROMPTS } = await import("../config/prompts");
   const e = (entry.metadata as any)?.enrichment ?? {};
   const embedded = e.embedded ?? Boolean((entry as any).embedded_at);
   const concepts = (e.concepts_count ?? 0) > 0;

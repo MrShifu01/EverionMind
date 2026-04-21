@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { supabase } from "../../lib/supabase";
 import { clearAISettingsCache } from "../../lib/aiSettings";
 import { authFetch } from "../../lib/authFetch";
 import MemoryImportPanel from "../MemoryImportPanel";
-import GoogleKeepImportPanel from "./GoogleKeepImportPanel";
+const GoogleKeepImportPanel = lazy(() => import("./GoogleKeepImportPanel"));
 import SettingsRow, { SettingsButton, SettingsText, SettingsValue } from "./SettingsRow";
 
 interface Props {
@@ -267,7 +267,11 @@ export default function AccountTab({ email, brainId }: Props) {
           }}
         >
           <MemoryImportPanel brainId={brainId} />
-          {brainId && <GoogleKeepImportPanel brainId={brainId} />}
+          {brainId && (
+            <Suspense fallback={<div style={{ fontSize: 12, color: "var(--ink-faint)" }}>Loading…</div>}>
+              <GoogleKeepImportPanel brainId={brainId} />
+            </Suspense>
+          )}
         </div>
       )}
 

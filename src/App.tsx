@@ -10,7 +10,7 @@ import { MemoryProvider } from "./MemoryContext";
 import { ThemeProvider } from "./ThemeContext";
 import LoadingScreen from "./components/LoadingScreen";
 import UpdateToast from "./components/UpdateToast";
-import type { Session } from "@supabase/supabase-js";
+import type { Session } from "@supabase/auth-js";
 
 const PENDING_INVITE_KEY = "ob_pending_invite";
 

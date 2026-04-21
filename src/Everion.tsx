@@ -12,7 +12,6 @@ import { useTheme } from "./ThemeContext";
 import { authFetch } from "./lib/authFetch";
 import { callAI } from "./lib/ai";
 import { getEmbedHeaders } from "./lib/aiSettings";
-import { PROMPTS } from "./config/prompts";
 import { registerTypeIcon } from "./lib/typeIcons";
 import { useBrain as useBrainHook } from "./hooks/useBrain";
 import { useOfflineSync } from "./hooks/useOfflineSync";
@@ -958,14 +957,17 @@ function EverionContent({
                     console.error("[OpenBrain]", err);
                   }
                   answeredItems.forEach((item: any) => {
-                    callAI({
-                      max_tokens: 800,
-                      system: PROMPTS.QA_PARSE,
-                      brainId: activeBrain?.id,
-                      messages: [
-                        { role: "user", content: `Question: ${item.q}\nAnswer: ${item.a}` },
-                      ],
-                    })
+                    (async () => {
+                      const { PROMPTS } = await import("./config/prompts");
+                      return callAI({
+                        max_tokens: 800,
+                        system: PROMPTS.QA_PARSE,
+                        brainId: activeBrain?.id,
+                        messages: [
+                          { role: "user", content: `Question: ${item.q}\nAnswer: ${item.a}` },
+                        ],
+                      });
+                    })()
                       .then((r: any) => r.json())
                       .then((data: any) => {
                         let parsed: any = {};
