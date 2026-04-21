@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useEntries } from "../context/EntriesContext";
 import { useConceptGraph } from "../context/ConceptGraphContext";
 import type { Entry, Concept } from "../types";
@@ -18,16 +18,19 @@ export interface GEdge {
 
 const MAX_NODES = 80;
 const MAX_EDGES = 120;
-const REPULSION = 18000;
+
+// Simulation is centered at (0, 0) — world container is positioned at
+// viewport center via CSS, so no panX/panY computation needed on init.
+export const SIM_CX = 0;
+export const SIM_CY = 0;
+
+const REPULSION = 14000;
 const SPRING_K = 0.02;
-const REST_LEN = 270;
-const CENTER_K = 0.006;
+const REST_LEN = 250;
+const CENTER_K = 0.005;
 const DAMPING = 0.82;
 const ALPHA_DECAY = 0.97;
 const MIN_ALPHA = 0.005;
-// Simulation center in world coordinates
-export const SIM_CX = 900;
-export const SIM_CY = 700;
 
 interface SimNode extends GNode {
   vx: number;
@@ -35,6 +38,7 @@ interface SimNode extends GNode {
 }
 
 function runSim(nodes: SimNode[], edges: GEdge[]): SimNode[] {
+  if (nodes.length === 0) return nodes;
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   let alpha = 1;
 
@@ -42,7 +46,6 @@ function runSim(nodes: SimNode[], edges: GEdge[]): SimNode[] {
     alpha *= ALPHA_DECAY;
     const n = nodes.length;
 
-    // Repulsion between all pairs
     for (let i = 0; i < n; i++) {
       for (let j = i + 1; j < n; j++) {
         const a = nodes[i], b = nodes[j];
@@ -58,7 +61,6 @@ function runSim(nodes: SimNode[], edges: GEdge[]): SimNode[] {
       }
     }
 
-    // Spring forces on edges
     for (const edge of edges) {
       const src = nodeMap.get(edge.source);
       const tgt = nodeMap.get(edge.target);
@@ -73,8 +75,8 @@ function runSim(nodes: SimNode[], edges: GEdge[]): SimNode[] {
       tgt.vx -= fx; tgt.vy -= fy;
     }
 
-    // Centering + integrate
     for (const node of nodes) {
+      // Centering force pulls toward (0,0)
       node.vx += (SIM_CX - node.x) * CENTER_K * alpha;
       node.vy += (SIM_CY - node.y) * CENTER_K * alpha;
       node.vx *= DAMPING;
@@ -95,7 +97,7 @@ function buildGraph(
 
   const displayIds = new Set(displayEntries.map((e) => e.id));
 
-  // Derive edges from concept co-occurrence
+  // Edges from concept co-occurrence
   const pairWeight = new Map<string, number>();
   for (const concept of concepts) {
     const relevant = concept.source_entries.filter((id) => displayIds.has(id));
@@ -114,15 +116,15 @@ function buildGraph(
     rawEdges.push({ source, target, weight });
   });
   rawEdges.sort((a, b) => b.weight - a.weight);
-  const edges = rawEdges.slice(0, MAX_EDGES);
+  const topEdges = rawEdges.slice(0, MAX_EDGES);
 
-  // Initial positions: concentric circles so sim converges quickly
+  // Concentric circle starting positions centered on (0, 0)
   const simNodes: SimNode[] = displayEntries.map((entry, i) => {
     const ring = Math.floor(i / 12);
     const posInRing = i % 12;
     const ringSize = Math.min(12, displayEntries.length - ring * 12);
     const angle = (posInRing / ringSize) * 2 * Math.PI;
-    const radius = 280 + ring * 220;
+    const radius = 200 + ring * 180;
     return {
       id: entry.id,
       entry,
@@ -133,49 +135,39 @@ function buildGraph(
     };
   });
 
-  const settled = runSim(simNodes, edges);
+  const settled = runSim(simNodes, topEdges);
   const nodes: GNode[] = settled.map(({ id, entry, x, y }) => ({ id, entry, x, y }));
-  return { nodes, edges };
+  return { nodes, edges: topEdges };
 }
 
 export function useGraph() {
-  const { entries } = useEntries();
+  const { entries, entriesLoaded } = useEntries();
   const { conceptGraph } = useConceptGraph();
-
-  const displayEntries = useMemo(
-    () =>
-      [...entries]
-        .filter((e) => e.type !== "secret")
-        .sort((a, b) => {
-          if (a.importance !== undefined && b.importance !== undefined)
-            return b.importance - a.importance;
-          if (a.importance !== undefined) return -1;
-          if (b.importance !== undefined) return 1;
-          return (b.created_at ?? "").localeCompare(a.created_at ?? "");
-        })
-        .slice(0, MAX_NODES),
-    [entries],
-  );
-
-  const concepts = useMemo(() => conceptGraph?.concepts ?? [], [conceptGraph]);
 
   const [nodes, setNodes] = useState<GNode[]>([]);
   const [edges, setEdges] = useState<GEdge[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
 
-  // Recompute layout only when entry count or concept count changes
-  const entryKey = displayEntries.map((e) => e.id).join(",");
-  const conceptKey = concepts.length;
   useEffect(() => {
-    const { nodes, edges } = buildGraph(displayEntries, concepts);
-    setNodes(nodes);
-    setEdges(edges);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entryKey, conceptKey]);
+    const displayEntries = [...entries]
+      .filter((e) => e.type !== "secret")
+      .sort((a, b) => {
+        const ai = a.importance ?? -1;
+        const bi = b.importance ?? -1;
+        if (ai !== bi) return bi - ai;
+        return (b.created_at ?? "").localeCompare(a.created_at ?? "");
+      })
+      .slice(0, MAX_NODES);
+
+    const concepts = conceptGraph?.concepts ?? [];
+    const result = buildGraph(displayEntries, concepts);
+    setNodes(result.nodes);
+    setEdges(result.edges);
+  }, [entries, conceptGraph]);
 
   const moveNode = useCallback((id: string, x: number, y: number) => {
     setNodes((prev) => prev.map((n) => (n.id === id ? { ...n, x, y } : n)));
   }, []);
 
-  return { nodes, edges, selected, setSelected, moveNode };
+  return { nodes, edges, selected, setSelected, moveNode, entriesLoaded };
 }

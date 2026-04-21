@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import GraphNode from "./GraphNode";
 import type { GNode, GEdge } from "../../hooks/useGraph";
-import { SIM_CX, SIM_CY } from "../../hooks/useGraph";
 
 interface Viewport {
   panX: number;
@@ -49,24 +48,15 @@ interface Props {
   onMoveNode: (id: string, x: number, y: number) => void;
 }
 
-const WORLD_W = 1800;
-const WORLD_H = 1400;
-
-function initialVp(): Viewport {
-  // Use window dimensions as a best-effort center before the container is measured.
-  // The useEffect below refines this once the real container size is known.
-  const zoom = 0.75;
-  return {
-    panX: window.innerWidth / 2 - SIM_CX * zoom,
-    panY: (window.innerHeight * 0.82) / 2 - SIM_CY * zoom,
-    zoom,
-  };
-}
+// Large enough that the sim (centered at 0,0, radius ~800px) never clips
+const WORLD_W = 2400;
+const WORLD_H = 2000;
 
 export default function GraphCanvas({ nodes, edges, selected, onSelect, onMoveNode }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const vpRef = useRef<Viewport>(initialVp());
-  const [vp, setVpState] = useState<Viewport>(initialVp);
+  // pan = 0,0 means sim center (0,0) is at viewport center (via CSS left:50%/top:50%)
+  const vpRef = useRef<Viewport>({ panX: 0, panY: 0, zoom: 0.8 });
+  const [vp, setVpState] = useState<Viewport>({ panX: 0, panY: 0, zoom: 0.8 });
   const motes = useMotes(30);
 
   const setVp = (next: Viewport | ((prev: Viewport) => Viewport)) => {
@@ -75,17 +65,6 @@ export default function GraphCanvas({ nodes, edges, selected, onSelect, onMoveNo
     setVpState(value);
   };
 
-  // Refine centering once we know the real container dimensions
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const { width, height } = containerRef.current.getBoundingClientRect();
-    if (width === 0) return;
-    const zoom = 0.75;
-    setVp({ panX: width / 2 - SIM_CX * zoom, panY: height / 2 - SIM_CY * zoom, zoom });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Drag state ref — no re-renders during drag tracking
   const dragRef = useRef<{
     type: "pan" | "node";
     startX: number; startY: number;
@@ -94,7 +73,6 @@ export default function GraphCanvas({ nodes, edges, selected, onSelect, onMoveNo
     moved?: boolean;
   } | null>(null);
 
-  // Edge map for fast connected-node lookup
   const nodeMap = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
 
   const connectedIds = useMemo(() => {
@@ -107,18 +85,19 @@ export default function GraphCanvas({ nodes, edges, selected, onSelect, onMoveNo
     return ids;
   }, [selected, edges]);
 
-  // Wheel zoom centered on cursor
+  // Wheel to zoom — centered on cursor, adjusted for world being at CSS 50%/50%
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const handler = (e: WheelEvent) => {
       e.preventDefault();
       const rect = el.getBoundingClientRect();
-      const cx = e.clientX - rect.left;
-      const cy = e.clientY - rect.top;
+      // Cursor relative to the world origin (center of container)
+      const cx = e.clientX - rect.left - rect.width / 2;
+      const cy = e.clientY - rect.top - rect.height / 2;
       setVp((prev) => {
         const factor = e.deltaY < 0 ? 1.1 : 0.9;
-        const newZoom = Math.max(0.25, Math.min(2.5, prev.zoom * factor));
+        const newZoom = Math.max(0.2, Math.min(3, prev.zoom * factor));
         const zf = newZoom / prev.zoom;
         return {
           panX: cx * (1 - zf) + prev.panX * zf,
@@ -132,7 +111,6 @@ export default function GraphCanvas({ nodes, edges, selected, onSelect, onMoveNo
   }, []);
 
   function onPointerDownCanvas(e: React.PointerEvent) {
-    // If the target is a node, let the node handler take over
     if ((e.target as HTMLElement).closest("[data-graph-node]")) return;
     dragRef.current = {
       type: "pan",
@@ -163,7 +141,6 @@ export default function GraphCanvas({ nodes, edges, selected, onSelect, onMoveNo
     const d = dragRef.current;
     if (!d) return;
     d.moved = true;
-
     if (d.type === "pan") {
       setVp((prev) => ({
         ...prev,
@@ -178,22 +155,16 @@ export default function GraphCanvas({ nodes, edges, selected, onSelect, onMoveNo
     }
   }
 
-  function onPointerUp(e: React.PointerEvent) {
+  function onPointerUp() {
     const d = dragRef.current;
-    // Click on canvas (no movement) deselects
-    if (d?.type === "pan" && !d.moved) {
-      onSelect(null);
-    }
+    if (d?.type === "pan" && !d.moved) onSelect(null);
     dragRef.current = null;
   }
 
-  const worldStyle: React.CSSProperties = {
-    position: "absolute",
-    transformOrigin: "0 0",
-    transform: `translate(${vp.panX}px, ${vp.panY}px) scale(${vp.zoom})`,
-    width: WORLD_W,
-    height: WORLD_H,
-  };
+  // The world div is anchored at the viewport center (left:50%, top:50%).
+  // The sim places nodes around (0,0), so they naturally appear centered.
+  // User pan/zoom shifts from that center position.
+  const worldTransform = `translate(${vp.panX}px, ${vp.panY}px) scale(${vp.zoom})`;
 
   return (
     <div
@@ -205,14 +176,15 @@ export default function GraphCanvas({ nodes, edges, selected, onSelect, onMoveNo
         overflow: "hidden",
         background: "var(--surface-dim)",
         cursor: "default",
+        minWidth: 0,
       }}
       onPointerDown={onPointerDownCanvas}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerLeave={onPointerUp}
     >
-      {/* Ambient motes — fixed to viewport */}
-      <div className="motes" aria-hidden="true" style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
+      {/* Ambient motes */}
+      <div aria-hidden="true" style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
         {motes.map((m, i) => (
           <div
             key={i}
@@ -232,29 +204,40 @@ export default function GraphCanvas({ nodes, edges, selected, onSelect, onMoveNo
         ))}
       </div>
 
-      {/* Soft ember halo — fixed to viewport center */}
+      {/* Ember halo at viewport center */}
       <div
         aria-hidden="true"
         style={{
-          position: "absolute",
-          top: "50%", left: "50%",
+          position: "absolute", top: "50%", left: "50%",
           transform: "translate(-50%, -50%)",
-          width: 700, height: 700,
-          borderRadius: "50%",
+          width: 600, height: 600, borderRadius: "50%",
           background: "radial-gradient(circle, var(--ember-wash) 0%, transparent 70%)",
-          opacity: 0.3,
-          pointerEvents: "none",
+          opacity: 0.3, pointerEvents: "none",
         }}
       />
 
-      {/* World container — all graph elements live here */}
-      <div style={worldStyle}>
-        {/* SVG edge layer */}
+      {/* World — anchored at viewport center, sim nodes are at (0,0) relative coords */}
+      <div
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: "50%",
+          transformOrigin: "0 0",
+          transform: worldTransform,
+          width: WORLD_W,
+          height: WORLD_H,
+          // Shift so (0,0) in world == top-left of this div's pre-transform position (center of viewport)
+          marginLeft: -WORLD_W / 2,
+          marginTop: -WORLD_H / 2,
+        }}
+      >
+        {/* SVG edges */}
         <svg
           style={{
-            position: "absolute", inset: 0,
-            width: WORLD_W, height: WORLD_H,
-            pointerEvents: "none", overflow: "visible",
+            position: "absolute",
+            left: WORLD_W / 2, top: WORLD_H / 2,
+            overflow: "visible", pointerEvents: "none",
+            width: 0, height: 0,
           }}
         >
           {edges.map((edge, i) => {
@@ -276,13 +259,13 @@ export default function GraphCanvas({ nodes, edges, selected, onSelect, onMoveNo
           })}
         </svg>
 
-        {/* Node cards */}
+        {/* Node cards — positioned relative to (WORLD_W/2, WORLD_H/2) which maps to (0,0) */}
         {nodes.map((node) => {
           const isFaded = selected !== null && !connectedIds.has(node.id);
           return (
             <GraphNode
               key={node.id}
-              node={node}
+              node={{ ...node, x: node.x + WORLD_W / 2, y: node.y + WORLD_H / 2 }}
               selected={selected === node.id}
               faded={isFaded}
               onClick={() => onSelect(selected === node.id ? null : node.id)}
@@ -292,7 +275,7 @@ export default function GraphCanvas({ nodes, edges, selected, onSelect, onMoveNo
         })}
       </div>
 
-      {/* Legend — fixed to viewport */}
+      {/* Legend */}
       <div
         style={{ position: "absolute", bottom: 20, left: 20, pointerEvents: "none" }}
         className="f-serif"
@@ -302,7 +285,6 @@ export default function GraphCanvas({ nodes, edges, selected, onSelect, onMoveNo
         </div>
       </div>
 
-      {/* Zoom hint — top right */}
       <div
         style={{
           position: "absolute", top: 16, right: 16,

@@ -12,7 +12,7 @@ function formatDate(iso?: string) {
 }
 
 export default function GraphView({ openEntry }: GraphViewProps) {
-  const { nodes, edges, selected, setSelected, moveNode } = useGraph();
+  const { nodes, edges, selected, setSelected, moveNode, entriesLoaded } = useGraph();
 
   const selectedNode = nodes.find((n) => n.id === selected);
   const selectedEntry = selectedNode?.entry ?? null;
@@ -56,7 +56,19 @@ export default function GraphView({ openEntry }: GraphViewProps) {
 
       {/* Body */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 0 }}>
-        {nodes.length === 0 ? (
+        {!entriesLoaded ? (
+          /* Loading state — don't flash empty sky while entries are in flight */
+          <div
+            style={{
+              flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+              background: "var(--surface-dim)",
+            }}
+          >
+            <div className="f-serif" style={{ fontSize: 15, fontStyle: "italic", color: "var(--ink-faint)" }}>
+              mapping your memory…
+            </div>
+          </div>
+        ) : nodes.length === 0 ? (
           <div
             style={{
               flex: 1, display: "flex", flexDirection: "column",
