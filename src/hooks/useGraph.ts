@@ -24,10 +24,10 @@ const MAX_EDGES = 120;
 export const SIM_CX = 0;
 export const SIM_CY = 0;
 
-const REPULSION = 14000;
+const REPULSION = 5000;
 const SPRING_K = 0.02;
-const REST_LEN = 250;
-const CENTER_K = 0.005;
+const REST_LEN = 90;
+const CENTER_K = 0.010;
 const DAMPING = 0.82;
 const ALPHA_DECAY = 0.97;
 const MIN_ALPHA = 0.005;
@@ -124,7 +124,7 @@ function buildGraph(
     const posInRing = i % 12;
     const ringSize = Math.min(12, displayEntries.length - ring * 12);
     const angle = (posInRing / ringSize) * 2 * Math.PI;
-    const radius = 200 + ring * 180;
+    const radius = 55 + ring * 65;
     return {
       id: entry.id,
       entry,

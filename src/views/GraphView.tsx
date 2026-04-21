@@ -19,6 +19,7 @@ export default function GraphView({ openEntry }: GraphViewProps) {
 
   return (
     <div
+      className="graph-root"
       style={{ height: "100dvh", display: "flex", flexDirection: "column", background: "var(--bg)" }}
     >
       {/* Top bar */}
@@ -202,8 +203,10 @@ export default function GraphView({ openEntry }: GraphViewProps) {
       </div>
 
       <style>{`
-        @media (max-width: 1024px) {
-          .graph-topbar { padding: 14px 20px !important; min-height: 56px !important; }
+        @media (max-width: 1023px) {
+          /* MobileHeader is ~60px — subtract it so canvas stays in viewport */
+          .graph-root { height: calc(100dvh - 60px) !important; }
+          .graph-topbar { padding: 10px 16px !important; min-height: 48px !important; }
           .graph-rail {
             position: fixed !important; inset: 0 !important;
             width: 100% !important; z-index: 60;
