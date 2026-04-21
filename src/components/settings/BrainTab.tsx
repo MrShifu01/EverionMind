@@ -1,13 +1,40 @@
 import { useState, useRef } from "react";
 import { authFetch } from "../../lib/authFetch";
 import type { Brain } from "../../types";
-import GoogleKeepImportPanel from "./GoogleKeepImportPanel";
+import SettingsRow, {
+  SettingsButton,
+  SettingsToggle,
+  SettingsValue,
+} from "./SettingsRow";
 
-// ── Export / Import Panel ──────────────────────────────────────
-function ExportImportPanel({ activeBrain }: { activeBrain: Brain }) {
+const CONCEPT_KEY = "everion:brain:concept_extraction";
+const EMBEDDINGS_KEY = "everion:brain:embeddings";
+
+interface Props {
+  activeBrain: Brain;
+  onRefreshBrains?: () => void;
+}
+
+function loadPref(key: string, fallback: boolean): boolean {
+  try {
+    const v = localStorage.getItem(key);
+    if (v === "true") return true;
+    if (v === "false") return false;
+  } catch { /* ignore */ }
+  return fallback;
+}
+
+function savePref(key: string, value: boolean) {
+  try { localStorage.setItem(key, String(value)); } catch { /* ignore */ }
+}
+
+export default function BrainTab({ activeBrain }: Props) {
+  const [conceptOn, setConceptOn] = useState(() => loadPref(CONCEPT_KEY, true));
+  const [embedOn, setEmbedOn] = useState(() => loadPref(EMBEDDINGS_KEY, true));
   const [importing, setImporting] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [exportImportOpen, setExportImportOpen] = useState(false);
 
   const handleExport = () => {
     const a = document.createElement("a");
@@ -54,81 +81,94 @@ function ExportImportPanel({ activeBrain }: { activeBrain: Brain }) {
   const statusMsg = importStatus?.startsWith("imported:")
     ? (() => {
         const [, i, s] = importStatus.split(":");
-        return `✓ Imported ${i}, skipped ${s} duplicates`;
+        return `imported ${i}, skipped ${s} duplicates`;
       })()
     : importStatus === "invalid"
-      ? "✗ Invalid file format"
+      ? "invalid file format"
       : importStatus === "toobig"
-        ? "✗ Max 500 entries per import"
+        ? "max 500 entries per import"
         : importStatus === "error"
-          ? "✗ Import failed"
+          ? "import failed"
           : null;
+  const statusOk = importStatus?.startsWith("imported:");
 
   return (
-    <div
-      className="space-y-3 rounded-2xl border p-4"
-      style={{
-        background: "var(--color-surface-container-high)",
-        borderColor: "var(--color-outline-variant)",
-      }}
-    >
-      <p className="text-on-surface text-sm font-semibold">Export / Import</p>
-      <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-        Export all entries from <strong className="text-on-surface">{activeBrain.name}</strong> as
-        JSON, or import from a previous export.
-      </p>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={handleExport}
-          className="rounded-xl border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-white/5"
-          style={{
-            color: "var(--color-on-surface-variant)",
-            borderColor: "var(--color-outline-variant)",
+    <div>
+      <SettingsRow label="Name">
+        <SettingsValue>{activeBrain.name}</SettingsValue>
+      </SettingsRow>
+
+      <SettingsRow
+        label="Concept extraction"
+        hint="extract concepts from new entries automatically."
+      >
+        <SettingsToggle
+          value={conceptOn}
+          onChange={(v) => {
+            setConceptOn(v);
+            savePref(CONCEPT_KEY, v);
           }}
-        >
-          ⬇ Export Brain
-        </button>
-        <input
-          type="file"
-          accept=".json"
-          ref={fileRef}
-          onChange={handleImportFile}
-          className="hidden"
+          ariaLabel="Concept extraction"
         />
-        <button
-          onClick={() => fileRef.current?.click()}
-          disabled={importing}
-          className="rounded-xl px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
-          style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
-        >
-          {importing ? "Importing…" : "⬆ Import"}
-        </button>
-      </div>
-      {statusMsg && (
-        <p
-          className="text-xs"
+      </SettingsRow>
+
+      <SettingsRow label="Embeddings" hint="used for semantic search. stored on device.">
+        <SettingsToggle
+          value={embedOn}
+          onChange={(v) => {
+            setEmbedOn(v);
+            savePref(EMBEDDINGS_KEY, v);
+          }}
+          ariaLabel="Embeddings"
+        />
+      </SettingsRow>
+
+      <SettingsRow
+        label="Export / Import"
+        hint="take this brain with you, or pull one back in from a backup."
+        last={!exportImportOpen}
+      >
+        <SettingsButton onClick={() => setExportImportOpen((v) => !v)}>
+          {exportImportOpen ? "Close" : "Manage"}
+        </SettingsButton>
+      </SettingsRow>
+      {exportImportOpen && (
+        <div
           style={{
-            color: statusMsg.startsWith("✓") ? "var(--color-primary)" : "var(--color-error)",
+            padding: "0 0 18px",
+            borderBottom: "1px solid var(--line-soft)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
           }}
         >
-          {statusMsg}
-        </p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <SettingsButton onClick={handleExport}>Export brain</SettingsButton>
+            <input
+              type="file"
+              accept=".json"
+              ref={fileRef}
+              onChange={handleImportFile}
+              className="hidden"
+            />
+            <SettingsButton onClick={() => fileRef.current?.click()} disabled={importing}>
+              {importing ? "Importing…" : "Import JSON"}
+            </SettingsButton>
+          </div>
+          {statusMsg && (
+            <p
+              className="f-sans"
+              style={{
+                fontSize: 12,
+                color: statusOk ? "var(--moss)" : "var(--blood)",
+                margin: 0,
+              }}
+            >
+              {statusMsg}
+            </p>
+          )}
+        </div>
       )}
     </div>
-  );
-}
-
-// ── Brain Tab ──────────────────────────────────────────────────
-interface Props {
-  activeBrain: Brain;
-  onRefreshBrains?: () => void;
-}
-
-export default function BrainTab({ activeBrain }: Props) {
-  return (
-    <>
-      <ExportImportPanel activeBrain={activeBrain} />
-      <GoogleKeepImportPanel brainId={activeBrain.id} />
-    </>
   );
 }

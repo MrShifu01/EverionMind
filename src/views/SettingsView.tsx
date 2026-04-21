@@ -9,37 +9,42 @@ import DangerTab from "../components/settings/DangerTab";
 import ClaudeCodeTab from "../components/settings/ClaudeCodeTab";
 import NotificationSettings from "../components/NotificationSettings";
 import AppearanceTab from "../components/settings/AppearanceTab";
+import SettingsRow, { SettingsButton } from "../components/settings/SettingsRow";
 import { authFetch } from "../lib/authFetch";
 
 type SectionId =
-  | "appearance"
   | "account"
   | "brain"
   | "providers"
   | "notifications"
   | "storage"
   | "integrations"
+  | "appearance"
   | "danger";
 
 const SECTIONS: { id: SectionId; label: string }[] = [
-  { id: "appearance", label: "Appearance" },
   { id: "account", label: "Account" },
   { id: "brain", label: "Brain" },
   { id: "providers", label: "AI providers" },
   { id: "notifications", label: "Notifications" },
   { id: "storage", label: "Storage" },
   { id: "integrations", label: "Integrations" },
+  { id: "appearance", label: "Appearance" },
   { id: "danger", label: "Danger zone" },
 ];
 
-function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+function SectionHeader({ title, subtitle, danger }: { title: string; subtitle?: string; danger?: boolean }) {
   return (
     <div style={{ marginBottom: 24 }}>
       <h2
         className="f-serif"
         style={{
-          fontSize: 28, fontWeight: 450, letterSpacing: "-0.01em",
-          color: "var(--ink)", margin: 0,
+          fontSize: 32,
+          fontWeight: 450,
+          letterSpacing: "-0.015em",
+          lineHeight: 1.15,
+          color: danger ? "var(--blood)" : "var(--ink)",
+          margin: 0,
         }}
       >
         {title}
@@ -48,8 +53,12 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }
         <p
           className="f-serif"
           style={{
-            fontSize: 14, color: "var(--ink-faint)", fontStyle: "italic",
-            marginTop: 6, marginBottom: 0, lineHeight: 1.5,
+            fontSize: 15,
+            color: "var(--ink-faint)",
+            fontStyle: "italic",
+            marginTop: 14,
+            marginBottom: 0,
+            lineHeight: 1.5,
           }}
         >
           {subtitle}
@@ -189,35 +198,9 @@ function AuditCard({ brainId }: { brainId: string }) {
 
 function VaultRow({ onNavigate }: { onNavigate: (id: string) => void }) {
   return (
-    <div
-      style={{
-        padding: "18px 0",
-        borderBottom: "1px solid var(--line-soft)",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: 32,
-      }}
-    >
-      <div style={{ flex: 1 }}>
-        <div className="f-serif" style={{ fontSize: 16, fontWeight: 450, color: "var(--ink)" }}>
-          Vault
-        </div>
-        <div
-          className="f-serif"
-          style={{ fontSize: 13, color: "var(--ink-faint)", fontStyle: "italic", marginTop: 3 }}
-        >
-          end-to-end encrypted secrets.
-        </div>
-      </div>
-      <button
-        onClick={() => onNavigate("vault")}
-        className="design-btn-secondary press"
-        style={{ height: 32, minHeight: 32, fontSize: 13, padding: "0 14px" }}
-      >
-        Open vault
-      </button>
-    </div>
+    <SettingsRow label="Vault" hint="end-to-end encrypted secrets.">
+      <SettingsButton onClick={() => onNavigate("vault")}>Open vault</SettingsButton>
+    </SettingsRow>
   );
 }
 
@@ -263,28 +246,77 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
           gap: 20,
         }}
       >
-        <div style={{ minWidth: 0 }}>
-          <h1
-            className="f-serif"
-            style={{
-              fontSize: 22,
-              fontWeight: 450,
-              letterSpacing: "-0.01em",
-              margin: 0,
-              color: "var(--ink)",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
+        <h1
+          className="f-serif"
+          style={{
+            fontSize: 28,
+            fontWeight: 450,
+            letterSpacing: "-0.015em",
+            margin: 0,
+            color: "var(--ink)",
+          }}
+        >
+          Settings
+        </h1>
+        <div
+          className="settings-topbar-search"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "0 10px 0 14px",
+            height: 40,
+            minWidth: 280,
+            background: "var(--surface)",
+            border: "1px solid var(--line-soft)",
+            borderRadius: 8,
+          }}
+        >
+          <svg
+            width="14" height="14"
+            fill="none" stroke="currentColor" strokeWidth="1.5"
+            strokeLinecap="round" strokeLinejoin="round"
+            viewBox="0 0 24 24"
+            style={{ color: "var(--ink-faint)", flexShrink: 0 }}
+            aria-hidden="true"
           >
-            Settings
-          </h1>
-          <div
-            className="f-serif"
-            style={{ fontSize: 13, color: "var(--ink-faint)", fontStyle: "italic", marginTop: 2 }}
-          >
-            your room — how it looks, who runs the AI, what we keep.
-          </div>
+            <circle cx="11" cy="11" r="6.5"/><path d="m20 20-3.5-3.5"/>
+          </svg>
+          <input
+            readOnly
+            placeholder="Search everything"
+            onClick={() =>
+              window.dispatchEvent(
+                new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }),
+              )
+            }
+            className="f-sans flex-1 border-none bg-transparent outline-none"
+            style={{ fontSize: 13, color: "var(--ink)", minWidth: 0, cursor: "pointer" }}
+          />
+          <span style={{ display: "inline-flex", gap: 2, flexShrink: 0 }}>
+            <kbd
+              className="f-sans"
+              style={{
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                minWidth: 18, height: 18, padding: "0 5px",
+                background: "var(--surface-low)", border: "1px solid var(--line)",
+                borderRadius: 4, fontSize: 11, color: "var(--ink-faint)", fontWeight: 500,
+              }}
+            >
+              Ctrl
+            </kbd>
+            <kbd
+              className="f-sans"
+              style={{
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                minWidth: 18, height: 18, padding: "0 5px",
+                background: "var(--surface-low)", border: "1px solid var(--line)",
+                borderRadius: 4, fontSize: 11, color: "var(--ink-faint)", fontWeight: 500,
+              }}
+            >
+              K
+            </kbd>
+          </span>
         </div>
       </header>
 
@@ -343,10 +375,13 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
           style={{
             width: 220,
             flexShrink: 0,
-            padding: "20px 12px",
+            padding: "20px 16px",
             borderRight: "1px solid var(--line-soft)",
             background: "var(--surface-low)",
             overflowY: "auto",
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
           }}
           aria-label="Settings sections"
         >
@@ -363,16 +398,30 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
                   width: "100%",
                   textAlign: "left",
                   padding: "0 14px",
-                  minHeight: 36,
-                  height: 36,
-                  borderRadius: 6,
+                  minHeight: 38,
+                  height: 38,
+                  borderRadius: 8,
                   fontFamily: "var(--f-sans)",
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: 500,
-                  color: active ? "var(--ink)" : id === "danger" ? "var(--blood)" : "var(--ink-soft)",
-                  background: active ? "var(--surface)" : "transparent",
+                  color: active
+                    ? "var(--ink)"
+                    : id === "danger"
+                      ? "var(--blood)"
+                      : "var(--ink-soft)",
+                  background: active ? "var(--surface-high)" : "transparent",
                   border: "none",
                   cursor: "pointer",
+                  transition: "background 180ms, color 180ms",
+                }}
+                onMouseEnter={(e) => {
+                  if (!active) e.currentTarget.style.color = "var(--ink)";
+                }}
+                onMouseLeave={(e) => {
+                  if (!active) {
+                    e.currentTarget.style.color =
+                      id === "danger" ? "var(--blood)" : "var(--ink-soft)";
+                  }
                 }}
               >
                 {label}
@@ -401,17 +450,14 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
 
             {section === "account" && (
               <>
-                <SectionHeader
-                  title="Account"
-                  subtitle="your email, your profile, your sign-out."
-                />
+                <SectionHeader title="Account" />
                 <AccountTab email={email} brainId={activeBrain?.id} />
               </>
             )}
 
             {section === "brain" && activeBrain && (
               <>
-                <SectionHeader title="Brain" subtitle="what lives here, what extracts concepts." />
+                <SectionHeader title="Brain" />
                 <BrainTab activeBrain={activeBrain} onRefreshBrains={refresh} />
               </>
             )}
@@ -428,34 +474,21 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
 
             {section === "notifications" && (
               <>
-                <SectionHeader
-                  title="Notifications"
-                  subtitle="when we tap you on the shoulder — never more than once a day."
-                />
-                <div
-                  style={{
-                    background: "var(--surface)",
-                    border: "1px solid var(--line-soft)",
-                    borderRadius: 12,
-                    padding: 20,
-                  }}
-                >
-                  <NotificationSettings />
-                </div>
+                <SectionHeader title="Notifications" />
+                <NotificationSettings />
               </>
             )}
 
             {section === "storage" && (
               <>
-                <SectionHeader
-                  title="Storage"
-                  subtitle="entries, files, trash. export anywhere, anytime."
-                />
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  <StorageTab activeBrain={activeBrain ?? undefined} />
-                  {activeBrain && <AuditCard brainId={activeBrain.id} />}
-                  {onNavigate && <VaultRow onNavigate={onNavigate} />}
-                </div>
+                <SectionHeader title="Storage" />
+                <StorageTab activeBrain={activeBrain ?? undefined} />
+                {activeBrain && (
+                  <div style={{ marginTop: 16 }}>
+                    <AuditCard brainId={activeBrain.id} />
+                  </div>
+                )}
+                {onNavigate && <VaultRow onNavigate={onNavigate} />}
               </>
             )}
 
@@ -463,7 +496,7 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
               <>
                 <SectionHeader
                   title="Integrations"
-                  subtitle="mcp and rest endpoints for the agents you already use."
+                  subtitle="MCP and REST endpoints for the agents you already use."
                 />
                 <ClaudeCodeTab />
               </>
@@ -474,6 +507,7 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
                 <SectionHeader
                   title="Danger zone"
                   subtitle="all of these are irreversible. we've made them clear, not hidden."
+                  danger
                 />
                 <DangerTab
                   activeBrain={activeBrain}
@@ -503,12 +537,14 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
 
       {/* Responsive CSS — scoped to SettingsView */}
       <style>{`
-        .settings-topbar { padding: 18px 32px; min-height: 68px; }
+        .settings-topbar { padding: 18px 32px; min-height: 72px; }
         .settings-content { padding: 32px 40px; }
         .settings-mobile-tabs { display: none; }
-        .settings-desktop-nav { display: block; }
+        .settings-desktop-nav { display: flex; }
+        .settings-topbar-search { display: flex; }
         @media (max-width: 1024px) {
           .settings-topbar { padding: 14px 20px; min-height: 56px; }
+          .settings-topbar-search { display: none !important; }
           .settings-mobile-tabs { display: flex !important; }
           .settings-desktop-nav { display: none !important; }
           .settings-content { padding: 20px 16px calc(96px + env(safe-area-inset-bottom)); }

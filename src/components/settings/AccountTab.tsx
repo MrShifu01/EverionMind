@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
 import { clearAISettingsCache } from "../../lib/aiSettings";
 import { authFetch } from "../../lib/authFetch";
 import MemoryImportPanel from "../MemoryImportPanel";
 import GoogleKeepImportPanel from "./GoogleKeepImportPanel";
-import NotificationSettings from "../NotificationSettings";
+import SettingsRow, { SettingsButton, SettingsText, SettingsValue } from "./SettingsRow";
 
 interface Props {
   email: string;
@@ -37,36 +37,40 @@ const PROFILE_LABELS: Record<keyof ProfileFields, string> = {
   country: "Country",
 };
 
+const PROFILE_CACHE_KEY = "everion_profile";
+
+function readProfileCache(): ProfileFields | null {
+  try {
+    const raw = localStorage.getItem(PROFILE_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeProfileCache(p: ProfileFields) {
+  try {
+    localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(p));
+  } catch {
+    /* ignore */
+  }
+}
+
 export default function AccountTab({ email, brainId }: Props) {
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [exporting, setExporting] = useState(false);
-  const [exportError, setExportError] = useState<string | null>(null);
-
-  const PROFILE_CACHE_KEY = "everion_profile";
-
-  function readProfileCache(): ProfileFields | null {
-    try {
-      const raw = localStorage.getItem(PROFILE_CACHE_KEY);
-      return raw ? JSON.parse(raw) : null;
-    } catch { return null; }
-  }
-
-  function writeProfileCache(p: ProfileFields) {
-    try { localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(p)); } catch { /* ignore */ }
-  }
-
-  const [profile, setProfile] = useState<ProfileFields>(() => {
-    return readProfileCache() ?? { display_name: "", phone: "", address: "", city: "", country: "" };
-  });
+  const [profile, setProfile] = useState<ProfileFields>(
+    () => readProfileCache() ?? { display_name: "", phone: "", address: "", city: "", country: "" },
+  );
+  const [profileOpen, setProfileOpen] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
   const [importsOpen, setImportsOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
 
-  // Hydrate from Supabase in background — updates cache if server has newer data
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
@@ -87,23 +91,23 @@ export default function AccountTab({ email, brainId }: Props) {
     setProfileSaving(true);
     setProfileError(null);
     setProfileSaved(false);
-    writeProfileCache(profile); // optimistic local write
+    writeProfileCache(profile);
     const { error: err } = await supabase.auth.updateUser({ data: profile });
     setProfileSaving(false);
     if (err) setProfileError(err.message);
     else setProfileSaved(true);
   }
 
-  const handleSignOut = async () => {
+  async function handleSignOut() {
     setSigningOut(true);
     setError(null);
     clearAISettingsCache();
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      setError(error.message);
+    const { error: err } = await supabase.auth.signOut();
+    if (err) {
+      setError(err.message);
       setSigningOut(false);
     }
-  };
+  }
 
   async function fetchAllEntries() {
     const r = await authFetch("/api/entries");
@@ -167,7 +171,6 @@ export default function AccountTab({ email, brainId }: Props) {
       );
       if (!contacts.length) {
         setExportError("No person/contact entries to export.");
-        setExporting(false);
         return;
       }
       const vcards = contacts.map((e: any) => {
@@ -193,237 +196,126 @@ export default function AccountTab({ email, brainId }: Props) {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Account info */}
-      <div
-        className="rounded-2xl border p-4"
-        style={{
-          background: "var(--color-surface-container-high)",
-          borderColor: "var(--color-outline-variant)",
-        }}
+    <div>
+      <SettingsRow label="Email" hint="we only email you when a magic link is requested.">
+        <SettingsText>{email || "—"}</SettingsText>
+      </SettingsRow>
+
+      <SettingsRow
+        label="Display name"
+        hint={profileOpen ? "edit your public details below." : undefined}
       >
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-on-surface text-sm font-semibold">Account</p>
-            <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-              {email}
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {profile.display_name && !profileOpen && (
+            <SettingsText>{profile.display_name}</SettingsText>
+          )}
+          <SettingsButton onClick={() => setProfileOpen((v) => !v)}>
+            {profileOpen ? "Close" : "Edit"}
+          </SettingsButton>
+        </div>
+      </SettingsRow>
+
+      {profileOpen && (
+        <div
+          style={{
+            padding: "0 0 18px",
+            borderBottom: "1px solid var(--line-soft)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+          }}
+        >
+          {(Object.keys(PROFILE_LABELS) as (keyof ProfileFields)[]).map((field) => (
+            <label key={field} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span className="micro">{PROFILE_LABELS[field]}</span>
+              <input
+                className="design-input f-sans"
+                value={profile[field]}
+                onChange={(e) => setProfile((p) => ({ ...p, [field]: e.target.value }))}
+              />
+            </label>
+          ))}
+          {profileError && (
+            <p className="f-sans" style={{ fontSize: 12, color: "var(--blood)", margin: 0 }}>
+              {profileError}
             </p>
-          </div>
-          <button
-            onClick={handleSignOut}
-            disabled={signingOut}
-            className="rounded-xl border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-white/5 disabled:opacity-40"
-            style={{
-              color: "var(--color-error)",
-              borderColor: "color-mix(in oklch, var(--color-error) 30%, transparent)",
-            }}
-          >
-            {signingOut ? "Signing out…" : "Sign out"}
-          </button>
+          )}
+          {profileSaved && (
+            <p className="f-sans" style={{ fontSize: 12, color: "var(--moss)", margin: 0 }}>
+              Saved.
+            </p>
+          )}
+          <SettingsButton onClick={saveProfile} disabled={profileSaving}>
+            {profileSaving ? "Saving…" : "Save profile"}
+          </SettingsButton>
         </div>
-        {error && (
-          <p className="mt-2 text-xs" style={{ color: "var(--color-error)" }}>
-            {error}
-          </p>
-        )}
-      </div>
+      )}
 
-      {/* Profile — collapsible */}
-      <div
-        className="rounded-2xl border overflow-hidden"
-        style={{
-          background: "var(--color-surface-container-high)",
-          borderColor: "var(--color-outline-variant)",
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setProfileOpen((o) => !o)}
-          className="flex w-full items-center justify-between px-4 py-3.5 text-left"
-        >
-          <div className="min-w-0">
-            <p className="text-on-surface text-sm font-semibold">Profile</p>
-            {!profileOpen && profile.display_name && (
-              <p className="text-xs truncate" style={{ color: "var(--color-on-surface-variant)" }}>
-                {profile.display_name}{profile.city ? ` · ${profile.city}` : ""}
-              </p>
-            )}
-            {!profileOpen && !profile.display_name && (
-              <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-                Basic details stored with your account.
-              </p>
-            )}
-          </div>
-          <svg
-            className={`ml-3 h-4 w-4 flex-shrink-0 transition-transform ${profileOpen ? "rotate-180" : ""}`}
-            fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
-            style={{ color: "var(--color-on-surface-variant)" }}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-
+      <SettingsRow label="Imports" hint="bring in memories Claude or ChatGPT already know about you.">
+        <SettingsButton onClick={() => setImportsOpen((v) => !v)}>
+          {importsOpen ? "Close" : "Manage"}
+        </SettingsButton>
+      </SettingsRow>
+      {importsOpen && (
         <div
           style={{
-            display: "grid",
-            gridTemplateRows: profileOpen ? "1fr" : "0fr",
-            transition: "grid-template-rows 380ms cubic-bezier(0.16, 1, 0.3, 1)",
+            padding: "0 0 18px",
+            borderBottom: "1px solid var(--line-soft)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
           }}
         >
-          <div className="overflow-hidden">
-            <div className="px-4 pb-4">
-              <div className="space-y-2">
-                {(Object.keys(PROFILE_LABELS) as (keyof ProfileFields)[]).map((field) => (
-                  <div key={field}>
-                    <label className="mb-1 block text-xs font-medium" style={{ color: "var(--color-on-surface-variant)" }}>
-                      {PROFILE_LABELS[field]}
-                    </label>
-                    <input
-                      type="text"
-                      value={profile[field]}
-                      onChange={(e) => setProfile((p) => ({ ...p, [field]: e.target.value }))}
-                      className="text-on-surface w-full rounded-xl border px-3 py-2 text-sm outline-none"
-                      style={{
-                        background: "var(--color-surface-container-low)",
-                        borderColor: "var(--color-outline-variant)",
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-              {profileError && (
-                <p className="mt-2 text-xs" style={{ color: "var(--color-error)" }}>{profileError}</p>
-              )}
-              {profileSaved && (
-                <p className="mt-2 text-xs" style={{ color: "var(--color-primary)" }}>Saved</p>
-              )}
-              <button
-                onClick={saveProfile}
-                disabled={profileSaving}
-                className="press-scale mt-3 w-full rounded-xl py-2.5 text-xs font-semibold disabled:opacity-40"
-                style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
-              >
-                {profileSaving ? "Saving…" : "Save profile"}
-              </button>
-            </div>
-          </div>
+          <MemoryImportPanel brainId={brainId} />
+          {brainId && <GoogleKeepImportPanel brainId={brainId} />}
         </div>
-      </div>
+      )}
 
-      {/* Notifications — collapsible */}
-      <div
-        className="rounded-2xl border overflow-hidden"
-        style={{ background: "var(--color-surface-container-high)", borderColor: "var(--color-outline-variant)" }}
-      >
-        <button type="button" onClick={() => setNotifOpen((o) => !o)} className="flex w-full items-center justify-between px-4 py-3.5 text-left">
-          <div>
-            <p className="text-on-surface text-sm font-semibold">Notifications</p>
-            {!notifOpen && <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>Push alerts, daily prompts, expiry reminders</p>}
-          </div>
-          <svg className={`ml-3 h-4 w-4 flex-shrink-0 transition-transform ${notifOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" style={{ color: "var(--color-on-surface-variant)" }}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
+      <SettingsRow label="Export" hint="your data is yours — take it anywhere, any time.">
+        <SettingsButton onClick={() => setExportOpen((v) => !v)}>
+          {exportOpen ? "Close" : "Export"}
+        </SettingsButton>
+      </SettingsRow>
+      {exportOpen && (
         <div
           style={{
-            display: "grid",
-            gridTemplateRows: notifOpen ? "1fr" : "0fr",
-            transition: "grid-template-rows 380ms cubic-bezier(0.16, 1, 0.3, 1)",
+            padding: "0 0 18px",
+            borderBottom: "1px solid var(--line-soft)",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 8,
           }}
         >
-          <div className="overflow-hidden">
-            <div className="px-4 pb-4"><NotificationSettings /></div>
-          </div>
-        </div>
-      </div>
-
-      {/* Imports — collapsible */}
-      <div
-        className="rounded-2xl border overflow-hidden"
-        style={{ background: "var(--color-surface-container-high)", borderColor: "var(--color-outline-variant)" }}
-      >
-        <button type="button" onClick={() => setImportsOpen((o) => !o)} className="flex w-full items-center justify-between px-4 py-3.5 text-left">
-          <div>
-            <p className="text-on-surface text-sm font-semibold">Import Data</p>
-            {!importsOpen && <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>AI memories, Google Keep</p>}
-          </div>
-          <svg className={`ml-3 h-4 w-4 flex-shrink-0 transition-transform ${importsOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" style={{ color: "var(--color-on-surface-variant)" }}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateRows: importsOpen ? "1fr" : "0fr",
-            transition: "grid-template-rows 380ms cubic-bezier(0.16, 1, 0.3, 1)",
-          }}
-        >
-          <div className="overflow-hidden">
-            <div className="px-4 pb-4 space-y-4">
-              <div>
-                <p className="text-on-surface mb-1 text-xs font-semibold">Import from AI</p>
-                <p className="mb-2 text-[11px]" style={{ color: "var(--color-on-surface-variant)" }}>Bring in memories Claude or ChatGPT already knows about you.</p>
-                <MemoryImportPanel brainId={brainId} />
-              </div>
-              {brainId && <GoogleKeepImportPanel brainId={brainId} />}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Data Export */}
-      <div
-        className="rounded-2xl border p-4"
-        style={{
-          background: "var(--color-surface-container-high)",
-          borderColor: "var(--color-outline-variant)",
-        }}
-      >
-        <p className="text-on-surface mb-1 text-sm font-semibold">Export Your Data</p>
-        <p className="mb-3 text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-          Download all your memories. Your data is always yours.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={handleExportJSON}
-            disabled={exporting}
-            className="rounded-xl border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-40"
-            style={{
-              borderColor: "var(--color-outline-variant)",
-              color: "var(--color-on-surface-variant)",
-            }}
-          >
+          <SettingsButton onClick={handleExportJSON} disabled={exporting}>
             {exporting ? "Exporting…" : "JSON"}
-          </button>
-          <button
-            onClick={handleExportCSV}
-            disabled={exporting}
-            className="rounded-xl border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-40"
-            style={{
-              borderColor: "var(--color-outline-variant)",
-              color: "var(--color-on-surface-variant)",
-            }}
-          >
+          </SettingsButton>
+          <SettingsButton onClick={handleExportCSV} disabled={exporting}>
             CSV
-          </button>
-          <button
-            onClick={handleExportVCard}
-            disabled={exporting}
-            className="rounded-xl border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-40"
-            style={{
-              borderColor: "var(--color-outline-variant)",
-              color: "var(--color-on-surface-variant)",
-            }}
-          >
+          </SettingsButton>
+          <SettingsButton onClick={handleExportVCard} disabled={exporting}>
             vCard (contacts)
-          </button>
+          </SettingsButton>
+          {exportError && (
+            <p className="f-sans" style={{ fontSize: 12, color: "var(--blood)", margin: 0, width: "100%" }}>
+              {exportError}
+            </p>
+          )}
         </div>
-        {exportError && (
-          <p className="mt-2 text-xs" style={{ color: "var(--color-error)" }}>
-            {exportError}
-          </p>
-        )}
-      </div>
+      )}
+
+      <SettingsRow label="Sign out" last>
+        <SettingsButton onClick={handleSignOut} disabled={signingOut}>
+          {signingOut ? "Signing out…" : "Sign out"}
+        </SettingsButton>
+      </SettingsRow>
+      {error && (
+        <p className="f-sans" style={{ fontSize: 12, color: "var(--blood)", marginTop: 6 }}>
+          {error}
+        </p>
+      )}
+
+      {/* Silence unused variable lint — kept for potential future readers */}
+      <span style={{ display: "none" }}>{SettingsValue.name}</span>
     </div>
   );
 }

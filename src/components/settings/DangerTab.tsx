@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { authFetch } from "../../lib/authFetch";
 import type { Brain } from "../../types";
+import SettingsRow, { SettingsButton } from "./SettingsRow";
 
 const DELETE_BRAIN_CONFIRM_WINDOW_MS = 5000;
 
@@ -21,6 +22,44 @@ export default function DangerTab({ activeBrain, deleteBrain, isOwner, deleteAcc
   const [modalStep, setModalStep] = useState<ModalStep | null>(null);
   const [accountError, setAccountError] = useState<string | null>(null);
 
+  const [clearingTrash, setClearingTrash] = useState(false);
+  const [trashMsg, setTrashMsg] = useState<string | null>(null);
+
+  const [resettingGraph, setResettingGraph] = useState(false);
+  const [graphMsg, setGraphMsg] = useState<string | null>(null);
+
+  const handleClearTrash = async () => {
+    setClearingTrash(true);
+    setTrashMsg(null);
+    try {
+      const r = await authFetch("/api/entries?action=empty-trash", { method: "POST" });
+      setTrashMsg(r.ok ? "trash cleared." : "could not clear trash right now.");
+    } catch {
+      setTrashMsg("could not clear trash right now.");
+    }
+    setClearingTrash(false);
+    setTimeout(() => setTrashMsg(null), 4000);
+  };
+
+  const handleResetGraph = async () => {
+    setResettingGraph(true);
+    setGraphMsg(null);
+    try {
+      // Clear local concept caches — the graph rebuilds from entries on next load.
+      for (const k of Object.keys(localStorage)) {
+        if (k.startsWith("ob:graph:") || k.startsWith("openbrain:concepts:")) {
+          localStorage.removeItem(k);
+        }
+      }
+      window.dispatchEvent(new CustomEvent("openbrain:reset-graph"));
+      setGraphMsg("graph reset. concepts re-extract on next load.");
+    } catch {
+      setGraphMsg("could not reset graph.");
+    }
+    setResettingGraph(false);
+    setTimeout(() => setGraphMsg(null), 4000);
+  };
+
   const handleDeleteBrain = async () => {
     if (!confirmDeleteBrain) {
       setConfirmDeleteBrain(true);
@@ -39,7 +78,6 @@ export default function DangerTab({ activeBrain, deleteBrain, isOwner, deleteAcc
   };
 
   const exportAllData = async () => {
-    // Fetch all brains the user has access to
     const brainsRes = await authFetch("/api/brains");
     const brainsData = brainsRes.ok ? await brainsRes.json() : { brains: [] };
     const allBrains: Brain[] = brainsData.brains || brainsData || [];
@@ -58,7 +96,7 @@ export default function DangerTab({ activeBrain, deleteBrain, isOwner, deleteAcc
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `openbrain-export-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `everion-export-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -89,166 +127,199 @@ export default function DangerTab({ activeBrain, deleteBrain, isOwner, deleteAcc
 
   return (
     <>
-      {/* Export/Delete modal */}
       {modalStep && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: "rgba(0,0,0,0.6)" }}
+          style={{ background: "var(--scrim)" }}
         >
           <div
-            className="w-full max-w-sm space-y-4 rounded-2xl p-6"
+            className="anim-scale-in-design"
             style={{
-              background: "var(--color-surface-container-high)",
-              border: "1px solid var(--color-outline-variant)",
+              width: "100%",
+              maxWidth: 420,
+              padding: 28,
+              background: "var(--surface-high)",
+              border: "1px solid var(--line)",
+              borderRadius: 18,
+              boxShadow: "var(--lift-3)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
             }}
           >
             {modalStep === "ask-export" && (
               <>
-                <p className="text-on-surface text-base font-bold">Export your data first?</p>
-                <p className="text-sm" style={{ color: "var(--color-on-surface-variant)" }}>
-                  Download all your entries across every brain as a JSON file before permanently
+                <h3
+                  className="f-serif"
+                  style={{ fontSize: 22, fontWeight: 450, color: "var(--ink)", margin: 0 }}
+                >
+                  export your data first?
+                </h3>
+                <p
+                  className="f-serif"
+                  style={{
+                    fontSize: 15,
+                    color: "var(--ink-soft)",
+                    fontStyle: "italic",
+                    margin: 0,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  download all your entries across every brain as a JSON file before permanently
                   deleting your account.
                 </p>
                 {accountError && (
                   <p
-                    className="font-mono text-xs break-all"
-                    style={{ color: "var(--color-error)" }}
+                    className="f-sans"
+                    style={{
+                      fontSize: 12,
+                      color: "var(--blood)",
+                      fontFamily: "var(--f-mono)",
+                      wordBreak: "break-all",
+                      margin: 0,
+                    }}
                   >
                     {accountError}
                   </p>
                 )}
-                <div className="flex flex-col gap-2 pt-1">
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 4 }}>
                   <button
+                    className="design-btn-primary press"
+                    style={{ width: "100%" }}
                     onClick={handleExportThenDelete}
-                    className="w-full rounded-xl py-3 text-sm font-bold transition-opacity hover:opacity-90"
-                    style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
                   >
-                    Export then Delete
+                    Export then delete
                   </button>
-                  <button
-                    onClick={handleDeleteOnly}
-                    className="w-full rounded-xl py-3 text-sm font-bold transition-all"
-                    style={{
-                      background:
-                        "color-mix(in oklch, var(--color-error) 15%, var(--color-surface-container))",
-                      color: "var(--color-error)",
-                      border: "1px solid color-mix(in oklch, var(--color-error) 30%, transparent)",
-                    }}
-                  >
-                    Delete without Export
-                  </button>
-                  <button
+                  <SettingsButton danger onClick={handleDeleteOnly}>
+                    Delete without export
+                  </SettingsButton>
+                  <SettingsButton
                     onClick={() => {
                       setModalStep(null);
                       setAccountError(null);
                     }}
-                    className="w-full rounded-xl py-3 text-sm transition-colors hover:bg-white/5"
-                    style={{ color: "var(--color-on-surface-variant)" }}
                   >
                     Cancel
-                  </button>
+                  </SettingsButton>
                 </div>
               </>
             )}
             {modalStep === "exporting" && (
               <>
-                <p className="text-on-surface text-base font-bold">Exporting your data…</p>
-                <p className="text-sm" style={{ color: "var(--color-on-surface-variant)" }}>
-                  Downloading all entries. Your account will be deleted once complete.
+                <h3
+                  className="f-serif"
+                  style={{ fontSize: 22, fontWeight: 450, color: "var(--ink)", margin: 0 }}
+                >
+                  exporting your data…
+                </h3>
+                <p
+                  className="f-serif"
+                  style={{
+                    fontSize: 14,
+                    color: "var(--ink-soft)",
+                    fontStyle: "italic",
+                    margin: 0,
+                  }}
+                >
+                  your account will be deleted once the download completes.
                 </p>
-                <div className="flex justify-center pt-2">
-                  <div
-                    className="h-6 w-6 animate-spin rounded-full border-2 border-t-transparent"
-                    style={{ borderColor: "var(--color-primary)", borderTopColor: "transparent" }}
-                  />
-                </div>
               </>
             )}
             {modalStep === "deleting" && (
               <>
-                <p className="text-on-surface text-base font-bold">Deleting account…</p>
-                <p className="text-sm" style={{ color: "var(--color-on-surface-variant)" }}>
-                  Permanently removing your account and all data.
+                <h3
+                  className="f-serif"
+                  style={{ fontSize: 22, fontWeight: 450, color: "var(--blood)", margin: 0 }}
+                >
+                  deleting account…
+                </h3>
+                <p
+                  className="f-serif"
+                  style={{
+                    fontSize: 14,
+                    color: "var(--ink-soft)",
+                    fontStyle: "italic",
+                    margin: 0,
+                  }}
+                >
+                  removing your account and all data.
                 </p>
-                <div className="flex justify-center pt-2">
-                  <div
-                    className="h-6 w-6 animate-spin rounded-full border-2 border-t-transparent"
-                    style={{ borderColor: "var(--color-error)", borderTopColor: "transparent" }}
-                  />
-                </div>
               </>
             )}
           </div>
         </div>
       )}
 
-      <div
-        className="space-y-4 rounded-2xl border p-4"
-        style={{
-          background: "color-mix(in oklch, var(--color-error) 5%, transparent)",
-          borderColor: "color-mix(in oklch, var(--color-error) 20%, transparent)",
-        }}
-      >
-        <div>
-          <p className="text-sm font-semibold" style={{ color: "var(--color-error)" }}>
-            Danger Zone
+      <div>
+        <SettingsRow label="Clear trash now">
+          <SettingsButton onClick={handleClearTrash} disabled={clearingTrash}>
+            {clearingTrash ? "Clearing…" : "Clear"}
+          </SettingsButton>
+        </SettingsRow>
+        {trashMsg && (
+          <p
+            className="f-sans"
+            style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: -10, marginBottom: 8 }}
+          >
+            {trashMsg}
           </p>
-          <p className="mt-0.5 text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-            Irreversible actions. Proceed with care.
+        )}
+
+        <SettingsRow label="Reset concept graph" hint="we'll re-extract from all entries.">
+          <SettingsButton onClick={handleResetGraph} disabled={resettingGraph}>
+            {resettingGraph ? "Resetting…" : "Reset"}
+          </SettingsButton>
+        </SettingsRow>
+        {graphMsg && (
+          <p
+            className="f-sans"
+            style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: -10, marginBottom: 8 }}
+          >
+            {graphMsg}
           </p>
-        </div>
+        )}
 
         {isOwner && (
-          <div className="space-y-2">
-            <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-              Delete brain <strong className="text-on-surface">{activeBrain.name}</strong> and all
-              its entries permanently. This cannot be undone.
-            </p>
-            {brainError && (
-              <p className="text-xs" style={{ color: "var(--color-error)" }}>
-                {brainError}
-              </p>
-            )}
-            <button
-              disabled={deletingBrain}
+          <SettingsRow
+            label={`Delete this brain`}
+            hint={
+              <>
+                permanently remove <strong style={{ color: "var(--ink-soft)" }}>{activeBrain.name}</strong>{" "}
+                and all its entries.
+              </>
+            }
+          >
+            <SettingsButton
               onClick={handleDeleteBrain}
-              className="rounded-xl px-4 py-2 text-xs font-bold transition-all disabled:opacity-40"
-              style={{
-                background: confirmDeleteBrain
-                  ? "color-mix(in oklch, var(--color-error) 25%, var(--color-surface-container))"
-                  : "color-mix(in oklch, var(--color-error) 10%, var(--color-surface-container))",
-                color: "var(--color-error)",
-                border: "1px solid color-mix(in oklch, var(--color-error) 30%, transparent)",
-                minHeight: 44,
-              }}
+              disabled={deletingBrain}
+              danger
             >
               {deletingBrain
                 ? "Deleting…"
                 : confirmDeleteBrain
-                  ? "Tap again to confirm — this is permanent"
-                  : "Delete this Brain"}
-            </button>
-          </div>
+                  ? "Tap to confirm"
+                  : "Delete brain"}
+            </SettingsButton>
+          </SettingsRow>
+        )}
+        {brainError && (
+          <p
+            className="f-sans"
+            style={{ fontSize: 12, color: "var(--blood)", marginTop: -10, marginBottom: 8 }}
+          >
+            {brainError}
+          </p>
         )}
 
-        <div className="space-y-2">
-          <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-            Permanently delete your account and all associated data. This cannot be undone.
-          </p>
-          <button
-            onClick={() => setModalStep("ask-export")}
-            className="rounded-xl px-4 py-2 text-xs font-bold transition-all"
-            style={{
-              background:
-                "color-mix(in oklch, var(--color-error) 10%, var(--color-surface-container))",
-              color: "var(--color-error)",
-              border: "1px solid color-mix(in oklch, var(--color-error) 30%, transparent)",
-              minHeight: 44,
-            }}
-          >
-            Delete Account
-          </button>
-        </div>
+        <SettingsRow
+          label="Export & delete account"
+          hint="we email you a zip of everything, then scrub you within 48 hours."
+          last
+        >
+          <SettingsButton onClick={() => setModalStep("ask-export")} danger>
+            Export & delete
+          </SettingsButton>
+        </SettingsRow>
       </div>
     </>
   );

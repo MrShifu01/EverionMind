@@ -1,19 +1,32 @@
 import { useState } from "react";
-import { clearAISettingsCache, persistKeyToDb, getGroqKey, getGeminiKey } from "../../lib/aiSettings";
+import {
+  clearAISettingsCache,
+  persistKeyToDb,
+  getGroqKey,
+  getGeminiKey,
+} from "../../lib/aiSettings";
+import SettingsRow, { SettingsButton } from "./SettingsRow";
 
-const Chevron = ({ open }: { open: boolean }) => (
-  <svg
-    className={`ml-3 h-4 w-4 flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
-    fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
-    style={{ color: "var(--color-on-surface-variant)" }}
-  >
-    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-  </svg>
-);
+function StatusDot({ on }: { on: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        display: "inline-block",
+        width: 6,
+        height: 6,
+        borderRadius: "50%",
+        background: on ? "var(--moss)" : "var(--ink-ghost)",
+        flexShrink: 0,
+      }}
+    />
+  );
+}
 
 export default function ProvidersTab(_props?: { activeBrain?: any }) {
-  const hasStoredKeys = !!(getGroqKey() || getGeminiKey());
-  const [open, setOpen] = useState(false);
+  const groqKey = getGroqKey();
+  const geminiKey = getGeminiKey();
+  const hasStoredKeys = !!(groqKey || geminiKey);
   const [clearing, setClearing] = useState(false);
   const [clearMsg, setClearMsg] = useState<string | null>(null);
 
@@ -22,70 +35,88 @@ export default function ProvidersTab(_props?: { activeBrain?: any }) {
     setClearMsg(null);
     const { error } = await persistKeyToDb({ groq_key: null, gemini_key: null });
     clearAISettingsCache();
-    setClearMsg(error ? `Error: ${error}` : "All frontend API keys removed.");
+    setClearMsg(error ? `error: ${error}` : "all stored keys removed.");
     setClearing(false);
   }
 
-  return (
-    <div className="px-1">
-      <div
-        className="rounded-2xl border"
-        style={{
-          background: "var(--color-surface-container)",
-          borderColor: "var(--color-outline-variant)",
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          className="flex w-full items-center justify-between px-4 py-3.5 text-left"
-        >
-          <div className="min-w-0">
-            <p className="text-on-surface text-sm font-semibold">Frontend API keys</p>
-            {!open && (
-              <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-                {hasStoredKeys ? "Stored keys from previous configuration" : "Coming soon!"}
-              </p>
-            )}
-          </div>
-          <Chevron open={open} />
-        </button>
+  const maskKey = (k?: string | null) =>
+    k && k.length > 6 ? `${k.slice(0, 6)}…${k.slice(-4)}` : k ?? "";
 
-        <div style={{ display: "grid", gridTemplateRows: open ? "1fr" : "0fr" }}>
-          <div style={{ overflow: "hidden" }}>
-            <div className="space-y-3 px-4 pb-4">
-              <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>
-                {hasStoredKeys
-                  ? "Keys stored from previous configuration — no longer needed."
-                  : "Coming soon!"}
-              </p>
-              {hasStoredKeys && (
-                <button
-                  onClick={clearAllKeys}
-                  disabled={clearing}
-                  className="w-full rounded-xl py-2 text-xs font-semibold transition-all disabled:opacity-50"
-                  style={{
-                    background: "var(--color-error-container)",
-                    color: "var(--color-on-error-container)",
-                  }}
-                >
-                  {clearing ? "Clearing…" : "Remove all stored keys"}
-                </button>
-              )}
-              {clearMsg && (
-                <p
-                  className="text-center text-xs"
-                  style={{
-                    color: clearMsg.startsWith("Error") ? "var(--color-error)" : "var(--color-primary)",
-                  }}
-                >
-                  {clearMsg}
-                </p>
-              )}
-            </div>
+  // Server-managed providers surface as "routed via server" rather than a
+  // user-editable key. Stored legacy keys show their mask + a Remove button.
+  const providers: {
+    label: string;
+    connected: boolean;
+    hint: string;
+    button: { label: string; onClick?: () => void; disabled?: boolean };
+  }[] = [
+    {
+      label: "Anthropic",
+      connected: true,
+      hint: "managed by everion — routed via our server.",
+      button: { label: "Managed", disabled: true },
+    },
+    {
+      label: "OpenAI",
+      connected: true,
+      hint: "managed by everion — routed via our server.",
+      button: { label: "Managed", disabled: true },
+    },
+    {
+      label: "Groq",
+      connected: !!groqKey,
+      hint: groqKey ? maskKey(groqKey) : "not set",
+      button: { label: groqKey ? "Rotate" : "Add key" },
+    },
+    {
+      label: "Google Gemini",
+      connected: !!geminiKey,
+      hint: geminiKey ? maskKey(geminiKey) : "not set",
+      button: { label: geminiKey ? "Rotate" : "Add key" },
+    },
+  ];
+
+  return (
+    <div>
+      {providers.map((p, idx) => (
+        <SettingsRow
+          key={p.label}
+          label={p.label}
+          hint={p.hint}
+          last={idx === providers.length - 1 && !hasStoredKeys}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <StatusDot on={p.connected} />
+            <SettingsButton onClick={p.button.onClick} disabled={p.button.disabled}>
+              {p.button.label}
+            </SettingsButton>
           </div>
-        </div>
-      </div>
+        </SettingsRow>
+      ))}
+
+      {hasStoredKeys && (
+        <SettingsRow
+          label="Stored keys"
+          hint="legacy keys from a previous configuration. safe to remove."
+          last
+        >
+          <SettingsButton onClick={clearAllKeys} danger disabled={clearing}>
+            {clearing ? "Clearing…" : "Remove all"}
+          </SettingsButton>
+        </SettingsRow>
+      )}
+      {clearMsg && (
+        <p
+          className="f-sans"
+          style={{
+            fontSize: 12,
+            color: clearMsg.startsWith("error") ? "var(--blood)" : "var(--moss)",
+            marginTop: 8,
+          }}
+        >
+          {clearMsg}
+        </p>
+      )}
     </div>
   );
 }
