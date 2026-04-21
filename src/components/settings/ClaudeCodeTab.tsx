@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../lib/supabase";
+import SettingsRow, { SettingsButton } from "./SettingsRow";
 
 interface ApiKey {
   id: string;
@@ -84,67 +85,53 @@ export default function ClaudeCodeTab() {
   }
 
   return (
-    <div
-      className="rounded-2xl border px-4 py-4 space-y-4"
-      style={{ background: "var(--color-surface-container-low)", borderColor: "var(--color-outline-variant)" }}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="text-sm font-semibold" style={{ color: "var(--color-on-surface)" }}>
-            AI Integrations
-          </p>
-          <p className="text-xs mt-0.5" style={{ color: "var(--color-on-surface-variant)" }}>
-            Connect your AI assistant (ChatGPT, Claude, Cursor, etc.) to your knowledge base
-          </p>
-        </div>
+    <div>
+      <SettingsRow
+        label="API keys"
+        hint="connect your AI assistant (Claude Code, ChatGPT, Cursor) to your memory."
+      >
         {!showForm && (
-          <button
-            onClick={() => { setShowForm(true); setError(""); }}
-            className="press-scale flex-shrink-0 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
-            style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
-          >
-            New key
-          </button>
+          <SettingsButton onClick={() => { setShowForm(true); setError(""); }}>
+            + New key
+          </SettingsButton>
         )}
-      </div>
+      </SettingsRow>
 
       {/* Generate form */}
       {showForm && (
-        <div className="space-y-2">
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            padding: "4px 0 18px",
+            borderBottom: "1px solid var(--line-soft)",
+          }}
+        >
           <input
             autoFocus
             type="text"
             value={newKeyName}
             onChange={(e) => setNewKeyName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && generate()}
-            placeholder="Key name (e.g. Claude Code)"
+            placeholder="key name (e.g. Claude Code)"
             maxLength={100}
-            className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
-            style={{
-              background: "var(--color-surface-container)",
-              border: "1px solid var(--color-outline-variant)",
-              color: "var(--color-on-surface)",
-            }}
-            onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-primary)"; }}
-            onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-outline-variant)"; }}
+            className="design-input f-sans"
           />
-          {error && <p className="text-xs" style={{ color: "var(--color-error)" }}>{error}</p>}
-          <div className="flex gap-2">
-            <button
-              onClick={generate}
-              disabled={generating || !newKeyName.trim()}
-              className="press-scale rounded-xl px-4 py-2 text-xs font-semibold transition-all disabled:opacity-40"
-              style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
-            >
+          {error && (
+            <p className="f-sans" style={{ fontSize: 12, color: "var(--blood)", margin: 0 }}>
+              {error}
+            </p>
+          )}
+          <div style={{ display: "flex", gap: 8 }}>
+            <SettingsButton onClick={generate} disabled={generating || !newKeyName.trim()}>
               {generating ? "Generating…" : "Generate"}
-            </button>
-            <button
+            </SettingsButton>
+            <SettingsButton
               onClick={() => { setShowForm(false); setNewKeyName(""); setError(""); }}
-              className="press-scale rounded-xl px-4 py-2 text-xs font-medium transition-all"
-              style={{ color: "var(--color-on-surface-variant)", border: "1px solid var(--color-outline-variant)" }}
             >
               Cancel
-            </button>
+            </SettingsButton>
           </div>
         </div>
       )}
@@ -244,31 +231,32 @@ curl -s -X POST https://everion.smashburgerbar.co.za/v1/ingest -H "Authorization
 
       {/* Key list */}
       {loading ? (
-        <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>Loading…</p>
+        <p
+          className="f-serif"
+          style={{ fontSize: 14, fontStyle: "italic", color: "var(--ink-faint)", margin: "16px 0" }}
+        >
+          loading…
+        </p>
       ) : keys.length === 0 ? (
-        <p className="text-xs" style={{ color: "var(--color-on-surface-variant)" }}>No active keys yet.</p>
+        <p
+          className="f-serif"
+          style={{ fontSize: 14, fontStyle: "italic", color: "var(--ink-faint)", margin: "16px 0" }}
+        >
+          no active keys yet.
+        </p>
       ) : (
-        <div className="space-y-2">
-          {keys.map((k) => (
-            <div
+        <div>
+          {keys.map((k, i) => (
+            <SettingsRow
               key={k.id}
-              className="flex items-center justify-between gap-2 rounded-xl px-3 py-2.5"
-              style={{ background: "var(--color-surface-container)", border: "1px solid var(--color-outline-variant)" }}
+              label={k.name}
+              hint={`${k.key_prefix}… · created ${formatDate(k.created_at)} · last used ${formatDate(k.last_used_at)}`}
+              last={i === keys.length - 1}
             >
-              <div className="min-w-0">
-                <p className="text-sm font-medium truncate" style={{ color: "var(--color-on-surface)" }}>{k.name}</p>
-                <p className="text-xs mt-0.5" style={{ color: "var(--color-on-surface-variant)" }}>
-                  {k.key_prefix}… · Created {formatDate(k.created_at)} · Last used {formatDate(k.last_used_at)}
-                </p>
-              </div>
-              <button
-                onClick={() => revoke(k.id)}
-                className="press-scale flex-shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all"
-                style={{ color: "var(--color-error)", border: "1px solid var(--color-outline-variant)" }}
-              >
+              <SettingsButton onClick={() => revoke(k.id)} danger>
                 Revoke
-              </button>
-            </div>
+              </SettingsButton>
+            </SettingsRow>
           ))}
         </div>
       )}
