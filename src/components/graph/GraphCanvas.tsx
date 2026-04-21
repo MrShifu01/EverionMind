@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, useMemo, useLayoutEffect } from "react";
-import GraphNode, { NODE_W, NODE_H } from "./GraphNode";
+import { useState, useRef, useEffect, useMemo } from "react";
+import GraphNode from "./GraphNode";
 import type { GNode, GEdge } from "../../hooks/useGraph";
 import { SIM_CX, SIM_CY } from "../../hooks/useGraph";
 
@@ -52,10 +52,21 @@ interface Props {
 const WORLD_W = 1800;
 const WORLD_H = 1400;
 
+function initialVp(): Viewport {
+  // Use window dimensions as a best-effort center before the container is measured.
+  // The useEffect below refines this once the real container size is known.
+  const zoom = 0.75;
+  return {
+    panX: window.innerWidth / 2 - SIM_CX * zoom,
+    panY: (window.innerHeight * 0.82) / 2 - SIM_CY * zoom,
+    zoom,
+  };
+}
+
 export default function GraphCanvas({ nodes, edges, selected, onSelect, onMoveNode }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const vpRef = useRef<Viewport>({ panX: 0, panY: 0, zoom: 0.9 });
-  const [vp, setVpState] = useState<Viewport>({ panX: 0, panY: 0, zoom: 0.9 });
+  const vpRef = useRef<Viewport>(initialVp());
+  const [vp, setVpState] = useState<Viewport>(initialVp);
   const motes = useMotes(30);
 
   const setVp = (next: Viewport | ((prev: Viewport) => Viewport)) => {
@@ -64,12 +75,14 @@ export default function GraphCanvas({ nodes, edges, selected, onSelect, onMoveNo
     setVpState(value);
   };
 
-  // Center the simulation on mount
-  useLayoutEffect(() => {
+  // Refine centering once we know the real container dimensions
+  useEffect(() => {
     if (!containerRef.current) return;
     const { width, height } = containerRef.current.getBoundingClientRect();
-    const zoom = 0.9;
+    if (width === 0) return;
+    const zoom = 0.75;
     setVp({ panX: width / 2 - SIM_CX * zoom, panY: height / 2 - SIM_CY * zoom, zoom });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Drag state ref — no re-renders during drag tracking
