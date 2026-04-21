@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { cn } from "../lib/cn";
 import { NavIcon } from "./icons/NavIcons";
 import { EverionLogo } from "./ui/EverionLogo";
 
@@ -8,51 +7,6 @@ interface NavView {
   l: string;
   ic: string;
 }
-
-const NAV_ICONS: Record<string, ReactNode> = {
-  capture: NavIcon.capture,
-  memory: NavIcon.grid,
-  chat: NavIcon.chat,
-  todos: NavIcon.todos,
-  timeline: NavIcon.timeline,
-  vault: NavIcon.vault,
-  settings: NavIcon.settings,
-};
-
-const MOON_ICON = (
-  <svg
-    aria-hidden="true"
-    className="h-4 w-4"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    viewBox="0 0 24 24"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z"
-    />
-  </svg>
-);
-
-const SUN_ICON = (
-  <svg
-    aria-hidden="true"
-    className="h-4 w-4"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    viewBox="0 0 24 24"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"
-    />
-  </svg>
-);
-
 
 interface DesktopSidebarProps {
   activeBrainName: string;
@@ -69,55 +23,29 @@ interface DesktopSidebarProps {
   children?: ReactNode;
 }
 
-interface NavItemProps {
-  id: string;
-  label: string;
-  isActive: boolean;
-  onClick: () => void;
-  badge?: string;
-}
+const NAV_ICONS: Record<string, ReactNode> = {
+  capture: NavIcon.capture,
+  memory: NavIcon.grid,
+  chat: NavIcon.chat,
+  todos: NavIcon.todos,
+  timeline: NavIcon.timeline,
+  vault: NavIcon.vault,
+  settings: NavIcon.settings,
+};
 
-function NavItem({ id, label, isActive, onClick, badge }: NavItemProps) {
-  const icon = NAV_ICONS[id] || NAV_ICONS.capture;
-  return (
-    <button
-      onClick={onClick}
-      aria-current={isActive ? "page" : undefined}
-      className={cn(
-        "group press-scale flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm transition-all duration-200",
-        isActive
-          ? "font-semibold"
-          : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container",
-      )}
-      style={
-        isActive
-          ? {
-              background: "color-mix(in oklch, var(--color-primary) 8%, transparent)",
-              color: "var(--color-primary)",
-            }
-          : undefined
-      }
-    >
-      <span
-        className={cn(
-          "transition-colors",
-          isActive ? "text-inherit" : "group-hover:text-on-surface text-inherit",
-        )}
-      >
-        {icon}
-      </span>
-      <span className="flex-1 text-left">{label}</span>
-      {badge && (
-        <span className="bg-secondary text-on-secondary rounded-full px-1.5 py-0.5 text-[11px] font-semibold">
-          {badge}
-        </span>
-      )}
-    </button>
-  );
-}
+const SUN_ICON = (
+  <svg aria-hidden="true" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.5 1.5M17.6 17.6l1.5 1.5M2 12h2M20 12h2M4.9 19.1l1.5-1.5M17.6 6.4l1.5-1.5"/>
+  </svg>
+);
+const MOON_ICON = (
+  <svg aria-hidden="true" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+    <path d="M20 15A8 8 0 0 1 9 4a8 8 0 1 0 11 11Z"/>
+  </svg>
+);
 
 export default function DesktopSidebar({
-  activeBrainName: _activeBrainName,
+  activeBrainName,
   view,
   onNavigate,
   onCapture,
@@ -125,114 +53,124 @@ export default function DesktopSidebar({
   onToggleTheme,
   isOnline,
   pendingCount,
-  entryCount: _entryCount,
-  onShowCreateBrain,
+  onShowCreateBrain: _onShowCreateBrain,
   navViews,
   children,
 }: DesktopSidebarProps) {
-  const allItems = [...navViews];
-
   const isOffline = !isOnline;
   const isSyncing = isOnline && pendingCount > 0;
   const statusText = isOffline ? "Offline" : isSyncing ? `Syncing ${pendingCount}…` : null;
 
   return (
     <aside
-      className="fixed top-0 left-0 z-40 hidden h-dvh w-72 flex-col border-r px-4 py-6 lg:flex"
+      className="fixed top-0 left-0 z-40 hidden h-dvh w-72 flex-col px-[18px] py-6 lg:flex"
       style={{
-        background: "var(--color-surface)",
-        borderColor: "var(--color-outline-variant)",
+        background: "var(--color-background)",
+        borderRight: "1px solid var(--color-surface-container)",
       }}
     >
-      {/* ── Brand row ── */}
-      <div className="mb-6 px-2">
-        <div className="mb-1 flex items-center gap-2">
-          <EverionLogo size={22} />
-          <h1
-            className="text-2xl font-bold tracking-tight"
-            style={{ fontFamily: "'Lora', Georgia, serif", color: "var(--color-on-surface)" }}
-          >
-            Everion{" "}
-            <span style={{ color: "var(--color-primary)" }}>Mind</span>
-          </h1>
+      {/* Brand */}
+      <div style={{ marginBottom: 20, padding: "0 6px", display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+            <EverionLogo size={20} />
+            <h1 className="font-headline gradient-text" style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.04em" }}>
+              Everion Mind
+            </h1>
+          </div>
+          <div className="caps-label" style={{ marginTop: 3, opacity: 0.5 }}>Neural Interface</div>
         </div>
-        <p className="text-on-surface-variant/50 mt-0.5 text-xs">Your thinking, preserved.</p>
       </div>
 
-      {/* ── Brain Switcher slot ── */}
-      {children && <div className="mb-4 px-2">{children}</div>}
+      {/* Brain switcher slot */}
+      {children && (
+        <div style={{ marginBottom: 16, padding: "0 2px" }}>{children}</div>
+      )}
 
-      {/* ── New Entry CTA ── */}
+      {/* New Entry CTA */}
       <button
         onClick={onCapture}
-        className="press-scale text-on-primary bg-primary hover:bg-primary-dim mx-2 mt-1 mb-8 flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors duration-150"
+        className="press cta-glow"
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          padding: "12px 14px", marginBottom: 22, marginLeft: 2, marginRight: 2,
+          borderRadius: "var(--radius-xl)",
+          background: "linear-gradient(135deg, var(--color-primary), var(--color-primary-container))",
+          color: "var(--color-on-primary)",
+          fontFamily: "Manrope, sans-serif", fontWeight: 700, fontSize: 14,
+          border: "none", cursor: "pointer", width: "calc(100% - 4px)",
+        }}
       >
-        <svg
-          aria-hidden="true"
-          className="h-4 w-4"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        <svg aria-hidden="true" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+          <path d="M12 5v14M5 12h14"/>
         </svg>
         New Entry
       </button>
 
-      {/* ── Navigation ── */}
-      <nav className="flex-1 space-y-0.5 overflow-y-auto" aria-label="Primary navigation">
-        {allItems.map((item) => (
-          <NavItem
-            key={item.id}
-            id={item.id}
-            label={item.l}
-            isActive={view === item.id}
-            onClick={() => onNavigate(item.id)}
-          />
-        ))}
+      {/* Navigation */}
+      <nav style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2, overflowY: "auto", overflowX: "hidden" }} aria-label="Primary navigation">
+        <div className="caps-label" style={{ padding: "8px 14px 6px", opacity: 0.5 }}>Brain</div>
+        {navViews.map((item) => {
+          const isActive = view === item.id;
+          const icon = NAV_ICONS[item.id] || NAV_ICONS.capture;
+          return (
+            <button
+              key={item.id}
+              onClick={() => onNavigate(item.id)}
+              aria-current={isActive ? "page" : undefined}
+              className={`nav-item press ${isActive ? "active" : ""}`}
+            >
+              <span style={{ display: "flex", alignItems: "center" }}>{icon}</span>
+              <span style={{ flex: 1 }}>{item.l}</span>
+            </button>
+          );
+        })}
       </nav>
 
-      {/* ── Footer ── */}
-      <div
-        className="mt-4 space-y-1 pt-4"
-        style={{ borderTop: "1px solid var(--color-outline-variant)" }}
-      >
-        <NavItem
-          id="settings"
-          label="Settings"
-          isActive={view === "settings"}
+      {/* Footer */}
+      <div style={{ paddingTop: 16, borderTop: "1px solid var(--color-surface-container)", display: "flex", flexDirection: "column", gap: 4 }}>
+        <button
           onClick={() => onNavigate("settings")}
-        />
+          className={`nav-item press ${view === "settings" ? "active" : ""}`}
+        >
+          <span style={{ display: "flex", alignItems: "center" }}>{NAV_ICONS.settings}</span>
+          <span style={{ flex: 1 }}>Settings</span>
+        </button>
 
-        {/* Status row: error/sync indicator + theme toggle + new brain */}
-        <div className="flex items-center justify-between px-4 pt-3">
-          <div className="flex items-center gap-2">
-            {statusText && (
-              <>
-                <div
-                  className="h-2 w-2 flex-shrink-0 rounded-full"
-                  style={{
-                    background: isOffline ? "var(--color-error)" : "var(--color-secondary)",
-                  }}
-                />
-                <span className="text-on-surface-variant/50 text-xs">{statusText}</span>
-              </>
-            )}
+        <button
+          onClick={onToggleTheme}
+          className="nav-item press"
+          aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          <span style={{ display: "flex", alignItems: "center", color: "var(--color-on-surface-variant)" }}>
+            {isDark ? SUN_ICON : MOON_ICON}
+          </span>
+          <span style={{ flex: 1 }}>{isDark ? "Light" : "Dark"} mode</span>
+          <span style={{
+            width: 32, height: 18, borderRadius: 999,
+            background: "var(--color-surface-container-highest)",
+            position: "relative", display: "inline-block", flexShrink: 0,
+          }}>
+            <span style={{
+              position: "absolute", top: 2,
+              left: isDark ? 2 : 16,
+              width: 14, height: 14, borderRadius: "50%",
+              background: "var(--color-primary)",
+              transition: "left 0.25s",
+            }} />
+          </span>
+        </button>
+
+        {statusText && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 14px" }}>
+            <div style={{
+              width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
+              background: isOffline ? "var(--color-error)" : "var(--color-secondary)",
+              boxShadow: isOffline ? "none" : "0 0 8px var(--color-secondary)",
+            }} />
+            <span className="caps-label" style={{ opacity: 0.6 }}>{statusText}</span>
           </div>
-
-          <div className="flex items-center gap-1">
-            {/* Theme toggle — utility, lives in footer */}
-            <button
-              onClick={onToggleTheme}
-              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-              className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container press-scale flex h-11 w-11 items-center justify-center rounded-lg transition-all"
-            >
-              {isDark ? SUN_ICON : MOON_ICON}
-            </button>
-
-          </div>
-        </div>
+        )}
       </div>
     </aside>
   );

@@ -184,6 +184,8 @@ function EverionContent({
 
   return (
     <>
+      <div className="synapse-bg" />
+      <div className="grain" />
       <DesktopSidebar
         activeBrainName={activeBrain?.name || "Everion"}
         view={appShell.view}

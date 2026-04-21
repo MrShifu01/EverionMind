@@ -22,110 +22,72 @@ export default function MobileHeader({
 }: MobileHeaderProps) {
   return (
     <header
-      className="sticky top-0 z-30 flex items-center gap-2 border-b px-3 py-3 lg:hidden"
+      className="glass-panel-dark safe-top sticky top-0 z-30 flex items-center justify-between gap-2 px-3 py-3 lg:hidden"
       style={{
-        background: "var(--color-surface)",
-        borderColor: "var(--color-outline-variant)",
+        borderBottom: "1px solid var(--color-outline-variant)",
         paddingTop: "max(12px, env(safe-area-inset-top))",
       }}
     >
-      {/* Left: search + brain switcher + status */}
-      <div className="flex min-w-0 shrink-0 items-center gap-1">
+      {/* Left: search / brain slot / status */}
+      <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
         {onSearch && (
           <button
             onClick={onSearch}
             aria-label="Search"
-            className="hover:bg-surface-container flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl transition-colors"
-            style={{ color: "var(--color-on-surface-variant)" }}
+            className="press"
+            style={{
+              width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center",
+              borderRadius: 10, color: "var(--color-on-surface-variant)",
+            }}
           >
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.75"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
-              />
+            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
             </svg>
           </button>
         )}
         {children}
         {!isOnline && (
-          <span
-            className="rounded-full px-2 py-1 text-[10px] font-semibold tracking-widest uppercase"
-            style={{
-              color: "var(--color-error)",
-              background: "color-mix(in oklch, var(--color-error) 12%, transparent)",
-            }}
-          >
-            Offline
-          </span>
+          <span style={{
+            borderRadius: 999, padding: "3px 8px",
+            fontSize: 10, fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase",
+            color: "var(--color-error)",
+            background: "color-mix(in oklch, var(--color-error) 12%, transparent)",
+          }}>Offline</span>
         )}
         {isOnline && pendingCount > 0 && (
-          <span
-            className="rounded-full px-2 py-1 text-[10px] font-semibold tracking-widest uppercase"
-            style={{
-              color: "var(--color-secondary)",
-              background: "var(--color-secondary-container)",
-            }}
-          >
-            Syncing
-          </span>
+          <span style={{
+            borderRadius: 999, padding: "3px 8px",
+            fontSize: 10, fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase",
+            color: "var(--color-secondary)",
+            background: "var(--color-secondary-container)",
+          }}>Syncing</span>
         )}
       </div>
 
-      {/* Centre: brand name — absolute so it's always truly centred */}
-      <span className="pointer-events-none absolute inset-x-0 flex justify-center">
-        <span
-          className="text-xl font-bold tracking-tight"
-          style={{ color: "var(--color-on-surface)", fontFamily: "'Lora', Georgia, serif" }}
-        >
-          Everion{" "}
-          <span style={{ color: "var(--color-primary)" }}>Mind</span>
+      {/* Centre: brand — absolutely centred */}
+      <span style={{ position: "absolute", left: 0, right: 0, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
+        <span className="font-headline gradient-text" style={{ fontSize: 17, fontWeight: 800, letterSpacing: "-0.03em" }}>
+          Everion Mind
         </span>
       </span>
 
-      {/* Spacer pushes theme toggle to the right */}
-      <div className="flex-1" />
-
-      {/* Theme toggle */}
+      {/* Right: theme toggle */}
       <button
         onClick={onToggleTheme}
         aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-        className="hover:bg-surface-container flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl transition-colors"
-        style={{ color: "var(--color-on-surface-variant)" }}
+        className="press"
+        style={{
+          width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center",
+          borderRadius: 10, color: "var(--color-on-surface-variant)",
+        }}
       >
         {isDark ? (
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.75"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z"
-            />
+          <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.5 1.5M17.6 17.6l1.5 1.5M2 12h2M20 12h2M4.9 19.1l1.5-1.5M17.6 6.4l1.5-1.5"/>
           </svg>
         ) : (
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.75"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z"
-            />
+          <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+            <path d="M20 15A8 8 0 0 1 9 4a8 8 0 1 0 11 11Z"/>
           </svg>
         )}
       </button>

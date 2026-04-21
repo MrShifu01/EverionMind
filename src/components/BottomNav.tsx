@@ -1,12 +1,11 @@
 import { memo } from "react";
-import { cn } from "../lib/cn";
 import { NavIcon } from "./icons/NavIcons";
 import { useKeyboardVisible } from "../hooks/useKeyboardVisible";
 
 const NAV_ITEMS = [
   { id: "memory", label: "Memory", icon: NavIcon.grid },
   { id: "chat", label: "Chat", icon: NavIcon.chat },
-  { id: "_capture_fab", label: "New Entry", isFAB: true, icon: NavIcon.add },
+  { id: "_capture_fab", label: "Add", isFAB: true, icon: NavIcon.add },
   { id: "settings", label: "Settings", icon: NavIcon.settings },
 ];
 
@@ -22,11 +21,15 @@ function BottomNavInner({ activeView, onNavigate, onCapture }: BottomNavProps) {
   return (
     <nav
       aria-label="Primary navigation"
-      className="fixed bottom-5 left-1/2 z-50 flex w-[92vw] max-w-sm -translate-x-1/2 items-center justify-around rounded-full border px-3 py-2 lg:hidden"
+      className="glass-panel-dark nav-glow safe-bottom"
       style={{
-        background: "var(--color-surface-container-low)",
-        borderColor: "var(--color-outline-variant)",
-        boxShadow: "var(--shadow-lg)",
+        position: "fixed", bottom: 16, left: "50%", transform: "translateX(-50%)",
+        zIndex: 50,
+        display: "flex", alignItems: "center", gap: 4,
+        padding: "8px 10px",
+        width: "min(92vw, 420px)",
+        borderRadius: 999,
+        border: "1px solid var(--color-outline-variant)",
       }}
     >
       {NAV_ITEMS.map((item) => {
@@ -38,8 +41,15 @@ function BottomNavInner({ activeView, onNavigate, onCapture }: BottomNavProps) {
               key={item.id}
               onClick={onCapture}
               aria-label="New entry"
-              className="press-scale flex h-14 w-14 flex-col items-center justify-center rounded-full transition-colors duration-150"
-              style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
+              className="press cta-glow"
+              style={{
+                flex: "0 0 auto", width: 52, height: 52, marginTop: -18,
+                borderRadius: 18,
+                background: "linear-gradient(135deg, var(--color-primary), var(--color-primary-container))",
+                color: "var(--color-on-primary)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                border: "none", cursor: "pointer",
+              }}
             >
               {item.icon}
             </button>
@@ -52,14 +62,20 @@ function BottomNavInner({ activeView, onNavigate, onCapture }: BottomNavProps) {
             onClick={() => onNavigate(item.id)}
             aria-label={item.label}
             aria-current={isActive ? "page" : undefined}
-            className={cn(
-              "press-scale relative flex h-14 w-14 flex-col items-center justify-center gap-0.5 rounded-full transition-all duration-200",
-              isActive ? "text-primary" : "text-on-surface-variant",
-            )}
-            style={isActive ? { background: "var(--color-primary-container)" } : undefined}
+            className="press"
+            style={{
+              flex: 1,
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+              padding: "6px 4px",
+              borderRadius: 14,
+              border: "none", cursor: "pointer",
+              color: isActive ? "var(--color-secondary)" : "var(--color-on-surface-variant)",
+              background: isActive ? "oklch(74% 0.2 305 / 0.12)" : "transparent",
+              transition: "all 0.2s",
+            }}
           >
-            {item.icon}
-            <span className="text-[11px] font-medium">{item.label}</span>
+            <span style={{ display: "flex", alignItems: "center" }}>{item.icon}</span>
+            <span style={{ fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: 600, marginTop: 3 }}>{item.label}</span>
           </button>
         );
       })}

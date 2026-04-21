@@ -131,15 +131,23 @@ export default function LoginScreen(): JSX.Element {
         width: "100%",
         background: "var(--color-background)",
         color: "var(--color-on-surface)",
-        fontFamily: "'DM Sans', system-ui, sans-serif",
+        fontFamily: "'Inter', system-ui, sans-serif",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         padding: "24px 16px",
         boxSizing: "border-box",
+        position: "relative",
       }}
     >
+      {/* Ambient background layers */}
+      <div className="synapse-bg" aria-hidden="true" />
+      <div className="grain" aria-hidden="true" />
+
       {/* ── DESKTOP: two-column layout ── */}
+      <div
+        style={{ position: "relative", zIndex: 1, width: "100%" }}
+      >
       <div
         data-testid="login-center-wrapper"
         className="login-two-col"
@@ -169,28 +177,25 @@ export default function LoginScreen(): JSX.Element {
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
               <EverionLogo size={32} />
               <h1
+                className="gradient-text font-headline"
                 style={{
-                  fontFamily: "'Lora', Georgia, serif",
                   fontSize: "clamp(2rem, 3.5vw, 3rem)",
                   fontWeight: 700,
-                  letterSpacing: "-0.02em",
                   margin: 0,
                   lineHeight: 1.1,
-                  color: "var(--color-on-surface)",
                 }}
               >
                 Everion
               </h1>
             </div>
             <p
+              className="caps-label"
               style={{
-                fontSize: 16,
-                fontWeight: 500,
-                color: "var(--color-primary)",
+                color: "var(--color-secondary)",
                 margin: "0 0 8px",
               }}
             >
-              Your second brain — for you, your family, your business.
+              Neural Interface — Your second brain
             </p>
             <p
               style={{
@@ -299,7 +304,7 @@ export default function LoginScreen(): JSX.Element {
             <div className="login-mobile-brand">
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                 <EverionLogo size={22} />
-                <span style={{ fontFamily: "'Lora', Georgia, serif", fontWeight: 700, fontSize: 20, color: "var(--color-on-surface)", letterSpacing: "-0.02em" }}>Everion</span>
+                <span style={{ fontFamily: "'Manrope', system-ui, sans-serif", fontWeight: 700, fontSize: 20, color: "var(--color-on-surface)", letterSpacing: "-0.02em" }}>Everion</span>
               </div>
               <p style={{ fontSize: 13, color: "var(--color-primary)", margin: 0, fontWeight: 500 }}>
                 Your second brain — capture everything, find anything.
@@ -311,7 +316,7 @@ export default function LoginScreen(): JSX.Element {
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <h2
                   style={{
-                    fontFamily: "'Lora', Georgia, serif",
+                    fontFamily: "'Manrope', system-ui, sans-serif",
                     fontSize: 24,
                     fontWeight: 700,
                     letterSpacing: "-0.02em",
@@ -348,7 +353,7 @@ export default function LoginScreen(): JSX.Element {
                     justifyContent: "center",
                     gap: 8,
                     transition: "background 150ms",
-                    fontFamily: "'DM Sans', system-ui, sans-serif",
+                    fontFamily: "'Inter', system-ui, sans-serif",
                   }}
                 >
                   Magic link
@@ -371,7 +376,7 @@ export default function LoginScreen(): JSX.Element {
                     justifyContent: "center",
                     gap: 8,
                     transition: "background 150ms",
-                    fontFamily: "'DM Sans', system-ui, sans-serif",
+                    fontFamily: "'Inter', system-ui, sans-serif",
                   }}
                 >
                   Use password
@@ -384,7 +389,7 @@ export default function LoginScreen(): JSX.Element {
               <>
                 <h2
                   style={{
-                    fontFamily: "'Lora', Georgia, serif",
+                    fontFamily: "'Manrope', system-ui, sans-serif",
                     fontSize: 22,
                     fontWeight: 700,
                     letterSpacing: "-0.02em",
@@ -440,7 +445,7 @@ export default function LoginScreen(): JSX.Element {
                         padding: "11px 14px",
                         outline: "none",
                         boxSizing: "border-box",
-                        fontFamily: "'DM Sans', system-ui, sans-serif",
+                        fontFamily: "'Inter', system-ui, sans-serif",
                         transition: "border-color 150ms",
                       }}
                       onFocus={(e) => {
@@ -482,7 +487,7 @@ export default function LoginScreen(): JSX.Element {
                         padding: "11px 14px",
                         outline: "none",
                         boxSizing: "border-box",
-                        fontFamily: "'DM Sans', system-ui, sans-serif",
+                        fontFamily: "'Inter', system-ui, sans-serif",
                         transition: "border-color 150ms",
                       }}
                       onFocus={(e) => {
@@ -514,7 +519,7 @@ export default function LoginScreen(): JSX.Element {
                         color: "var(--color-on-surface-variant)",
                         fontSize: 14,
                         cursor: "pointer",
-                        fontFamily: "'DM Sans', system-ui, sans-serif",
+                        fontFamily: "'Inter', system-ui, sans-serif",
                         transition: "color 150ms",
                       }}
                     >
@@ -537,7 +542,7 @@ export default function LoginScreen(): JSX.Element {
                         fontSize: 14,
                         fontWeight: 600,
                         cursor: isPasswordDisabled ? "default" : "pointer",
-                        fontFamily: "'DM Sans', system-ui, sans-serif",
+                        fontFamily: "'Inter', system-ui, sans-serif",
                         transition: "background 150ms",
                         opacity: isPasswordDisabled ? 0.6 : 1,
                       }}
@@ -612,7 +617,7 @@ export default function LoginScreen(): JSX.Element {
               <div>
                 <h2
                   style={{
-                    fontFamily: "'Lora', Georgia, serif",
+                    fontFamily: "'Manrope', system-ui, sans-serif",
                     fontSize: 22,
                     fontWeight: 700,
                     letterSpacing: "-0.02em",
@@ -658,7 +663,7 @@ export default function LoginScreen(): JSX.Element {
                     fontSize: 14,
                     fontWeight: 600,
                     cursor: "pointer",
-                    fontFamily: "'DM Sans', system-ui, sans-serif",
+                    fontFamily: "'Inter', system-ui, sans-serif",
                     transition: "background 150ms",
                   }}
                 >
@@ -672,7 +677,7 @@ export default function LoginScreen(): JSX.Element {
               <>
                 <h2
                   style={{
-                    fontFamily: "'Lora', Georgia, serif",
+                    fontFamily: "'Manrope', system-ui, sans-serif",
                     fontSize: 22,
                     fontWeight: 700,
                     letterSpacing: "-0.02em",
@@ -726,7 +731,7 @@ export default function LoginScreen(): JSX.Element {
                         padding: "11px 14px",
                         outline: "none",
                         boxSizing: "border-box",
-                        fontFamily: "'DM Sans', system-ui, sans-serif",
+                        fontFamily: "'Inter', system-ui, sans-serif",
                         transition: "border-color 150ms",
                       }}
                       onFocus={(e) => {
@@ -758,7 +763,7 @@ export default function LoginScreen(): JSX.Element {
                         color: "var(--color-on-surface-variant)",
                         fontSize: 14,
                         cursor: "pointer",
-                        fontFamily: "'DM Sans', system-ui, sans-serif",
+                        fontFamily: "'Inter', system-ui, sans-serif",
                         transition: "color 150ms",
                       }}
                     >
@@ -781,7 +786,7 @@ export default function LoginScreen(): JSX.Element {
                         fontSize: 14,
                         fontWeight: 600,
                         cursor: isDisabled ? "default" : "pointer",
-                        fontFamily: "'DM Sans', system-ui, sans-serif",
+                        fontFamily: "'Inter', system-ui, sans-serif",
                         transition: "background 150ms",
                         opacity: isDisabled ? 0.6 : 1,
                       }}
@@ -798,7 +803,7 @@ export default function LoginScreen(): JSX.Element {
               <div>
                 <h2
                   style={{
-                    fontFamily: "'Lora', Georgia, serif",
+                    fontFamily: "'Manrope', system-ui, sans-serif",
                     fontSize: 22,
                     fontWeight: 700,
                     color: "var(--color-on-surface)",
@@ -865,7 +870,7 @@ export default function LoginScreen(): JSX.Element {
                         outline: "none",
                         textAlign: "center",
                         letterSpacing: 8,
-                        fontFamily: "'DM Sans', system-ui, sans-serif",
+                        fontFamily: "'Inter', system-ui, sans-serif",
                         fontVariantNumeric: "tabular-nums",
                         boxSizing: "border-box",
                         transition: "border-color 150ms",
@@ -903,7 +908,7 @@ export default function LoginScreen(): JSX.Element {
                       fontSize: 14,
                       fontWeight: 600,
                       cursor: isOtpDisabled ? "default" : "pointer",
-                      fontFamily: "'DM Sans', system-ui, sans-serif",
+                      fontFamily: "'Inter', system-ui, sans-serif",
                       transition: "background 150ms",
                       opacity: isOtpDisabled ? 0.6 : 1,
                     }}
@@ -978,6 +983,7 @@ export default function LoginScreen(): JSX.Element {
             </p>
           </div>
         </div>
+      </div>
       </div>
 
       <style>{`
