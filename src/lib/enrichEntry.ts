@@ -82,7 +82,9 @@ export async function enrichEntry(
           } catch { /* fall through */ }
         }
         const existingEnrichment = (entry.metadata as any)?.enrichment ?? {};
-        if (result?.type) {
+        // Accept the result if it has any usable field; default type to "note" if omitted
+        if (result && (result.type || result.title || result.content)) {
+          if (!result.type) result.type = "note";
           const newMeta = { ...(result.metadata || {}) };
           delete newMeta.confidence;
           if (rawText.length > 200 && !newMeta.full_text) newMeta.full_text = rawText;
