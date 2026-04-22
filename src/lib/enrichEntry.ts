@@ -36,11 +36,14 @@ export function getEnrichmentGaps(
   return gaps;
 }
 
+export interface EnrichError { step: string; message: string }
+
 export async function enrichEntry(
   entry: Entry,
   brainId: string,
   onUpdate: (id: string, changes: any) => Promise<void>,
-): Promise<void> {
+): Promise<EnrichError[]> {
+  const errors: EnrichError[] = [];
   const { PROMPTS } = await import("../config/prompts");
   const e = (entry.metadata as any)?.enrichment ?? {};
   const embedded = e.embedded ?? Boolean((entry as any).embedded_at);
@@ -63,7 +66,10 @@ export async function enrichEntry(
           max_tokens: 800,
         }),
       });
-      if (res.ok) {
+      if (!res.ok) {
+        const body = await res.text().catch(() => res.status.toString());
+        errors.push({ step: "parsed", message: `HTTP ${res.status}: ${body}` });
+      } else {
         const data = await res.json();
         const rawAI: string = data?.content?.[0]?.text || data?.text || "";
         const aiText = rawAI.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "");
@@ -94,7 +100,9 @@ export async function enrichEntry(
         }
         // If AI gave prose with no parseable JSON, leave parsed unset so it retries next time
       }
-    } catch { /* continue */ }
+    } catch (err) {
+      errors.push({ step: "parsed", message: String((err as any)?.message ?? err) });
+    }
   }
 
   // ── Embedding ──────────────────────────────────────────────────────────
@@ -110,8 +118,13 @@ export async function enrichEntry(
         await onUpdate(entry.id, {
           metadata: { ...(entry.metadata ?? {}), enrichment: { ...existing, embedded: true } },
         });
+      } else {
+        const body = await res.text().catch(() => res.status.toString());
+        errors.push({ step: "embedding", message: `HTTP ${res.status}: ${body}` });
       }
-    } catch { /* continue */ }
+    } catch (err) {
+      errors.push({ step: "embedding", message: String((err as any)?.message ?? err) });
+    }
   }
 
   // ── Concepts ───────────────────────────────────────────────────────────
@@ -135,7 +148,9 @@ export async function enrichEntry(
           enrichment: { ...existing, concepts_count: 1, has_related: true },
         },
       });
-    } catch { /* continue */ }
+    } catch (err) {
+      errors.push({ step: "concepts", message: String((err as any)?.message ?? err) });
+    }
   }
 
   // ── Insight ────────────────────────────────────────────────────────────
@@ -156,6 +171,10 @@ export async function enrichEntry(
       await onUpdate(entry.id, {
         metadata: { ...(entry.metadata ?? {}), enrichment: { ...existing, has_insight: true } },
       });
-    } catch { /* continue */ }
+    } catch (err) {
+      errors.push({ step: "insight", message: String((err as any)?.message ?? err) });
+    }
   }
+
+  return errors;
 }

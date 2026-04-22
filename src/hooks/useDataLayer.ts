@@ -5,7 +5,7 @@ import { readEntriesCache, writeEntriesCache } from "../lib/entriesCache";
 import { decryptEntry, cacheVaultKey } from "../lib/crypto";
 import { indexEntry } from "../lib/searchIndex";
 import { LINKS } from "../data/constants";
-import { isFullyEnriched, getEnrichmentGaps, enrichEntry } from "../lib/enrichEntry";
+import { isFullyEnriched, getEnrichmentGaps, enrichEntry, type EnrichError } from "../lib/enrichEntry";
 import { loadGraphFromDB } from "../lib/conceptGraph";
 import { useEntryActions } from "./useEntryActions";
 import type { Entry } from "../types";
@@ -46,6 +46,7 @@ export function useDataLayer({
   const vaultEntryIdsRef = useRef<Set<string>>(new Set());
   const [enriching, setEnriching] = useState(false);
   const [enrichProgress, setEnrichProgress] = useState<{ done: number; total: number } | null>(null);
+  const [enrichErrors, setEnrichErrors] = useState<{ id: string; title: string; errors: EnrichError[] }[]>([]);
   const [conceptEntryIds, setConceptEntryIds] = useState<Set<string>>(new Set());
 
   // Load concept graph entry IDs so unenriched detection matches the health panel
@@ -269,11 +270,14 @@ export function useDataLayer({
     const unenriched = entries.filter((e) => !isFullyEnriched(e, entries, conceptEntryIds));
     if (unenriched.length === 0) return;
     setEnriching(true);
+    setEnrichErrors([]);
     setEnrichProgress({ done: 0, total: unenriched.length });
     for (let i = 0; i < unenriched.length; i++) {
-      await enrichEntry(unenriched[i], activeBrainId, silentUpdate);
+      const errs = await enrichEntry(unenriched[i], activeBrainId, silentUpdate);
+      if (errs.length > 0) {
+        setEnrichErrors((prev) => [...prev, { id: unenriched[i].id, title: unenriched[i].title || "(untitled)", errors: errs }]);
+      }
       setEnrichProgress({ done: i + 1, total: unenriched.length });
-      // Refresh concept IDs every 3 entries so the count stays live
       if ((i + 1) % 3 === 0) await refreshConceptIds();
       if (i < unenriched.length - 1) await new Promise((r) => setTimeout(r, 5000));
     }
@@ -340,6 +344,7 @@ export function useDataLayer({
     vaultExists,
     enriching,
     enrichProgress,
+    enrichErrors,
     runBulkEnrich,
     unenrichedDetails,
     unenrichedCount,

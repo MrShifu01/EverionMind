@@ -667,6 +667,7 @@ function EverionContent({
                 unenrichedDetails={unenrichedDetails}
                 enriching={enriching}
                 enrichProgress={enrichProgress}
+                enrichErrors={dataLayer.enrichErrors}
                 runBulkEnrich={runBulkEnrich}
               />
             )}

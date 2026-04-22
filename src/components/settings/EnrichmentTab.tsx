@@ -1,9 +1,12 @@
 interface GapDetail { id: string; title: string; gaps: string[] }
+interface EnrichError { step: string; message: string }
 
 interface EnrichmentTabProps {
   unenrichedDetails: GapDetail[];
   enriching: boolean;
   enrichProgress: { done: number; total: number } | null;
+  enrichErrors?: { id: string; title: string; errors: EnrichError[] }[];
+  isAdmin?: boolean;
   runBulkEnrich: () => Promise<void>;
 }
 
@@ -18,6 +21,8 @@ export default function EnrichmentTab({
   unenrichedDetails,
   enriching,
   enrichProgress,
+  enrichErrors = [],
+  isAdmin = false,
   runBulkEnrich,
 }: EnrichmentTabProps) {
   const total = unenrichedDetails.length;
@@ -190,6 +195,49 @@ export default function EnrichmentTab({
         <p className="f-sans" style={{ fontSize: 13, color: "var(--ink-ghost)" }}>
           New entries are enriched automatically in the background. Come back here if you ever see gaps.
         </p>
+      )}
+
+      {isAdmin && enrichErrors.length > 0 && (
+        <div
+          style={{
+            marginTop: 8,
+            borderRadius: 8,
+            border: "1px solid var(--blood)",
+            background: "var(--blood-wash)",
+            padding: "14px 16px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
+          <span className="f-sans" style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--blood)", opacity: 0.7 }}>
+            Admin · Enrichment errors
+          </span>
+          {enrichErrors.map(({ id, title, errors }) => (
+            <div key={id} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span className="f-sans" style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-soft)" }}>
+                {title}
+              </span>
+              {errors.map((e, i) => (
+                <div key={i} style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
+                  <span
+                    className="f-sans"
+                    style={{
+                      fontSize: 11, fontWeight: 600, color: "var(--blood)",
+                      background: "var(--blood-wash)", borderRadius: 3,
+                      padding: "1px 6px", flexShrink: 0,
+                    }}
+                  >
+                    {e.step}
+                  </span>
+                  <span className="f-sans" style={{ fontSize: 12, color: "var(--ink-faint)", fontFamily: "var(--f-mono)", wordBreak: "break-all" }}>
+                    {e.message}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

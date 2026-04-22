@@ -209,11 +209,14 @@ function VaultRow({ onNavigate }: { onNavigate: (id: string) => void }) {
 
 interface GapDetail { id: string; title: string; gaps: string[] }
 
+interface EnrichError { step: string; message: string }
+
 interface SettingsViewProps {
   onNavigate?: (id: string) => void;
   unenrichedDetails?: GapDetail[];
   enriching?: boolean;
   enrichProgress?: { done: number; total: number } | null;
+  enrichErrors?: { id: string; title: string; errors: EnrichError[] }[];
   runBulkEnrich?: () => Promise<void>;
 }
 
@@ -222,6 +225,7 @@ export default function SettingsView({
   unenrichedDetails = [],
   enriching = false,
   enrichProgress = null,
+  enrichErrors = [],
   runBulkEnrich = async () => {},
 }: SettingsViewProps = {}) {
   const { activeBrain, refresh } = useBrain();
@@ -432,6 +436,8 @@ export default function SettingsView({
                   unenrichedDetails={unenrichedDetails}
                   enriching={enriching}
                   enrichProgress={enrichProgress}
+                  enrichErrors={enrichErrors}
+                  isAdmin={isAdmin}
                   runBulkEnrich={runBulkEnrich}
                 />
               </>
