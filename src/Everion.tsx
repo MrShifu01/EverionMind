@@ -37,6 +37,7 @@ const CaptureSheet = lazy(() => import("./components/CaptureSheet"));
 import DesktopSidebar from "./components/DesktopSidebar";
 import LoadingScreen from "./components/LoadingScreen";
 import SkeletonCard from "./components/SkeletonCard";
+import OmniSearch from "./components/OmniSearch";
 import SettingsView from "./views/SettingsView";
 const GraphView = lazy(() => import("./views/GraphView"));
 import FloatingCaptureButton from "./components/FloatingCaptureButton";
@@ -180,7 +181,8 @@ function EverionContent({
     [setSelected],
   );
 
-  const { conceptMap } = useConceptGraph();
+  const allEntries = useMemo(() => [...entries, ...vaultEntries], [entries, vaultEntries]);
+  const { conceptMap, godNodes } = useConceptGraph();
   const { isDark, toggleTheme } = useTheme();
   const { adminFlags } = useAdminDevMode();
   const ff = (key: FeatureFlagKey) => isFeatureEnabled(key, adminFlags);
@@ -287,6 +289,17 @@ function EverionContent({
             </div>
           )}
 
+          <OmniSearch
+            entries={allEntries}
+            onSelect={handleEntrySelect}
+            onNavigate={appShell.setView}
+            concepts={godNodes.map((c: any) => ({
+              id: c.id,
+              label: c.label,
+              count: Array.isArray(c.source_entries) ? c.source_entries.length : undefined,
+              source_entries: c.source_entries,
+            }))}
+          />
           <div key={appShell.view} className="animate-view-enter">
             {(appShell.view === "memory" || appShell.view === "timeline") && (
               <>

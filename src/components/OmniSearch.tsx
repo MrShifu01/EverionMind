@@ -204,45 +204,7 @@ export default function OmniSearch({ entries, onSelect, onNavigate, concepts = [
   }
 
   if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        aria-label={`Search (${MOD}K)`}
-        className="hidden lg:flex press items-center gap-2"
-        style={{
-          padding: "0 12px 0 14px",
-          height: 36,
-          minHeight: 36,
-          border: "1px solid var(--line-soft)",
-          borderRadius: 8,
-          background: "var(--surface)",
-          color: "var(--ink-faint)",
-          fontFamily: "var(--f-sans)",
-          fontSize: 13,
-          cursor: "pointer",
-        }}
-      >
-        <svg
-          width="14"
-          height="14"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-        >
-          <circle cx="11" cy="11" r="6.5" />
-          <path d="m20 20-3.5-3.5" />
-        </svg>
-        <span>search everything</span>
-        <span style={{ marginLeft: 6, display: "inline-flex", gap: 2 }}>
-          <Kbd>{MOD}</Kbd>
-          <Kbd>K</Kbd>
-        </span>
-      </button>
-    );
+    return null;
   }
 
   return (
