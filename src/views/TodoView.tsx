@@ -116,7 +116,6 @@ function addRecurring(entries: Entry[], add: (key: string, e: Entry) => void, ta
   const mon = targetMon ?? now.getMonth();
   const daysInMonth = new Date(year, mon + 1, 0).getDate();
   entries.forEach((e) => {
-    if (isDone(e)) return;
     const m = (e.metadata || {}) as Record<string, unknown>;
     let rawDay = (m.day_of_week || m.weekday || m.recurring_day || "").toString().toLowerCase().trim();
     if (!rawDay) {
