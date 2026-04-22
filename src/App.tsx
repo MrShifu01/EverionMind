@@ -5,6 +5,8 @@ import { authFetch } from "./lib/authFetch";
 import Everion from "./Everion";
 import LoginScreen from "./LoginScreen";
 import Landing from "./views/Landing";
+import AdminView from "./views/AdminView";
+import ResetPasswordView from "./views/ResetPasswordView";
 import ErrorBoundary from "./ErrorBoundary";
 import { MemoryProvider } from "./MemoryContext";
 import { ThemeProvider } from "./ThemeContext";
@@ -13,19 +15,21 @@ import UpdateToast from "./components/UpdateToast";
 import type { Session } from "@supabase/auth-js";
 
 const PENDING_INVITE_KEY = "ob_pending_invite";
+const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
 
-function getHashTokens(): { access_token: string; refresh_token: string } | null {
+function getHashTokens(): { access_token: string; refresh_token: string; type: string | null } | null {
   const hash = window.location.hash.substring(1);
   if (!hash) return null;
   const params = new URLSearchParams(hash);
   const access_token = params.get("access_token");
   const refresh_token = params.get("refresh_token");
-  if (access_token && refresh_token) return { access_token, refresh_token };
+  if (access_token && refresh_token) return { access_token, refresh_token, type: params.get("type") };
   return null;
 }
 
 export default function App(): JSX.Element {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
+  const [showResetPassword, setShowResetPassword] = useState(false);
   const [inviteMsg, setInviteMsg] = useState<string | null>(null);
   const [earlyCapture, setEarlyCapture] = useState(false);
   const [showLogin, setShowLogin] = useState(() => {
@@ -89,6 +93,7 @@ export default function App(): JSX.Element {
         .then(async ({ data: { session } }) => {
           if (session?.user?.id) await loadSettings(session.user.id);
           setSession(session);
+          if (tokens.type === "recovery") setShowResetPassword(true);
           window.history.replaceState(null, "", window.location.pathname);
         })
         .catch(async () => {
@@ -183,6 +188,28 @@ export default function App(): JSX.Element {
         {showLogin ? <LoginScreen /> : <Landing onAuth={() => setShowLogin(true)} />}
       </ThemeProvider>
     );
+  if (showResetPassword)
+    return (
+      <ThemeProvider>
+        <ResetPasswordView onDone={() => setShowResetPassword(false)} />
+      </ThemeProvider>
+    );
+
+  const isAdminRoute = window.location.pathname === "/admin";
+  const isAdmin = ADMIN_EMAIL ? session.user?.email === ADMIN_EMAIL : false;
+
+  if (isAdminRoute) {
+    if (!isAdmin) {
+      window.location.replace("/");
+      return null;
+    }
+    return (
+      <ThemeProvider>
+        <AdminView />
+      </ThemeProvider>
+    );
+  }
+
   return (
     <ThemeProvider>
       <ErrorBoundary>
