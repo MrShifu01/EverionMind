@@ -1,6 +1,6 @@
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 import { registerRoute, NavigationRoute } from 'workbox-routing';
-import { NetworkFirst } from 'workbox-strategies';
+import { NetworkFirst, StaleWhileRevalidate } from 'workbox-strategies';
 
 // New SW waits until the user taps "Update" in the toast, which posts
 // { type: 'SKIP_WAITING' }. Then skipWaiting + clients.claim triggers
@@ -22,9 +22,9 @@ registerRoute(
   new NetworkFirst({ cacheName: 'js-chunks' })
 );
 
-// SPA navigation: always fetch fresh index.html, fall back to cache offline
+// SPA navigation: serve cached index.html instantly, revalidate in background
 registerRoute(new NavigationRoute(
-  new NetworkFirst({ cacheName: 'html-nav', networkTimeoutSeconds: 3 })
+  new StaleWhileRevalidate({ cacheName: 'html-nav' })
 ));
 
 // ── Push event: show notification ──

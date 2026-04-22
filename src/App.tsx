@@ -32,6 +32,7 @@ export default function App(): JSX.Element {
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [inviteMsg, setInviteMsg] = useState<string | null>(null);
   const [earlyCapture, setEarlyCapture] = useState(false);
+  const [earlyCaptureText, setEarlyCaptureText] = useState("");
   const [showLogin, setShowLogin] = useState(() => {
     // Skip landing and go straight to the login form when the URL already
     // signals authentication intent (invite token, magic-link hash, /login path)
@@ -132,38 +133,81 @@ export default function App(): JSX.Element {
     return (
       <ThemeProvider>
         <LoadingScreen />
-        <button
-          onClick={() => setEarlyCapture(true)}
-          aria-label="New entry"
-          className="press-scale fixed bottom-5 left-1/2 z-[60] flex h-14 w-14 -translate-x-1/2 items-center justify-center rounded-full lg:hidden"
-          style={{
-            background: "var(--color-primary)",
-            color: "var(--color-on-primary)",
-            boxShadow: "var(--shadow-lg)",
-          }}
-        >
-          {earlyCapture ? (
-            <svg
-              className="h-5 w-5 animate-spin"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
+        {earlyCapture ? (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 70,
+              background: "var(--color-background, #0e0e0e)",
+              display: "flex",
+              flexDirection: "column",
+              padding: "24px 20px 40px",
+            }}
+          >
+            <p
+              style={{
+                fontSize: 13,
+                color: "var(--ink-faint, #888)",
+                margin: "0 0 12px",
+                fontFamily: "var(--f-sans)",
+              }}
             >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="2.5"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-              />
-            </svg>
-          ) : (
+              Capture — will open when app loads
+            </p>
+            <textarea
+              autoFocus
+              placeholder="What's on your mind?"
+              value={earlyCaptureText}
+              onChange={(e) => setEarlyCaptureText(e.target.value)}
+              style={{
+                flex: 1,
+                background: "var(--surface-low, #161616)",
+                border: "1px solid var(--line-soft, #333)",
+                borderRadius: 12,
+                color: "var(--ink, #f0ede6)",
+                fontSize: 16,
+                fontFamily: "var(--f-sans)",
+                padding: "14px",
+                resize: "none",
+                outline: "none",
+              }}
+            />
+            <button
+              onClick={() => {
+                if (earlyCaptureText.trim()) {
+                  localStorage.setItem("ob_pending_capture", earlyCaptureText.trim());
+                }
+                setEarlyCapture(false);
+                setEarlyCaptureText("");
+              }}
+              style={{
+                marginTop: 12,
+                height: 48,
+                borderRadius: 12,
+                border: "none",
+                background: "var(--color-primary)",
+                color: "var(--color-on-primary)",
+                fontSize: 15,
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "var(--f-sans)",
+              }}
+            >
+              {earlyCaptureText.trim() ? "Save & continue" : "Cancel"}
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setEarlyCapture(true)}
+            aria-label="New entry"
+            className="press-scale fixed bottom-5 left-1/2 z-[60] flex h-14 w-14 -translate-x-1/2 items-center justify-center rounded-full lg:hidden"
+            style={{
+              background: "var(--color-primary)",
+              color: "var(--color-on-primary)",
+              boxShadow: "var(--shadow-lg)",
+            }}
+          >
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="24"
@@ -178,8 +222,8 @@ export default function App(): JSX.Element {
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-          )}
-        </button>
+          </button>
+        )}
       </ThemeProvider>
     );
   if (!session)

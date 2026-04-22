@@ -83,6 +83,16 @@ export function useAppShell({
   // Type icons
   const [typeIcons, setTypeIcons] = useState<Record<string, string>>({});
 
+  // Drain any text captured before auth completed
+  useEffect(() => {
+    const pending = localStorage.getItem("ob_pending_capture");
+    if (pending) {
+      localStorage.removeItem("ob_pending_capture");
+      setCaptureInitialText(pending);
+      setShowCapture(true);
+    }
+  }, []);
+
   // Restart-onboarding event
   useEffect(() => {
     const h = () => setShowOnboarding(true);
