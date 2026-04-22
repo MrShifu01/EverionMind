@@ -442,6 +442,16 @@ html:not(.dark) .nav-glow {
 }
 :focus:not(:focus-visible) { outline: none; }
 
+/* No focus outlines on text inputs — handled by the app's own styling */
+input:focus,
+input:focus-visible,
+textarea:focus,
+textarea:focus-visible,
+select:focus,
+select:focus-visible {
+  outline: none !important;
+}
+
 /* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

@@ -84,7 +84,7 @@ html.family-dusk body, html.family-paper body, html.family-bronze body {
   transition: border-color 180ms; width: 100%;
   outline: 0;
 }
-.design-input:focus { border-color: var(--ember); }
+.design-input:focus { border-color: var(--line); }
 
 /* mobile input guard */
 @media (max-width: 1024px) {
