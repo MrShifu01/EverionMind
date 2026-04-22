@@ -63,7 +63,7 @@ export async function enrichEntry(
         body: JSON.stringify({
           system: PROMPTS.CAPTURE,
           messages: [{ role: "user", content: rawText }],
-          max_tokens: 800,
+          max_tokens: 1500,
         }),
       });
       if (!res.ok) {
@@ -73,13 +73,32 @@ export async function enrichEntry(
         const data = await res.json();
         const rawAI: string = data?.content?.[0]?.text || data?.text || "";
         const aiText = rawAI.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "");
-        const jsonMatch = aiText.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
         let result: any = null;
-        if (jsonMatch) {
+        // Try full array/object first, then fall back to first complete object
+        // (handles responses truncated by max_tokens before the closing bracket)
+        const fullMatch = aiText.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
+        if (fullMatch) {
           try {
-            const p = JSON.parse(jsonMatch[0]);
+            const p = JSON.parse(fullMatch[0]);
             result = Array.isArray(p) ? p[0] : p;
-          } catch { /* fall through */ }
+          } catch { /* fall through to brace-counting extraction */ }
+        }
+        if (!result) {
+          // Walk the string counting braces to extract the first complete {...}
+          const start = aiText.indexOf("{");
+          if (start !== -1) {
+            let depth = 0;
+            for (let i = start; i < aiText.length; i++) {
+              if (aiText[i] === "{") depth++;
+              else if (aiText[i] === "}") {
+                depth--;
+                if (depth === 0) {
+                  try { result = JSON.parse(aiText.slice(start, i + 1)); } catch { /* give up */ }
+                  break;
+                }
+              }
+            }
+          }
         }
         const existingEnrichment = (entry.metadata as any)?.enrichment ?? {};
         // Accept the result if it has any usable field; default type to "note" if omitted
