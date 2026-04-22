@@ -797,20 +797,23 @@ export default function VaultView({
 
       {showAddSecret && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center px-3 py-6 sm:items-center"
-          style={{ background: "var(--color-scrim)" }}
+          className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+          style={{ background: "var(--color-scrim)", padding: "12px 12px 0" }}
           onClick={() => !addBusy && setShowAddSecret(false)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md overflow-hidden rounded-2xl border"
+            className="w-full max-w-md overflow-hidden rounded-t-2xl sm:rounded-2xl border"
             style={{
               background: "var(--color-surface-container-low)",
               borderColor: "var(--color-outline-variant)",
               fontFamily: "var(--f-sans)",
+              display: "flex",
+              flexDirection: "column",
+              maxHeight: "calc(100dvh - 12px)",
             }}
           >
-            <div className="border-b p-4" style={{ borderColor: "var(--color-outline-variant)" }}>
+            <div className="border-b p-4" style={{ borderColor: "var(--color-outline-variant)", flexShrink: 0 }}>
               <div className="flex items-center justify-between">
                 <h3 className="text-on-surface text-base font-bold">➕ Add Secret</h3>
                 <button
@@ -826,7 +829,10 @@ export default function VaultView({
               </p>
             </div>
 
-            <div className="max-h-[70vh] space-y-3 overflow-y-auto p-4">
+            <div
+              className="space-y-3 p-4"
+              style={{ overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" } as React.CSSProperties}
+            >
               <div className="space-y-1">
                 <label
                   className="text-[11px] font-medium tracking-wide uppercase"
@@ -952,7 +958,7 @@ export default function VaultView({
 
             <div
               className="flex items-center gap-2 border-t p-3"
-              style={{ borderColor: "var(--color-outline-variant)" }}
+              style={{ borderColor: "var(--color-outline-variant)", flexShrink: 0, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
             >
               <button
                 onClick={() => !addBusy && setShowAddSecret(false)}
