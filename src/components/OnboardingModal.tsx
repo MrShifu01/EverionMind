@@ -130,13 +130,14 @@ export default function OnboardingModal({ onComplete, brainId }: OnboardingModal
         className="relative anim-scale-in-design"
         style={{
           width: "100%",
-          maxWidth: 520,
+          maxWidth: "min(520px, calc(100vw - 32px))",
+          maxHeight: "calc(100vh - 32px)",
+          overflowY: "auto",
           padding: "40px 36px 28px",
           background: "var(--surface-high)",
           border: "1px solid var(--line-soft)",
           borderRadius: 18,
           boxShadow: "var(--lift-3)",
-          overflow: "hidden",
         }}
       >
         {/* Top row: brand + progress + skip */}
