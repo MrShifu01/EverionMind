@@ -97,8 +97,10 @@ export async function enrichEntry(
             metadata: mergedMeta,
           });
           entry = { ...entry, type: result.type, content: result.content || entry.content, metadata: mergedMeta };
+        } else {
+          const preview = rawAI.slice(0, 120) || "(empty response)";
+          errors.push({ step: "parsed", message: `AI returned no usable JSON: ${preview}` });
         }
-        // If AI gave prose with no parseable JSON, leave parsed unset so it retries next time
       }
     } catch (err) {
       errors.push({ step: "parsed", message: String((err as any)?.message ?? err) });

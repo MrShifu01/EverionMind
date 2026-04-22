@@ -275,7 +275,10 @@ export async function saveGraphToDB(brainId: string, graph: ConceptGraph): Promi
   // Mark dirty before attempting write so a crash mid-write is recoverable
   try { localStorage.setItem(DIRTY_KEY(brainId), "1"); } catch { /* quota */ }
   // Update cache immediately for fast reads
-  try { localStorage.setItem(GRAPH_KEY(brainId), JSON.stringify(versionedGraph)); } catch { /* quota */ }
+  try {
+    localStorage.setItem(GRAPH_KEY(brainId), JSON.stringify(versionedGraph));
+    window.dispatchEvent(new CustomEvent("concept-graph-updated", { detail: { brainId } }));
+  } catch { /* quota */ }
   // Persist to DB
   try {
     await authFetch("/api/graph", {
