@@ -11,6 +11,7 @@ import CalendarSyncTab from "../components/settings/CalendarSyncTab";
 import NotificationSettings from "../components/NotificationSettings";
 import AppearanceTab from "../components/settings/AppearanceTab";
 import AdminTab from "../components/settings/AdminTab";
+import SecurityTab from "../components/settings/SecurityTab";
 import SettingsRow, { SettingsButton } from "../components/settings/SettingsRow";
 import { authFetch } from "../lib/authFetch";
 
@@ -23,6 +24,7 @@ type SectionId =
   | "integrations"
   | "calendar"
   | "appearance"
+  | "security"
   | "danger"
   | "admin";
 
@@ -37,6 +39,7 @@ const BASE_SECTIONS: { id: SectionId; label: string }[] = [
   { id: "integrations", label: "Integrations" },
   { id: "calendar", label: "Calendar sync" },
   { id: "appearance", label: "Appearance" },
+  { id: "security", label: "Security" },
   { id: "danger", label: "Danger zone" },
 ];
 
@@ -462,6 +465,16 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
                   subtitle="connect google or outlook to see your events in the todo calendar view."
                 />
                 <CalendarSyncTab />
+              </>
+            )}
+
+            {section === "security" && (
+              <>
+                <SectionHeader
+                  title="Security"
+                  subtitle="Manage the PIN that protects your vault secrets."
+                />
+                <SecurityTab />
               </>
             )}
 

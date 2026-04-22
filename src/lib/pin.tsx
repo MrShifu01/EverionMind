@@ -102,13 +102,21 @@ export async function verifyPin(pin: string, stored?: string): Promise<boolean |
 
 async function storePin(pin: string): Promise<void> {
   const combined = await hashPin(pin); // "saltHex:hashHex"
-  // Only push hash+salt to server (zero-knowledge: server never sees PIN)
+  localStorage.setItem(_pinKey(), combined);
   const [saltHex, hashHex] = combined.split(":");
   await authFetch("/api/pin?action=setup", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ hash: hashHex, salt: saltHex }),
   });
+}
+
+export async function setupPin(pin: string): Promise<void> {
+  return storePin(pin);
+}
+
+export function clearStoredPin(): void {
+  localStorage.removeItem(_pinKey());
 }
 
 export function PinGate({ onSuccess, onCancel, isSetup = false }: PinGateProps) {
