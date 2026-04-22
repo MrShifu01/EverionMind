@@ -7,6 +7,7 @@ import BrainTab from "../components/settings/BrainTab";
 import StorageTab from "../components/settings/StorageTab";
 import DangerTab from "../components/settings/DangerTab";
 import ClaudeCodeTab from "../components/settings/ClaudeCodeTab";
+import CalendarSyncTab from "../components/settings/CalendarSyncTab";
 import NotificationSettings from "../components/NotificationSettings";
 import AppearanceTab from "../components/settings/AppearanceTab";
 import AdminTab from "../components/settings/AdminTab";
@@ -20,6 +21,7 @@ type SectionId =
   | "notifications"
   | "storage"
   | "integrations"
+  | "calendar"
   | "appearance"
   | "danger"
   | "admin";
@@ -33,6 +35,7 @@ const BASE_SECTIONS: { id: SectionId; label: string }[] = [
   { id: "notifications", label: "Notifications" },
   { id: "storage", label: "Storage" },
   { id: "integrations", label: "Integrations" },
+  { id: "calendar", label: "Calendar sync" },
   { id: "appearance", label: "Appearance" },
   { id: "danger", label: "Danger zone" },
 ];
@@ -449,6 +452,16 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
                   subtitle="MCP and REST endpoints for the agents you already use."
                 />
                 <ClaudeCodeTab />
+              </>
+            )}
+
+            {section === "calendar" && (
+              <>
+                <SectionHeader
+                  title="Calendar sync"
+                  subtitle="connect google or outlook to see your events in the todo calendar view."
+                />
+                <CalendarSyncTab />
               </>
             )}
 
