@@ -123,6 +123,27 @@ export function useAuthFlow() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    setError(null);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: redirectUrl(),
+        scopes: "https://www.googleapis.com/auth/calendar",
+        queryParams: {
+          access_type: "offline",
+          prompt: "consent",
+        },
+      },
+    });
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+    }
+    // On success the browser redirects — no further state needed.
+  };
+
   const switchToPassword = () => {
     setUsePassword(true);
   };
@@ -190,6 +211,7 @@ export function useAuthFlow() {
     isPasswordDisabled,
     MIN_PASSWORD_LENGTH,
     // handlers
+    handleGoogleSignIn,
     handleSend,
     handleVerifyOtp,
     handleResend,
