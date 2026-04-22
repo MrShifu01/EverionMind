@@ -10,19 +10,19 @@ html.family-paper {
   --f-mono: 'JetBrains Mono', ui-monospace, monospace;
 
   /* INK — dark (printed reverse) */
-  --bg:           oklch(16% 0.016 28);
-  --surface:      oklch(19% 0.018 28);
-  --surface-high: oklch(23% 0.020 28);
-  --surface-low:  oklch(13% 0.014 28);
-  --surface-dim:  oklch(10% 0.012 28);
+  --bg:           oklch(22% 0.016 28);
+  --surface:      oklch(26% 0.018 28);
+  --surface-high: oklch(31% 0.020 28);
+  --surface-low:  oklch(18% 0.014 28);
+  --surface-dim:  oklch(15% 0.012 28);
 
   --ink:          oklch(96% 0.018 82);
   --ink-soft:     oklch(80% 0.020 78);
   --ink-faint:    oklch(60% 0.016 75);
   --ink-ghost:    oklch(44% 0.014 72);
 
-  --line:         oklch(30% 0.018 28);
-  --line-soft:    oklch(24% 0.016 28);
+  --line:         oklch(36% 0.018 28);
+  --line-soft:    oklch(30% 0.016 28);
 
   --ember:        oklch(56% 0.088 120);
   --ember-soft:   oklch(49% 0.080 120);

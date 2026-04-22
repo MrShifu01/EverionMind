@@ -16,16 +16,16 @@
 /* ── Theme Tokens — Neural Obsidian (dark default) ── */
 @theme {
   /* Surfaces — warm charcoal, hue 60–65° */
-  --color-background: oklch(6% 0.005 60);
-  --color-surface: oklch(17% 0.013 62);
-  --color-surface-dim: oklch(8% 0.007 60);
-  --color-surface-container-lowest: oklch(6% 0.005 60);
-  --color-surface-container-low: oklch(15% 0.012 62);
-  --color-surface-container: oklch(17% 0.013 62);
-  --color-surface-container-high: oklch(21% 0.015 65);
-  --color-surface-container-highest: oklch(25% 0.016 65);
-  --color-surface-variant: oklch(15% 0.012 62);
-  --color-surface-bright: oklch(31% 0.018 65);
+  --color-background: oklch(20% 0.010 62);
+  --color-surface: oklch(25% 0.013 62);
+  --color-surface-dim: oklch(16% 0.008 60);
+  --color-surface-container-lowest: oklch(18% 0.008 60);
+  --color-surface-container-low: oklch(22% 0.012 62);
+  --color-surface-container: oklch(25% 0.013 62);
+  --color-surface-container-high: oklch(29% 0.015 65);
+  --color-surface-container-highest: oklch(34% 0.016 65);
+  --color-surface-variant: oklch(22% 0.012 62);
+  --color-surface-bright: oklch(38% 0.018 65);
 
   /* Primary — Gold */
   --color-primary: oklch(68% 0.09 75);
@@ -636,17 +636,17 @@ select option:hover { background-color: var(--color-surface-container-high); col
 
 /* ── Shadcn/Radix tokens — dark mode (Neural Obsidian) ── */
 .dark {
-  --background: oklch(6% 0.005 60);
+  --background: oklch(20% 0.010 62);
   --foreground: oklch(96% 0.007 80);
-  --card: oklch(17% 0.013 62);
+  --card: oklch(25% 0.013 62);
   --card-foreground: oklch(96% 0.007 80);
-  --popover: oklch(17% 0.013 62);
+  --popover: oklch(25% 0.013 62);
   --popover-foreground: oklch(96% 0.007 80);
   --primary: oklch(68% 0.09 75);
   --primary-foreground: oklch(15% 0.005 65);
-  --secondary: oklch(21% 0.015 65);
+  --secondary: oklch(29% 0.015 65);
   --secondary-foreground: oklch(96% 0.007 80);
-  --muted: oklch(17% 0.013 62);
+  --muted: oklch(25% 0.013 62);
   --muted-foreground: oklch(52% 0.012 70);
   --accent: oklch(23% 0.04 72);
   --accent-foreground: oklch(68% 0.09 75);
@@ -659,7 +659,7 @@ select option:hover { background-color: var(--color-surface-container-high); col
   --chart-3: oklch(62% 0.18 25);
   --chart-4: oklch(58% 0.022 75);
   --chart-5: oklch(65% 0.13 240);
-  --sidebar: oklch(8% 0.007 60);
+  --sidebar: oklch(16% 0.008 60);
   --sidebar-foreground: oklch(96% 0.007 80);
   --sidebar-primary: oklch(68% 0.09 75);
   --sidebar-primary-foreground: oklch(15% 0.005 65);

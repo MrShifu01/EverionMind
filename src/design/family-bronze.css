@@ -9,19 +9,19 @@ html.family-bronze {
   --f-mono: 'JetBrains Mono', ui-monospace, monospace;
 
   /* SLATE — dark (default) */
-  --bg:           oklch(15% 0.008 250);
-  --surface:      oklch(18% 0.010 248);
-  --surface-high: oklch(22% 0.012 246);
-  --surface-low:  oklch(12% 0.008 250);
-  --surface-dim:  oklch(10% 0.006 252);
+  --bg:           oklch(21% 0.008 250);
+  --surface:      oklch(26% 0.010 248);
+  --surface-high: oklch(31% 0.012 246);
+  --surface-low:  oklch(17% 0.008 250);
+  --surface-dim:  oklch(14% 0.006 252);
 
   --ink:          oklch(94% 0.012 84);
   --ink-soft:     oklch(78% 0.014 80);
   --ink-faint:    oklch(58% 0.012 76);
   --ink-ghost:    oklch(40% 0.010 72);
 
-  --line:         oklch(28% 0.014 248);
-  --line-soft:    oklch(22% 0.010 250);
+  --line:         oklch(35% 0.014 248);
+  --line-soft:    oklch(28% 0.010 250);
 
   --ember:        oklch(76% 0.105 82);
   --ember-soft:   oklch(68% 0.100 82);

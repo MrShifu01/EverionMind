@@ -8,20 +8,20 @@ import {
 
 const VARIANT_SWATCHES: Record<DesignVariant, { bg: string; surface: string; ember: string; ink: string }> = {
   dusk: {
-    bg: "oklch(14% 0.012 62)",
-    surface: "oklch(21% 0.016 64)",
+    bg: "oklch(21% 0.012 62)",
+    surface: "oklch(30% 0.016 64)",
     ember: "oklch(72% 0.135 52)",
     ink: "oklch(94% 0.010 78)",
   },
   paper: {
     bg: "oklch(96% 0.022 85)",
     surface: "oklch(93% 0.025 82)",
-    ember: "oklch(40% 0.155 22)",
+    ember: "oklch(37% 0.088 120)",
     ink: "oklch(20% 0.028 32)",
   },
   bronze: {
-    bg: "oklch(15% 0.008 250)",
-    surface: "oklch(22% 0.012 246)",
+    bg: "oklch(21% 0.008 250)",
+    surface: "oklch(31% 0.012 246)",
     ember: "oklch(76% 0.105 82)",
     ink: "oklch(94% 0.012 84)",
   },

@@ -9,19 +9,19 @@ html.family-dusk {
   --f-mono: 'Geist Mono', ui-monospace, monospace;
 
   /* DUSK — dark surfaces (default for this family) */
-  --bg:           oklch(14% 0.012 62);
-  --surface:      oklch(17% 0.014 62);
-  --surface-high: oklch(21% 0.016 64);
-  --surface-low:  oklch(11% 0.010 60);
-  --surface-dim:  oklch(9%  0.008 60);
+  --bg:           oklch(21% 0.012 62);
+  --surface:      oklch(25% 0.014 62);
+  --surface-high: oklch(30% 0.016 64);
+  --surface-low:  oklch(17% 0.010 60);
+  --surface-dim:  oklch(15% 0.008 60);
 
   --ink:          oklch(94% 0.010 78);
   --ink-soft:     oklch(78% 0.012 72);
   --ink-faint:    oklch(58% 0.010 68);
   --ink-ghost:    oklch(42% 0.008 65);
 
-  --line:         oklch(28% 0.014 64);
-  --line-soft:    oklch(22% 0.012 62);
+  --line:         oklch(35% 0.014 64);
+  --line-soft:    oklch(28% 0.012 62);
 
   --ember:        oklch(72% 0.135 52);
   --ember-soft:   oklch(64% 0.120 52);
