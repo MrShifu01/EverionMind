@@ -127,8 +127,24 @@ function AuditCard({ brainId }: { brainId: string }) {
           onClick={runAudit}
           disabled={state.status === "loading"}
           aria-busy={state.status === "loading"}
-          className="design-btn-secondary press"
-          style={{ height: 32, minHeight: 32, fontSize: 13, padding: "0 14px" }}
+          className="press f-sans"
+          style={{
+            flexShrink: 0,
+            height: 32,
+            minHeight: 32,
+            padding: "0 14px",
+            borderRadius: 6,
+            fontSize: 13,
+            fontWeight: 600,
+            letterSpacing: "normal",
+            textTransform: "none",
+            background: "var(--surface-high)",
+            color: "var(--ink-soft)",
+            border: "1px solid var(--line-soft)",
+            cursor: state.status === "loading" ? "not-allowed" : "pointer",
+            opacity: state.status === "loading" ? 0.6 : 1,
+            transition: "opacity 0.2s",
+          }}
         >
           {state.status === "loading" ? "Running…" : "Run audit"}
         </button>
