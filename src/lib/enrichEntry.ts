@@ -118,6 +118,15 @@ export async function enrichEntry(
             metadata: mergedMeta,
           });
           entry = { ...entry, type: result.type, content: result.content || entry.content, metadata: mergedMeta };
+        } else if (entry.title && (entry.content || "").length > 10) {
+          // AI failed to return structured JSON (prompt injection, model confusion, etc.)
+          // Entry already has usable content — mark as parsed so it doesn't block enrichment.
+          await onUpdate(entry.id, {
+            metadata: {
+              ...(entry.metadata ?? {}),
+              enrichment: { ...existingEnrichment, parsed: true },
+            },
+          });
         } else {
           const preview = rawAI.slice(0, 120) || "(empty response)";
           errors.push({ step: "parsed", message: `AI returned no usable JSON: ${preview}` });
