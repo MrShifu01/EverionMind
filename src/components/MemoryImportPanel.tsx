@@ -3,6 +3,7 @@ import { authFetch } from "../lib/authFetch";
 import { getEmbedHeaders } from "../lib/aiSettings";
 import { parseAISplitResponse } from "../lib/fileSplitter";
 import { AI_MEMORY_PROMPT } from "../lib/aiMemoryPrompt";
+import { SettingsButton } from "./settings/SettingsRow";
 
 interface Props {
   brainId?: string;
@@ -66,18 +67,13 @@ export default function MemoryImportPanel({ brainId, onImported }: Props) {
               type: entry.type || "note",
               tags: entry.tags || [],
             };
-            // Fire brain processing for each entry as it's imported
             extractEntryConnections(entryObj, brainId).catch(() => {});
             generateEntryInsight(entryObj, brainId).catch(() => {});
             findAndSaveConnections(entryObj, [...importedEntries], brainId).catch(() => {});
             importedEntries.push(entryObj);
           }
-        } else {
-          failed++;
-        }
-      } catch {
-        failed++;
-      }
+        } else { failed++; }
+      } catch { failed++; }
     }
 
     setImporting(false);
@@ -87,51 +83,44 @@ export default function MemoryImportPanel({ brainId, onImported }: Props) {
   }
 
   return (
-    <div className="space-y-3">
-      {/* Step 1 — copy the prompt */}
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div>
-        <p className="text-on-surface mb-2 text-xs font-semibold">
-          Step 1 — Copy this prompt into Claude or ChatGPT
-        </p>
-        <button
-          onClick={copyPrompt}
-          className="rounded-xl px-4 py-2 text-xs font-semibold transition-colors"
-          style={{
-            background: copied
-              ? "color-mix(in oklch, var(--color-primary) 15%, transparent)"
-              : "var(--color-surface-container-high)",
-            color: copied ? "var(--color-primary)" : "var(--color-on-surface-variant)",
-            border: "1px solid var(--color-outline-variant)",
-          }}
-        >
-          {copied ? "✓ Prompt copied!" : "Copy prompt"}
-        </button>
+        <div className="micro" style={{ marginBottom: 8 }}>Step 1 — copy this prompt into Claude or ChatGPT</div>
+        <SettingsButton onClick={copyPrompt}>
+          {copied ? "✓ Copied!" : "Copy prompt"}
+        </SettingsButton>
       </div>
 
-      {/* Step 2 — paste the JSON result */}
       <div>
-        <p className="text-on-surface mb-1 text-xs font-semibold">
-          Step 2 — Paste the JSON result here
-        </p>
+        <div className="micro" style={{ marginBottom: 8 }}>Step 2 — paste the JSON result here</div>
         <textarea
           value={json}
           onChange={(e) => { setJson(e.target.value); setError(null); setResult(null); }}
           rows={5}
           placeholder="Paste the JSON array the AI returned here…"
-          className="text-on-surface placeholder:text-on-surface-variant/40 w-full resize-none rounded-xl border p-3 text-xs outline-none"
+          className="f-serif"
           style={{
-            background: "var(--color-surface-container-low)",
-            borderColor: "var(--color-outline-variant)",
+            width: "100%",
+            boxSizing: "border-box",
+            fontSize: 13,
+            lineHeight: 1.55,
+            resize: "vertical",
+            padding: "10px 12px",
+            color: "var(--ink)",
+            background: "var(--surface-low)",
+            border: "1px solid var(--line-soft)",
+            borderRadius: 10,
+            outline: "none",
+            fontStyle: json ? "normal" : "italic",
           }}
         />
       </div>
 
       {error && (
-        <p className="text-xs" style={{ color: "var(--color-error)" }}>{error}</p>
+        <p className="f-sans" style={{ fontSize: 12, color: "var(--blood)", margin: 0 }}>{error}</p>
       )}
-
       {result && (
-        <p className="text-xs" style={{ color: result.failed > 0 ? "var(--color-status-medium)" : "var(--color-primary)" }}>
+        <p className="f-sans" style={{ fontSize: 12, color: result.failed > 0 ? "var(--ember)" : "var(--moss)", margin: 0 }}>
           {result.imported} {result.imported === 1 ? "memory" : "memories"} imported
           {result.failed > 0 ? `, ${result.failed} failed` : ""}
         </p>
@@ -140,8 +129,8 @@ export default function MemoryImportPanel({ brainId, onImported }: Props) {
       <button
         onClick={handleImport}
         disabled={!json.trim() || importing}
-        className="press-scale w-full rounded-xl py-2.5 text-xs font-semibold disabled:opacity-40"
-        style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
+        className="design-btn-primary press"
+        style={{ width: "100%", opacity: (!json.trim() || importing) ? 0.4 : 1 }}
       >
         {importing ? "Importing…" : "Import memories"}
       </button>
