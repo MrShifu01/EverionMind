@@ -66,6 +66,9 @@ export default function AccountTab({ email, brainId }: Props) {
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [googleLinked, setGoogleLinked] = useState(false);
+  const [linkingGoogle, setLinkingGoogle] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
   const [importsOpen, setImportsOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -85,6 +88,10 @@ export default function AccountTab({ email, brainId }: Props) {
       setProfile(fresh);
       writeProfileCache(fresh);
     });
+    supabase.auth.getUserIdentities().then(({ data }) => {
+      const identities = data?.identities ?? [];
+      setGoogleLinked(identities.some((id) => id.provider === "google"));
+    });
   }, []);
 
   async function saveProfile() {
@@ -96,6 +103,24 @@ export default function AccountTab({ email, brainId }: Props) {
     setProfileSaving(false);
     if (err) setProfileError(err.message);
     else setProfileSaved(true);
+  }
+
+  async function handleLinkGoogle() {
+    setLinkingGoogle(true);
+    setLinkError(null);
+    const { error: err } = await supabase.auth.linkIdentity({
+      provider: "google",
+      options: {
+        redirectTo: window.location.origin,
+        scopes: "https://www.googleapis.com/auth/calendar",
+        queryParams: { access_type: "offline", prompt: "consent" },
+      },
+    });
+    if (err) {
+      setLinkError(err.message);
+      setLinkingGoogle(false);
+    }
+    // On success the browser redirects to Google consent.
   }
 
   async function handleSignOut() {
@@ -250,6 +275,26 @@ export default function AccountTab({ email, brainId }: Props) {
           </SettingsButton>
         </div>
       )}
+
+      <SettingsRow label="Google account" hint={googleLinked ? "Google is linked — calendar sync is active." : "Link Google to enable calendar sync."}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {googleLinked && (
+              <span style={{ fontSize: 12, color: "var(--moss)", fontWeight: 500 }}>Linked</span>
+            )}
+            {!googleLinked && (
+              <SettingsButton onClick={handleLinkGoogle} disabled={linkingGoogle}>
+                {linkingGoogle ? "Redirecting…" : "Link Google"}
+              </SettingsButton>
+            )}
+          </div>
+          {linkError && (
+            <p className="f-sans" style={{ fontSize: 12, color: "var(--blood)", margin: 0 }}>
+              {linkError}
+            </p>
+          )}
+        </div>
+      </SettingsRow>
 
       <SettingsRow label="Imports" hint="bring in memories Claude or ChatGPT already know about you.">
         <SettingsButton onClick={() => setImportsOpen((v) => !v)}>
