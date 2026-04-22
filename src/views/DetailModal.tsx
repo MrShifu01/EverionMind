@@ -139,15 +139,28 @@ No explanation, no punctuation, just one word.`,
 
   function saveToContacts() {
     const meta = (entry.metadata || {}) as Record<string, string>;
+    const content = entry.content ?? "";
+
+    const phone = meta.phone
+      || (content.match(/(?:phone|tel|cell|mobile)[:\s]+([+\d][\d\s().+-]{6,})/i)?.[1]?.trim())
+      || (content.match(/(\+\d[\d\s().+-]{6,})/)?.[1]?.trim())
+      || "";
+
+    const email = meta.email
+      || (content.match(/[\w.+-]+@[\w-]+\.\w+/)?.[0])
+      || "";
+
     const lines = [
       "BEGIN:VCARD",
       "VERSION:3.0",
       `FN:${entry.title}`,
-      meta.phone ? `TEL:${meta.phone}` : "",
-      meta.email ? `EMAIL:${meta.email}` : "",
-      entry.content ? `NOTE:${entry.content.replace(/\n/g, "\\n")}` : "",
+      `N:${entry.title};;;;`,
+      phone ? `TEL:${phone}` : "",
+      email ? `EMAIL:${email}` : "",
+      content ? `NOTE:${content.replace(/\n/g, "\\n")}` : "",
       "END:VCARD",
     ].filter(Boolean).join("\r\n");
+
     const blob = new Blob([lines], { type: "text/vcard" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
