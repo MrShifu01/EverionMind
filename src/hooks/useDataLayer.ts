@@ -240,7 +240,11 @@ export function useDataLayer({
 
   // Silent background enrich — fires once per brain after entries load.
   // 8s initial delay lets the page settle; 5s between entries respects the LLM rate limit.
+  // Cancelled immediately if the user triggers manual bulk enrich (enriching flag).
   const autoEnrichBrainRef = useRef<string | null>(null);
+  const enrichingRef = useRef(enriching);
+  useEffect(() => { enrichingRef.current = enriching; }, [enriching]);
+
   useEffect(() => {
     if (!entriesLoaded || !activeBrainId) return;
     if (autoEnrichBrainRef.current === activeBrainId) return;
@@ -256,7 +260,7 @@ export function useDataLayer({
     (async () => {
       await new Promise((r) => setTimeout(r, 15000));
       for (let i = 0; i < snapshot.length; i++) {
-        if (cancelled) break;
+        if (cancelled || enrichingRef.current) break;
         await enrichEntry(snapshot[i], brainId, silentUpdate);
         if (i < snapshot.length - 1) await new Promise((r) => setTimeout(r, 15000));
       }
