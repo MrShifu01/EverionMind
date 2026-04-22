@@ -128,14 +128,7 @@ export function useAuthFlow() {
     setError(null);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: {
-        redirectTo: redirectUrl(),
-        scopes: "https://www.googleapis.com/auth/calendar",
-        queryParams: {
-          access_type: "offline",
-          prompt: "consent",
-        },
-      },
+      options: { redirectTo: redirectUrl() },
     });
     if (error) {
       setError(error.message);
