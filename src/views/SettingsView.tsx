@@ -220,7 +220,11 @@ interface SettingsViewProps {
 
 export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
   const { activeBrain, refresh } = useBrain();
-  const [section, setSection] = useState<SectionId>("appearance");
+  const [section, setSection] = useState<SectionId>(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("calendarConnected") || params.has("calendarError")) return "calendar";
+    return "appearance";
+  });
   const [email, setEmail] = useState(() => {
     try { return localStorage.getItem("everion_email") || ""; } catch { return ""; }
   });
