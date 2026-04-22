@@ -2,12 +2,11 @@ import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { useBrain } from "../context/BrainContext";
 import AccountTab from "../components/settings/AccountTab";
-import ProvidersTab from "../components/settings/ProvidersTab";
 import BrainTab from "../components/settings/BrainTab";
-import StorageTab from "../components/settings/StorageTab";
+import DataTab from "../components/settings/DataTab";
+import AITab from "../components/settings/AITab";
 import DangerTab from "../components/settings/DangerTab";
 import ClaudeCodeTab from "../components/settings/ClaudeCodeTab";
-import EnrichmentTab from "../components/settings/EnrichmentTab";
 import CalendarSyncTab from "../components/settings/CalendarSyncTab";
 import NotificationSettings from "../components/NotificationSettings";
 import AppearanceTab from "../components/settings/AppearanceTab";
@@ -17,15 +16,13 @@ import SettingsRow, { SettingsButton } from "../components/settings/SettingsRow"
 import { authFetch } from "../lib/authFetch";
 
 type SectionId =
+  | "appearance"
   | "account"
   | "brain"
-  | "providers"
+  | "data"
+  | "ai"
   | "notifications"
-  | "storage"
-  | "enrichment"
   | "integrations"
-  | "calendar"
-  | "appearance"
   | "security"
   | "danger"
   | "admin";
@@ -33,15 +30,13 @@ type SectionId =
 const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
 
 const BASE_SECTIONS: { id: SectionId; label: string }[] = [
+  { id: "appearance", label: "Appearance" },
   { id: "account", label: "Account" },
   { id: "brain", label: "Brain" },
-  { id: "providers", label: "AI providers" },
+  { id: "data", label: "Data" },
+  { id: "ai", label: "AI" },
   { id: "notifications", label: "Notifications" },
-  { id: "storage", label: "Storage" },
-  { id: "enrichment", label: "Enrichment" },
   { id: "integrations", label: "Integrations" },
-  { id: "calendar", label: "Calendar sync" },
-  { id: "appearance", label: "Appearance" },
   { id: "security", label: "Security" },
   { id: "danger", label: "Danger zone" },
 ];
@@ -99,10 +94,7 @@ function AuditCard({ brainId }: { brainId: string }) {
         body: JSON.stringify({ brain_id: brainId }),
       });
       const raw = await r.text();
-      if (!r.ok) {
-        setState({ status: "error", message: `HTTP ${r.status}: ${raw}` });
-        return;
-      }
+      if (!r.ok) { setState({ status: "error", message: `HTTP ${r.status}: ${raw}` }); return; }
       let parsed: { flagged: number; entries: Record<string, any[] | null> };
       try { parsed = JSON.parse(raw); }
       catch { setState({ status: "error", message: `Invalid JSON response:\n${raw}` }); return; }
@@ -119,6 +111,7 @@ function AuditCard({ brainId }: { brainId: string }) {
         border: "1px solid var(--line-soft)",
         borderRadius: 12,
         padding: 20,
+        marginTop: 16,
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
@@ -126,10 +119,7 @@ function AuditCard({ brainId }: { brainId: string }) {
           <div className="f-serif" style={{ fontSize: 16, fontWeight: 450, color: "var(--ink)" }}>
             Quality audit
           </div>
-          <div
-            className="f-serif"
-            style={{ fontSize: 13, color: "var(--ink-faint)", fontStyle: "italic", marginTop: 3 }}
-          >
+          <div className="f-serif" style={{ fontSize: 13, color: "var(--ink-faint)", fontStyle: "italic", marginTop: 3 }}>
             ai analysis of your 25 newest entries.
           </div>
         </div>
@@ -237,7 +227,7 @@ export default function SettingsView({
   const { activeBrain, refresh } = useBrain();
   const [section, setSection] = useState<SectionId>(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.has("calendarConnected") || params.has("calendarError")) return "calendar";
+    if (params.has("calendarConnected") || params.has("calendarError")) return "integrations";
     return "appearance";
   });
   const [email, setEmail] = useState(() => {
@@ -252,7 +242,6 @@ export default function SettingsView({
     });
   }, []);
 
-  // If VITE_ADMIN_EMAIL is set, restrict to that email. Otherwise any logged-in user sees it.
   const isAdmin = ADMIN_EMAIL ? (Boolean(email && email === ADMIN_EMAIL)) : Boolean(email);
   const SECTIONS = isAdmin
     ? [...BASE_SECTIONS, { id: "admin" as SectionId, label: "Admin" }]
@@ -295,7 +284,7 @@ export default function SettingsView({
         </h1>
       </header>
 
-      {/* Mobile tab strip — horizontal scroll */}
+      {/* Mobile tab strip */}
       <nav
         className="settings-mobile-tabs scrollbar-hide"
         aria-label="Settings sections"
@@ -325,11 +314,7 @@ export default function SettingsView({
                 fontFamily: "var(--f-sans)",
                 fontSize: 13,
                 fontWeight: 500,
-                color: active
-                  ? "var(--ember)"
-                  : id === "danger"
-                    ? "var(--blood)"
-                    : "var(--ink-soft)",
+                color: active ? "var(--ember)" : id === "danger" ? "var(--blood)" : "var(--ink-soft)",
                 background: active ? "var(--ember-wash)" : "transparent",
                 border: "1px solid",
                 borderColor: active ? "var(--ember)" : "transparent",
@@ -379,23 +364,16 @@ export default function SettingsView({
                   fontFamily: "var(--f-sans)",
                   fontSize: 14,
                   fontWeight: 500,
-                  color: active
-                    ? "var(--ink)"
-                    : id === "danger"
-                      ? "var(--blood)"
-                      : "var(--ink-soft)",
+                  color: active ? "var(--ink)" : id === "danger" ? "var(--blood)" : "var(--ink-soft)",
                   background: active ? "var(--surface-high)" : "transparent",
                   border: "none",
                   cursor: "pointer",
                   transition: "background 180ms, color 180ms",
                 }}
-                onMouseEnter={(e) => {
-                  if (!active) e.currentTarget.style.color = "var(--ink)";
-                }}
+                onMouseEnter={(e) => { if (!active) e.currentTarget.style.color = "var(--ink)"; }}
                 onMouseLeave={(e) => {
                   if (!active) {
-                    e.currentTarget.style.color =
-                      id === "danger" ? "var(--blood)" : "var(--ink-soft)";
+                    e.currentTarget.style.color = id === "danger" ? "var(--blood)" : "var(--ink-soft)";
                   }
                 }}
               >
@@ -405,14 +383,9 @@ export default function SettingsView({
           })}
         </nav>
 
-        <div
-          className="settings-content scrollbar-hide"
-          style={{
-            flex: 1,
-            overflowY: "auto",
-          }}
-        >
+        <div className="settings-content scrollbar-hide" style={{ flex: 1, overflowY: "auto" }}>
           <div className="settings-content-inner" style={{ maxWidth: 720 }}>
+
             {section === "appearance" && (
               <>
                 <SectionHeader
@@ -426,7 +399,7 @@ export default function SettingsView({
             {section === "account" && (
               <>
                 <SectionHeader title="Account" />
-                <AccountTab email={email} brainId={activeBrain?.id} />
+                <AccountTab email={email} />
               </>
             )}
 
@@ -434,16 +407,33 @@ export default function SettingsView({
               <>
                 <SectionHeader title="Brain" />
                 <BrainTab activeBrain={activeBrain} onRefreshBrains={refresh} />
+                <AuditCard brainId={activeBrain.id} />
               </>
             )}
 
-            {section === "providers" && (
+            {section === "data" && (
               <>
                 <SectionHeader
-                  title="AI providers"
-                  subtitle="bring your own key. routed on device. we never see the traffic."
+                  title="Data"
+                  subtitle="imports, exports, and your entry archive."
                 />
-                <ProvidersTab activeBrain={activeBrain ?? undefined} />
+                <DataTab brainId={activeBrain?.id} activeBrain={activeBrain ?? undefined} />
+              </>
+            )}
+
+            {section === "ai" && (
+              <>
+                <SectionHeader
+                  title="AI"
+                  subtitle="model providers and enrichment pipeline."
+                />
+                <AITab
+                  activeBrain={activeBrain ?? undefined}
+                  unenrichedDetails={unenrichedDetails}
+                  enriching={enriching}
+                  enrichProgress={enrichProgress}
+                  runBulkEnrich={runBulkEnrich}
+                />
               </>
             )}
 
@@ -454,51 +444,16 @@ export default function SettingsView({
               </>
             )}
 
-            {section === "storage" && (
-              <>
-                <SectionHeader title="Storage" />
-                <StorageTab activeBrain={activeBrain ?? undefined} />
-                {activeBrain && (
-                  <div style={{ marginTop: 16 }}>
-                    <AuditCard brainId={activeBrain.id} />
-                  </div>
-                )}
-                {onNavigate && <VaultRow onNavigate={onNavigate} />}
-              </>
-            )}
-
-            {section === "enrichment" && (
-              <>
-                <SectionHeader
-                  title="Enrichment"
-                  subtitle="track which entries are missing embeddings, concepts, AI parsing, or insights — and trigger a manual run."
-                />
-                <EnrichmentTab
-                  unenrichedDetails={unenrichedDetails}
-                  enriching={enriching}
-                  enrichProgress={enrichProgress}
-                  runBulkEnrich={runBulkEnrich}
-                />
-              </>
-            )}
-
             {section === "integrations" && (
               <>
                 <SectionHeader
                   title="Integrations"
-                  subtitle="MCP and REST endpoints for the agents you already use."
-                />
-                <ClaudeCodeTab />
-              </>
-            )}
-
-            {section === "calendar" && (
-              <>
-                <SectionHeader
-                  title="Calendar sync"
-                  subtitle="connect google or outlook to see your events in the todo calendar view."
+                  subtitle="external connections and developer access."
                 />
                 <CalendarSyncTab />
+                <div style={{ margin: "32px 0 24px", borderTop: "1px solid var(--line-soft)" }} />
+                <div className="micro" style={{ marginBottom: 16 }}>API & Developer</div>
+                <ClaudeCodeTab />
               </>
             )}
 
@@ -506,9 +461,14 @@ export default function SettingsView({
               <>
                 <SectionHeader
                   title="Security"
-                  subtitle="Manage the PIN that protects your vault secrets."
+                  subtitle="manage the PIN that protects your vault secrets."
                 />
                 <SecurityTab />
+                {onNavigate && (
+                  <div style={{ marginTop: 16 }}>
+                    <VaultRow onNavigate={onNavigate} />
+                  </div>
+                )}
               </>
             )}
 
@@ -531,9 +491,7 @@ export default function SettingsView({
                 />
                 <DangerTab
                   activeBrain={activeBrain}
-                  deleteBrain={async (_id: string) => {
-                    /* single brain — no-op */
-                  }}
+                  deleteBrain={async (_id: string) => { /* single brain — no-op */ }}
                   isOwner={true}
                   deleteAccount={async () => {
                     const session = await supabase.auth.getSession();
@@ -551,11 +509,12 @@ export default function SettingsView({
                 />
               </>
             )}
+
           </div>
         </div>
       </div>
 
-      {/* Responsive CSS — scoped to SettingsView */}
+      {/* Responsive CSS */}
       <style>{`
         .settings-topbar { padding: 18px 32px; min-height: 72px; }
         .settings-content { padding: 32px 40px; }
