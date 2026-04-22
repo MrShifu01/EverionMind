@@ -138,7 +138,14 @@ function QuickAdd({ brainId, onAdded }: { brainId?: string; onAdded: () => void;
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [busy, setBusy] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  function autoResize() {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -156,31 +163,39 @@ function QuickAdd({ brainId, onAdded }: { brainId?: string; onAdded: () => void;
     setDueDate("");
     setBusy(false);
     onAdded();
-    inputRef.current?.focus();
+    const el = inputRef.current;
+    if (el) { el.style.height = "auto"; el.focus(); }
   }
 
   return (
     <form
       onSubmit={submit}
-      className="flex items-center gap-2 rounded-2xl border px-3 py-2"
+      className="flex items-end gap-2 rounded-2xl border px-3 py-2"
       style={{ background: "var(--surface)", borderColor: "var(--line-soft)" }}
     >
-      <CheckCircleIcon className="h-4 w-4 shrink-0" style={{ color: "var(--ink-ghost)" }} />
-      <input
+      <CheckCircleIcon className="h-4 w-4 shrink-0 mb-1" style={{ color: "var(--ink-ghost)" }} />
+      <textarea
         ref={inputRef}
         value={title}
-        onChange={(e) => setTitle(e.target.value)}
+        rows={1}
+        onChange={(e) => { setTitle(e.target.value); autoResize(); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(e as any); }
+        }}
         placeholder="Add a todo…"
         disabled={busy}
         className="min-w-0 flex-1 bg-transparent text-sm outline-none"
-        style={{ color: "var(--ink)", fontFamily: "var(--f-sans)" }}
+        style={{
+          color: "var(--ink)", fontFamily: "var(--f-sans)",
+          resize: "none", overflow: "hidden", lineHeight: "1.5",
+        }}
       />
       <input
         type="date"
         value={dueDate}
         onChange={(e) => setDueDate(e.target.value)}
         disabled={busy}
-        className="shrink-0 rounded-lg border-none bg-transparent text-xs outline-none"
+        className="shrink-0 rounded-lg border-none bg-transparent text-xs outline-none mb-0.5"
         style={{ color: dueDate ? "var(--ember)" : "var(--ink-ghost)", fontFamily: "var(--f-sans)", cursor: "pointer" }}
       />
       <button
