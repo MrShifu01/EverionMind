@@ -54,14 +54,14 @@ export default function CalendarSyncTab() {
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
-  useEffect(() => {
-    authFetch("/api/calendar?action=integrations")
+  function fetchIntegrations() {
+    return authFetch("/api/calendar?action=integrations")
       .then((r) => r?.json?.())
       .then((d) => { if (Array.isArray(d)) setIntegrations(d); })
-      .catch(() => null)
-      .finally(() => setLoading(false));
+      .catch(() => null);
+  }
 
-    /* Handle OAuth redirect back to settings */
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const connected = params.get("calendarConnected");
     const error = params.get("calendarError");
@@ -73,6 +73,8 @@ export default function CalendarSyncTab() {
       setMsg(`Connection failed: ${error.replace(/_/g, " ")}.`);
       window.history.replaceState({}, "", window.location.pathname);
     }
+
+    fetchIntegrations().finally(() => setLoading(false));
   }, []);
 
   async function disconnect(provider: string) {

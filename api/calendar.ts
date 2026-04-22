@@ -75,11 +75,12 @@ async function callbackGoogle(req: ApiRequest, res: ApiResponse) {
   const profileRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", { headers: { Authorization: `Bearer ${tokens.access_token}` } });
   const profile = profileRes.ok ? await profileRes.json() : {};
 
-  await fetch(`${SB_URL}/rest/v1/calendar_integrations`, {
+  const dbRes = await fetch(`${SB_URL}/rest/v1/calendar_integrations`, {
     method: "POST",
     headers: { ...SB_HEADERS, Prefer: "resolution=merge-duplicates" },
     body: JSON.stringify({ user_id: userId, provider: "google", access_token: tokens.access_token, refresh_token: tokens.refresh_token, token_expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(), calendar_email: profile.email ?? null }),
   });
+  if (!dbRes.ok) return res.redirect(302, `${appUrl}/settings?calendarError=db_write_failed`);
   res.redirect(302, `${appUrl}/settings?calendarConnected=google`);
 }
 
@@ -124,11 +125,12 @@ async function callbackMicrosoft(req: ApiRequest, res: ApiResponse) {
   const profileRes = await fetch("https://graph.microsoft.com/v1.0/me", { headers: { Authorization: `Bearer ${tokens.access_token}` } });
   const profile = profileRes.ok ? await profileRes.json() : {};
 
-  await fetch(`${SB_URL}/rest/v1/calendar_integrations`, {
+  const dbRes = await fetch(`${SB_URL}/rest/v1/calendar_integrations`, {
     method: "POST",
     headers: { ...SB_HEADERS, Prefer: "resolution=merge-duplicates" },
     body: JSON.stringify({ user_id: userId, provider: "microsoft", access_token: tokens.access_token, refresh_token: tokens.refresh_token, token_expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(), calendar_email: profile.mail ?? profile.userPrincipalName ?? null }),
   });
+  if (!dbRes.ok) return res.redirect(302, `${appUrl}/settings?calendarError=db_write_failed`);
   res.redirect(302, `${appUrl}/settings?calendarConnected=microsoft`);
 }
 
