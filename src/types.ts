@@ -6,6 +6,7 @@ export const CANONICAL_TYPES = [
   "person",
   "note",
   "task",
+  "todo",
   "document",
   "recipe",
   "event",
@@ -35,12 +36,14 @@ interface EntryMetadata {
   email?: string;
   url?: string;
   due_date?: string;
+  deadline?: string;
   expiry_date?: string;
   event_date?: string;
   day_of_week?: string;
   date?: string;
   price?: string;
   unit?: string;
+  status?: string;
   workspace?: Workspace;
   confidence?: Record<string, ConfidenceLevel>;
   [key: string]: unknown;

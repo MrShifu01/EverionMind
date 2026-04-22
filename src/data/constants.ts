@@ -11,6 +11,8 @@ export const TC: Record<string, TypeConfig> = {
   color: { i: "🎨", c: "var(--color-secondary)" },
   decision: { i: "⚖️", c: "var(--color-secondary)" },
   note: { i: "📝", c: "var(--color-secondary)" },
+  task: { i: "✅", c: "var(--color-primary)" },
+  todo: { i: "☑️", c: "var(--color-primary)" },
   secret: { i: "🔐", c: "var(--color-error)" },
 };
 export const PC: Record<Priority, PriorityConfig> = {

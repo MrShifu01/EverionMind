@@ -678,7 +678,7 @@ function EverionContent({
             )}
             {appShell.view === "todos" && (
               <Suspense fallback={<Loader />}>
-                <TodoView entries={entries} typeIcons={appShell.typeIcons} />
+                <TodoView entries={entries} typeIcons={appShell.typeIcons} activeBrainId={activeBrain?.id} />
               </Suspense>
             )}
             {appShell.view === "timeline" && (
