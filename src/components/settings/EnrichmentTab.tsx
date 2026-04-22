@@ -138,9 +138,17 @@ export default function EnrichmentTab({
         )}
       </div>
 
-      {/* Progress bar */}
+      {/* Progress bar — shown while enriching, replaces the button */}
       {enriching && enrichProgress && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <span className="f-sans" style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-soft)" }}>
+              Enriching…
+            </span>
+            <span className="f-sans" style={{ fontSize: 12, color: "var(--ink-ghost)" }}>
+              {enrichProgress.done} / {enrichProgress.total}
+            </span>
+          </div>
           <div
             style={{
               height: 4,
@@ -159,17 +167,14 @@ export default function EnrichmentTab({
               }}
             />
           </div>
-          <span className="f-sans" style={{ fontSize: 11, color: "var(--ink-ghost)" }}>
-            Enriching {enrichProgress.done} of {enrichProgress.total} entries…
-          </span>
         </div>
       )}
 
-      {/* Enrich Now button */}
-      {!allDone && (
+      {/* Enrich Now button — hidden while enriching */}
+      {!allDone && !enriching && (
         <button
           onClick={runBulkEnrich}
-          disabled={enriching || total === 0}
+          disabled={total === 0}
           className="f-sans"
           style={{
             alignSelf: "flex-start",
@@ -177,17 +182,13 @@ export default function EnrichmentTab({
             borderRadius: 12,
             fontSize: 13,
             fontWeight: 600,
-            background: enriching ? "var(--surface-high)" : "var(--ember)",
-            color: enriching ? "var(--ink-ghost)" : "var(--ember-ink)",
-            cursor: enriching ? "not-allowed" : "pointer",
-            opacity: enriching ? 0.7 : 1,
-            transition: "opacity 0.2s",
+            background: "var(--ember)",
+            color: "var(--ember-ink)",
+            cursor: "pointer",
             border: "none",
           }}
         >
-          {enriching
-            ? `Enriching… ${progressPct}%`
-            : `Enrich ${total} entr${total === 1 ? "y" : "ies"} now`}
+          {`Enrich ${total} entr${total === 1 ? "y" : "ies"} now`}
         </button>
       )}
 
