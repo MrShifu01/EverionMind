@@ -717,27 +717,6 @@ export default function VaultView({
                     >
                       <p className="text-on-surface font-mono text-sm break-all">{e.content}</p>
                     </div>
-                    {meta.length > 0 && (
-                      <div className="space-y-1.5">
-                        {meta.map(([k, v]) => (
-                          <div key={k} className="flex items-center gap-2 text-xs">
-                            <span
-                              className="shrink-0"
-                              style={{ color: "var(--color-on-surface-variant)" }}
-                            >
-                              {k.replace(/_/g, " ")}:
-                            </span>
-                            <span className="text-on-surface truncate">{String(v)}</span>
-                            <button
-                              onClick={() => copyToClipboard(String(v), `${k} copied`)}
-                              className="shrink-0 opacity-60 transition-opacity hover:opacity-100"
-                            >
-                              📋
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                     <div
                       className="flex items-center gap-2 border-t pt-1"
                       style={{ borderColor: "var(--color-outline-variant)" }}
