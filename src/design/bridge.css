@@ -243,6 +243,8 @@ html.family-bronze body {
 @media (max-width: 1024px) {
   .chat-topbar { padding: 14px 20px; min-height: 56px; }
   .chat-topbar-search { display: none !important; }
+  /* Push composer above fixed bottom nav (68px) on mobile */
+  .chat-composer { padding-bottom: calc(82px + env(safe-area-inset-bottom, 0px)) !important; }
 }
 
 /* Memory filter row — compact padding on mobile */

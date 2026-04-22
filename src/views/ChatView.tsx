@@ -73,6 +73,45 @@ const IconCopy = (
   </svg>
 );
 
+const RICH_PATTERN =
+  /(\+\d[\d\s\-]{8,13}\d|\b0\d{9}\b|[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}|https?:\/\/[^\s<>]+)/g;
+
+function renderRichText(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  RICH_PATTERN.lastIndex = 0;
+  while ((m = RICH_PATTERN.exec(text)) !== null) {
+    if (m.index > last) parts.push(text.slice(last, m.index));
+    const raw = m[0];
+    if (raw.startsWith("http")) {
+      parts.push(
+        <a key={m.index} href={raw} target="_blank" rel="noopener noreferrer"
+           style={{ color: "var(--ember)", textDecoration: "underline" }}>{raw}</a>
+      );
+    } else if (raw.includes("@")) {
+      parts.push(
+        <a key={m.index} href={`mailto:${raw}`}
+           style={{ color: "var(--ember)", textDecoration: "underline" }}>{raw}</a>
+      );
+    } else {
+      const digits = raw.replace(/\D/g, "");
+      const intl = digits.startsWith("0") ? `27${digits.slice(1)}` : digits;
+      parts.push(
+        <span key={m.index}>
+          <a href={`tel:+${intl}`} style={{ color: "var(--ember)", textDecoration: "underline" }}>{raw}</a>
+          <a href={`https://wa.me/${intl}`} target="_blank" rel="noopener noreferrer"
+             className="f-sans"
+             style={{ marginLeft: 6, fontSize: 11, color: "var(--ink-faint)", verticalAlign: "middle" }}>wa</a>
+        </span>
+      );
+    }
+    last = m.index + raw.length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
+}
+
 const IconCheck = (
   <svg
     width="12"
@@ -133,6 +172,7 @@ export default function ChatView({ brainId }: ChatViewProps) {
 
   const Composer = (
     <div
+      className="chat-composer"
       style={{
         padding: "14px 24px calc(14px + env(safe-area-inset-bottom, 0px))",
         borderTop: "1px solid var(--line-soft)",
@@ -484,7 +524,7 @@ export default function ChatView({ brainId }: ChatViewProps) {
                           whiteSpace: "pre-wrap",
                         }}
                       >
-                        {msg.content}
+                        {renderRichText(msg.content)}
                       </div>
 
                       <div style={{ display: "flex", gap: 6, marginTop: 14 }}>
