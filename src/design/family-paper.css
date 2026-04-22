@@ -24,16 +24,16 @@ html.family-paper {
   --line:         oklch(30% 0.018 28);
   --line-soft:    oklch(24% 0.016 28);
 
-  --ember:        oklch(62% 0.165 22);
-  --ember-soft:   oklch(56% 0.155 22);
-  --ember-wash:   oklch(62% 0.165 22 / 0.14);
-  --ember-deep:   oklch(30% 0.100 22);
-  --ember-ink:    oklch(98% 0.01 80);
+  --ember:        oklch(56% 0.088 120);
+  --ember-soft:   oklch(49% 0.080 120);
+  --ember-wash:   oklch(56% 0.088 120 / 0.14);
+  --ember-deep:   oklch(27% 0.058 120);
+  --ember-ink:    oklch(97% 0.010 90);
 
   --moss:         oklch(58% 0.070 148);
   --moss-wash:    oklch(58% 0.070 148 / 0.12);
-  --blood:        oklch(60% 0.175 20);
-  --blood-wash:   oklch(60% 0.175 20 / 0.12);
+  --blood:        oklch(54% 0.088 120);
+  --blood-wash:   oklch(54% 0.088 120 / 0.12);
 
   --scrim:        oklch(8% 0.012 28 / 0.75);
   --lift-1: 0 1px 2px oklch(5% 0.01 28 / .35);
@@ -57,16 +57,16 @@ html.family-paper.theme-light {
   --line:         oklch(84% 0.022 78);
   --line-soft:    oklch(90% 0.020 78);
 
-  --ember:        oklch(40% 0.155 22);
-  --ember-soft:   oklch(46% 0.148 22);
-  --ember-wash:   oklch(40% 0.155 22 / 0.08);
-  --ember-deep:   oklch(92% 0.060 22);
-  --ember-ink:    oklch(97% 0.018 85);
+  --ember:        oklch(37% 0.088 120);
+  --ember-soft:   oklch(43% 0.080 120);
+  --ember-wash:   oklch(37% 0.088 120 / 0.08);
+  --ember-deep:   oklch(90% 0.040 120);
+  --ember-ink:    oklch(97% 0.010 90);
 
   --moss:         oklch(38% 0.065 148);
   --moss-wash:    oklch(38% 0.065 148 / 0.08);
-  --blood:        oklch(42% 0.170 20);
-  --blood-wash:   oklch(42% 0.170 20 / 0.08);
+  --blood:        oklch(39% 0.088 120);
+  --blood-wash:   oklch(39% 0.088 120 / 0.08);
 
   --scrim:        oklch(20% 0.02 32 / 0.35);
   --lift-1: 0 1px 2px oklch(30% 0.02 32 / .08);
