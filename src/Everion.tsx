@@ -100,6 +100,7 @@ interface EverionContentProps {
   handleVaultUnlock: (key: CryptoKey | null) => void;
   enriching: boolean;
   enrichProgress: { done: number; total: number } | null;
+  enrichErrors: { id: string; title: string; errors: { step: string; message: string }[] }[];
   runBulkEnrich: () => Promise<void>;
   unenrichedCount: number;
   unenrichedDetails: { id: string; title: string; gaps: string[] }[];
@@ -137,6 +138,7 @@ function EverionContent({
   handleVaultUnlock,
   enriching,
   enrichProgress,
+  enrichErrors,
   runBulkEnrich,
   unenrichedCount,
   unenrichedDetails,
@@ -667,7 +669,7 @@ function EverionContent({
                 unenrichedDetails={unenrichedDetails}
                 enriching={enriching}
                 enrichProgress={enrichProgress}
-                enrichErrors={dataLayer.enrichErrors}
+                enrichErrors={enrichErrors}
                 runBulkEnrich={runBulkEnrich}
               />
             )}
@@ -1204,6 +1206,7 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
             handleVaultUnlock={dataLayer.handleVaultUnlock}
             enriching={dataLayer.enriching}
             enrichProgress={dataLayer.enrichProgress}
+            enrichErrors={dataLayer.enrichErrors}
             runBulkEnrich={dataLayer.runBulkEnrich}
             unenrichedCount={dataLayer.unenrichedCount}
             unenrichedDetails={dataLayer.unenrichedDetails}
