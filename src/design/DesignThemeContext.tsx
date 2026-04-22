@@ -28,7 +28,7 @@ const VARIANT_DEFAULT_MODE: Record<DesignVariant, DesignMode> = {
 function loadVariant(): DesignVariant {
   const stored = localStorage.getItem(STORAGE_VARIANT);
   if (stored && (VARIANTS as string[]).includes(stored)) return stored as DesignVariant;
-  return "dusk";
+  return "bronze";
 }
 
 function loadMode(variant: DesignVariant): DesignMode {
