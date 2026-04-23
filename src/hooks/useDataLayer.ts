@@ -183,7 +183,7 @@ export function useDataLayer({
     setSaveError,
     commitPendingDelete,
     handleDelete,
-    handleUpdate,
+    handleUpdate: _handleUpdateBase,
     handleUndo,
     handleCreated: _handleCreated,
   } = useEntryActions({
@@ -207,9 +207,34 @@ export function useDataLayer({
     };
   }, [commitPendingDelete]);
 
+  // silentUpdate uses the base updater so enrichEntry's own flag writes don't re-trigger enrichment
   const silentUpdate = useCallback(
-    (id: string, changes: any) => handleUpdate(id, changes, { silent: true }),
-    [handleUpdate],
+    (id: string, changes: any) => _handleUpdateBase(id, changes, { silent: true }),
+    [_handleUpdateBase],
+  );
+
+  // handleUpdate wraps the base: auto-enriches when the user changes title or content
+  const handleUpdate = useCallback(
+    async (id: string, changes: Partial<Entry>, options?: { silent?: boolean }) => {
+      const entry = entries.find((e) => e.id === id);
+      const notSilent = !options?.silent;
+      const titleChanged = notSilent && (changes as any).title !== undefined && (changes as any).title !== entry?.title;
+      const contentChanged = notSilent && (changes as any).content !== undefined && (changes as any).content !== entry?.content;
+      await _handleUpdateBase(id, changes, options);
+      if ((titleChanged || contentChanged) && activeBrainId && entry) {
+        const updatedEntry = {
+          ...entry,
+          ...changes,
+          metadata: {
+            ...(entry.metadata ?? {}),
+            ...((changes as any).metadata ?? {}),
+            enrichment: { embedded: false, concepts_count: 0, has_insight: false, parsed: false },
+          },
+        } as Entry;
+        setTimeout(() => enrichEntry(updatedEntry, activeBrainId, silentUpdate).catch(() => {}), 1000);
+      }
+    },
+    [_handleUpdateBase, entries, activeBrainId, silentUpdate],
   );
 
   /** Stable callback for useOfflineSync onEntryIdUpdate. */
