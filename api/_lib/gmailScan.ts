@@ -1,6 +1,136 @@
 import { generateEmbedding, buildEntryText } from "./generateEmbedding.js";
 import { computeCompletenessScore } from "./completeness.js";
 
+// ── MIME / attachment helpers ────────────────────────────────────────────────
+
+function decodeBase64Url(data: string): string {
+  return Buffer.from(data.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf-8");
+}
+
+function stripHtml(html: string): string {
+  return html.replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&[a-z]+;/gi, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function extractBodyFromPayload(payload: any): string {
+  if (!payload) return "";
+  if (payload.body?.data) {
+    const text = decodeBase64Url(payload.body.data);
+    return payload.mimeType === "text/html" ? stripHtml(text) : text;
+  }
+  if (!payload.parts) return "";
+  let htmlFallback = "";
+  for (const part of payload.parts) {
+    if (part.mimeType === "text/plain" && part.body?.data) {
+      const t = decodeBase64Url(part.body.data);
+      if (t.trim()) return t;
+    }
+    if (part.mimeType === "text/html" && part.body?.data && !htmlFallback) {
+      htmlFallback = stripHtml(decodeBase64Url(part.body.data));
+    }
+    if (part.mimeType?.startsWith("multipart/")) {
+      const nested = extractBodyFromPayload(part);
+      if (nested) return nested;
+    }
+  }
+  return htmlFallback;
+}
+
+interface AttachmentInfo {
+  name: string;
+  mimeType: string;
+  attachmentId: string;
+  size: number;
+}
+
+function listAttachments(payload: any): AttachmentInfo[] {
+  const results: AttachmentInfo[] = [];
+  function walk(part: any) {
+    if (!part) return;
+    if (part.filename && part.body?.attachmentId) {
+      results.push({
+        name: part.filename,
+        mimeType: part.mimeType ?? "application/octet-stream",
+        attachmentId: part.body.attachmentId,
+        size: part.body.size ?? 0,
+      });
+    }
+    for (const child of part.parts ?? []) walk(child);
+  }
+  walk(payload);
+  return results;
+}
+
+const GEMINI_EXTRACT_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
+async function extractViaGemini(buffer: Buffer, mimeType: string, geminiKey: string): Promise<string> {
+  const r = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_EXTRACT_MODEL}:generateContent?key=${encodeURIComponent(geminiKey)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [
+          { inlineData: { mimeType, data: buffer.toString("base64") } },
+          { text: "Extract all text content from this document. Return only the extracted text, no commentary." },
+        ]}],
+        generationConfig: { maxOutputTokens: 4096 },
+      }),
+    },
+  );
+  if (!r.ok) return "";
+  const d = await r.json();
+  return (d.candidates?.[0]?.content?.parts ?? []).map((p: any) => p.text ?? "").join("").trim();
+}
+
+async function fetchAndExtractAttachments(
+  token: string,
+  messageId: string,
+  attachments: AttachmentInfo[],
+  geminiKey: string,
+): Promise<string> {
+  const texts: string[] = [];
+  for (const att of attachments.slice(0, 3)) {
+    if (att.size > MAX_ATTACHMENT_BYTES) continue;
+    try {
+      const r = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/attachments/${att.attachmentId}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!r.ok) continue;
+      const { data } = await r.json();
+      const buffer = Buffer.from(data.replace(/-/g, "+").replace(/_/g, "/"), "base64");
+      const name = att.name.toLowerCase();
+      let text = "";
+
+      if (name.endsWith(".docx")) {
+        const mod = await import("mammoth");
+        const mammoth = (mod as any).default ?? mod;
+        const result = await mammoth.extractRawText({ buffer });
+        text = result.value ?? "";
+      } else if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
+        const mod = await import("xlsx");
+        const XLSX = (mod as any).default ?? mod;
+        const wb = XLSX.read(buffer, { type: "buffer" });
+        text = wb.SheetNames.map((n: string) => XLSX.utils.sheet_to_csv(wb.Sheets[n])).join("\n\n");
+      } else if (name.endsWith(".pdf") || att.mimeType === "application/pdf") {
+        if (geminiKey) text = await extractViaGemini(buffer, "application/pdf", geminiKey);
+      } else if (att.mimeType.startsWith("image/")) {
+        if (geminiKey) text = await extractViaGemini(buffer, att.mimeType, geminiKey);
+      }
+
+      if (text.trim()) texts.push(`[Attachment: ${att.name}]\n${text.slice(0, 2000)}`);
+    } catch (err) {
+      console.error(`[gmail-scan:attachment] ${messageId}/${att.name}:`, err);
+    }
+  }
+  return texts.join("\n\n");
+}
+
 export interface GmailPreferences {
   categories: string[];
   custom: string;
@@ -72,20 +202,21 @@ export async function fetchRecentEmails(
   const results = await Promise.all(
     messages.slice(0, maxFetch).map(async ({ id }) => {
       const r = await fetch(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}` +
-          `?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`,
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`,
         { headers: { Authorization: `Bearer ${token}` } },
       );
       if (!r.ok) return null;
       const msg = await r.json();
       const hdrs: Record<string, string> = {};
       for (const h of msg.payload?.headers ?? []) hdrs[h.name.toLowerCase()] = h.value;
+      const body = extractBodyFromPayload(msg.payload);
       return {
         id,
         from: hdrs.from ?? "",
         subject: hdrs.subject ?? "(no subject)",
         date: hdrs.date ?? "",
-        snippet: (msg.snippet ?? "").slice(0, 300),
+        body: body.slice(0, 3000),
+        attachments: listAttachments(msg.payload),
       };
     }),
   );
@@ -122,7 +253,14 @@ function buildPrompt(emails: any[], prefs: GmailPreferences): string {
     ? `\nAdditional instructions (follow exactly): ${prefs.custom.trim()}`
     : "";
   const emailBlocks = emails
-    .map((e, i) => `[${i}] From: ${e.from}\nSubject: ${e.subject}\nDate: ${e.date}\nPreview: ${e.snippet}`)
+    .map((e, i) => {
+      const bodyPreview = (e.body || "").slice(0, 500).trim();
+      const attLine = e.attachments?.length
+        ? `Attachments: ${e.attachments.map((a: AttachmentInfo) => a.name).join(", ")}`
+        : "";
+      return [`[${i}] From: ${e.from}`, `Subject: ${e.subject}`, `Date: ${e.date}`,
+        bodyPreview ? `Body: ${bodyPreview}` : "", attLine].filter(Boolean).join("\n");
+    })
     .join("\n\n");
 
   return `You are an email classifier for a personal knowledge system. Identify emails matching ANY of these categories:
@@ -198,6 +336,7 @@ export interface ScanDebug {
   hasAnthropicKey: boolean;
   hasGeminiKey: boolean;
   repairedBrainId: number;
+  attachmentsExtracted: number;
   subjects: string[];
 }
 
@@ -216,6 +355,7 @@ export async function scanGmailForUser(
     hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
     hasGeminiKey: !!(process.env.GEMINI_API_KEY ?? "").trim(),
     repairedBrainId: 0,
+    attachmentsExtracted: 0,
     subjects: [],
   };
 
@@ -286,7 +426,12 @@ export async function scanGmailForUser(
     if (importedIds.has(email.id)) { debug.skippedDuplicates++; debug.skippedSubjects.push(email.subject); continue; }
 
     const title = match.title ?? email.subject;
-    const content = match.summary ?? "";
+    const emailAttachments: AttachmentInfo[] = email.attachments ?? [];
+    const attachmentText = emailAttachments.length
+      ? await fetchAndExtractAttachments(token, email.id, emailAttachments, geminiKey)
+      : "";
+    debug.attachmentsExtracted += emailAttachments.length;
+    const content = [match.summary, attachmentText].filter(Boolean).join("\n\n");
     const type = "gmail-flag";
     const tags = [match.type ?? "gmail"];
     const metadata: Record<string, any> = {
