@@ -307,7 +307,7 @@ async function classifyWithLLM(prompt: string): Promise<any[]> {
 }
 
 async function getUserBrainId(userId: string): Promise<string | null> {
-  const r = await fetch(`${SB_URL}/rest/v1/brains?user_id=eq.${userId}&select=id&limit=1`, {
+  const r = await fetch(`${SB_URL}/rest/v1/brains?owner_id=eq.${userId}&select=id&limit=1`, {
     headers: SB_HEADERS,
   });
   if (!r.ok) return null;
