@@ -13,8 +13,8 @@ export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
 
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
 const GROQ_API_KEY = (process.env.GROQ_API_KEY || "").trim();
-const GEMINI_MODEL = (process.env.GEMINI_MODEL || "gemini-2.5-flash-lite").trim();
-const GEMINI_CHAT_MODEL = (process.env.GEMINI_CHAT_MODEL || "gemini-2.5-flash").trim();
+const GEMINI_MODEL = (process.env.GEMINI_MODEL || "gemini-3.1-flash-lite-preview").trim();
+const GEMINI_CHAT_MODEL = (process.env.GEMINI_CHAT_MODEL || "gemini-3.1-flash-lite-preview").trim();
 const SB_URL = (process.env.SUPABASE_URL || "").trim();
 const SB_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
 const sbHdrs = () => ({ "Content-Type": "application/json", apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` });
@@ -304,7 +304,7 @@ async function handleChat(req: ApiRequest, res: ApiResponse, user: any): Promise
       contents,
       tools: [{ functionDeclarations: CHAT_TOOLS }],
       systemInstruction: { parts: [{ text: SERVER_PROMPTS.CHAT_AGENT }] },
-      generationConfig: { maxOutputTokens: 2000 },
+      generationConfig: { maxOutputTokens: 2000, thinkingConfig: { thinkingLevel: "medium" } },
     };
 
     const gemRes = await fetch(
@@ -379,7 +379,7 @@ async function handleGemini(res: ApiResponse, { messages, max_tokens, system }: 
   }));
   const body: Record<string, any> = {
     contents,
-    generationConfig: { maxOutputTokens: max_tokens || 1000 },
+    generationConfig: { maxOutputTokens: max_tokens || 1000, thinkingConfig: { thinkingLevel: "medium" } },
   };
   if (system) body.systemInstruction = { parts: [{ text: system.slice(0, 10000) }] };
 
@@ -423,7 +423,7 @@ async function handleExtractFile(req: ApiRequest, res: ApiResponse): Promise<voi
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig: { maxOutputTokens: 4096 } }),
+        body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig: { maxOutputTokens: 4096, thinkingConfig: { thinkingLevel: "medium" } } }),
       }
     );
     const d: any = await r.json();
