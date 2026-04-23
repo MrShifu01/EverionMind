@@ -1,9 +1,7 @@
-/**
- * All AI system prompt strings used across OpenBrain.
- * Import from here — do NOT inline prompts in component files.
- */
+import { SHARED_PROMPTS } from "../lib/sharedPrompts";
 
 export const PROMPTS: Record<string, string> = {
+  ...SHARED_PROMPTS,
   /** QuickCapture: classify & structure raw text into a typed entry */
   CAPTURE: `You classify and structure a raw text capture into one or more OpenBrain entries. Return ONLY valid JSON.
 
@@ -93,39 +91,6 @@ LINKS:
 
   /** SuggestionsView: generate a gap-filling question for the brain */
   FILL_BRAIN: `You are helping someone build their {{BRAIN_CONTEXT}} called OpenBrain. Identify important information they should capture but haven't yet. Study the existing entries carefully — find gaps that are actually missing, not information already answered. Generate ONE specific, actionable question that: (1) references a real gap in the existing entries (not something already captured), and (2) stays within the scope of this brain type. Return ONLY valid JSON: {"q":"...","cat":"...","p":"high"|"medium"|"low"}`,
-
-  /** RefineView: entry quality audit */
-  ENTRY_AUDIT: `You are a ruthlessly skeptical data quality auditor reviewing a personal knowledge base. Your bar is very high — only flag what is obviously, undeniably wrong. If there is any ambiguity, skip it.
-
-Only identify these specific issues (nothing else):
-1. TYPE_MISMATCH — Entry is clearly the wrong type. Example: a named person saved as "note" should be "person"; a physical location saved as "note" should be "place"; a hard deadline saved as "note" should be "reminder". A "note" entry about general business thoughts or free-form reflections is NOT a TYPE_MISMATCH. Skip if debatable.
-2. PHONE_FOUND — Scan the full content and title for any digit sequence resembling a phone number (10 digits, or groups like "082 111 3333"). If found and metadata.phone is empty, flag it. Only flag if the number is complete and unambiguous.
-3. EMAIL_FOUND — An email address clearly appears in content/title but metadata.email is missing or empty.
-4. URL_FOUND — A full URL (https://...) clearly appears in content but metadata.url is missing.
-5. DATE_FOUND — A specific future deadline or due date is explicitly mentioned in content and not already in metadata.due_date. Only for actual deadlines, not historical dates.
-6. TITLE_POOR — Title is so vague it could describe anything (e.g. "Note", "Info", "Misc"). Very high bar — only if the title is genuinely useless.
-7. SPLIT_SUGGESTED — Entry content contains multiple clearly distinct topics, facts, or records that should each be their own entry. Example: a single entry containing a company registration number AND directors AND address should be split. A recipe collection crammed into one entry should be split. Only flag if there are 2+ clearly separable items. suggestedValue should be a short description of how to split (e.g. "Split into: CIPC number, directors, tax number").
-8. MERGE_SUGGESTED — Two or more entries in this batch are clearly about the same thing and should be merged into one. Example: "John Smith phone" and "John Smith email" should be a single contact entry; two entries about the same event with overlapping info should merge. entryId is the primary entry to keep, suggestedValue is the ID of the entry to merge into it, and currentValue lists both titles. Only flag if the entries are obviously duplicates or fragments of the same record.
-9. CONTENT_WEAK — Entry has a title but content is empty, trivially short (under 15 words), just repeats the title, or is too vague to be useful. Flag ANY entry where the information stored is so sparse it provides no real value — e.g. "I take Omega 3" with no dosage, frequency, brand, or reason; a supplier with no contact info; a person with no details. suggestedValue should be a brief, specific description of what content should be added (e.g. "Add dosage, frequency, brand, and reason for taking it" or "Add address, phone number, and business hours"). Flag aggressively — a memory that answers no questions beyond its title is not worth keeping as-is.
-10. TAG_SUGGESTED — Entry has no tags or obviously missing important tags based on its content. suggestedValue should be comma-separated suggested tags (max 4). Only flag if the tags are clearly warranted and useful for search/filtering.
-11. SENSITIVE_DATA — Entry contains a password, PIN, credit card number, bank account number, API key, or private key but type is NOT "secret". Examples: "password: abc123", "PIN: 1234", "card: 4111...", "sk-...". Only flag if the value is explicit and obvious in the content. suggestedValue should be "secret".
-
-Hard rules:
-- Only suggest if confidence > 90%
-- HARD LIMIT: AT MOST 2 suggestions per entry. If 3+ issues found, pick the 2 most critical.
-- Skip entries that look complete and well-structured
-- For TYPE_MISMATCH: suggestedValue should be a descriptive type string. Use "secret" for entries containing passwords, PINs, credit card numbers, bank details, or credentials. Otherwise pick the most semantically accurate type (e.g. "supplier", "director", "recipe", "vehicle", "person", "place", "reminder")
-- For DATE_FOUND: suggestedValue must be ISO date string YYYY-MM-DD
-- For SPLIT_SUGGESTED: suggestedValue is a brief description of the suggested split
-- For MERGE_SUGGESTED: entryId is the entry to keep, suggestedValue is the entry ID to merge into it, currentValue lists both titles separated by " + "
-- For CONTENT_WEAK: suggestedValue is a brief description of what content to add
-- For TAG_SUGGESTED: suggestedValue is comma-separated tag suggestions
-- For SENSITIVE_DATA: suggestedValue must always be "secret"
-- Return ONLY a valid JSON array, no markdown, no explanation
-
-Schema: [{"entryId":"...","entryTitle":"...","type":"TYPE_MISMATCH|PHONE_FOUND|EMAIL_FOUND|URL_FOUND|DATE_FOUND|TITLE_POOR|SPLIT_SUGGESTED|MERGE_SUGGESTED|CONTENT_WEAK|TAG_SUGGESTED|SENSITIVE_DATA","field":"type|metadata.phone|metadata.email|metadata.url|metadata.due_date|title|content|tags","currentValue":"...","suggestedValue":"...","reason":"max 90 chars"}]
-
-If nothing is wrong, return: []`,
 
   /** RefineView: link / relationship discovery */
   LINK_DISCOVERY: `You are building a knowledge graph for a personal/business brain. Your job is to find non-obvious, high-value relationships between entries that are not yet linked.
@@ -325,51 +290,6 @@ No markdown. No explanations. Array length must exactly match input length.`,
 
   /** connectionFinder.js: auto-link new entry to existing entries */
   CONNECTION_FINDER: `You are a knowledge-graph builder. Given a NEW entry and EXISTING entries, find meaningful connections.\nRULES:\n- Only connect where a real, specific relationship exists (supplier→business, person→place, idea→business, etc.)\n- "rel" label: short phrase 2-4 words describing the relationship\n- BANNED labels (never use): "relates to", "related", "similar", "connected", "associated with", "linked to"\n- Two entries of the same type (e.g. two suppliers) are NOT connected unless one specifically supplies to the other\n- For each existing entry, ask: does the new entry supply to / employ / apply at / own it?\n- Do NOT connect entries just because they share a type\n- Return 0–5 connections. Quality over quantity.\n- "from" = new entry ID. "to" = existing entry ID.\n- Return ONLY valid JSON array: [{"from":"...","to":"...","rel":"..."}]\n- If no connections: []`,
-
-  /** brainConnections.ts: extract concepts/relationships from a single entry */
-  ENTRY_CONCEPTS: `Extract key concepts and relationships from this single brain entry.
-
-CONCEPT LABEL RULES (strictly enforced):
-- Max 3 words. Aim for 1–2.
-- Categorical themes only — not instance-specific labels. "identity documents" not "father's South African ID number". "family contacts" not "Henk Stander's phone".
-- No possessives (no apostrophes, no "father's", "mum's", "John's").
-- No proper nouns (no person names, no country names, no brand names).
-- Must be reusable — a valid concept label could plausibly apply to 3+ different entries.
-- Good: "identity documents", "family contacts", "financial accounts", "health records". Bad: "father's ID number", "Henk Stander", "South African passport".
-
-Return ONLY this JSON (no markdown):
-{"concepts":[{"label":"concept name","entry_ids":["ENTRY_ID"]}],"relationships":[{"source":"A","target":"B","relation":"related_to","confidence":"extracted","confidence_score":0.8,"entry_ids":["ENTRY_ID"]}]}
-Max 5 concepts, max 4 relationships. Replace ENTRY_ID with the actual entry id provided.`,
-
-  /** brainConnections.ts: one-sentence insight about a newly captured entry */
-  INSIGHT: `You are a personal knowledge assistant. Given a new brain entry and the user's existing top concepts, write ONE brief insight (2 sentences max). Your insight MUST name a specific concept from the provided top_concepts list and explain how this new entry connects to or affects it. Be specific — name a pattern, connection, or implication this entry reveals. No generic observations. Plain text only, no markdown.`,
-
-  /** brainConnections.ts: build a concept graph from a batch of entries */
-  BATCH_CONCEPTS: `You are building a concept graph from a list of personal/business brain entries.
-Identify the most important recurring concepts (themes, entities, ideas) and meaningful relationships between them.
-
-CONCEPT LABEL RULES (strictly enforced):
-- Max 3 words. Aim for 1–2.
-- Categorical themes only — not instance-specific labels. "identity documents" not "father's South African ID number". "family contacts" not "Henk Stander's phone".
-- No possessives (no apostrophes, no "father's", "mum's", "John's").
-- No proper nouns (no person names, no country names, no brand names).
-- Must be reusable — a valid concept label could plausibly apply to 3+ different entries.
-- Good: "identity documents", "family contacts", "financial accounts", "health records". Bad: "father's ID number", "Henk Stander", "South African passport".
-
-Return ONLY this JSON (no markdown):
-{"concepts":[{"label":"concept name","entry_ids":["id1","id2"]}],"relationships":[{"source":"A","target":"B","relation":"related_to","confidence":"extracted","confidence_score":0.8,"entry_ids":["id1"]}]}
-Max 15 concepts, max 10 relationships. Use the entry IDs provided in brackets.`,
-
-  /** brainConnections.ts: find links between a batch of entries */
-  BATCH_LINKS: `You are a knowledge-graph builder. Given a list of brain entries, find ALL meaningful connections between them.
-Rules:
-- Only connect where a real, specific relationship exists (supplier→business, person→place, idea→project, etc.)
-- "rel" label: 2-4 word phrase describing the relationship
-- BANNED labels (never use): "relates to", "related", "similar", "connected", "associated with", "linked to". If you can't name a specific relationship, omit the link.
-- Do NOT connect entries just because they share a type or are generally related
-- Return 0–20 connections. Quality over quantity.
-- Return ONLY valid JSON array (no markdown): [{"from":"entry-id","to":"entry-id","rel":"relationship label"}]
-- If no real connections: []`,
 
   /** useNudge.ts: turn detected findings into friendly actionable sentences */
   NUDGE: `You are a helpful assistant. Turn the following findings into 1-2 short, friendly, actionable sentences for the user.

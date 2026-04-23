@@ -13,5 +13,6 @@
     "isolatedModules": true,
     "esModuleInterop": true
   },
-  "include": ["api"]
+  "include": ["api"],
+  "files": ["src/lib/sharedPrompts.ts"]
 }

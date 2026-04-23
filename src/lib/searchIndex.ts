@@ -1,49 +1,10 @@
 import type { Entry } from "../types";
+import { scoreEntryForQuery } from "./entryScorer";
 
 const index = new Map<string, Set<string>>();
 
-/**
- * Score an entry against a query. Higher = more relevant.
- * Title matches dominate; content matches are a weak signal.
- */
 export function scoreEntry(entry: Entry, query: string): number {
-  const q = query.toLowerCase().replace(/[^a-z0-9\s]/g, " ").trim();
-  if (!q) return 0;
-  const terms = q.split(/\s+/).filter(Boolean);
-
-  const title = (entry.title || "").toLowerCase();
-  const content = (entry.content || "").toLowerCase();
-  const tags = (entry.tags || []).join(" ").toLowerCase();
-  const metaText =
-    entry.metadata && typeof entry.metadata === "object"
-      ? Object.values(entry.metadata as Record<string, unknown>)
-          .map((v) => (typeof v === "string" ? v : ""))
-          .join(" ")
-          .toLowerCase()
-      : "";
-
-  let score = 0;
-
-  // Exact phrase in title — strongest signal
-  if (title.includes(q)) score += 100;
-  if (title.startsWith(q)) score += 50;
-
-  // Per-term scoring
-  let titleHits = 0;
-  for (const t of terms) {
-    if (title.includes(t)) { score += 20; titleHits++; }
-    if (tags.includes(t)) score += 15;
-    if (content.includes(t)) score += 3;
-    if (metaText.includes(t)) score += 3;
-  }
-
-  // Bonus when ALL query terms hit the title (entry is focused on the topic)
-  if (terms.length > 1 && titleHits === terms.length) score += 40;
-
-  // Exact phrase in content
-  if (content.includes(q)) score += 20;
-
-  return score;
+  return scoreEntryForQuery(entry, query);
 }
 
 const SKIP_META = new Set(["enrichment", "confidence", "ai_insight_short", "merge_note"]);

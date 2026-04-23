@@ -12,7 +12,7 @@ let _plan = "free";
 
 // ── Hydration signal: set true after loadUserAISettings completes ──
 let _loaded = false;
-function isAISettingsLoaded(): boolean {
+export function isAISettingsLoaded(): boolean {
   return _loaded;
 }
 
@@ -127,10 +127,10 @@ const TASK_COL: Record<string, string> = {
   chat: "model_chat",
 };
 
-function getModelForTask(task: string): string | null {
+export function getModelForTask(task: string): string | null {
   return _taskModels[task] ?? null;
 }
-function setModelForTask(task: string, model: string | null): void {
+export function setModelForTask(task: string, model: string | null): void {
   _taskModels[task] = model;
   const col = TASK_COL[task];
   if (!col) return;
@@ -247,4 +247,119 @@ export function getEmbedHeaders(): { "X-Embed-Provider": string; "X-Embed-Key": 
 /** Always true — server provides GEMINI_API_KEY. */
 export function isAIConfigured(): boolean {
   return true;
+}
+
+// ── Singleton interface ──────────────────────────────────────────────────────
+
+export interface AISnapshot {
+  groqKey: string | null;
+  geminiKey: string | null;
+  anthropicKey: string | null;
+  openaiKey: string | null;
+  anthropicModel: string;
+  openaiModel: string;
+  geminiByokModel: string;
+  modelCapture: string | null;
+  modelQuestions: string | null;
+  modelVision: string | null;
+  modelRefine: string | null;
+  modelChat: string | null;
+  plan: string;
+  hasAIAccess: boolean;
+  isLoaded: boolean;
+}
+
+export interface AISettingsPatch {
+  groq_key?: string | null;
+  gemini_key?: string | null;
+  anthropic_key?: string | null;
+  openai_key?: string | null;
+  anthropic_model?: string;
+  openai_model?: string;
+  gemini_byok_model?: string;
+  model_capture?: string | null;
+  model_questions?: string | null;
+  model_vision?: string | null;
+  model_refine?: string | null;
+  model_chat?: string | null;
+  plan?: string;
+}
+
+export interface ProviderConfig {
+  provider: "anthropic" | "openai" | "gemini-byok" | "managed-gemini";
+  key: string;
+  model: string;
+}
+
+function _applyPatchToMemory(patch: AISettingsPatch): void {
+  if (patch.groq_key !== undefined) _keys[KEYS.GROQ_KEY] = patch.groq_key;
+  if (patch.gemini_key !== undefined) _keys[KEYS.GEMINI_KEY] = patch.gemini_key;
+  if (patch.anthropic_key !== undefined) _keys["anthropic_key"] = patch.anthropic_key;
+  if (patch.openai_key !== undefined) _keys["openai_key"] = patch.openai_key;
+  if (patch.anthropic_model !== undefined) _taskModels["anthropic_model"] = patch.anthropic_model;
+  if (patch.openai_model !== undefined) _taskModels["openai_model"] = patch.openai_model;
+  if (patch.gemini_byok_model !== undefined) _taskModels["gemini_byok_model"] = patch.gemini_byok_model;
+  if (patch.model_capture !== undefined) _taskModels["capture"] = patch.model_capture;
+  if (patch.model_questions !== undefined) _taskModels["questions"] = patch.model_questions;
+  if (patch.model_vision !== undefined) _taskModels["vision"] = patch.model_vision;
+  if (patch.model_refine !== undefined) _taskModels["refine"] = patch.model_refine;
+  if (patch.model_chat !== undefined) _taskModels["chat"] = patch.model_chat;
+  if (patch.plan !== undefined) _plan = patch.plan;
+}
+
+export const aiSettings = {
+  get(): AISnapshot {
+    return {
+      groqKey: _keys[KEYS.GROQ_KEY] ?? null,
+      geminiKey: _keys[KEYS.GEMINI_KEY] ?? null,
+      anthropicKey: _keys["anthropic_key"] ?? null,
+      openaiKey: _keys["openai_key"] ?? null,
+      anthropicModel: _taskModels["anthropic_model"] ?? "claude-sonnet-4-6",
+      openaiModel: _taskModels["openai_model"] ?? "gpt-4o-mini",
+      geminiByokModel: _taskModels["gemini_byok_model"] ?? "gemini-2.5-flash-lite",
+      modelCapture: _taskModels["capture"] ?? null,
+      modelQuestions: _taskModels["questions"] ?? null,
+      modelVision: _taskModels["vision"] ?? null,
+      modelRefine: _taskModels["refine"] ?? null,
+      modelChat: _taskModels["chat"] ?? null,
+      plan: _plan,
+      hasAIAccess: hasAIAccess(),
+      isLoaded: _loaded,
+    };
+  },
+
+  async set(patch: AISettingsPatch): Promise<{ error: string | null }> {
+    _applyPatchToMemory(patch);
+    return persistKeyToDb(patch as Record<string, string | boolean | null>);
+  },
+
+  async load(userId: string): Promise<void> {
+    return loadUserAISettings(userId);
+  },
+
+  reset(): void {
+    clearAISettingsCache();
+  },
+};
+
+export function resolveProvider(task?: string): ProviderConfig {
+  const snap = aiSettings.get();
+
+  if (snap.anthropicKey) {
+    const model = task
+      ? (_taskModels[task === "chat" ? "chat" : task] ?? snap.anthropicModel)
+      : snap.anthropicModel;
+    return { provider: "anthropic", key: snap.anthropicKey, model: model ?? snap.anthropicModel };
+  }
+
+  if (snap.openaiKey) {
+    const model = snap.openaiModel;
+    return { provider: "openai", key: snap.openaiKey, model };
+  }
+
+  if (snap.geminiKey) {
+    return { provider: "gemini-byok", key: snap.geminiKey, model: snap.geminiByokModel };
+  }
+
+  return { provider: "managed-gemini", key: "", model: snap.geminiByokModel };
 }

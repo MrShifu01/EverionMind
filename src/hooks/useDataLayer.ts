@@ -1,13 +1,14 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { Dispatch, SetStateAction, RefObject } from "react";
 import { authFetch } from "../lib/authFetch";
 import { readEntriesCache, writeEntriesCache } from "../lib/entriesCache";
 import { decryptEntry, cacheVaultKey } from "../lib/crypto";
 import { indexEntry } from "../lib/searchIndex";
 import { LINKS } from "../data/constants";
-import { isFullyEnriched, getEnrichmentGaps, enrichEntry, type EnrichError } from "../lib/enrichEntry";
-import { loadGraphFromDB } from "../lib/conceptGraph";
+import { enrichEntry } from "../lib/enrichEntry";
+import { createPipeline } from "../lib/pipeline/createPipeline";
 import { useEntryActions } from "./useEntryActions";
+import { useEnrichmentOrchestrator } from "./useEnrichmentOrchestrator";
 import type { Entry } from "../types";
 
 interface UseDataLayerParams {
@@ -44,30 +45,10 @@ export function useDataLayer({
   const [vaultExists, setVaultExists] = useState(false);
   const [vaultEntries, setVaultEntries] = useState<Entry[]>([]);
   const vaultEntryIdsRef = useRef<Set<string>>(new Set());
-  const [enriching, setEnriching] = useState(false);
-  const [enrichProgress, setEnrichProgress] = useState<{ done: number; total: number } | null>(null);
-  const [enrichErrors, setEnrichErrors] = useState<{ id: string; title: string; errors: EnrichError[] }[]>([]);
-  const [enrichCurrentEntry, setEnrichCurrentEntry] = useState<{ idx: number; total: number; title: string; phase: string } | null>(null);
-  const [enrichLog, setEnrichLog] = useState<{ ts: number; level: "info" | "error"; message: string }[]>([]);
 
-  const appendLog = useCallback((level: "info" | "error", message: string) => {
-    setEnrichLog((prev) => [{ ts: Date.now(), level, message }, ...prev]);
-  }, []);
-  const [conceptEntryIds, setConceptEntryIds] = useState<Set<string>>(new Set());
-
-  // Load concept graph entry IDs so unenriched detection matches the health panel
-  const refreshConceptIds = useCallback(async () => {
-    if (!activeBrainId) return;
-    try {
-      const graph = await loadGraphFromDB(activeBrainId);
-      const ids = new Set<string>(graph.concepts.flatMap((c) => c.source_entries ?? []));
-      setConceptEntryIds(ids);
-    } catch {}
-  }, [activeBrainId]);
-
-  useEffect(() => {
-    refreshConceptIds();
-  }, [refreshConceptIds]);
+  // Keep a ref of entries for the enrichment orchestrator (avoids restarting on every render)
+  const entriesRef = useRef<Entry[]>(entries);
+  useEffect(() => { entriesRef.current = entries; }, [entries]);
 
   // Load entries cache on mount
   useEffect(() => {
@@ -256,131 +237,34 @@ export function useDataLayer({
     [],
   );
 
-  const unenrichedDetails = useMemo(
-    () =>
-      entries
-        .filter((e) => !isFullyEnriched(e, entries, conceptEntryIds))
-        .map((e) => ({
-          id: e.id,
-          title: e.title || "(untitled)",
-          gaps: getEnrichmentGaps(e, entries, conceptEntryIds),
-        })),
-    [entries, conceptEntryIds],
-  );
-  const unenrichedCount = unenrichedDetails.length;
+  const {
+    enriching,
+    enrichProgress,
+    enrichErrors,
+    enrichCurrentEntry,
+    enrichLog,
+    runBulkEnrich,
+    unenrichedCount,
+    unenrichedDetails,
+  } = useEnrichmentOrchestrator({
+    activeBrainId,
+    entriesLoaded,
+    entriesRef,
+    onSilentUpdate: silentUpdate,
+  });
 
-  // Silent background enrich — fires once per brain after entries load.
-  // 8s initial delay lets the page settle; 5s between entries respects the LLM rate limit.
-  // Cancelled immediately if the user triggers manual bulk enrich (enriching flag).
-  const autoEnrichBrainRef = useRef<string | null>(null);
-  const enrichingRef = useRef(enriching);
-  useEffect(() => { enrichingRef.current = enriching; }, [enriching]);
-
-  useEffect(() => {
-    if (!entriesLoaded || !activeBrainId) return;
-    if (autoEnrichBrainRef.current === activeBrainId) return;
-
-    const unenriched = entries.filter((e) => !isFullyEnriched(e, entries, conceptEntryIds));
-    if (unenriched.length === 0) return;
-
-    autoEnrichBrainRef.current = activeBrainId;
-    const snapshot = [...unenriched];
-    const brainId = activeBrainId;
-    let cancelled = false;
-
-    (async () => {
-      await new Promise((r) => setTimeout(r, 15000));
-      for (let i = 0; i < snapshot.length; i++) {
-        if (cancelled || enrichingRef.current) break;
-        await enrichEntry(snapshot[i], brainId, silentUpdate);
-        if (i < snapshot.length - 1) await new Promise((r) => setTimeout(r, 15000));
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, [entriesLoaded, activeBrainId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const runBulkEnrich = useCallback(async () => {
-    if (!activeBrainId || enriching) return;
-    const unenriched = entries.filter((e) => !isFullyEnriched(e, entries, conceptEntryIds));
-    if (unenriched.length === 0) return;
-    setEnriching(true);
-    setEnrichErrors([]);
-    setEnrichLog([]);
-    setEnrichProgress({ done: 0, total: unenriched.length });
-    try {
-      for (let i = 0; i < unenriched.length; i++) {
-        const entry = unenriched[i];
-        const title = entry.title || "(untitled)";
-        setEnrichCurrentEntry({ idx: i + 1, total: unenriched.length, title, phase: "starting" });
-        appendLog("info", `[${i + 1}/${unenriched.length}] ${title}`);
-        let errs: EnrichError[] = [];
-        try {
-          errs = await enrichEntry(entry, activeBrainId, silentUpdate, (phase) => {
-            setEnrichCurrentEntry({ idx: i + 1, total: unenriched.length, title, phase });
-          });
-        } catch (err) {
-          errs = [{ step: "unknown", message: String((err as any)?.message ?? err) }];
-        }
-        if (errs.length > 0) {
-          setEnrichErrors((prev) => [...prev, { id: entry.id, title, errors: errs }]);
-          for (const e of errs) appendLog("error", `  ${e.step}: ${e.message}`);
-        }
-        setEnrichProgress({ done: i + 1, total: unenriched.length });
-        if ((i + 1) % 3 === 0) await refreshConceptIds();
-        if (i < unenriched.length - 1) await new Promise((r) => setTimeout(r, 5000));
-      }
-      appendLog("info", `Complete — ${unenriched.length} processed`);
-    } finally {
-      await refreshConceptIds();
-      setEnriching(false);
-      setEnrichProgress(null);
-      setEnrichCurrentEntry(null);
-    }
-  }, [activeBrainId, entries, enriching, silentUpdate, conceptEntryIds, refreshConceptIds, appendLog]);
+  const pipeline = createPipeline({
+    onUpdate: silentUpdate as (id: string, changes: any) => Promise<void>,
+    getEntries: () => entriesRef.current,
+    throttleMs: 5000,
+  });
 
   const handleCreated = useCallback(
     (newEntry: Entry) => {
       _handleCreated(newEntry);
-      if (activeBrainId) {
-        import("../lib/brainConnections").then(
-          ({ extractEntryConnections, generateEntryInsight, findAndSaveConnections }) => {
-            extractEntryConnections(newEntry, activeBrainId!).catch(() => {});
-            generateEntryInsight(newEntry, activeBrainId!)
-              .then((insightText) =>
-                silentUpdate(newEntry.id, {
-                  metadata: { ...(newEntry.metadata ?? {}), ai_insight: insightText },
-                }),
-              )
-              .catch(() => {});
-            findAndSaveConnections(newEntry, entries, activeBrainId!).catch(() => {});
-          },
-        );
-      }
+      if (activeBrainId) pipeline.enrich(newEntry, activeBrainId);
     },
-    [_handleCreated, activeBrainId, entries, silentUpdate],
-  );
-
-  const handleCreatedBulk = useCallback(
-    (newEntry: Entry) => {
-      _handleCreated(newEntry);
-      if (activeBrainId) {
-        import("../lib/brainConnections").then(
-          ({ extractEntryConnections, generateEntryInsight, findAndSaveConnections }) => {
-            extractEntryConnections(newEntry, activeBrainId!).catch(() => {});
-            generateEntryInsight(newEntry, activeBrainId!)
-              .then((insightText) =>
-                silentUpdate(newEntry.id, {
-                  metadata: { ...(newEntry.metadata ?? {}), ai_insight: insightText },
-                }),
-              )
-              .catch(() => {});
-            findAndSaveConnections(newEntry, entries, activeBrainId!).catch(() => {});
-          },
-        );
-      }
-    },
-    [_handleCreated, activeBrainId, entries, silentUpdate],
+    [_handleCreated, activeBrainId, pipeline],
   );
 
   return {
@@ -405,7 +289,7 @@ export function useDataLayer({
     unenrichedCount,
     patchEntryId,
     handleCreated,
-    handleCreatedBulk,
+    handleCreatedBulk: handleCreated,
     lastAction,
     setLastAction,
     saveError,
