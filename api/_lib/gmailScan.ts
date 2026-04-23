@@ -713,6 +713,7 @@ export async function scanGmailForUser(
     classifierModel: "",
   };
 
+  try {
   const token = await refreshGmailToken(integration);
   if (!token) {
     debug.tokenRefreshFailed = true;
@@ -887,6 +888,11 @@ export async function scanGmailForUser(
   }
 
   return { created, debug, entries: Array.from(groupMap.values()) };
+  } catch (e: any) {
+    console.error("[scanGmailForUser] unexpected error:", e);
+    if (!debug.classifierError) debug.classifierError = String(e?.message ?? e);
+    return { created: 0, debug, entries: [] };
+  }
 }
 
 export async function runGmailScanAllUsers(): Promise<{ users: number; created: number; errors: number }> {
