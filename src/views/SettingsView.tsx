@@ -8,6 +8,7 @@ import AITab from "../components/settings/AITab";
 import DangerTab from "../components/settings/DangerTab";
 import ClaudeCodeTab from "../components/settings/ClaudeCodeTab";
 import CalendarSyncTab from "../components/settings/CalendarSyncTab";
+import GmailSyncTab from "../components/settings/GmailSyncTab";
 import NotificationSettings from "../components/NotificationSettings";
 import AppearanceTab from "../components/settings/AppearanceTab";
 import AdminTab from "../components/settings/AdminTab";
@@ -248,6 +249,7 @@ export default function SettingsView({
   const [section, setSection] = useState<SectionId>(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.has("calendarConnected") || params.has("calendarError")) return "integrations";
+    if (params.has("gmailConnected") || params.has("gmailError")) return "integrations";
     return "appearance";
   });
   const [email, setEmail] = useState(() => {
@@ -473,6 +475,9 @@ export default function SettingsView({
                   subtitle="external connections and developer access."
                 />
                 <CalendarSyncTab />
+                <div style={{ margin: "32px 0 24px", borderTop: "1px solid var(--line-soft)" }} />
+                <div className="micro" style={{ marginBottom: 16 }}>Gmail</div>
+                <GmailSyncTab />
                 <div style={{ margin: "32px 0 24px", borderTop: "1px solid var(--line-soft)" }} />
                 <div className="micro" style={{ marginBottom: 16 }}>API & Developer</div>
                 <ClaudeCodeTab />

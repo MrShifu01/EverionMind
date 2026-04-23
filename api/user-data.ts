@@ -4,6 +4,7 @@ import { rateLimit } from "./_lib/rateLimit.js";
 import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 import crypto from "crypto";
 import webpush from "web-push";
+import { runGmailScanAllUsers } from "./_lib/gmailScan.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -535,62 +536,69 @@ async function handlePushSubscribe(req: ApiRequest, res: ApiResponse): Promise<v
 }
 
 // ── /api/cron/daily (rewritten to /api/user-data?resource=cron-daily) ──
-// Scheduled at 18:00 UTC (20:00 SAST) via vercel.json. Sends push to all users with daily_enabled.
+// Scheduled at 18:00 UTC (20:00 SAST) via vercel.json.
+// Sends push notifications + runs Gmail inbox scan for all connected users.
 async function handleCronDaily(req: ApiRequest, res: ApiResponse): Promise<void> {
   const auth = (req.headers as any).authorization as string | undefined;
   if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return void res.status(401).json({ error: "Unauthorized" });
   }
 
+  // ── Push notifications ──
+  const pushResults = { sent: 0, skipped: 0, errors: 0 };
   const subject = process.env.VAPID_SUBJECT;
   const pub = process.env.VAPID_PUBLIC_KEY;
   const priv = process.env.VAPID_PRIVATE_KEY;
-  if (!subject || !pub || !priv) {
-    return void res.status(500).json({ error: "VAPID env vars not set" });
-  }
-  webpush.setVapidDetails(subject, pub, priv);
 
-  const adminHdrs = { apikey: SB_KEY!, Authorization: `Bearer ${SB_KEY}` };
-  const users: any[] = [];
-  let page = 1;
-  while (true) {
-    const r = await fetch(`${SB_URL}/auth/v1/admin/users?page=${page}&per_page=50`, { headers: adminHdrs });
-    if (!r.ok) break;
-    const data = await r.json();
-    const batch: any[] = data.users ?? [];
-    users.push(...batch);
-    if (batch.length < 50) break;
-    page++;
-  }
+  if (subject && pub && priv) {
+    webpush.setVapidDetails(subject, pub, priv);
 
-  const results = { sent: 0, skipped: 0, errors: 0 };
-
-  for (const user of users) {
-    const meta = user.user_metadata ?? {};
-    const prefs = meta.notification_prefs ?? {};
-    const sub = meta.push_subscription;
-
-    if (!prefs.daily_enabled || !sub?.endpoint || !sub?.keys) { results.skipped++; continue; }
-
-    try {
-      await webpush.sendNotification(
-        { endpoint: sub.endpoint, keys: sub.keys },
-        JSON.stringify({ title: "Everion", body: "What's worth remembering from today?", url: "/capture" }),
-      );
-      results.sent++;
-    } catch (err: any) {
-      console.error(`[cron/daily] push failed for ${user.id}:`, err.message);
-      if (err.statusCode === 410 || err.statusCode === 404) {
-        const { push_subscription: _rm, ...rest } = meta;
-        await fetch(`${SB_URL}/auth/v1/admin/users/${user.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json", ...adminHdrs },
-          body: JSON.stringify({ user_metadata: rest }),
-        });
-      }
-      results.errors++;
+    const adminHdrs = { apikey: SB_KEY!, Authorization: `Bearer ${SB_KEY}` };
+    const users: any[] = [];
+    let page = 1;
+    while (true) {
+      const r = await fetch(`${SB_URL}/auth/v1/admin/users?page=${page}&per_page=50`, { headers: adminHdrs });
+      if (!r.ok) break;
+      const data = await r.json();
+      const batch: any[] = data.users ?? [];
+      users.push(...batch);
+      if (batch.length < 50) break;
+      page++;
     }
+
+    for (const user of users) {
+      const meta = user.user_metadata ?? {};
+      const prefs = meta.notification_prefs ?? {};
+      const sub = meta.push_subscription;
+      if (!prefs.daily_enabled || !sub?.endpoint || !sub?.keys) { pushResults.skipped++; continue; }
+      try {
+        await webpush.sendNotification(
+          { endpoint: sub.endpoint, keys: sub.keys },
+          JSON.stringify({ title: "Everion", body: "What's worth remembering from today?", url: "/capture" }),
+        );
+        pushResults.sent++;
+      } catch (err: any) {
+        console.error(`[cron/daily] push failed for ${user.id}:`, err.message);
+        if (err.statusCode === 410 || err.statusCode === 404) {
+          const { push_subscription: _rm, ...rest } = meta;
+          await fetch(`${SB_URL}/auth/v1/admin/users/${user.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json", ...adminHdrs },
+            body: JSON.stringify({ user_metadata: rest }),
+          });
+        }
+        pushResults.errors++;
+      }
+    }
+  } else {
+    console.warn("[cron/daily] VAPID env vars not set — skipping push notifications");
   }
 
-  return void res.status(200).json(results);
+  // ── Gmail inbox scan ──
+  const gmailResults = await runGmailScanAllUsers().catch((e) => {
+    console.error("[cron/daily] gmail scan failed:", e);
+    return { users: 0, created: 0, errors: 1 };
+  });
+
+  return void res.status(200).json({ push: pushResults, gmail: gmailResults });
 }
