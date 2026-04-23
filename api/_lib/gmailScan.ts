@@ -186,12 +186,39 @@ async function fetchImportedMessageIds(userId: string): Promise<Set<string>> {
   return new Set(rows.map((e) => e.metadata?.gmail_message_id).filter(Boolean));
 }
 
+export interface ScanDebug {
+  sinceDate: string;
+  emailsFetched: number;
+  classified: number;
+  skippedDuplicates: number;
+  insertErrors: number;
+  tokenRefreshFailed: boolean;
+  hasAnthropicKey: boolean;
+  hasGeminiKey: boolean;
+  subjects: string[];
+}
+
 export async function scanGmailForUser(
   integration: any,
   manual = false,
-): Promise<{ created: number }> {
+): Promise<{ created: number; debug: ScanDebug }> {
+  const debug: ScanDebug = {
+    sinceDate: "",
+    emailsFetched: 0,
+    classified: 0,
+    skippedDuplicates: 0,
+    insertErrors: 0,
+    tokenRefreshFailed: false,
+    hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
+    hasGeminiKey: !!(process.env.GEMINI_API_KEY ?? "").trim(),
+    subjects: [],
+  };
+
   const token = await refreshGmailToken(integration);
-  if (!token) return { created: 0 };
+  if (!token) {
+    debug.tokenRefreshFailed = true;
+    return { created: 0, debug };
+  }
 
   const prefs: GmailPreferences = integration.preferences ?? defaultPreferences();
 
@@ -203,9 +230,12 @@ export async function scanGmailForUser(
   } else if (integration.last_scanned_at) {
     sinceMs = new Date(integration.last_scanned_at).getTime();
   }
+  debug.sinceDate = sinceMs ? new Date(sinceMs).toISOString() : "last 25h (default)";
 
   // Manual scans look back further so fetch more messages.
   const emails = await fetchRecentEmails(token, sinceMs, manual ? 100 : 50);
+  debug.emailsFetched = emails.length;
+  debug.subjects = emails.slice(0, 10).map((e) => e.subject);
 
   await fetch(`${SB_URL}/rest/v1/gmail_integrations?id=eq.${integration.id}`, {
     method: "PATCH",
@@ -213,10 +243,11 @@ export async function scanGmailForUser(
     body: JSON.stringify({ last_scanned_at: new Date().toISOString() }),
   });
 
-  if (!emails.length) return { created: 0 };
+  if (!emails.length) return { created: 0, debug };
 
   const classified = await classifyWithLLM(buildPrompt(emails, prefs));
-  if (!classified.length) return { created: 0 };
+  debug.classified = classified.length;
+  if (!classified.length) return { created: 0, debug };
 
   // Fetch already-imported message IDs to prevent duplicates.
   const importedIds = await fetchImportedMessageIds(integration.user_id);
@@ -228,7 +259,7 @@ export async function scanGmailForUser(
   for (const match of classified) {
     const email = emails[match.index];
     if (!email) continue;
-    if (importedIds.has(email.id)) continue;
+    if (importedIds.has(email.id)) { debug.skippedDuplicates++; continue; }
 
     const title = match.title ?? email.subject;
     const content = match.summary ?? "";
@@ -255,7 +286,7 @@ export async function scanGmailForUser(
       headers: { ...SB_HEADERS, Prefer: "return=representation" },
       body: JSON.stringify(entry),
     });
-    if (!insertRes.ok) continue;
+    if (!insertRes.ok) { debug.insertErrors++; continue; }
 
     const rows: any[] = await insertRes.json();
     const inserted = rows[0];
@@ -280,7 +311,7 @@ export async function scanGmailForUser(
     }
   }
 
-  return { created };
+  return { created, debug };
 }
 
 export async function runGmailScanAllUsers(): Promise<{ users: number; created: number; errors: number }> {

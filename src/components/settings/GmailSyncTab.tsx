@@ -49,6 +49,18 @@ function formatLastScan(ts: string | null): string {
   return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
+interface ScanDebug {
+  sinceDate: string;
+  emailsFetched: number;
+  classified: number;
+  skippedDuplicates: number;
+  insertErrors: number;
+  tokenRefreshFailed: boolean;
+  hasAnthropicKey: boolean;
+  hasGeminiKey: boolean;
+  subjects: string[];
+}
+
 export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
   const [integration, setIntegration] = useState<GmailIntegration | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,6 +68,7 @@ export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
   const [modalMode, setModalMode] = useState<"connect" | "edit" | null>(null);
   const [scanning, setScanning] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [lastDebug, setLastDebug] = useState<ScanDebug | null>(null);
 
   function fetchIntegration() {
     return authFetch("/api/gmail?action=integration")
@@ -97,11 +110,13 @@ export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
   async function handleScanNow() {
     setScanning(true);
     setMsg(null);
+    setLastDebug(null);
     try {
       const r = await authFetch("/api/gmail?action=scan", { method: "POST" });
       const data = await r?.json?.();
       const created: number = data?.created ?? 0;
-      setMsg({ text: created === 0 ? "No new items found." : `${created} new item${created !== 1 ? "s" : ""} flagged.`, ok: true });
+      if (data?.debug) setLastDebug(data.debug);
+      setMsg({ text: created === 0 ? "No new items found." : `${created} new item${created !== 1 ? "s" : ""} flagged.`, ok: created > 0 });
       await fetchIntegration();
     } catch {
       setMsg({ text: "Scan failed. Please try again.", ok: false });
@@ -226,6 +241,55 @@ export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
               </span>
             )}
           </div>
+        </div>
+      )}
+
+      {isAdmin && lastDebug && (
+        <div
+          className="f-sans"
+          style={{
+            marginTop: 16,
+            padding: "14px 16px",
+            borderRadius: 10,
+            fontSize: 12,
+            lineHeight: 1.7,
+            background: "var(--surface)",
+            border: "1px solid var(--line-soft)",
+          }}
+        >
+          <div style={{ fontWeight: 600, color: "var(--ink-soft)", marginBottom: 8, fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+            Last scan diagnostics
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "2px 16px", color: "var(--ink-faint)" }}>
+            <span style={{ color: "var(--ink-soft)" }}>Since</span>
+            <span>{lastDebug.sinceDate}</span>
+            <span style={{ color: "var(--ink-soft)" }}>Emails fetched</span>
+            <span style={{ color: lastDebug.emailsFetched === 0 ? "var(--blood)" : "var(--ink)" }}>{lastDebug.emailsFetched}</span>
+            <span style={{ color: "var(--ink-soft)" }}>Classified as relevant</span>
+            <span>{lastDebug.classified}</span>
+            <span style={{ color: "var(--ink-soft)" }}>Skipped (duplicates)</span>
+            <span>{lastDebug.skippedDuplicates}</span>
+            <span style={{ color: "var(--ink-soft)" }}>Insert errors</span>
+            <span style={{ color: lastDebug.insertErrors > 0 ? "var(--blood)" : "var(--ink-faint)" }}>{lastDebug.insertErrors}</span>
+            <span style={{ color: "var(--ink-soft)" }}>Anthropic key</span>
+            <span style={{ color: lastDebug.hasAnthropicKey ? "var(--moss)" : "var(--blood)" }}>{lastDebug.hasAnthropicKey ? "present" : "MISSING"}</span>
+            <span style={{ color: "var(--ink-soft)" }}>Gemini key</span>
+            <span style={{ color: lastDebug.hasGeminiKey ? "var(--moss)" : "var(--blood)" }}>{lastDebug.hasGeminiKey ? "present" : "MISSING"}</span>
+            {lastDebug.tokenRefreshFailed && (
+              <>
+                <span style={{ color: "var(--blood)", fontWeight: 600 }}>Token</span>
+                <span style={{ color: "var(--blood)" }}>OAuth token refresh failed</span>
+              </>
+            )}
+          </div>
+          {lastDebug.subjects.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ color: "var(--ink-soft)", marginBottom: 4 }}>Subjects seen (first {lastDebug.subjects.length}):</div>
+              <ul style={{ margin: 0, padding: "0 0 0 16px", color: "var(--ink-faint)" }}>
+                {lastDebug.subjects.map((s, i) => <li key={i}>{s}</li>)}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 
