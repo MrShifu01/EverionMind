@@ -314,7 +314,7 @@ async function classifyWithGemini(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 8192 },
+          generationConfig: { maxOutputTokens: 65536 },
         }),
       },
     );
@@ -329,9 +329,14 @@ async function classifyWithGemini(
       .map((p: any) => p.text ?? "").join("").trim();
     if (!text) return { results: [], error: "empty response", model };
     const stripped = text.replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "").trim();
-    const match = stripped.match(/\[[\s\S]*\]/);
-    if (!match) return { results: [], error: `no JSON array in: ${text.slice(0, 100)}`, model };
-    return { results: JSON.parse(match[0]), model };
+    const fullMatch = stripped.match(/\[[\s\S]*\]/);
+    if (fullMatch) return { results: JSON.parse(fullMatch[0]), model };
+    // Truncated response — salvage any complete objects
+    const objects = [...stripped.matchAll(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)?\}/g)].map((m) => {
+      try { return JSON.parse(m[0]); } catch { return null; }
+    }).filter(Boolean);
+    if (objects.length) return { results: objects, model };
+    return { results: [], error: `no JSON array in: ${text.slice(0, 100)}`, model };
   } catch (e: any) {
     return { results: [], error: String(e?.message ?? e), model };
   }
