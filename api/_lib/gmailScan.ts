@@ -235,9 +235,9 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const CATEGORY_DESCRIPTIONS: Record<string, string> = {
-  "invoices":             "emails containing invoices or payment requests where YOU need to manually take action to pay. Exclude: auto-pay confirmations, debit order notifications, direct debit receipts, and any payment that is handled automatically without your intervention.",
+  "invoices":             "emails containing invoices, payment requests, or bills where a payment is due — including debit order reminders and manual payment notices. Exclude: confirmations that a payment has already been processed automatically.",
   "action-required":      "emails requiring you to do something by a deadline (approve, submit, respond, pay, fill a form)",
-  "subscription-renewal": "renewal notices, trial expiry warnings, subscription changes or cancellations",
+  "subscription-renewal": "subscription emails requiring a decision or action — trial ending, manual renewal required, or cancellation needed to avoid charges. Exclude: auto-renewal confirmations where the subscription continues automatically and no action is needed.",
   "appointment":          "confirmed bookings for travel, medical appointments, restaurants, events, or services",
   "deadline":             "any email referencing a specific deadline, cutoff date, or time-sensitive request not covered above",
   "delivery":             "package tracking updates, delivery notifications, ready-for-collection alerts",
