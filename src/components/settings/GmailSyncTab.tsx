@@ -3,6 +3,7 @@ import { supabase } from "../../lib/supabase";
 import { authFetch } from "../../lib/authFetch";
 import { SettingsButton } from "./SettingsRow";
 import GmailSetupModal from "./GmailSetupModal";
+import { useEntries } from "../../context/EntriesContext";
 
 interface GmailIntegration {
   id: string;
@@ -64,6 +65,7 @@ interface ScanDebug {
 }
 
 export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
+  const { refreshEntries } = useEntries();
   const [integration, setIntegration] = useState<GmailIntegration | null>(null);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
@@ -120,6 +122,7 @@ export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
       if (data?.debug) setLastDebug(data.debug);
       setMsg({ text: created === 0 ? "No new items found." : `${created} new item${created !== 1 ? "s" : ""} flagged.`, ok: created > 0 });
       await fetchIntegration();
+      if (created > 0) await refreshEntries();
     } catch {
       setMsg({ text: "Scan failed. Please try again.", ok: false });
     } finally {
