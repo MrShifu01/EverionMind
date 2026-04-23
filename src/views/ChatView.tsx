@@ -2,6 +2,7 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import { useChat, type ChatMessage, type DebugInfo } from "../hooks/useChat";
 import { useAdminDevMode } from "../hooks/useAdminDevMode";
 import { useEntries } from "../context/EntriesContext";
+import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import type { Entry } from "../types";
 import { cn } from "../lib/cn";
 import { hasAIAccess } from "../lib/aiSettings";
@@ -151,22 +152,27 @@ const IconSend = (
   </svg>
 );
 
-const IconMic = (
-  <svg
-    width="16"
-    height="16"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    viewBox="0 0 24 24"
-    aria-hidden="true"
-  >
-    <rect x="9" y="3" width="6" height="12" rx="3" />
-    <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
-  </svg>
-);
+const IconMic = ({ on = false }: { on?: boolean }) =>
+  on ? (
+    <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="6" y="6" width="12" height="12" rx="2" />
+    </svg>
+  ) : (
+    <svg
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <rect x="9" y="3" width="6" height="12" rx="3" />
+      <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+    </svg>
+  );
 
 const IconCopy = (
   <svg
@@ -296,8 +302,24 @@ export default function ChatView({ brainId }: ChatViewProps) {
   const [input, setInput] = useState("");
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [sharedIdx, setSharedIdx] = useState<number | null>(null);
+  const [voiceStatus, setVoiceStatus] = useState<string | null>(null);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [voiceLoading, setVoiceLoading] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const { listening, startVoice } = useVoiceRecorder({
+    onTranscript: (t) => {
+      setInput((prev) => (prev ? `${prev} ${t}` : t));
+      setVoiceStatus(null);
+    },
+    onStatus: setVoiceStatus,
+    onError: (msg) => {
+      setVoiceError(msg);
+      setTimeout(() => setVoiceError(null), 4000);
+    },
+    onLoading: setVoiceLoading,
+  });
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -305,7 +327,7 @@ export default function ChatView({ brainId }: ChatViewProps) {
 
   const handleSend = useCallback(() => {
     const text = input.trim();
-    if (!text || loading) return;
+    if (!text || loading || voiceLoading) return;
     if (entriesLoaded && entries.length === 0) {
       setNoMemoryToast(true);
       setTimeout(() => setNoMemoryToast(false), 3000);
@@ -373,32 +395,58 @@ export default function ChatView({ brainId }: ChatViewProps) {
           gap: 10,
         }}
       >
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="ask your memory…"
-          rows={1}
-          className="f-serif flex-1 resize-none bg-transparent outline-none"
-          style={{
-            fontSize: 16,
-            lineHeight: 1.5,
-            minHeight: 24,
-            maxHeight: 140,
-            padding: "6px 0",
-            color: "var(--ink)",
-            fontStyle: input ? "normal" : "italic",
-            border: 0,
-          }}
-        />
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={voiceLoading}
+            placeholder={
+              listening
+                ? "listening… tap stop when done"
+                : voiceLoading
+                  ? "transcribing…"
+                  : "ask your memory…"
+            }
+            rows={1}
+            className="f-serif resize-none bg-transparent outline-none"
+            style={{
+              width: "100%",
+              fontSize: 16,
+              lineHeight: 1.5,
+              minHeight: 24,
+              maxHeight: 140,
+              padding: "6px 0",
+              color: "var(--ink)",
+              fontStyle: input ? "normal" : "italic",
+              border: 0,
+            }}
+          />
+          {voiceError && (
+            <span
+              className="f-sans"
+              style={{ fontSize: 11, color: "var(--blood)", paddingBottom: 4 }}
+            >
+              {voiceError}
+            </span>
+          )}
+        </div>
         <button
           type="button"
+          onClick={startVoice}
+          disabled={voiceLoading}
           className="design-btn-ghost press"
-          aria-label="Voice note"
-          style={{ width: 36, height: 36, minHeight: 36, padding: 0, color: "var(--ink-faint)" }}
+          aria-label={listening ? "Stop recording" : "Voice note"}
+          style={{
+            width: 36,
+            height: 36,
+            minHeight: 36,
+            padding: 0,
+            color: listening ? "var(--ember)" : "var(--ink-faint)",
+          }}
         >
-          {IconMic}
+          <IconMic on={listening} />
         </button>
         <button
           onClick={handleSend}
