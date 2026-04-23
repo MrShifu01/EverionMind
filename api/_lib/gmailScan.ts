@@ -192,7 +192,7 @@ export async function fetchRecentEmails(
   const listUrl = new URL("https://gmail.googleapis.com/gmail/v1/users/me/messages");
   listUrl.searchParams.set(
     "q",
-    `in:inbox after:${sinceUnix} -from:calendar-notification@google.com -from:googlecalendar-noreply@google.com -label:chats`,
+    `after:${sinceUnix} -in:spam -in:trash -from:calendar-notification@google.com -from:googlecalendar-noreply@google.com -label:chats`,
   );
   listUrl.searchParams.set("maxResults", String(Math.min(maxFetch, 500)));
 
