@@ -15,8 +15,10 @@ export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
 
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
 const GROQ_API_KEY = (process.env.GROQ_API_KEY || "").trim();
-const GEMINI_MODEL = (process.env.GEMINI_MODEL || "gemini-3.1-flash-lite-preview").trim();
-const GEMINI_CHAT_MODEL = (process.env.GEMINI_CHAT_MODEL || "gemini-3.1-flash-lite-preview").trim();
+const GEMINI_MODEL = (process.env.GEMINI_MODEL || "gemini-2.5-flash").trim();
+const GEMINI_CHAT_MODEL = (process.env.GEMINI_CHAT_MODEL || "gemini-2.5-flash").trim();
+const VALID_GEMINI_MODELS = new Set(["gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"]);
+const sanitizeGeminiModel = (m: string | undefined) => (m && VALID_GEMINI_MODELS.has(m)) ? m : GEMINI_MODEL;
 const SB_URL = (process.env.SUPABASE_URL || "").trim();
 const SB_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
 const sbHdrs = () => ({ "Content-Type": "application/json", apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` });
@@ -46,7 +48,7 @@ async function resolveProvider(userId: string, forChat = false): Promise<Provide
   // BYOK takes priority over managed
   if (s.anthropic_key) return { provider: "anthropic", key: s.anthropic_key, model: s.anthropic_model || "claude-sonnet-4-6" };
   if (s.openai_key) return { provider: "openai", key: s.openai_key, model: s.openai_model || "gpt-4o-mini" };
-  if (s.gemini_key) return { provider: "gemini-byok", key: s.gemini_key, model: s.gemini_byok_model || GEMINI_MODEL };
+  if (s.gemini_key) return { provider: "gemini-byok", key: s.gemini_key, model: sanitizeGeminiModel(s.gemini_byok_model) };
 
   // Managed Gemini only for pro users
   if ((s.plan ?? "free") === "pro" && GEMINI_API_KEY) {

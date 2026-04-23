@@ -372,7 +372,7 @@ export async function deepScanBatch(
   // Gemini primary; Anthropic only as BYOK fallback
   const prompt = buildPrompt(messages, prefs);
   const classified = geminiKey
-    ? await classifyWithGemini(prompt, geminiKey)
+    ? (await classifyWithGemini(prompt, geminiKey)).results
     : await classifyWithLLM(prompt);
 
   if (!classified.length) {

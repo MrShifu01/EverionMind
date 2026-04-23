@@ -14,9 +14,9 @@ const OPENAI_MODELS = [
   { id: "gpt-4-turbo", label: "GPT-4 Turbo" },
 ];
 const GEMINI_MODELS = [
-  { id: "gemini-3.1-flash-lite-preview", label: "Gemini 3.1 Flash Lite" },
   { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
   { id: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite" },
+  { id: "gemini-2.0-flash-lite", label: "Gemini 2.0 Flash Lite" },
   { id: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
 ];
 
