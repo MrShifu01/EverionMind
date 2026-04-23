@@ -1,8 +1,6 @@
 import type { ReactNode } from "react";
 
 interface MobileHeaderProps {
-  brainName: string;
-  brainEmoji: string;
   onToggleTheme: () => void;
   isDark: boolean;
   isOnline: boolean;
@@ -12,7 +10,6 @@ interface MobileHeaderProps {
 }
 
 export default function MobileHeader({
-  brainName,
   onToggleTheme,
   isDark,
   isOnline,
@@ -43,18 +40,6 @@ export default function MobileHeader({
           style={{ width: 4, height: 4, borderRadius: "50%", background: statusColor, flexShrink: 0 }}
           title={!isOnline ? "offline" : pendingCount > 0 ? `${pendingCount} pending` : "synced"}
         />
-        {brainName && brainName !== "Everion" && (
-          <span
-            className="f-serif"
-            style={{
-              fontSize: 14, fontStyle: "italic", color: "var(--ink-soft)",
-              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-            }}
-            title={brainName}
-          >
-            · {brainName}
-          </span>
-        )}
         {children}
       </div>
 

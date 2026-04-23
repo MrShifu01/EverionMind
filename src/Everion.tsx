@@ -251,8 +251,6 @@ function EverionContent({
       <div className="w-full overflow-x-hidden">
         <div className="bg-background lg:ml-60 lg:max-w-[calc(100vw-240px)] min-h-dvh">
           <MobileHeader
-            brainName={activeBrain?.name || "Everion"}
-            brainEmoji="🧠"
             onToggleTheme={toggleTheme}
             isDark={isDark}
             isOnline={isOnline}
