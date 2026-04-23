@@ -138,16 +138,21 @@ export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ brain_id: activeBrain?.id ?? null }),
       });
-      const data = await r?.json?.();
-      const created: number = data?.created ?? 0;
+      let data: any;
+      try { data = await r?.json(); } catch { /* non-JSON error body */ }
       if (data?.debug) setLastDebug(data.debug);
-      if (created > 0 && Array.isArray(data?.entries) && data.entries.length > 0) {
-        setReviewItems(data.entries);
+      if (!r?.ok) {
+        setMsg({ text: data?.error ?? "Scan failed. Please try again.", ok: false });
       } else {
-        setMsg({ text: created === 0 ? "No new items found." : `${created} new item${created !== 1 ? "s" : ""} flagged.`, ok: created > 0 });
+        const created: number = data?.created ?? 0;
+        if (created > 0 && Array.isArray(data?.entries) && data.entries.length > 0) {
+          setReviewItems(data.entries);
+        } else {
+          setMsg({ text: created === 0 ? "No new items found." : `${created} new item${created !== 1 ? "s" : ""} flagged.`, ok: created > 0 });
+        }
+        await fetchIntegration();
+        if (created > 0) await refreshEntries();
       }
-      await fetchIntegration();
-      if (created > 0) await refreshEntries();
     } catch {
       setMsg({ text: "Scan failed. Please try again.", ok: false });
     } finally {

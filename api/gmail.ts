@@ -216,8 +216,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     const rows: any[] = r.ok ? await r.json() : [];
     if (!rows[0]) return res.status(404).json({ error: "No Gmail integration found" });
     const brainId = typeof req.body?.brain_id === "string" ? req.body.brain_id : undefined;
-    const result = await scanGmailForUser(rows[0], true, brainId);
-    return res.status(200).json(result);
+    try {
+      const result = await scanGmailForUser(rows[0], true, brainId);
+      return res.status(200).json(result);
+    } catch (e: any) {
+      console.error("[gmail/scan]", e);
+      return res.status(500).json({ error: String(e?.message ?? e), created: 0, entries: [], debug: null });
+    }
   }
 
   if (req.method === "POST" && action === "delete-entries") {
