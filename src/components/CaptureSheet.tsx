@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { useCaptureSheetParse } from "../hooks/useCaptureSheetParse";
 import { useBrain as useBrainCtx } from "../context/BrainContext";
@@ -146,19 +146,6 @@ const IconArrowLeft = (
   </svg>
 );
 
-const TYPE_LABEL: Record<string, string> = {
-  note: "note",
-  link: "link",
-  reminder: "reminder",
-  idea: "idea",
-  contact: "contact",
-  person: "contact",
-  file: "file",
-  document: "file",
-};
-
-const SHEET_TYPE_CHIPS = ["note", "link", "reminder", "idea", "contact", "file"];
-
 const MOD = typeof navigator !== "undefined" && /Mac/.test(navigator.platform) ? "⌘" : "Ctrl";
 
 export default function CaptureSheet({
@@ -230,16 +217,6 @@ export default function CaptureSheet({
   const cameraRef = useRef<HTMLInputElement>(null);
   const docRef = useRef<HTMLInputElement>(null);
   const typeRef = useRef<HTMLDivElement>(null);
-
-  // Infer the likely type from the current text for the chip row highlight.
-  const inferredType = useMemo(() => {
-    const t = text;
-    if (/https?:\/\/|\.com|\.co\/|aeon|substack/i.test(t)) return "link";
-    if (/remind|tomorrow|call|email|text|pick up|don.t forget/i.test(t)) return "reminder";
-    if (/idea|what if|maybe|concept|story about/i.test(t)) return "idea";
-    if (/\+\d|@\w/.test(t)) return "contact";
-    return "note";
-  }, [text]);
 
   useEffect(() => {
     if (!typeOpen) return;
@@ -949,38 +926,6 @@ export default function CaptureSheet({
               )}
             </div>
 
-            {/* Type chip suggestion row */}
-            <div
-              style={{
-                padding: "0 24px 14px",
-                display: "flex",
-                gap: 6,
-                flexWrap: "wrap",
-                alignItems: "center",
-              }}
-            >
-              {SHEET_TYPE_CHIPS.map((t) => {
-                const active = inferredType === t;
-                return (
-                  <span
-                    key={t}
-                    className="design-chip f-sans"
-                    style={{
-                      background: active ? "var(--ember-wash)" : "transparent",
-                      color: active ? "var(--ember)" : "var(--ink-faint)",
-                      padding: "0 10px",
-                      height: 24,
-                      fontSize: 12,
-                      fontWeight: 500,
-                      border: "1px solid transparent",
-                    }}
-                  >
-                    {TYPE_LABEL[t] ?? t}
-                  </span>
-                );
-              })}
-            </div>
-
             {/* Status line */}
             {(status || errorDetail) && (
               <div style={{ padding: "0 24px 10px" }}>
@@ -1104,7 +1049,7 @@ export default function CaptureSheet({
                   onClick={handleSave}
                   disabled={!canSave || loading}
                   className="design-btn-primary press"
-                  style={{ height: 40, minHeight: 40 }}
+                  style={{ height: 40, minHeight: 40, borderRadius: 8 }}
                 >
                   {IconSend}
                   {loading ? "Saving…" : "Capture"}
