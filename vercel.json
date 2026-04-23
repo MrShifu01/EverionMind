@@ -34,6 +34,7 @@
     { "source": "/api/health",           "destination": "/api/user-data?resource=health" },
     { "source": "/api/vault",            "destination": "/api/user-data?resource=vault" },
     { "source": "/api/audit",            "destination": "/api/entries?resource=audit" },
+    { "source": "/api/graph",            "destination": "/api/entries?resource=graph" },
     { "source": "/v1/:action",           "destination": "/api/v1?action=:action" },
     { "source": "/.well-known/:path*", "destination": "/api/mcp?_wk=1" },
     { "source": "/token", "destination": "/api/mcp?_oauth=token" },
