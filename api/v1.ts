@@ -9,10 +9,7 @@
  * Routed via vercel.json: /v1/:action → /api/v1?action=:action
  */
 import { randomUUID } from "crypto";
-import type { ApiRequest, ApiResponse } from "./_lib/types";
-import { applySecurityHeaders } from "./_lib/securityHeaders.js";
-import { rateLimit } from "./_lib/rateLimit.js";
-import { resolveApiKey } from "./_lib/resolveApiKey.js";
+import { withApiKey, ApiError } from "./_lib/withAuth.js";
 import { retrieveEntries, rebuildConceptGraph } from "./_lib/retrievalCore.js";
 import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
 
@@ -216,25 +213,12 @@ const HANDLERS: Record<string, (auth: Auth, body: any) => Promise<any>> = {
   delete: handleDelete,
 };
 
-export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
-  applySecurityHeaders(res);
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-  if (!(await rateLimit(req, 30))) return res.status(429).json({ error: "Too many requests" });
-
-  const authHeader = (req.headers["authorization"] as string) ?? "";
-  const rawKey = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
-  if (!rawKey) return res.status(401).json({ error: "Missing Authorization header" });
-
-  const auth = await resolveApiKey(rawKey);
-  if (!auth) return res.status(401).json({ error: "Invalid or revoked API key" });
-
-  const fn = HANDLERS[req.query.action as string];
-  if (!fn) return res.status(404).json({ error: `Unknown action: ${req.query.action}` });
-
-  try {
-    return res.status(200).json(await fn(auth, req.body ?? {}));
-  } catch (e: any) {
-    if (e?.status) return res.status(e.status).json({ error: e.message });
-    return res.status(500).json({ error: e?.message ?? "Internal error" });
-  }
-}
+export default withApiKey(
+  { methods: ["POST"], rateLimit: 30 },
+  async ({ req, res, auth }) => {
+    const fn = HANDLERS[req.query.action as string];
+    if (!fn) throw new ApiError(404, `Unknown action: ${req.query.action}`);
+    const result = await fn({ userId: auth.userId, brainId: auth.brainId }, req.body ?? {});
+    res.status(200).json(result);
+  },
+);

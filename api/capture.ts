@@ -1,9 +1,6 @@
-import type { ApiRequest, ApiResponse } from "./_lib/types";
-import { verifyAuth } from "./_lib/verifyAuth.js";
-import { rateLimit } from "./_lib/rateLimit.js";
-import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
+import type { ApiRequest } from "./_lib/types";
+import { withAuth, requireBrainAccess, ApiError, type HandlerContext } from "./_lib/withAuth.js";
 import { generateEmbedding, generateEmbeddingsBatch, buildEntryText } from "./_lib/generateEmbedding.js";
-import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 import { sbHeaders, sbHeadersNoContent } from "./_lib/sbHeaders.js";
 import { computeCompletenessScore } from "./_lib/completeness.js";
 
@@ -11,47 +8,38 @@ export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
 
 const SB_URL = process.env.SUPABASE_URL;
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
-
-// Entry types are flexible — the AI decides the best label.
-// The only reserved type is "secret" (triggers E2E encryption).
-// We sanitise the value but impose no whitelist.
-
-// SEC-15: Validate rel values — short alphanumeric phrases only (no injection)
 const REL_PATTERN = /^[a-zA-Z0-9 _\-']{1,50}$/;
 
-// Dispatched via rewrite: /api/save-links → /api/capture?action=links
-export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
-  applySecurityHeaders(res);
-  res.setHeader("Cache-Control", "no-store");
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-
-  if (req.query.action === "links") return handleSaveLinks(req, res);
-  if (req.query.action === "embed") return handleEmbed(req, res);
-  return handleCapture(req, res);
+function rateLimitForCapture(req: ApiRequest): number {
+  const action = req.query.action as string | undefined;
+  if (action === "embed") return 120;
+  return 30; // capture (default) + links
 }
 
+// Dispatched via rewrite: /api/save-links → /api/capture?action=links
+export default withAuth(
+  { methods: ["POST"], rateLimit: rateLimitForCapture, cacheControl: "no-store" },
+  async (ctx) => {
+    const action = ctx.req.query.action as string | undefined;
+    if (action === "links") return handleSaveLinks(ctx);
+    if (action === "embed") return handleEmbed(ctx);
+    return handleCapture(ctx);
+  },
+);
+
 // ── POST /api/capture ──
-async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
-  if (!(await rateLimit(req, 30))) return res.status(429).json({ error: "Too many requests" });
-
-  const user: any = await verifyAuth(req);
-  if (!user) return res.status(401).json({ error: "Unauthorized" });
-
+async function handleCapture({ req, res, user }: HandlerContext): Promise<void> {
   const { p_title, p_content, p_type, p_metadata, p_tags, p_brain_id, p_extra_brain_ids } = req.body;
 
   if (!p_title || typeof p_title !== "string" || p_title.trim().length === 0) {
-    return res.status(400).json({ error: "Missing or invalid title" });
+    throw new ApiError(400, "Missing or invalid title");
   }
   if (p_extra_brain_ids !== undefined && p_extra_brain_ids !== null) {
-    if (!Array.isArray(p_extra_brain_ids)) {
-      return res.status(400).json({ error: "p_extra_brain_ids must be an array" });
-    }
-    if (p_extra_brain_ids.length > 5) {
-      return res.status(400).json({ error: "p_extra_brain_ids max 5 items" });
-    }
+    if (!Array.isArray(p_extra_brain_ids)) throw new ApiError(400, "p_extra_brain_ids must be an array");
+    if (p_extra_brain_ids.length > 5) throw new ApiError(400, "p_extra_brain_ids max 5 items");
     const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!p_extra_brain_ids.every((id: any) => typeof id === 'string' && uuidRe.test(id))) {
-      return res.status(400).json({ error: "p_extra_brain_ids must contain valid UUIDs" });
+      throw new ApiError(400, "p_extra_brain_ids must contain valid UUIDs");
     }
   }
 
@@ -65,24 +53,18 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
     ...(p_brain_id && typeof p_brain_id === "string" ? { p_brain_id } : {}),
   };
 
-  // Verify user has access to the primary brain
   if (p_brain_id && typeof p_brain_id === "string") {
-    const primaryAccess = await checkBrainAccess(user.id, p_brain_id);
-    if (!primaryAccess) return res.status(403).json({ error: "Forbidden" });
+    await requireBrainAccess(user.id, p_brain_id);
   }
 
-  // Verify user is a member/owner of each extra brain before inserting
   if (Array.isArray(p_extra_brain_ids) && p_extra_brain_ids.length > 0) {
     for (const brainId of p_extra_brain_ids) {
       if (typeof brainId !== "string") continue;
-      const access = await checkBrainAccess(user.id, brainId);
-      if (!access) {
-        return res.status(403).json({ error: `Not a member of brain ${brainId}` });
-      }
+      await requireBrainAccess(user.id, brainId);
     }
   }
 
-  // S3-4: URL deduplication — merge instead of duplicate when same URL exists
+  // URL deduplication — merge instead of duplicate when same URL exists
   const sourceUrl = safeBody.p_metadata?.source_url || safeBody.p_metadata?.url;
   if (sourceUrl && p_brain_id) {
     const dedupRes = await fetch(`${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(p_brain_id)}&deleted_at=is.null&select=id,metadata`, { headers: sbHeadersNoContent() });
@@ -102,7 +84,8 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
             }).catch((err: any) => console.error('[capture:dedup:entry_brains]', err));
           }
         }
-        return res.status(200).json({ id: dupe.id, merged: true });
+        res.status(200).json({ id: dupe.id, merged: true });
+        return;
       }
     }
   }
@@ -111,8 +94,6 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
   const cScore = computeCompletenessScore(safeBody.p_title, safeBody.p_content, safeBody.p_type, safeBody.p_tags, safeBody.p_metadata);
   safeBody.p_metadata = { ...safeBody.p_metadata, completeness_score: cScore };
 
-  // Direct INSERT — avoids the capture() RPC whose signature drifted from the
-  // live DB (missing p_user_id param). PostgREST returns the inserted row array.
   const insertBody: Record<string, any> = {
     user_id: safeBody.p_user_id,
     title: safeBody.p_title,
@@ -130,11 +111,10 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
   });
 
   const rawData: any = await response.json();
-  // Normalise: PostgREST returns an array; downstream code expects { id }.
   const inserted = Array.isArray(rawData) ? rawData[0] : rawData;
   const data: any = inserted?.id ? { id: inserted.id } : rawData;
 
-  // SEC-14: Fire-and-forget audit log write to Supabase
+  // Audit log (fire-and-forget)
   if (response.ok && data?.id) {
     fetch(`${SB_URL}/rest/v1/audit_log`, {
       method: 'POST',
@@ -145,10 +125,10 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
         resource_id: data.id,
         timestamp: new Date().toISOString(),
       }),
-    }).catch((err: any) => console.error('[capture:audit_log]', err.message)); // best-effort, never blocks
+    }).catch((err: any) => console.error('[capture:audit_log]', err.message));
   }
 
-  // If extra brain IDs provided, share the entry into those brains via entry_brains
+  // Extra-brain sharing
   if (response.ok && data?.id && Array.isArray(p_extra_brain_ids) && p_extra_brain_ids.length > 0) {
     const extraIds = p_extra_brain_ids.filter((id: any) => typeof id === "string" && id !== p_brain_id);
     if (extraIds.length > 0) {
@@ -157,20 +137,13 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
         method: "POST",
         headers: sbHeaders({ Prefer: "resolution=ignore-duplicates" }),
         body: JSON.stringify(rows),
-      }).catch((err: any) => console.error('[capture:entry_brains] Failed to share entry to extra brains', err));
+      }).catch((err: any) => console.error('[capture:entry_brains]', err));
     }
   }
 
-  // Auto-embed: if embed headers are present, embed the new entry BEFORE responding.
-  // Must be awaited — on Vercel serverless, fire-and-forget promises are killed when
-  // the function returns (see https://vercel.com/docs/functions — use waitUntil or await).
-  // Previously this was .then()/.catch() which caused single-entry embeds to silently
-  // vanish while batch embed still worked.
+  // Auto-embed (must be awaited on Vercel serverless)
   let embedError: string | null = null;
-
   if (response.ok && data?.id) {
-    // Always use server Gemini key for embeddings
-    const embedProvider = "google";
     const embedKey = GEMINI_API_KEY;
     if (embedKey) {
       const entryForEmbed = { title: safeBody.p_title, content: safeBody.p_content, tags: safeBody.p_tags };
@@ -184,7 +157,7 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
             body: JSON.stringify({
               embedding: `[${embedding.join(",")}]`,
               embedded_at: new Date().toISOString(),
-              embedding_provider: embedProvider,
+              embedding_provider: "google",
             }),
           },
         );
@@ -206,7 +179,7 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
     }
   }
 
-  // --- Streak tracking ---
+  // Streak tracking
   try {
     const userRes = await fetch(
       `${SB_URL}/auth/v1/admin/users/${user.id}`,
@@ -242,20 +215,14 @@ async function handleCapture(req: ApiRequest, res: ApiResponse): Promise<void> {
 }
 
 // ── POST /api/save-links (rewritten to /api/capture?action=links) ──
-async function handleSaveLinks(req: ApiRequest, res: ApiResponse): Promise<void> {
-  if (!(await rateLimit(req, 30))) return res.status(429).json({ error: "Too many requests" });
-  const user: any = await verifyAuth(req);
-  if (!user) return res.status(401).json({ error: "Unauthorized" });
-
+async function handleSaveLinks({ req, res, user }: HandlerContext): Promise<void> {
   const { links, brain_id } = req.body;
-  if (!Array.isArray(links)) return res.status(400).json({ error: "links must be an array" });
+  if (!Array.isArray(links)) throw new ApiError(400, "links must be an array");
 
   if (brain_id && typeof brain_id === "string") {
-    const access = await checkBrainAccess(user.id, brain_id);
-    if (!access) return res.status(403).json({ error: "Forbidden" });
+    await requireBrainAccess(user.id, brain_id);
   }
 
-  // Validate link structure and rel whitelist
   const valid = links.filter((l: any) => {
     if (!l.from || !l.to || !l.rel) return false;
     if (typeof l.from !== "string" || typeof l.to !== "string" || typeof l.rel !== "string") return false;
@@ -265,13 +232,10 @@ async function handleSaveLinks(req: ApiRequest, res: ApiResponse): Promise<void>
 
   if (valid.length === 0) {
     const hasInvalidRel = links.some((l: any) => l.rel && !REL_PATTERN.test(l.rel));
-    if (hasInvalidRel) {
-      return res.status(400).json({ error: "rel must be 1-50 alphanumeric characters" });
-    }
-    return res.status(400).json({ error: "No valid links" });
+    if (hasInvalidRel) throw new ApiError(400, "rel must be 1-50 alphanumeric characters");
+    throw new ApiError(400, "No valid links");
   }
 
-  // Direct insert into links table — simpler and always works
   const rows = valid.map((l: any) => ({
     from: l.from,
     to: l.to,
@@ -288,14 +252,14 @@ async function handleSaveLinks(req: ApiRequest, res: ApiResponse): Promise<void>
   if (!response.ok) {
     const err = await response.text().catch(() => "");
     console.error(`[save-links] Direct insert failed (${response.status}): ${err}`);
-    // Try RPC as fallback
     const rpcRes = await fetch(`${SB_URL}/rest/v1/rpc/save_links`, {
       method: "POST",
       headers: sbHeaders(),
       body: JSON.stringify({ p_user_id: user.id, p_links: JSON.stringify(valid), ...(brain_id ? { p_brain_id: brain_id } : {}) }),
     });
     if (!rpcRes.ok) {
-      return res.status(200).json({ ok: true, stored: "local-only", count: 0 });
+      res.status(200).json({ ok: true, stored: "local-only", count: 0 });
+      return;
     }
   }
 
@@ -303,27 +267,20 @@ async function handleSaveLinks(req: ApiRequest, res: ApiResponse): Promise<void>
 }
 
 // ── POST /api/embed (rewritten to /api/capture?action=embed) ──
-export async function handleEmbed(req: ApiRequest, res: ApiResponse): Promise<void> {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-  if (!(await rateLimit(req, 120))) return res.status(429).json({ error: "Too many requests" });
-
-  const user: any = await verifyAuth(req);
-  if (!user) return res.status(401).json({ error: "Unauthorized" });
-
-  // Always use server Gemini key for embeddings
-  const provider = "google";
+async function handleEmbed({ req, res, user }: HandlerContext): Promise<void> {
   const apiKey = GEMINI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: "Embeddings not configured (missing GEMINI_API_KEY)" });
+  if (!apiKey) throw new ApiError(500, "Embeddings not configured (missing GEMINI_API_KEY)");
+
   const { entry_id, brain_id, batch, force } = req.body || {};
 
   if (entry_id && !batch) {
-    if (typeof entry_id !== "string" || entry_id.length > 100) return res.status(400).json({ error: "Invalid entry_id" });
+    if (typeof entry_id !== "string" || entry_id.length > 100) throw new ApiError(400, "Invalid entry_id");
     const entryRes = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entry_id)}&select=id,title,content,tags,brain_id`, { headers: sbHeadersNoContent() });
-    if (!entryRes.ok) return res.status(502).json({ error: "Database error" });
+    if (!entryRes.ok) throw new ApiError(502, "Database error");
     const [entry]: any[] = await entryRes.json();
-    if (!entry) return res.status(404).json({ error: "Entry not found" });
-    const access = await checkBrainAccess(user.id, entry.brain_id);
-    if (!access) return res.status(403).json({ error: "Forbidden" });
+    if (!entry) throw new ApiError(404, "Entry not found");
+    await requireBrainAccess(user.id, entry.brain_id);
+
     const MAX_ATTEMPTS = 3;
     let lastErr: any;
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
@@ -333,30 +290,33 @@ export async function handleEmbed(req: ApiRequest, res: ApiResponse): Promise<vo
         await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entry_id)}`, {
           method: "PATCH",
           headers: sbHeaders({ Prefer: "return=minimal" }),
-          body: JSON.stringify({ embedding: `[${embedding.join(",")}]`, embedded_at: new Date().toISOString(), embedding_provider: provider }),
+          body: JSON.stringify({ embedding: `[${embedding.join(",")}]`, embedded_at: new Date().toISOString(), embedding_provider: "google" }),
         });
-        return res.status(200).json({ ok: true });
+        res.status(200).json({ ok: true });
+        return;
       } catch (e: any) {
         lastErr = e;
         console.error(`[embed:single] attempt ${attempt + 1} failed:`, e.message);
       }
     }
-    return res.status(502).json({ error: lastErr?.message ?? "Embedding failed" });
+    throw new ApiError(502, lastErr?.message ?? "Embedding failed");
   }
 
   if (batch && brain_id) {
-    if (typeof brain_id !== "string" || brain_id.length > 100) return res.status(400).json({ error: "Invalid brain_id" });
-    const access = await checkBrainAccess(user.id, brain_id);
-    if (!access) return res.status(403).json({ error: "Forbidden" });
-    // Always exclude soft-deleted entries
+    if (typeof brain_id !== "string" || brain_id.length > 100) throw new ApiError(400, "Invalid brain_id");
+    await requireBrainAccess(user.id, brain_id);
+
     const baseFilter = `brain_id=eq.${encodeURIComponent(brain_id)}&deleted_at=is.null`;
     const filter = force
       ? baseFilter
-      : `${baseFilter}&or=(embedded_at.is.null,embedding_provider.neq.${encodeURIComponent(provider)})`;
+      : `${baseFilter}&or=(embedded_at.is.null,embedding_provider.neq.google)`;
     const entriesRes = await fetch(`${SB_URL}/rest/v1/entries?${filter}&select=id,title,content,tags&limit=25`, { headers: sbHeadersNoContent() });
-    if (!entriesRes.ok) return res.status(502).json({ error: "Database error" });
+    if (!entriesRes.ok) throw new ApiError(502, "Database error");
     const entries: any[] = await entriesRes.json();
-    if (!entries.length) return res.status(200).json({ processed: 0, failed: 0, remaining: 0 });
+    if (!entries.length) {
+      res.status(200).json({ processed: 0, failed: 0, remaining: 0 });
+      return;
+    }
     let processed = 0;
     let failed = 0;
     const texts = entries.map(buildEntryText);
@@ -366,7 +326,7 @@ export async function handleEmbed(req: ApiRequest, res: ApiResponse): Promise<vo
         fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entry.id)}`, {
           method: "PATCH",
           headers: sbHeaders({ Prefer: "return=minimal" }),
-          body: JSON.stringify({ embedding: `[${embeddings[idx].join(",")}]`, embedded_at: new Date().toISOString(), embedding_provider: provider }),
+          body: JSON.stringify({ embedding: `[${embeddings[idx].join(",")}]`, embedded_at: new Date().toISOString(), embedding_provider: "google" }),
         }).then(async (r: Response) => {
           if (r.ok) { processed++; }
           else { const err = await r.text().catch(() => String(r.status)); console.error("[embed:patch]", entry.id, r.status, err); failed++; }
@@ -374,13 +334,13 @@ export async function handleEmbed(req: ApiRequest, res: ApiResponse): Promise<vo
       ));
     } catch (e: any) {
       console.error("[embed:batch]", e.message);
-      return res.status(502).json({ error: e.message });
+      throw new ApiError(502, e.message);
     }
-    // Re-fetch remaining count AFTER patches so the number is accurate
     const freshCountRes = await fetch(`${SB_URL}/rest/v1/entries?${filter}&select=id`, { headers: sbHeadersNoContent({ Prefer: "count=exact" }) });
     const freshRemaining = parseInt(freshCountRes.headers.get("content-range")?.split("/")?.[1] || "0", 10);
-    return res.status(200).json({ processed, failed, remaining: isNaN(freshRemaining) ? 0 : freshRemaining });
+    res.status(200).json({ processed, failed, remaining: isNaN(freshRemaining) ? 0 : freshRemaining });
+    return;
   }
 
-  return res.status(400).json({ error: "Provide either entry_id or { brain_id, batch: true }" });
+  throw new ApiError(400, "Provide either entry_id or { brain_id, batch: true }");
 }

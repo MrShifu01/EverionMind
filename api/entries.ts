@@ -1,8 +1,5 @@
-import type { ApiRequest, ApiResponse } from "./_lib/types";
-import { verifyAuth } from "./_lib/verifyAuth.js";
-import { rateLimit } from "./_lib/rateLimit.js";
-import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
-import { applySecurityHeaders } from "./_lib/securityHeaders.js";
+import type { ApiRequest } from "./_lib/types";
+import { withAuth, requireBrainAccess, ApiError, type HandlerContext } from "./_lib/withAuth.js";
 import { sbHeaders, sbHeadersNoContent } from "./_lib/sbHeaders.js";
 import { computeCompletenessScore } from "./_lib/completeness.js";
 import { SERVER_PROMPTS } from "./_lib/prompts.js";
@@ -10,43 +7,42 @@ import { SERVER_PROMPTS } from "./_lib/prompts.js";
 const SB_URL = process.env.SUPABASE_URL;
 const ENTRY_FIELDS = "id,title,content,type,tags,metadata,brain_id,importance,pinned,created_at,embedded_at";
 
-// Dispatched via rewrites:
-//   /api/delete-entry, /api/update-entry → /api/entries
-export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
-  applySecurityHeaders(res);
-  if (req.query.resource === "entry-brains") return handleEntryBrains(req, res);
-  if (req.query.resource === "audit" && req.method === "POST") return handleAudit(req, res);
-  if (req.query.resource === "graph") return handleGraph(req, res);
-  if (req.method === "GET") return handleGet(req, res);
-  if (req.method === "DELETE") return handleDelete(req, res);
-  if (req.method === "PATCH") return handlePatch(req, res);
-  return res.status(405).json({ error: "Method not allowed" });
+function rateLimitForEntries(req: ApiRequest): number {
+  const resource = req.query.resource as string | undefined;
+  if (resource === "audit") return 10;
+  if (req.method === "GET" && !resource) return 60;
+  return 30;
 }
 
+// Dispatched via rewrites:
+//   /api/delete-entry, /api/update-entry → /api/entries
+export default withAuth(
+  { methods: ["GET", "POST", "PATCH", "DELETE"], rateLimit: rateLimitForEntries },
+  async (ctx) => {
+    const resource = ctx.req.query.resource as string | undefined;
+    if (resource === "entry-brains") return handleEntryBrains(ctx);
+    if (resource === "audit" && ctx.req.method === "POST") return handleAudit(ctx);
+    if (resource === "graph") return handleGraph(ctx);
+    if (ctx.req.method === "GET") return handleGet(ctx);
+    if (ctx.req.method === "DELETE") return handleDelete(ctx);
+    if (ctx.req.method === "PATCH") return handlePatch(ctx);
+    throw new ApiError(405, "Method not allowed");
+  },
+);
+
 // ── GET /api/entries ──
-async function handleGet(req: ApiRequest, res: ApiResponse): Promise<void> {
-  if (!(await rateLimit(req, 60))) return res.status(429).json({ error: "Too many requests" });
-
-  const user: any = await verifyAuth(req);
-  if (!user) return res.status(401).json({ error: "Unauthorized" });
-
+async function handleGet({ req, res, user }: HandlerContext): Promise<void> {
   const brain_id = req.query.brain_id as string | undefined;
   const limit = Math.min(parseInt((req.query.limit as string) || "1000", 10), 1000);
   const cursor = req.query.cursor as string | undefined;
   const trash = req.query.trash === "true";
 
-  // Build cursor + trash filters for direct REST queries
   const cursorFilter = cursor ? `&created_at=lt.${encodeURIComponent(cursor)}` : "";
-  const deletedFilter = trash
-    ? "&deleted_at=not.is.null"
-    : "&deleted_at=is.null";
+  const deletedFilter = trash ? "&deleted_at=not.is.null" : "&deleted_at=is.null";
 
   if (brain_id) {
-    // SEC-1: Verify the requesting user is a member or owner of this brain
-    const access = await checkBrainAccess(user.id, brain_id);
-    if (!access) return res.status(403).json({ error: "Forbidden" });
+    await requireBrainAccess(user.id, brain_id);
 
-    // Fetch entry IDs shared into this brain via entry_brains junction table
     const sharedRes = await fetch(
       `${SB_URL}/rest/v1/entry_brains?brain_id=eq.${encodeURIComponent(brain_id)}&select=entry_id`,
       { headers: sbHeadersNoContent() }
@@ -54,30 +50,26 @@ async function handleGet(req: ApiRequest, res: ApiResponse): Promise<void> {
     const sharedRows: any[] = sharedRes.ok ? await sharedRes.json() : [];
     const sharedIds: string[] = sharedRows.map((r: any) => r.entry_id).filter(Boolean);
 
-    // Build OR filter: primary brain_id match OR shared via entry_brains
     const sharedIdFilter = sharedIds.length > 0
       ? `,id.in.(${sharedIds.map(encodeURIComponent).join(",")})`
       : "";
     const orFilter = `&or=(brain_id.eq.${encodeURIComponent(brain_id)}${sharedIdFilter})`;
 
-    // Direct query: includes primary brain entries + shared entries from entry_brains.
-    // Uses PostgREST directly so we always get the deleted_at filter applied — the
-    // get_entries_for_brain RPC did not filter soft-deletes, causing ghost-return.
     const directUrl = `${SB_URL}/rest/v1/entries?select=${encodeURIComponent(ENTRY_FIELDS)}&order=created_at.desc&limit=${limit + 1}${deletedFilter}${orFilter}${cursorFilter}`;
     const directRes = await fetch(directUrl, { headers: sbHeadersNoContent() });
-    if (!directRes.ok) return res.status(502).json({ error: "Database error" });
+    if (!directRes.ok) throw new ApiError(502, "Database error");
     const rows: any[] = await directRes.json();
     const hasMore = rows.length > limit;
     const results = hasMore ? rows.slice(0, limit) : rows;
     const nextCursor = hasMore ? results[results.length - 1].created_at : null;
     res.setHeader("Cache-Control", "private, max-age=300");
-    return res.status(200).json({ entries: results, nextCursor, hasMore });
+    res.status(200).json({ entries: results, nextCursor, hasMore });
+    return;
   }
 
-  // Fallback: user's own entries (pre-migration compatibility)
   const url = `${SB_URL}/rest/v1/entries?select=${encodeURIComponent(ENTRY_FIELDS)}&order=created_at.desc&limit=${limit + 1}${deletedFilter}&user_id=eq.${encodeURIComponent(user.id)}${cursorFilter}`;
   const response = await fetch(url, { headers: sbHeadersNoContent() });
-  if (!response.ok) return res.status(502).json({ error: "Database error" });
+  if (!response.ok) throw new ApiError(502, "Database error");
   const rows: any[] = await response.json();
   const hasMore = rows.length > limit;
   const results = hasMore ? rows.slice(0, limit) : rows;
@@ -86,43 +78,30 @@ async function handleGet(req: ApiRequest, res: ApiResponse): Promise<void> {
 }
 
 // ── DELETE /api/entries (was /api/delete-entry) — soft delete or hard delete ──
-async function handleDelete(req: ApiRequest, res: ApiResponse): Promise<void> {
-  if (!(await rateLimit(req, 30))) return res.status(429).json({ error: "Too many requests" });
-
-  const user: any = await verifyAuth(req);
-  if (!user) return res.status(401).json({ error: "Unauthorized" });
-
+async function handleDelete({ req, res, user }: HandlerContext): Promise<void> {
   const { id } = req.body;
   if (!id || typeof id !== "string" || id.length > 100) {
-    return res.status(400).json({ error: "Missing or invalid id" });
+    throw new ApiError(400, "Missing or invalid id");
   }
 
   const permanent = req.query.permanent === "true";
 
-  // SEC-1: Verify the requesting user is a member or owner of this entry's brain
   const entryRes = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&select=brain_id`, {
     headers: sbHeadersNoContent(),
   });
-  if (!entryRes.ok) return res.status(502).json({ error: "Database error" });
+  if (!entryRes.ok) throw new ApiError(502, "Database error");
   const [entry]: any[] = await entryRes.json();
-  if (!entry) return res.status(404).json({ error: "Not found" });
-
-  const access = await checkBrainAccess(user.id, entry.brain_id);
-  if (!access) return res.status(403).json({ error: "Forbidden" });
+  if (!entry) throw new ApiError(404, "Not found");
+  await requireBrainAccess(user.id, entry.brain_id);
 
   if (permanent) {
-    // Hard delete: permanently remove the entry (no recovery)
     const response = await fetch(
       `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`,
-      {
-        method: "DELETE",
-        headers: sbHeaders({ "Prefer": "return=minimal" }),
-      }
+      { method: "DELETE", headers: sbHeaders({ "Prefer": "return=minimal" }) },
     );
 
     console.log(`[audit] HARD_DELETE entry id=${id} user=${user.id} ok=${response.ok}`);
 
-    // SEC-14: Fire-and-forget audit log write to Supabase
     fetch(`${SB_URL}/rest/v1/audit_log`, {
       method: 'POST',
       headers: sbHeaders({ 'Prefer': 'return=minimal' }),
@@ -132,24 +111,24 @@ async function handleDelete(req: ApiRequest, res: ApiResponse): Promise<void> {
         resource_id: id,
         timestamp: new Date().toISOString(),
       }),
-    }).catch(() => {}); // best-effort, never blocks
+    }).catch(() => {});
 
-    return res.status(response.ok ? 200 : 502).json({ ok: response.ok });
+    res.status(response.ok ? 200 : 502).json({ ok: response.ok });
+    return;
   }
 
-  // Soft delete: set deleted_at instead of hard deleting (recoverable within 30 days)
+  // Soft delete
   const response = await fetch(
     `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`,
     {
       method: "PATCH",
       headers: sbHeaders({ "Prefer": "return=minimal" }),
       body: JSON.stringify({ deleted_at: new Date().toISOString() }),
-    }
+    },
   );
 
   console.log(`[audit] SOFT_DELETE entry id=${id} user=${user.id} ok=${response.ok}`);
 
-  // SEC-14: Fire-and-forget audit log write to Supabase
   fetch(`${SB_URL}/rest/v1/audit_log`, {
     method: 'POST',
     headers: sbHeaders({ 'Prefer': 'return=minimal' }),
@@ -159,37 +138,27 @@ async function handleDelete(req: ApiRequest, res: ApiResponse): Promise<void> {
       resource_id: id,
       timestamp: new Date().toISOString(),
     }),
-  }).catch(() => {}); // best-effort, never blocks
+  }).catch(() => {});
 
   res.status(response.ok ? 200 : 502).json({ ok: response.ok });
 }
 
 // ── PATCH /api/entries (was /api/update-entry) ──
-async function handlePatch(req: ApiRequest, res: ApiResponse): Promise<void> {
-  if (!(await rateLimit(req, 30))) return res.status(429).json({ error: "Too many requests" });
-
-  const user: any = await verifyAuth(req);
-  if (!user) return res.status(401).json({ error: "Unauthorized" });
-
+async function handlePatch({ req, res, user }: HandlerContext): Promise<void> {
   const action = req.query.action as string | undefined;
 
-  // ── PATCH ?action=restore — restore a soft-deleted entry ──
   if (action === "restore") {
     const { id } = req.body;
     if (!id || typeof id !== "string" || id.length > 100) {
-      return res.status(400).json({ error: "Missing or invalid id" });
+      throw new ApiError(400, "Missing or invalid id");
     }
-
-    // SEC-1: Verify the requesting user is a member or owner of this entry's brain
     const entryRes = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&select=brain_id`, {
       headers: sbHeadersNoContent(),
     });
-    if (!entryRes.ok) return res.status(502).json({ error: "Database error" });
+    if (!entryRes.ok) throw new ApiError(502, "Database error");
     const [entryData]: any[] = await entryRes.json();
-    if (!entryData) return res.status(404).json({ error: "Not found" });
-
-    const access = await checkBrainAccess(user.id, entryData.brain_id);
-    if (!access) return res.status(403).json({ error: "Forbidden" });
+    if (!entryData) throw new ApiError(404, "Not found");
+    await requireBrainAccess(user.id, entryData.brain_id);
 
     const response = await fetch(
       `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`,
@@ -197,22 +166,23 @@ async function handlePatch(req: ApiRequest, res: ApiResponse): Promise<void> {
         method: "PATCH",
         headers: sbHeaders({ "Prefer": "return=representation" }),
         body: JSON.stringify({ deleted_at: null }),
-      }
+      },
     );
     console.log(`[audit] RESTORE entry id=${id} user=${user.id} ok=${response.ok}`);
     const data: any = await response.json();
-    return res.status(response.ok ? 200 : 502).json(data);
+    res.status(response.ok ? 200 : 502).json(data);
+    return;
   }
 
   const { id, title, content, type, tags, metadata, brain_id } = req.body;
   if (!id || typeof id !== "string" || id.length > 100) {
-    return res.status(400).json({ error: "Missing or invalid id" });
+    throw new ApiError(400, "Missing or invalid id");
   }
   if (title !== undefined && (typeof title !== "string" || title.length > 500)) {
-    return res.status(400).json({ error: "Invalid title" });
+    throw new ApiError(400, "Invalid title");
   }
   if (type !== undefined && (typeof type !== "string" || type.length > 50)) {
-    return res.status(400).json({ error: "Invalid type" });
+    throw new ApiError(400, "Invalid type");
   }
 
   const patch: Record<string, any> = {};
@@ -223,24 +193,18 @@ async function handlePatch(req: ApiRequest, res: ApiResponse): Promise<void> {
   if (metadata !== undefined && typeof metadata === "object" && !Array.isArray(metadata)) patch.metadata = metadata;
   if (brain_id !== undefined && typeof brain_id === "string" && brain_id.length <= 100) patch.brain_id = brain_id;
 
-  // SEC-1: Verify the requesting user is a member or owner of this entry's brain
   const entryRes = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&select=brain_id,title,content,type,tags,metadata`, {
     headers: sbHeadersNoContent(),
   });
-  if (!entryRes.ok) return res.status(502).json({ error: "Database error" });
+  if (!entryRes.ok) throw new ApiError(502, "Database error");
   const [entry]: any[] = await entryRes.json();
-  if (!entry) return res.status(404).json({ error: "Not found" });
+  if (!entry) throw new ApiError(404, "Not found");
+  await requireBrainAccess(user.id, entry.brain_id);
 
-  const access = await checkBrainAccess(user.id, entry.brain_id);
-  if (!access) return res.status(403).json({ error: "Forbidden" });
-
-  // If moving the entry to a different brain, verify access to the target brain
   if (patch.brain_id !== undefined && patch.brain_id !== entry.brain_id) {
-    const targetAccess = await checkBrainAccess(user.id, patch.brain_id);
-    if (!targetAccess) return res.status(403).json({ error: "Forbidden" });
+    await requireBrainAccess(user.id, patch.brain_id);
   }
 
-  // Recalculate completeness score with merged values
   const mergedTitle = patch.title ?? entry.title ?? "";
   const mergedContent = patch.content ?? entry.content ?? "";
   const mergedType = patch.type ?? entry.type ?? "note";
@@ -249,7 +213,6 @@ async function handlePatch(req: ApiRequest, res: ApiResponse): Promise<void> {
   const cScore = computeCompletenessScore(mergedTitle, mergedContent, mergedType, mergedTags, mergedMeta);
   const finalMeta = { ...(entry.metadata || {}), ...(patch.metadata || {}), completeness_score: cScore };
 
-  // Reset enrichment flags when substantive content changes so the client re-enriches
   const titleChanged = patch.title !== undefined && patch.title !== (entry.title ?? "");
   const contentChanged = patch.content !== undefined && patch.content !== (entry.content ?? "");
   const typeChanged = patch.type !== undefined && patch.type !== (entry.type ?? "note");
@@ -262,7 +225,6 @@ async function handlePatch(req: ApiRequest, res: ApiResponse): Promise<void> {
       parsed: false,
     };
   }
-  // Clear audit flags when content, title, or type changes — stale flags no longer apply
   if (titleChanged || contentChanged || typeChanged) {
     (finalMeta as any).audit_flags = null;
   }
@@ -275,12 +237,11 @@ async function handlePatch(req: ApiRequest, res: ApiResponse): Promise<void> {
       method: "PATCH",
       headers: sbHeaders({ "Prefer": "return=representation" }),
       body: JSON.stringify(patch),
-    }
+    },
   );
 
   console.log(`[audit] PATCH entry id=${id} user=${user.id} ok=${response.ok}`);
 
-  // SEC-14: Fire-and-forget audit log write to Supabase
   fetch(`${SB_URL}/rest/v1/audit_log`, {
     method: 'POST',
     headers: sbHeaders({ 'Prefer': 'return=minimal' }),
@@ -290,16 +251,16 @@ async function handlePatch(req: ApiRequest, res: ApiResponse): Promise<void> {
       resource_id: id,
       timestamp: new Date().toISOString(),
     }),
-  }).catch(() => {}); // best-effort, never blocks
+  }).catch(() => {});
 
   const data: any = await response.json();
   res.status(response.ok ? 200 : 502).json(data);
 }
 
 // ── /api/audit (rewritten to /api/entries?resource=audit) ──
-const AUDIT_GEMINI_BATCH = 50;  // entries per Gemini call
-const AUDIT_MAX_TOKENS  = 4096; // output tokens per batch (2 flags × 50 entries × ~40 tokens)
-const AUDIT_DB_PAGE     = 500;  // rows per Supabase fetch
+const AUDIT_GEMINI_BATCH = 50;
+const AUDIT_MAX_TOKENS  = 4096;
+const AUDIT_DB_PAGE     = 500;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function runGeminiBatch(
@@ -342,20 +303,10 @@ async function runGeminiBatch(
   }
 }
 
-async function handleAudit(req: ApiRequest, res: ApiResponse): Promise<void> {
-  if (!(await rateLimit(req, 10))) return res.status(429).json({ error: "Too many requests" });
-  const user: any = await verifyAuth(req);
-  if (!user) return res.status(401).json({ error: "Unauthorized" });
-
+async function handleAudit({ req, res, user }: HandlerContext): Promise<void> {
   const { brain_id, pace } = req.body;
-  if (!brain_id || typeof brain_id !== "string" || brain_id.length > 100) {
-    return res.status(400).json({ error: "Missing or invalid brain_id" });
-  }
+  await requireBrainAccess(user.id, brain_id);
 
-  const access = await checkBrainAccess(user.id, brain_id);
-  if (!access) return res.status(403).json({ error: "Forbidden" });
-
-  // Fetch entries for this brain (capped at 500 most recent to avoid timeout)
   const AUDIT_ENTRY_CAP = 500;
   const cappedEntries: any[] = [];
   let offset = 0;
@@ -364,7 +315,7 @@ async function handleAudit(req: ApiRequest, res: ApiResponse): Promise<void> {
       `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brain_id)}&select=id,title,content,type,tags,metadata&order=created_at.desc&limit=${AUDIT_DB_PAGE}&offset=${offset}`,
       { headers: sbHeadersNoContent() },
     );
-    if (!r.ok) return res.status(502).json({ error: "Database error" });
+    if (!r.ok) throw new ApiError(502, "Database error");
     const page: any[] = await r.json();
     cappedEntries.push(...page);
     if (page.length < AUDIT_DB_PAGE || cappedEntries.length >= AUDIT_ENTRY_CAP) break;
@@ -372,14 +323,15 @@ async function handleAudit(req: ApiRequest, res: ApiResponse): Promise<void> {
   }
   if (cappedEntries.length > AUDIT_ENTRY_CAP) cappedEntries.length = AUDIT_ENTRY_CAP;
 
-  if (!cappedEntries.length) return res.status(200).json({ flagged: 0, entries: {} });
+  if (!cappedEntries.length) {
+    res.status(200).json({ flagged: 0, entries: {} });
+    return;
+  }
 
   const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
   const GEMINI_MODEL   = (process.env.GEMINI_MODEL || "gemini-2.5-flash-lite").trim();
   console.log("[audit] model:", GEMINI_MODEL, "key set:", !!GEMINI_API_KEY, "total entries:", cappedEntries.length);
 
-  // Run Gemini sequentially over batches of AUDIT_GEMINI_BATCH entries.
-  // When pace=true (auto background run), space batches evenly over 60s.
   const numBatches = Math.ceil(cappedEntries.length / AUDIT_GEMINI_BATCH);
   const batchDelay = pace ? Math.max(2000, Math.floor(60000 / numBatches)) : 0;
 
@@ -397,7 +349,6 @@ async function handleAudit(req: ApiRequest, res: ApiResponse): Promise<void> {
     allFlags.push(...batchFlags);
   }
 
-  // Group flags by entryId
   const flagsByEntry: Record<string, any[]> = {};
   for (const flag of allFlags) {
     if (!flagsByEntry[flag.entryId]) flagsByEntry[flag.entryId] = [];
@@ -410,12 +361,11 @@ async function handleAudit(req: ApiRequest, res: ApiResponse): Promise<void> {
     });
   }
 
-  // PATCH only entries whose flags changed to avoid unnecessary writes
   await Promise.all(
     cappedEntries.map(async (entry: any) => {
       const newFlags = flagsByEntry[entry.id] ?? null;
       const oldFlags = (entry.metadata as any)?.audit_flags ?? null;
-      if (!newFlags?.length && !oldFlags?.length) return; // no change — skip
+      if (!newFlags?.length && !oldFlags?.length) return;
       const newMeta = { ...(entry.metadata || {}), audit_flags: newFlags };
       await fetch(
         `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entry.id)}`,
@@ -428,115 +378,104 @@ async function handleAudit(req: ApiRequest, res: ApiResponse): Promise<void> {
     }),
   );
 
-  // Return full flag map for client to update local state without a re-fetch
   const responseEntries: Record<string, any[] | null> = {};
   for (const entry of cappedEntries) {
     responseEntries[entry.id] = flagsByEntry[entry.id] ?? null;
   }
 
-  return res.status(200).json({ flagged: Object.keys(flagsByEntry).length, entries: responseEntries });
+  res.status(200).json({ flagged: Object.keys(flagsByEntry).length, entries: responseEntries });
 }
 
 // ── /api/entry-brains — multi-brain assignment management ──
-async function handleEntryBrains(req: ApiRequest, res: ApiResponse): Promise<void> {
-  if (!(await rateLimit(req, 30))) return res.status(429).json({ error: "Too many requests" });
-  const user: any = await verifyAuth(req);
-  if (!user) return res.status(401).json({ error: "Unauthorized" });
-
+async function handleEntryBrains({ req, res, user }: HandlerContext): Promise<void> {
   if (req.method === "GET") {
     const entry_id = req.query.entry_id as string | undefined;
-    if (!entry_id || typeof entry_id !== "string") {
-      return res.status(400).json({ error: "Missing entry_id" });
-    }
+    if (!entry_id || typeof entry_id !== "string") throw new ApiError(400, "Missing entry_id");
     const r = await fetch(
       `${SB_URL}/rest/v1/entry_brains?entry_id=eq.${encodeURIComponent(entry_id)}&select=brain_id`,
       { headers: sbHeadersNoContent() },
     );
-    if (!r.ok) return res.status(502).json({ error: "Database error" });
+    if (!r.ok) throw new ApiError(502, "Database error");
     const rows: any[] = await r.json();
-    return res.status(200).json(rows.map((row: any) => row.brain_id));
+    res.status(200).json(rows.map((row: any) => row.brain_id));
+    return;
   }
 
   if (req.method === "POST") {
     const { entry_id, brain_id } = req.body;
-    if (!entry_id || !brain_id) {
-      return res.status(400).json({ error: "Missing entry_id or brain_id" });
-    }
+    if (!entry_id || !brain_id) throw new ApiError(400, "Missing entry_id or brain_id");
     const entryRes = await fetch(
       `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entry_id)}&select=brain_id`,
       { headers: sbHeadersNoContent() },
     );
-    if (!entryRes.ok) return res.status(502).json({ error: "Database error" });
+    if (!entryRes.ok) throw new ApiError(502, "Database error");
     const [entry]: any[] = await entryRes.json();
-    if (!entry) return res.status(404).json({ error: "Not found" });
-    const access = await checkBrainAccess(user.id, entry.brain_id);
-    if (!access) return res.status(403).json({ error: "Forbidden" });
+    if (!entry) throw new ApiError(404, "Not found");
+    await requireBrainAccess(user.id, entry.brain_id);
+
     const r = await fetch(`${SB_URL}/rest/v1/entry_brains`, {
       method: "POST",
       headers: sbHeaders({ Prefer: "return=minimal" }),
       body: JSON.stringify({ entry_id, brain_id }),
     });
-    if (!r.ok) return res.status(502).json({ error: "Database error" });
-    return res.status(200).json({ ok: true });
+    if (!r.ok) throw new ApiError(502, "Database error");
+    res.status(200).json({ ok: true });
+    return;
   }
 
   if (req.method === "DELETE") {
     const entry_id = req.query.entry_id as string | undefined;
     const brain_id = req.query.brain_id as string | undefined;
-    if (!entry_id || !brain_id) {
-      return res.status(400).json({ error: "Missing entry_id or brain_id" });
-    }
+    if (!entry_id || !brain_id) throw new ApiError(400, "Missing entry_id or brain_id");
     const entryRes = await fetch(
       `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entry_id)}&select=brain_id`,
       { headers: sbHeadersNoContent() },
     );
-    if (!entryRes.ok) return res.status(502).json({ error: "Database error" });
+    if (!entryRes.ok) throw new ApiError(502, "Database error");
     const [entry]: any[] = await entryRes.json();
-    if (!entry) return res.status(404).json({ error: "Not found" });
-    const access = await checkBrainAccess(user.id, entry.brain_id);
-    if (!access) return res.status(403).json({ error: "Forbidden" });
+    if (!entry) throw new ApiError(404, "Not found");
+    await requireBrainAccess(user.id, entry.brain_id);
+
     const r = await fetch(
       `${SB_URL}/rest/v1/entry_brains?entry_id=eq.${encodeURIComponent(entry_id)}&brain_id=eq.${encodeURIComponent(brain_id)}`,
       { method: "DELETE", headers: sbHeadersNoContent() },
     );
-    if (!r.ok) return res.status(502).json({ error: "Database error" });
-    return res.status(200).json({ ok: true });
+    if (!r.ok) throw new ApiError(502, "Database error");
+    res.status(200).json({ ok: true });
+    return;
   }
 
-  return res.status(405).json({ error: "Method not allowed" });
+  throw new ApiError(405, "Method not allowed");
 }
 
 // ── /api/graph (rewritten to /api/entries?resource=graph) ──
-
-async function handleGraph(req: ApiRequest, res: ApiResponse): Promise<void> {
+async function handleGraph({ req, res, user }: HandlerContext): Promise<void> {
   res.setHeader("Cache-Control", "private, max-age=3600");
-  if (req.method !== "GET" && req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-  if (!(await rateLimit(req, 30))) return res.status(429).json({ error: "Too many requests" });
-
-  const user: any = await verifyAuth(req);
-  if (!user) return res.status(401).json({ error: "Unauthorized" });
+  if (req.method !== "GET" && req.method !== "POST") throw new ApiError(405, "Method not allowed");
 
   if (req.method === "GET") {
     const brainId = req.query.brain_id as string;
-    if (!brainId) return res.status(400).json({ error: "brain_id required" });
-    const access = await checkBrainAccess(user.id, brainId);
-    if (!access) return res.status(403).json({ error: "Forbidden" });
+    await requireBrainAccess(user.id, brainId);
+
     const r = await fetch(
       `${SB_URL}/rest/v1/concept_graphs?brain_id=eq.${encodeURIComponent(brainId)}&select=graph,updated_at`,
       { headers: sbHeadersNoContent() },
     );
-    if (!r.ok) return res.status(502).json({ error: "Database error" });
+    if (!r.ok) throw new ApiError(502, "Database error");
     const rows: any[] = await r.json();
-    if (!rows.length) return res.status(200).json({ graph: { concepts: [], relationships: [] }, updated_at: null });
-    return res.status(200).json(rows[0]);
+    if (!rows.length) {
+      res.status(200).json({ graph: { concepts: [], relationships: [] }, updated_at: null });
+      return;
+    }
+    res.status(200).json(rows[0]);
+    return;
   }
 
   // POST — save graph
   const { brain_id, graph } = req.body || {};
-  if (!brain_id || typeof brain_id !== "string") return res.status(400).json({ error: "brain_id required" });
-  if (!graph || typeof graph !== "object") return res.status(400).json({ error: "graph required" });
-  const access = await checkBrainAccess(user.id, brain_id);
-  if (!access) return res.status(403).json({ error: "Forbidden" });
+  if (!graph || typeof graph !== "object") throw new ApiError(400, "graph required");
+  await requireBrainAccess(user.id, brain_id);
+
   const safeGraph = {
     concepts: Array.isArray(graph.concepts) ? graph.concepts.slice(0, 500) : [],
     relationships: Array.isArray(graph.relationships) ? graph.relationships.slice(0, 500) : [],
@@ -549,7 +488,7 @@ async function handleGraph(req: ApiRequest, res: ApiResponse): Promise<void> {
   if (!r.ok) {
     const err = await r.text().catch(() => String(r.status));
     console.error("[graph:save]", r.status, err);
-    return res.status(502).json({ error: "Failed to save graph" });
+    throw new ApiError(502, "Failed to save graph");
   }
-  return res.status(200).json({ ok: true });
+  res.status(200).json({ ok: true });
 }
