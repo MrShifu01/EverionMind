@@ -5,7 +5,13 @@ import { removeFromIndex, indexEntry } from "../lib/searchIndex";
 import { writeEntriesCache } from "../lib/entriesCache";
 import { encryptEntry } from "../lib/crypto";
 import { getEmbedHeaders } from "../lib/aiSettings";
+import { recordDecision } from "../lib/learningEngine";
 import type { Entry } from "../types";
+
+function normalizeTags(tags: unknown): string {
+  if (!Array.isArray(tags)) return "";
+  return [...tags].map((t) => String(t).trim()).filter(Boolean).sort().join(",");
+}
 
 interface UseEntryActionsParams {
   entries: Entry[];
@@ -134,6 +140,52 @@ export function useEntryActions({
             metadata: previous.metadata,
           },
         });
+
+      // Record user-initiated edits as learning signals. Skip silent updates
+      // (enrichment pipeline, auto-flag writes) — those aren't human decisions.
+      // brain_id lives on the entry; only record if we can attribute the edit.
+      const brainId = (previous as any)?.brain_id;
+      if (previous && brainId && !options?.silent) {
+        const c = changes as Partial<Entry>;
+        if (c.title !== undefined && c.title !== previous.title) {
+          recordDecision(brainId, {
+            source: "refine",
+            type: "TITLE_EDIT",
+            action: "edit",
+            field: "title",
+            originalValue: String(previous.title ?? ""),
+            finalValue: String(c.title ?? ""),
+          });
+        }
+        if (c.type !== undefined && c.type !== previous.type) {
+          recordDecision(brainId, {
+            source: "refine",
+            type: "TYPE_MISMATCH",
+            action: "edit",
+            field: "type",
+            originalValue: String(previous.type ?? ""),
+            finalValue: String(c.type ?? ""),
+          });
+        }
+        if (c.tags !== undefined && normalizeTags(c.tags) !== normalizeTags(previous.tags)) {
+          recordDecision(brainId, {
+            source: "refine",
+            type: "TAG_EDIT",
+            action: "edit",
+            field: "tags",
+            originalValue: normalizeTags(previous.tags),
+            finalValue: normalizeTags(c.tags),
+          });
+        }
+        if (c.content !== undefined && c.content !== previous.content) {
+          recordDecision(brainId, {
+            source: "refine",
+            type: "CONTENT_EDIT",
+            action: "edit",
+            field: "content",
+          });
+        }
+      }
     },
     [entries, isOnline, refreshCount, cryptoKey, setEntries, setSelected],
   );

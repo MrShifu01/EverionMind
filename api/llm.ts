@@ -43,6 +43,7 @@ interface ChatBody {
   history: any[];
   confirmed: boolean;
   pending_action?: { tool: string; args: Record<string, any>; label: string };
+  learnings?: string;
 }
 
 async function resolveProvider(userId: string, forChat = false): Promise<ProviderConfig | null> {
@@ -252,7 +253,7 @@ async function handleChat(
   provider: ProviderConfig,
 ): Promise<void> {
   const t0 = Date.now();
-  const { message, brain_id, history = [], confirmed = false, pending_action } = req.body as ChatBody;
+  const { message, brain_id, history = [], confirmed = false, pending_action, learnings } = req.body as ChatBody;
   if (!message || typeof message !== "string") { res.status(400).json({ error: "message required" }); return; }
   if (!brain_id || typeof brain_id !== "string") { res.status(400).json({ error: "brain_id required" }); return; }
 
@@ -267,6 +268,11 @@ async function handleChat(
     ...safeHistory.map((m: any) => ({ role: m.role as "user" | "assistant", content: m.content as string })),
     { role: "user" as const, content: message },
   ];
+
+  // Learnings are client-side (localStorage per brain). Truncate defensively.
+  const systemPrompt = typeof learnings === "string" && learnings.trim()
+    ? `${SERVER_PROMPTS.CHAT_AGENT}\n\n--- USER LEARNING CONTEXT ---\nThis user's past decisions reveal preferences. Adapt your output accordingly:\n${learnings.slice(0, 4000)}\n--- END LEARNING CONTEXT ---`
+    : SERVER_PROMPTS.CHAT_AGENT;
 
   const confirmPolicy: ConfirmPolicy = {
     requiresConfirmation: (name) => DESTRUCTIVE_TOOLS.has(name),
@@ -283,7 +289,7 @@ async function handleChat(
 
   const result = await runChat({
     config: provider,
-    system: SERVER_PROMPTS.CHAT_AGENT,
+    system: systemPrompt,
     tools: CHAT_TOOLS,
     initialMessages,
     confirmed,

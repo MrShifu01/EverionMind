@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { authFetch } from "../lib/authFetch";
+import { getLearningsContext } from "../lib/learningEngine";
 
 export interface DebugInfo {
   provider: string;
@@ -74,6 +75,11 @@ export function useChat(brainId: string | undefined) {
         confirmed,
       };
       if (confirmed && pendingAction) body.pending_action = pendingAction;
+
+      // Inject user-specific learnings so the chat agent adapts to past corrections.
+      // Learnings live only in localStorage, so we have to pass them per-request.
+      const learnings = getLearningsContext(brainId);
+      if (learnings) body.learnings = learnings;
 
       const res = await authFetch("/api/llm?action=chat", {
         method: "POST",

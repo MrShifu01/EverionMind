@@ -9,6 +9,7 @@ import { parseVCF } from "../lib/vcfParser";
 import { runContactPipeline, contactToEntryPayload } from "../lib/contactPipeline";
 import { PROMPTS } from "../config/prompts";
 import { showToast } from "../lib/notifications";
+import { recordDecision } from "../lib/learningEngine";
 import type { Entry } from "../types";
 
 const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
@@ -405,18 +406,36 @@ export function useCaptureSheetParse({
   const confirmSave = useCallback(
     (onRestoreText?: (text: string) => void) => {
       if (!preview || !previewTitle.trim()) return;
+      const editedTags = previewTags.split(",").map((t) => t.trim()).filter(Boolean);
+
+      // Record what the user overrode vs what the AI originally suggested —
+      // feeds learningEngine so future prompts adapt to this user's corrections.
+      if (brainId) {
+        const aiTitle = preview.title ?? "";
+        const aiType = preview.type ?? "note";
+        const aiTagsNorm = [...(preview.tags ?? [])].map((t) => String(t).trim()).sort().join(",");
+        const userTagsNorm = [...editedTags].sort().join(",");
+
+        if (aiTitle && previewTitle.trim() !== aiTitle) {
+          recordDecision(brainId, { source: "capture", type: "TITLE_EDIT", action: "edit", field: "title", originalValue: aiTitle, finalValue: previewTitle.trim() });
+        }
+        if (previewType !== aiType) {
+          recordDecision(brainId, { source: "capture", type: "TYPE_MISMATCH", action: "edit", field: "type", originalValue: aiType, finalValue: previewType });
+        }
+        if (userTagsNorm !== aiTagsNorm) {
+          recordDecision(brainId, { source: "capture", type: "TAG_EDIT", action: "edit", field: "tags", originalValue: aiTagsNorm, finalValue: userTagsNorm });
+        }
+      }
+
       doSave({
         ...preview,
         title: previewTitle.trim(),
         type: previewType,
-        tags: previewTags
-          .split(",")
-          .map((t) => t.trim())
-          .filter(Boolean),
+        tags: editedTags,
       }, rawContentRef.current);
       void onRestoreText;
     },
-    [preview, previewTitle, previewTags, previewType, doSave],
+    [preview, previewTitle, previewTags, previewType, doSave, brainId],
   );
 
   // Extract text from image via configured AI model — stores as uploaded file chip

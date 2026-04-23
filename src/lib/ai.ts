@@ -35,7 +35,7 @@ export async function callAI({
   const endpoint = `/api/llm?provider=google`;
   const model = "gemini-2.5-flash-lite";
 
-  const fullSystem = buildSystemPrompt({ base: system, memoryGuide, brainId }) || undefined;
+  const fullSystem = buildSystemPrompt({ base: system, memoryGuide, brainId, withLearnings: true }) || undefined;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",

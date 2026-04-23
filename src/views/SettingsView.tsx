@@ -15,6 +15,7 @@ import AdminTab from "../components/settings/AdminTab";
 import SecurityTab from "../components/settings/SecurityTab";
 import SettingsRow, { SettingsButton } from "../components/settings/SettingsRow";
 import { authFetch } from "../lib/authFetch";
+import { getDecisionCount } from "../lib/learningEngine";
 
 type SectionId =
   | "appearance"
@@ -73,6 +74,42 @@ function SectionHeader({ title, subtitle, danger }: { title: string; subtitle?: 
           {subtitle}
         </p>
       )}
+    </div>
+  );
+}
+
+function LearningStatusCard({ brainId }: { brainId: string }) {
+  const [count, setCount] = useState<number>(() => getDecisionCount(brainId));
+
+  useEffect(() => {
+    setCount(getDecisionCount(brainId));
+    // Re-poll on window focus — cheap enough and keeps the number fresh when the
+    // user returns to Settings after editing entries elsewhere in the app.
+    const refresh = () => setCount(getDecisionCount(brainId));
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, [brainId]);
+
+  return (
+    <div
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--line-soft)",
+        borderRadius: 12,
+        padding: 20,
+        marginTop: 16,
+      }}
+    >
+      <div className="f-serif" style={{ fontSize: 16, fontWeight: 450, color: "var(--ink)" }}>
+        Brain learning
+      </div>
+      <div className="f-serif" style={{ fontSize: 13, color: "var(--ink-faint)", fontStyle: "italic", marginTop: 3 }}>
+        {count === 0
+          ? "no decisions recorded yet. your edits to entry titles, types, and tags will teach the AI your preferences."
+          : count < 10
+          ? `${count} decision${count === 1 ? "" : "s"} recorded. ${10 - count} more until summarisation kicks in.`
+          : `${count} decisions recorded — chat and capture now adapt to your patterns.`}
+      </div>
     </div>
   );
 }
@@ -435,6 +472,7 @@ export default function SettingsView({
                 <SectionHeader title="Brain" />
                 <BrainTab activeBrain={activeBrain} onRefreshBrains={refresh} />
                 <AuditCard brainId={activeBrain.id} />
+                <LearningStatusCard brainId={activeBrain.id} />
               </>
             )}
 

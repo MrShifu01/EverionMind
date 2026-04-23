@@ -1,17 +1,18 @@
 /**
  * S3-5: Tests for embed retry with exponential backoff.
  * generateEmbedding should be retried up to 3 times before failing.
+ *
+ * embed is now a sub-route of /api/capture (?action=embed) and goes through
+ * the withAuth middleware. Tests exercise the default export end-to-end.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 function makeReq(overrides: Record<string, any> = {}) {
   return {
     method: "POST",
-    query: {},
+    query: { action: "embed" },
     headers: {
       authorization: "Bearer test-token",
-      "x-embed-provider": "openai",
-      "x-embed-key": "sk-test",
     },
     body: { entry_id: "entry-abc" },
     socket: { remoteAddress: "127.0.0.1" },
@@ -78,7 +79,7 @@ beforeEach(() => {
 describe("embed handler — retry on transient failure (S3-5)", () => {
   it("succeeds on first attempt when no error", async () => {
     mockGenerateEmbedding.mockResolvedValue([0.1, 0.2, 0.3]);
-    const handler = (await import("../../api/capture")).handleEmbed;
+    const handler = (await import("../../api/capture")).default;
     const req = makeReq();
     const res = makeRes();
     await handler(req as any, res as any);
@@ -93,7 +94,7 @@ describe("embed handler — retry on transient failure (S3-5)", () => {
       .mockRejectedValueOnce(new Error("rate limit"))
       .mockResolvedValue([0.1, 0.2, 0.3]);
 
-    const handler = (await import("../../api/capture")).handleEmbed;
+    const handler = (await import("../../api/capture")).default;
     const req = makeReq();
     const res = makeRes();
     await handler(req as any, res as any);
@@ -105,7 +106,7 @@ describe("embed handler — retry on transient failure (S3-5)", () => {
   it("returns 502 after all 3 attempts fail", async () => {
     mockGenerateEmbedding.mockRejectedValue(new Error("persistent error"));
 
-    const handler = (await import("../../api/capture")).handleEmbed;
+    const handler = (await import("../../api/capture")).default;
     const req = makeReq();
     const res = makeRes();
     await handler(req as any, res as any);
