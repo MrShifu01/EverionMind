@@ -1,10 +1,7 @@
 import { randomUUID } from "crypto";
 import type { ApiRequest, ApiResponse } from "./_lib/types";
 import { SERVER_PROMPTS } from "./_lib/prompts.js";
-import { verifyAuth } from "./_lib/verifyAuth.js";
-import type { AuthedUser } from "./_lib/withAuth.js";
-import { rateLimit } from "./_lib/rateLimit.js";
-import { applySecurityHeaders } from "./_lib/securityHeaders.js";
+import { withAuth, type AuthedUser } from "./_lib/withAuth.js";
 import { retrieveEntries, rebuildConceptGraph } from "./_lib/retrievalCore.js";
 import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
 import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
@@ -406,46 +403,44 @@ function _mimeToExt(mime: string): string | null {
 
 // ── Main handler ──────────────────────────────────────────────────────────────
 
-export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
-  applySecurityHeaders(res);
-  res.setHeader("Cache-Control", "no-store");
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+export default withAuth(
+  {
+    methods: ["POST"],
+    rateLimit: (req) => ((req.query.action as string) === "transcribe" ? 10 : 40),
+    cacheControl: "no-store",
+  },
+  async ({ req, res, user }) => {
+    const action = (req.query.action as string) || "";
 
-  const action = (req.query.action as string) || "";
-  const limit = action === "transcribe" ? 10 : 40;
-  if (!(await rateLimit(req, limit))) return res.status(429).json({ error: "Too many requests" });
+    if (action === "transcribe") return handleTranscribe(req, res);
 
-  const user = await verifyAuth(req);
-  if (!user) return res.status(401).json({ error: "Unauthorized" });
+    if (action === "extract-file") {
+      const geminiKey = await resolveGeminiKey(user.id);
+      if (!geminiKey) return res.status(500).json({ error: "AI not configured" });
+      return handleExtractFile(req, res, geminiKey);
+    }
 
-  if (action === "transcribe") return handleTranscribe(req, res);
+    if (action === "chat") {
+      const provider = await resolveProvider(user.id, true);
+      if (!provider) return res.status(402).json({ error: "no_ai_provider", message: "Add an API key in Settings or upgrade to Pro." });
+      return handleChat(req, res, user, provider);
+    }
 
-  if (action === "extract-file") {
-    const geminiKey = await resolveGeminiKey(user.id);
-    if (!geminiKey) return res.status(500).json({ error: "AI not configured" });
-    return handleExtractFile(req, res, geminiKey);
-  }
+    // Default: text completion (enrichment parsing, insight, etc.)
+    const { messages, max_tokens, system } = req.body;
+    if (!Array.isArray(messages) || messages.length === 0) return res.status(400).json({ error: "messages must be a non-empty array" });
+    if (messages.length > 50) return res.status(400).json({ error: "Too many messages" });
+    for (const msg of messages) {
+      if (!msg || typeof msg !== "object") return res.status(400).json({ error: "Invalid message format" });
+      if (!["user", "assistant"].includes(msg.role)) return res.status(400).json({ error: "Message role must be 'user' or 'assistant'" });
+      if (typeof msg.content !== "string") return res.status(400).json({ error: "Message content must be plain text strings only" });
+    }
+    if (max_tokens !== undefined && (typeof max_tokens !== "number" || max_tokens < 1 || max_tokens > 4096)) {
+      return res.status(400).json({ error: "Invalid max_tokens" });
+    }
 
-  if (action === "chat") {
-    const provider = await resolveProvider(user.id, true);
+    const provider = await resolveProvider(user.id);
     if (!provider) return res.status(402).json({ error: "no_ai_provider", message: "Add an API key in Settings or upgrade to Pro." });
-    return handleChat(req, res, user, provider);
-  }
-
-  // Default: text completion (enrichment parsing, insight, etc.)
-  const { messages, max_tokens, system } = req.body;
-  if (!Array.isArray(messages) || messages.length === 0) return res.status(400).json({ error: "messages must be a non-empty array" });
-  if (messages.length > 50) return res.status(400).json({ error: "Too many messages" });
-  for (const msg of messages) {
-    if (!msg || typeof msg !== "object") return res.status(400).json({ error: "Invalid message format" });
-    if (!["user", "assistant"].includes(msg.role)) return res.status(400).json({ error: "Message role must be 'user' or 'assistant'" });
-    if (typeof msg.content !== "string") return res.status(400).json({ error: "Message content must be plain text strings only" });
-  }
-  if (max_tokens !== undefined && (typeof max_tokens !== "number" || max_tokens < 1 || max_tokens > 4096)) {
-    return res.status(400).json({ error: "Invalid max_tokens" });
-  }
-
-  const provider = await resolveProvider(user.id);
-  if (!provider) return res.status(402).json({ error: "no_ai_provider", message: "Add an API key in Settings or upgrade to Pro." });
-  return handleCompletion(res, { messages, max_tokens, system }, provider);
-}
+    return handleCompletion(res, { messages, max_tokens, system }, provider);
+  },
+);

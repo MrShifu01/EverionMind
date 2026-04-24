@@ -14,6 +14,7 @@
 import type { ApiRequest, ApiResponse } from "./_lib/types";
 import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 import { verifyAuth } from "./_lib/verifyAuth.js";
+import { withAuth } from "./_lib/withAuth.js";
 import {
   type GmailPreferences,
   defaultPreferences,
@@ -170,107 +171,116 @@ async function handleAuth(req: ApiRequest, res: ApiResponse): Promise<void> {
 
 /* ── Main handler ── */
 
-export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
-  applySecurityHeaders(res);
+// Authed sub-handler covering all non-OAuth actions (integration, scan, deep-scan,
+// preferences, delete-entries, ignore, DELETE). The OAuth `auth` action stays
+// outside the wrapper because it has its own queryToken-based bootstrap and a
+// 302 redirect response that doesn't fit withAuth.
+const authedHandler = withAuth(
+  { methods: ["GET", "POST", "PUT", "DELETE"], rateLimit: false },
+  async ({ req, res, user }) => {
+    const action = (req.query.action as string) ?? "";
 
-  const action = (req.query.action as string) ?? "";
-
-  if (action === "auth") return handleAuth(req, res);
-
-  const user = await verifyAuth(req);
-  if (!user) return res.status(401).json({ error: "Unauthorized" });
-
-  if (req.method === "DELETE") {
-    await fetch(`${SB_URL}/rest/v1/gmail_integrations?user_id=eq.${user.id}`, {
-      method: "DELETE",
-      headers: SB_HEADERS,
-    });
-    return res.status(200).json({ ok: true });
-  }
-
-  if (req.method === "GET" && action === "integration") {
-    const r = await fetch(
-      `${SB_URL}/rest/v1/gmail_integrations?user_id=eq.${user.id}&select=id,gmail_email,scan_enabled,last_scanned_at,preferences`,
-      { headers: SB_HEADERS },
-    );
-    const rows: any[] = r.ok ? await r.json() : [];
-    return res.status(200).json(rows[0] ?? null);
-  }
-
-  if (req.method === "PUT" && action === "preferences") {
-    const { preferences } = req.body ?? {};
-    if (!preferences) return res.status(400).json({ error: "preferences required" });
-    await fetch(`${SB_URL}/rest/v1/gmail_integrations?user_id=eq.${user.id}`, {
-      method: "PATCH",
-      headers: SB_HEADERS,
-      body: JSON.stringify({ preferences }),
-    });
-    return res.status(200).json({ ok: true });
-  }
-
-  if (req.method === "POST" && action === "scan") {
-    const r = await fetch(
-      `${SB_URL}/rest/v1/gmail_integrations?user_id=eq.${user.id}&select=*`,
-      { headers: SB_HEADERS },
-    );
-    const rows: any[] = r.ok ? await r.json() : [];
-    if (!rows[0]) return res.status(404).json({ error: "No Gmail integration found" });
-    const brainId = typeof req.body?.brain_id === "string" ? req.body.brain_id : undefined;
-    try {
-      const result = await scanGmailForUser(rows[0], true, brainId);
-      return res.status(200).json(result);
-    } catch (e: any) {
-      console.error("[gmail/scan]", e);
-      return res.status(500).json({ error: String(e?.message ?? e), created: 0, entries: [], debug: null });
+    if (req.method === "DELETE") {
+      await fetch(`${SB_URL}/rest/v1/gmail_integrations?user_id=eq.${user.id}`, {
+        method: "DELETE",
+        headers: SB_HEADERS,
+      });
+      return void res.status(200).json({ ok: true });
     }
-  }
 
-  if (req.method === "POST" && action === "delete-entries") {
-    const { entryIds } = req.body ?? {};
-    if (!Array.isArray(entryIds) || entryIds.length === 0) return res.status(400).json({ error: "entryIds required" });
-    const ids = entryIds.map((id: string) => encodeURIComponent(id)).join(",");
-    await fetch(`${SB_URL}/rest/v1/entries?id=in.(${ids})&user_id=eq.${user.id}`, {
-      method: "DELETE",
-      headers: SB_HEADERS,
-    });
-    return res.status(200).json({ ok: true });
-  }
+    if (req.method === "GET" && action === "integration") {
+      const r = await fetch(
+        `${SB_URL}/rest/v1/gmail_integrations?user_id=eq.${user.id}&select=id,gmail_email,scan_enabled,last_scanned_at,preferences`,
+        { headers: SB_HEADERS },
+      );
+      const rows: any[] = r.ok ? await r.json() : [];
+      return void res.status(200).json(rows[0] ?? null);
+    }
 
-  if (req.method === "POST" && action === "deep-scan") {
-    const r = await fetch(
-      `${SB_URL}/rest/v1/gmail_integrations?user_id=eq.${user.id}&select=*`,
-      { headers: SB_HEADERS },
-    );
-    const rows: any[] = r.ok ? await r.json() : [];
-    if (!rows[0]) return res.status(404).json({ error: "No Gmail integration found" });
-    const { cursor, sinceMs, brain_id } = req.body ?? {};
-    const result = await deepScanBatch(rows[0], {
-      cursor: typeof cursor === "string" ? cursor : undefined,
-      sinceMs: typeof sinceMs === "number" ? sinceMs : Date.now() - 365 * 24 * 60 * 60 * 1000,
-      activeBrainId: typeof brain_id === "string" ? brain_id : undefined,
-    });
-    return res.status(200).json(result);
-  }
+    if (req.method === "PUT" && action === "preferences") {
+      const { preferences } = req.body ?? {};
+      if (!preferences) return void res.status(400).json({ error: "preferences required" });
+      await fetch(`${SB_URL}/rest/v1/gmail_integrations?user_id=eq.${user.id}`, {
+        method: "PATCH",
+        headers: SB_HEADERS,
+        body: JSON.stringify({ preferences }),
+      });
+      return void res.status(200).json({ ok: true });
+    }
 
-  if (req.method === "POST" && action === "ignore") {
-    const { subject, from, email_type, content_preview } = req.body ?? {};
-    const rule = await generateIgnoreRule({ subject, from, email_type, content_preview });
-    const intRes = await fetch(
-      `${SB_URL}/rest/v1/gmail_integrations?user_id=eq.${user.id}&select=preferences`,
-      { headers: SB_HEADERS },
-    );
-    const rows: any[] = intRes.ok ? await intRes.json() : [];
-    if (!rows[0]) return res.status(404).json({ error: "No Gmail integration found" });
-    const prefs = rows[0].preferences ?? { categories: [], custom: "" };
-    const existing = (prefs.custom ?? "").trim();
-    const newCustom = existing ? `${existing}\n${rule}` : rule;
-    await fetch(`${SB_URL}/rest/v1/gmail_integrations?user_id=eq.${user.id}`, {
-      method: "PATCH",
-      headers: SB_HEADERS,
-      body: JSON.stringify({ preferences: { ...prefs, custom: newCustom } }),
-    });
-    return res.status(200).json({ ok: true, rule });
-  }
+    if (req.method === "POST" && action === "scan") {
+      const r = await fetch(
+        `${SB_URL}/rest/v1/gmail_integrations?user_id=eq.${user.id}&select=*`,
+        { headers: SB_HEADERS },
+      );
+      const rows: any[] = r.ok ? await r.json() : [];
+      if (!rows[0]) return void res.status(404).json({ error: "No Gmail integration found" });
+      const brainId = typeof req.body?.brain_id === "string" ? req.body.brain_id : undefined;
+      try {
+        const result = await scanGmailForUser(rows[0], true, brainId);
+        return void res.status(200).json(result);
+      } catch (e: any) {
+        console.error("[gmail/scan]", e);
+        return void res.status(500).json({ error: String(e?.message ?? e), created: 0, entries: [], debug: null });
+      }
+    }
 
-  return res.status(405).json({ error: "Method not allowed" });
+    if (req.method === "POST" && action === "delete-entries") {
+      const { entryIds } = req.body ?? {};
+      if (!Array.isArray(entryIds) || entryIds.length === 0) return void res.status(400).json({ error: "entryIds required" });
+      const ids = entryIds.map((id: string) => encodeURIComponent(id)).join(",");
+      await fetch(`${SB_URL}/rest/v1/entries?id=in.(${ids})&user_id=eq.${user.id}`, {
+        method: "DELETE",
+        headers: SB_HEADERS,
+      });
+      return void res.status(200).json({ ok: true });
+    }
+
+    if (req.method === "POST" && action === "deep-scan") {
+      const r = await fetch(
+        `${SB_URL}/rest/v1/gmail_integrations?user_id=eq.${user.id}&select=*`,
+        { headers: SB_HEADERS },
+      );
+      const rows: any[] = r.ok ? await r.json() : [];
+      if (!rows[0]) return void res.status(404).json({ error: "No Gmail integration found" });
+      const { cursor, sinceMs, brain_id } = req.body ?? {};
+      const result = await deepScanBatch(rows[0], {
+        cursor: typeof cursor === "string" ? cursor : undefined,
+        sinceMs: typeof sinceMs === "number" ? sinceMs : Date.now() - 365 * 24 * 60 * 60 * 1000,
+        activeBrainId: typeof brain_id === "string" ? brain_id : undefined,
+      });
+      return void res.status(200).json(result);
+    }
+
+    if (req.method === "POST" && action === "ignore") {
+      const { subject, from, email_type, content_preview } = req.body ?? {};
+      const rule = await generateIgnoreRule({ subject, from, email_type, content_preview });
+      const intRes = await fetch(
+        `${SB_URL}/rest/v1/gmail_integrations?user_id=eq.${user.id}&select=preferences`,
+        { headers: SB_HEADERS },
+      );
+      const rows: any[] = intRes.ok ? await intRes.json() : [];
+      if (!rows[0]) return void res.status(404).json({ error: "No Gmail integration found" });
+      const prefs = rows[0].preferences ?? { categories: [], custom: "" };
+      const existing = (prefs.custom ?? "").trim();
+      const newCustom = existing ? `${existing}\n${rule}` : rule;
+      await fetch(`${SB_URL}/rest/v1/gmail_integrations?user_id=eq.${user.id}`, {
+        method: "PATCH",
+        headers: SB_HEADERS,
+        body: JSON.stringify({ preferences: { ...prefs, custom: newCustom } }),
+      });
+      return void res.status(200).json({ ok: true, rule });
+    }
+
+    return void res.status(405).json({ error: "Method not allowed" });
+  },
+);
+
+export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
+  const action = (req.query.action as string) ?? "";
+  if (action === "auth") {
+    applySecurityHeaders(res);
+    return handleAuth(req, res);
+  }
+  return authedHandler(req, res);
 }
