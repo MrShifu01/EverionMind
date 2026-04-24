@@ -29,7 +29,7 @@ export interface SelectOptions {
 
 /**
  * Pure provider-selection logic. BYOK priority order:
- *   anthropic > openai > gemini > managed-gemini (pro only)
+ *   anthropic > openai > gemini > managed-gemini (starter & pro)
  * Returns null if free-tier user with no BYOK key.
  */
 export function selectProvider(
