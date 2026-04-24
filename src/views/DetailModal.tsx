@@ -12,15 +12,14 @@ const META_SKIP = new Set([
   "gmail_thread_id", "gmail_thread_size", "gmail_participants",
   "completeness_score", "attachment_text", "full_text", "raw_content",
   "concepts", "confidence", "workspace", "email_type",
+  // Gmail/AI internal fields — not useful in the detail card
+  "gmail_date", "gmail_subject", "gmail_labels",
+  "ai_insight", "insight", "relevance_score", "urgency",
 ]);
 
 const META_PRIORITY: { key: string; label: string }[] = [
-  { key: "email",            label: "Email"       },
-  { key: "phone",            label: "Phone"       },
   { key: "amount",           label: "Amount"      },
   { key: "price",            label: "Price"       },
-  { key: "id_number",        label: "ID Number"   },
-  { key: "national_id",      label: "ID Number"   },
   { key: "account_number",   label: "Account"     },
   { key: "reference_number", label: "Reference"   },
   { key: "reference",        label: "Reference"   },
@@ -30,10 +29,13 @@ const META_PRIORITY: { key: string; label: string }[] = [
   { key: "renewal_date",     label: "Renews"      },
   { key: "event_date",       label: "Date"        },
   { key: "date",             label: "Date"        },
+  { key: "phone",            label: "Phone"       },
+  { key: "email",            label: "Email"       },
+  { key: "id_number",        label: "ID Number"   },
+  { key: "national_id",      label: "ID Number"   },
   { key: "url",              label: "Link"        },
-  { key: "gmail_from",       label: "From"        },
   { key: "status",           label: "Status"      },
-  { key: "urgency",          label: "Urgency"     },
+  { key: "gmail_from",       label: "From"        },
 ];
 
 const DATE_KEYS = new Set(["due_date", "deadline", "expiry_date", "renewal_date", "event_date", "date"]);
