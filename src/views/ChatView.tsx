@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState, useCallback, Fragment } from "react";
 import { useChat, type ChatMessage, type DebugInfo } from "../hooks/useChat";
 import { useAdminDevMode } from "../hooks/useAdminDevMode";
 import { useEntries } from "../context/EntriesContext";
@@ -378,6 +378,55 @@ function renderRichText(text: string): React.ReactNode[] {
   }
   if (last < text.length) parts.push(text.slice(last));
   return parts;
+}
+
+function renderInline(text: string, baseKey: number): React.ReactNode {
+  const segments = text.split(/(\*\*[^*\n]+\*\*)/g);
+  if (segments.length === 1) return <>{renderRichText(text)}</>;
+  return (
+    <>
+      {segments.map((seg, i) =>
+        seg.startsWith("**") && seg.endsWith("**") ? (
+          <strong key={baseKey + i}>{renderRichText(seg.slice(2, -2))}</strong>
+        ) : (
+          <Fragment key={baseKey + i}>{renderRichText(seg)}</Fragment>
+        ),
+      )}
+    </>
+  );
+}
+
+function renderMarkdown(text: string): React.ReactNode {
+  const lines = text.split("\n");
+  const nodes: React.ReactNode[] = [];
+  let listItems: React.ReactNode[] = [];
+  let k = 0;
+
+  const flushList = () => {
+    if (!listItems.length) return;
+    nodes.push(
+      <ul key={k++} style={{ margin: "4px 0 8px 0", paddingLeft: 20, listStyleType: "disc" }}>
+        {listItems}
+      </ul>,
+    );
+    listItems = [];
+  };
+
+  for (const line of lines) {
+    const bullet = line.match(/^\s*[-*]\s+(.*)/);
+    if (bullet) {
+      listItems.push(<li key={k++} style={{ marginBottom: 2 }}>{renderInline(bullet[1], k)}</li>);
+      continue;
+    }
+    flushList();
+    if (line.trim() === "") {
+      nodes.push(<div key={k++} style={{ height: 8 }} />);
+    } else {
+      nodes.push(<div key={k++}>{renderInline(line, k)}</div>);
+    }
+  }
+  flushList();
+  return <>{nodes}</>;
 }
 
 const IconCheck = (
@@ -1062,10 +1111,9 @@ export default function ChatView({ brainId }: ChatViewProps) {
                             fontSize: 18,
                             lineHeight: 1.65,
                             color: "var(--ink)",
-                            whiteSpace: "pre-wrap",
                           }}
                         >
-                          {renderRichText(msg.content)}
+                          {renderMarkdown(msg.content)}
                         </div>
 
                         <div style={{ display: "flex", gap: 6, marginTop: 14, flexWrap: "wrap" }}>
