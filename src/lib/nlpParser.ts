@@ -56,6 +56,14 @@ export function parseTask(input: string): ParseResult {
     : null;
   if (domMatch) working = working.replace(domMatch[0], "");
 
+  // Normalise "next week <weekday>" → "<weekday> next week" so chrono parses correctly
+  if (dayOfMonth === null) {
+    working = working.replace(
+      /next\s+week\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)/gi,
+      "$1 next week",
+    );
+  }
+
   // One-off date (chrono-node) — only if not a monthly recurring
   const chronoResults = dayOfMonth === null ? chrono.parse(working, new Date(), { forwardDate: true }) : [];
   let dueDate: string | null = null;
