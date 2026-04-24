@@ -1,10 +1,28 @@
+import type { IncomingMessage } from "http";
 import type { ApiRequest, ApiResponse } from "./_lib/types";
 import { withAuth } from "./_lib/withAuth.js";
 import { applySecurityHeaders } from "./_lib/securityHeaders.js";
+import { stripe } from "./_lib/stripe.js";
+import { sbHeaders } from "./_lib/sbHeaders.js";
+import type Stripe from "stripe";
 import crypto from "crypto";
 import webpush from "web-push";
 import { runGmailScanAllUsers } from "./_lib/gmailScan.js";
 import { runEnrichBatchAllUsers } from "./_lib/enrichBatch.js";
+
+export const config = { api: { bodyParser: false } };
+
+function bufferBody(req: ApiRequest): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    const stream = req as unknown as IncomingMessage;
+    stream.on("data", (chunk: Buffer | string) =>
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)),
+    );
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+    stream.on("error", reject);
+  });
+}
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -23,7 +41,19 @@ const MAX_CHARS = 8000;
 //   /api/notifications      → /api/user-data?resource=notifications
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
   applySecurityHeaders(res);
+  const rawBody = await bufferBody(req);
   const resource = req.query.resource as string | undefined;
+
+  // Stripe webhook uses raw body for signature verification
+  if (resource === "stripe-webhook") return handleStripeWebhook(req, res, rawBody);
+
+  // Parse body for all other handlers
+  try {
+    req.body = rawBody.length > 0 ? JSON.parse(rawBody.toString("utf-8")) : {};
+  } catch {
+    req.body = {};
+  }
+
   if (resource === "activity") return handleActivity(req, res);
   if (resource === "health") return handleHealth(req, res);
   if (resource === "vault") return handleVault(req, res);
@@ -35,6 +65,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   if (resource === "brains") return handleBrains(req, res);
   if (resource === "cron-daily") return handleCronDaily(req, res);
   if (resource === "notifications") return handleNotifications(req, res);
+  if (resource === "stripe-checkout") return handleStripeCheckout(req, res);
+  if (resource === "stripe-portal")   return handleStripePortal(req, res);
   // Default: memory
   return handleMemory(req, res);
 }
@@ -617,5 +649,176 @@ const handleNotifications = withAuth(
       { method: "PATCH", headers: hdrs({ Prefer: "return=minimal" }), body: JSON.stringify({ dismissed: true }) },
     );
     return void res.status(200).json({ ok: true });
+  },
+);
+
+// ── /api/user-data?resource=stripe-checkout ──
+const handleStripeCheckout = withAuth(
+  { methods: ["POST"], rateLimit: 10 },
+  async ({ req, res, user }) => {
+    const { plan, interval = "month" } = (req.body ?? {}) as {
+      plan?: string;
+      interval?: string;
+    };
+
+    if (plan !== "starter" && plan !== "pro") {
+      return void res.status(400).json({ error: "Invalid plan" });
+    }
+    if (interval !== "month" && interval !== "year") {
+      return void res.status(400).json({ error: "Invalid interval" });
+    }
+
+    const priceEnvKey =
+      interval === "year"
+        ? plan === "starter"
+          ? "STRIPE_STARTER_ANNUAL_PRICE_ID"
+          : "STRIPE_PRO_ANNUAL_PRICE_ID"
+        : plan === "starter"
+          ? "STRIPE_STARTER_PRICE_ID"
+          : "STRIPE_PRO_PRICE_ID";
+
+    const priceId = process.env[priceEnvKey];
+    if (!priceId) return void res.status(500).json({ error: "Plan not configured" });
+
+    // Get or create Stripe Customer
+    const profileRes = await fetch(
+      `${SB_URL}/rest/v1/user_profiles?id=eq.${encodeURIComponent(user.id)}&select=stripe_customer_id`,
+      { headers: sbHeaders() },
+    );
+    if (!profileRes.ok) {
+      return void res.status(502).json({ error: "Payment provider unavailable" });
+    }
+    const [profile] = await profileRes.json();
+    let customerId: string = profile?.stripe_customer_id ?? "";
+
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: user.email as string | undefined,
+        metadata: { user_id: user.id },
+      });
+      customerId = customer.id;
+      await fetch(
+        `${SB_URL}/rest/v1/user_profiles?id=eq.${encodeURIComponent(user.id)}`,
+        {
+          method: "PATCH",
+          headers: sbHeaders({ Prefer: "return=minimal" }),
+          body: JSON.stringify({ stripe_customer_id: customerId }),
+        },
+      );
+    }
+
+    const host = (req.headers["host"] as string) || "everion.app";
+    const appUrl = `https://${host}`;
+
+    const session = await stripe.checkout.sessions.create({
+      customer: customerId,
+      mode: "subscription",
+      line_items: [{ price: priceId, quantity: 1 }],
+      allow_promotion_codes: true,
+      success_url: `${appUrl}/settings?tab=billing&billing=success`,
+      cancel_url: `${appUrl}/settings?tab=billing&billing=cancel`,
+      metadata: { user_id: user.id },
+    });
+
+    res.status(200).json({ url: session.url });
+  },
+);
+
+// ── /api/user-data?resource=stripe-webhook ──
+async function handleStripeWebhook(
+  req: ApiRequest,
+  res: ApiResponse,
+  rawBody: Buffer,
+): Promise<void> {
+  const sig = req.headers["stripe-signature"] as string | undefined;
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  if (!sig || !secret) {
+    return void res.status(400).json({ error: "Missing stripe-signature header" });
+  }
+
+  let event: Stripe.Event;
+  try {
+    event = stripe.webhooks.constructEvent(rawBody, sig, secret);
+  } catch (err) {
+    console.error("[stripe-webhook] Signature verification failed:", err);
+    return void res.status(400).json({ error: "Invalid signature" });
+  }
+
+  if (
+    event.type === "customer.subscription.created" ||
+    event.type === "customer.subscription.updated"
+  ) {
+    const sub = event.data.object as Stripe.Subscription;
+    const customerId = sub.customer as string;
+    const priceId = sub.items.data[0]?.price.id ?? "";
+
+    const tier =
+      priceId === process.env.STRIPE_PRO_PRICE_ID ||
+      priceId === process.env.STRIPE_PRO_ANNUAL_PRICE_ID
+        ? "pro"
+        : "starter";
+
+    await fetch(
+      `${SB_URL}/rest/v1/user_profiles?stripe_customer_id=eq.${encodeURIComponent(customerId)}`,
+      {
+        method: "PATCH",
+        headers: sbHeaders({ Prefer: "return=minimal" }),
+        body: JSON.stringify({
+          tier,
+          stripe_subscription_id: sub.id,
+          tier_expires_at: null,
+        }),
+      },
+    );
+  }
+
+  if (event.type === "customer.subscription.deleted") {
+    const sub = event.data.object as Stripe.Subscription;
+    const customerId = sub.customer as string;
+    const periodEndTs = sub.items.data[0]?.current_period_end ?? 0;
+    const periodEnd = periodEndTs ? new Date(periodEndTs * 1000).toISOString() : null;
+
+    await fetch(
+      `${SB_URL}/rest/v1/user_profiles?stripe_customer_id=eq.${encodeURIComponent(customerId)}`,
+      {
+        method: "PATCH",
+        headers: sbHeaders({ Prefer: "return=minimal" }),
+        body: JSON.stringify({
+          tier: "free",
+          stripe_subscription_id: null,
+          tier_expires_at: periodEnd,
+        }),
+      },
+    );
+  }
+
+  res.status(200).json({ received: true });
+}
+
+// ── /api/user-data?resource=stripe-portal ──
+const handleStripePortal = withAuth(
+  { methods: ["POST"], rateLimit: 10 },
+  async ({ req, res, user }) => {
+    const profileRes = await fetch(
+      `${SB_URL}/rest/v1/user_profiles?id=eq.${encodeURIComponent(user.id)}&select=stripe_customer_id`,
+      { headers: sbHeaders() },
+    );
+    if (!profileRes.ok) {
+      return void res.status(502).json({ error: "Payment provider unavailable" });
+    }
+    const [profile] = await profileRes.json();
+
+    if (!profile?.stripe_customer_id) {
+      return void res.status(400).json({ error: "No active subscription found" });
+    }
+
+    const host = (req.headers["host"] as string) || "everion.app";
+    const session = await stripe.billingPortal.sessions.create({
+      customer: profile.stripe_customer_id,
+      return_url: `https://${host}/settings?tab=billing`,
+    });
+
+    res.status(200).json({ url: session.url });
   },
 );
