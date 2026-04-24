@@ -428,7 +428,7 @@ export default function SettingsView({
 
   const isAdmin = ADMIN_EMAIL ? Boolean(email && email === ADMIN_EMAIL) : Boolean(email);
   const SECTIONS = isAdmin
-    ? [...BASE_SECTIONS, { id: "admin" as SectionId, label: "Admin" }]
+    ? [...BASE_SECTIONS, { id: "billing" as SectionId, label: "Billing" }, { id: "admin" as SectionId, label: "Admin" }]
     : BASE_SECTIONS;
 
   return (
