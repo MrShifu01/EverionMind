@@ -80,6 +80,25 @@ function Section({
 }
 
 export default function AITab({ activeBrain, isAdmin = false }: Props) {
+  const [enriching, setEnriching] = useState(false);
+  const [enrichResult, setEnrichResult] = useState<{ processed: number; remaining: number } | null>(null);
+
+  async function runEnrichNow() {
+    if (!activeBrain?.id || enriching) return;
+    setEnriching(true);
+    setEnrichResult(null);
+    try {
+      const r = await fetch(`/api/entries?action=enrich-batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brain_id: activeBrain.id, batch_size: 10 }),
+      });
+      if (r.ok) setEnrichResult(await r.json());
+    } finally {
+      setEnriching(false);
+    }
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
       <Section label="Everion Provided AI">
@@ -100,9 +119,23 @@ export default function AITab({ activeBrain, isAdmin = false }: Props) {
       </Section>
 
       <Section label="Enrichment">
-        <p className="f-sans" style={{ fontSize: 13, color: "var(--ink-ghost)", margin: 0, lineHeight: 1.5 }}>
-          Entries are enriched automatically by the server after capture. Cards show a pulsing dot while processing.
-        </p>
+        <SettingsRow
+          label="Auto-enrichment"
+          hint="Entries are enriched automatically after capture. Cards show a pulsing dot while processing."
+          last
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <StatusDot on />
+            <SettingsButton onClick={runEnrichNow} disabled={enriching || !activeBrain?.id}>
+              {enriching ? "Running…" : "Run Now"}
+            </SettingsButton>
+          </div>
+        </SettingsRow>
+        {enrichResult && (
+          <p className="f-sans" style={{ fontSize: 12, color: "var(--ink-ghost)", margin: "8px 0 0", lineHeight: 1.5 }}>
+            Processed {enrichResult.processed} {enrichResult.remaining > 0 ? `· ${enrichResult.remaining} remaining` : "· all up to date"}
+          </p>
+        )}
       </Section>
     </div>
   );

@@ -19,6 +19,7 @@ import { resolveApiKey } from "./_lib/resolveApiKey.js";
 import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
 import { retrieveEntries, rebuildConceptGraph } from "./_lib/retrievalCore.js";
 import { scanGmailForUser, type GmailPreferences } from "./_lib/gmailScan.js";
+import { runEnrichEntry, runEnrichBatchForUser } from "./_lib/enrichBatch.js";
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
@@ -552,17 +553,20 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
           return res.status(200).json(jsonRpcErr(id, -32602, "title and content are required"));
         }
         result = await createEntry(userId, brainId, args.title, args.content, args.type, args.tags);
+        runEnrichEntry((result as any)?.id, userId).catch(() => {});
       } else if (toolName === "update_entry") {
         if (!args.id) return res.status(200).json(jsonRpcErr(id, -32602, "id is required"));
         if (args.title === undefined && args.content === undefined && args.type === undefined && args.tags === undefined) {
           return res.status(200).json(jsonRpcErr(id, -32602, "At least one field to update is required"));
         }
         result = await updateEntry(brainId, args.id, { title: args.title, content: args.content, type: args.type, tags: args.tags });
+        runEnrichEntry(args.id, userId).catch(() => {});
       } else if (toolName === "delete_entry") {
         if (!args.id) return res.status(200).json(jsonRpcErr(id, -32602, "id is required"));
         result = await deleteEntry(brainId, args.id);
       } else if (toolName === "gmail_sync") {
         result = await gmailSync(userId, brainId, args.lookback_days);
+        runEnrichBatchForUser(userId, brainId, 10).catch(() => {});
       } else if (toolName === "gmail_review_queue") {
         result = await gmailReviewQueue(userId, args.limit, args.since_hours);
       } else if (toolName === "gmail_contacts") {

@@ -6,6 +6,7 @@
  */
 import { withAuth, requireBrainAccess, ApiError, type HandlerContext } from "./_lib/withAuth.js";
 import { sbHeaders, sbHeadersNoContent } from "./_lib/sbHeaders.js";
+import { runEnrichBatchForUser } from "./_lib/enrichBatch.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const EXPORT_FIELDS = "id,title,content,type,tags,metadata,importance,pinned,created_at";
@@ -79,4 +80,5 @@ async function handleImport({ req, res, user }: HandlerContext): Promise<void> {
   }
 
   res.status(200).json({ ok: true, imported: rows.length });
+  runEnrichBatchForUser(user.id, brain_id, 10).catch(() => {});
 }

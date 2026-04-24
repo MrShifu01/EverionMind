@@ -12,6 +12,7 @@ import { randomUUID } from "crypto";
 import { withApiKey, ApiError } from "./_lib/withAuth.js";
 import { retrieveEntries, rebuildConceptGraph } from "./_lib/retrievalCore.js";
 import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
+import { runEnrichEntry } from "./_lib/enrichBatch.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -136,12 +137,13 @@ async function handleIngest({ userId, brainId }: Auth, body: any) {
   if (!r.ok) throw new Error(`Failed to create entry: ${await r.text().catch(() => String(r.status))}`);
   const rows: any[] = await r.json();
   if (GEMINI_API_KEY) await rebuildConceptGraph(brainId, GEMINI_API_KEY);
+  runEnrichEntry(id, userId).catch(() => {});
   return { id: rows[0].id, title: rows[0].title, created_at: rows[0].created_at };
 }
 
 // ── /v1/update ────────────────────────────────────────────────────────────────
 
-async function handleUpdate({ brainId }: Auth, body: any) {
+async function handleUpdate({ brainId, userId }: Auth, body: any) {
   const { id, title, content, type, tags } = body;
   if (!id) throw { status: 400, message: "id is required" };
   if (title === undefined && content === undefined && type === undefined && tags === undefined) {
@@ -178,6 +180,7 @@ async function handleUpdate({ brainId }: Auth, body: any) {
   if (!r.ok) throw new Error(`Update failed: ${await r.text().catch(() => String(r.status))}`);
   const updated: any[] = await r.json();
   if (GEMINI_API_KEY) await rebuildConceptGraph(brainId, GEMINI_API_KEY);
+  runEnrichEntry(id, userId).catch(() => {});
   return { id: updated[0].id, title: updated[0].title, content: updated[0].content, updated_at: updated[0].updated_at };
 }
 

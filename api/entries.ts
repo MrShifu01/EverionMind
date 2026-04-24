@@ -3,7 +3,7 @@ import { withAuth, requireBrainAccess, ApiError, type HandlerContext } from "./_
 import { sbHeaders, sbHeadersNoContent } from "./_lib/sbHeaders.js";
 import { computeCompletenessScore } from "./_lib/completeness.js";
 import { SERVER_PROMPTS } from "./_lib/prompts.js";
-import { runEnrichBatchForUser } from "./_lib/enrichBatch.js";
+import { runEnrichBatchForUser, runEnrichEntry } from "./_lib/enrichBatch.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const ENTRY_FIELDS = "id,title,content,type,tags,metadata,brain_id,importance,pinned,created_at,embedded_at,status";
@@ -264,6 +264,10 @@ async function handlePatch({ req, res, user }: HandlerContext): Promise<void> {
 
   const data: any = await response.json();
   res.status(response.ok ? 200 : 502).json(data);
+
+  if (response.ok && (titleChanged || contentChanged)) {
+    runEnrichEntry(id, user.id).catch(() => {});
+  }
 }
 
 // ── /api/audit (rewritten to /api/entries?resource=audit) ──
@@ -454,6 +458,7 @@ async function handleMergeInto({ req, res, user }: HandlerContext): Promise<void
 
   const [updated] = await patchRes.json();
   res.status(200).json(updated ?? { ok: true });
+  runEnrichEntry(target_id, user.id).catch(() => {});
 }
 
 // ── /api/entry-brains — multi-brain assignment management ──

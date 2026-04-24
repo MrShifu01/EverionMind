@@ -5,6 +5,7 @@ import { withAuth, type AuthedUser } from "./_lib/withAuth.js";
 import { retrieveEntries, rebuildConceptGraph } from "./_lib/retrievalCore.js";
 import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
 import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
+import { runEnrichEntry } from "./_lib/enrichBatch.js";
 import { sbHeaders } from "./_lib/sbHeaders.js";
 import {
   selectProvider,
@@ -197,6 +198,7 @@ async function execTool(name: string, args: Record<string, any>, userId: string,
     if (!r.ok) return { error: `Failed to create: ${await r.text().catch(() => r.status)}` };
     const rows: any[] = await r.json();
     if (GEMINI_API_KEY) rebuildConceptGraph(brainId, GEMINI_API_KEY).catch(() => {});
+    runEnrichEntry(id, userId).catch(() => {});
     return rows[0];
   }
   if (name === "update_entry") {
@@ -223,6 +225,7 @@ async function execTool(name: string, args: Record<string, any>, userId: string,
     if (!r.ok) return { error: `Update failed: ${await r.text().catch(() => r.status)}` };
     const updated: any[] = await r.json();
     if (GEMINI_API_KEY) rebuildConceptGraph(brainId, GEMINI_API_KEY).catch(() => {});
+    runEnrichEntry(args.id, userId).catch(() => {});
     return updated[0];
   }
   if (name === "delete_entry") {

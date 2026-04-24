@@ -21,6 +21,7 @@ import {
   scanGmailForUser,
   deepScanBatch,
 } from "./_lib/gmailScan.js";
+import { runEnrichBatchForUser } from "./_lib/enrichBatch.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -222,6 +223,7 @@ const authedHandler = withAuth(
       const brainId = typeof req.body?.brain_id === "string" ? req.body.brain_id : undefined;
       try {
         const result = await scanGmailForUser(rows[0], true, brainId);
+        if (brainId) runEnrichBatchForUser(user.id, brainId, 10).catch(() => {});
         return void res.status(200).json(result);
       } catch (e: any) {
         console.error("[gmail/scan]", e);
