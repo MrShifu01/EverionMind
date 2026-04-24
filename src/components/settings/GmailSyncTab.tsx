@@ -31,20 +31,6 @@ function StatusDot({ on }: { on: boolean }) {
   );
 }
 
-function GmailIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-      <path
-        d="M2 6C2 4.9 2.9 4 4 4H20C21.1 4 22 4.9 22 6V18C22 19.1 21.1 20 20 20H4C2.9 20 2 19.1 2 18V6Z"
-        fill="#EA4335"
-        fillOpacity="0.15"
-        stroke="#EA4335"
-        strokeWidth="1.5"
-      />
-      <path d="M2 6L12 13L22 6" stroke="#EA4335" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 function formatLastScan(ts: string | null): string {
   if (!ts) return "Never scanned";
@@ -155,9 +141,13 @@ export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
         const created: number = data?.created ?? 0;
         if (created > 0 && Array.isArray(data?.entries) && data.entries.length > 0) {
           setReviewItems(data.entries);
+          setMsg({
+            text: `Scan complete — ${created} new item${created !== 1 ? "s" : ""} ready for review.`,
+            ok: true,
+          });
         } else {
           setMsg({
-            text: created === 0 ? "No new items found." : `${created} new item${created !== 1 ? "s" : ""} flagged.`,
+            text: created === 0 ? "Scan complete — no new items found." : `${created} new item${created !== 1 ? "s" : ""} flagged.`,
             ok: created > 0,
           });
         }
@@ -213,29 +203,15 @@ export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <StatusDot on={!!integration} />
           <div
             className="f-serif"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              fontSize: 16,
-              fontWeight: 450,
-              color: "var(--ink)",
-            }}
+            style={{ fontSize: 13, color: "var(--ink-faint)", fontStyle: "italic" }}
           >
-            <StatusDot on={!!integration} />
-            <GmailIcon />
-            <span>Gmail</span>
+            {integration
+              ? `Connected as ${integration.gmail_email ?? "unknown"} · last scan ${formatLastScan(integration.last_scanned_at)}`
+              : "Scan your inbox for invoices, deadlines, and action items."}
           </div>
-        </div>
-        <div
-          className="f-serif"
-          style={{ fontSize: 13, color: "var(--ink-faint)", fontStyle: "italic", marginTop: 3 }}
-        >
-          {integration
-            ? `Connected as ${integration.gmail_email ?? "unknown"} · last scan ${formatLastScan(integration.last_scanned_at)}`
-            : "Scan your inbox for invoices, deadlines, and action items."}
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
           {integration ? (
@@ -252,6 +228,14 @@ export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
             <SettingsButton onClick={() => setModalMode("connect")}>Connect</SettingsButton>
           )}
         </div>
+        {scanning && (
+          <div
+            className="f-sans"
+            style={{ marginTop: 8, fontSize: 12, color: "var(--ink-faint)", fontStyle: "italic" }}
+          >
+            Scanning Gmail — we'll notify you when it's done.
+          </div>
+        )}
       </div>
 
       {/* Active categories summary */}
@@ -432,57 +416,6 @@ export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
         </div>
       )}
 
-      {isAdmin && (
-        <div
-          className="f-sans"
-          style={{
-            marginTop: 16,
-            padding: "12px 14px",
-            borderRadius: 10,
-            fontSize: 12,
-            color: "var(--ink-faint)",
-            lineHeight: 1.6,
-            background: "var(--surface)",
-            border: "1px solid var(--line-soft)",
-          }}
-        >
-          <span style={{ fontWeight: 600, color: "var(--ink-soft)" }}>Setup required — </span>
-          Gmail scanning uses the same Google OAuth credentials as Calendar. Ensure{" "}
-          <code
-            style={{
-              fontFamily: "var(--f-mono)",
-              background: "var(--surface-high)",
-              padding: "1px 4px",
-              borderRadius: 3,
-            }}
-          >
-            GOOGLE_CLIENT_ID
-          </code>{" "}
-          and{" "}
-          <code
-            style={{
-              fontFamily: "var(--f-mono)",
-              background: "var(--surface-high)",
-              padding: "1px 4px",
-              borderRadius: 3,
-            }}
-          >
-            GOOGLE_CLIENT_SECRET
-          </code>{" "}
-          are set, and that the Gmail API is enabled in Google Cloud Console with the redirect URI{" "}
-          <code
-            style={{
-              fontFamily: "var(--f-mono)",
-              background: "var(--surface-high)",
-              padding: "1px 4px",
-              borderRadius: 3,
-            }}
-          >
-            GMAIL_REDIRECT_URI
-          </code>{" "}
-          registered. Scans run automatically once daily.
-        </div>
-      )}
 
       {modalMode && (
         <GmailSetupModal

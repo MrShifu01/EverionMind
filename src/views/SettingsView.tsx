@@ -566,7 +566,10 @@ export default function SettingsView({
                   title="Integrations"
                   subtitle="external connections and developer access."
                 />
-                <CalendarSyncTab isAdmin={isAdmin} />
+                <div className="micro" style={{ marginBottom: 16 }}>
+                  Calendar
+                </div>
+                <CalendarSyncTab />
                 <div style={{ margin: "32px 0 24px", borderTop: "1px solid var(--line-soft)" }} />
                 <div className="micro" style={{ marginBottom: 16 }}>
                   Gmail
