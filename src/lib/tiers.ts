@@ -1,4 +1,4 @@
-export type TierId = "free" | "free_byok" | "pro" | "pro_byok";
+export type TierId = "free" | "free_byok" | "starter" | "starter_byok" | "pro" | "pro_byok";
 
 export interface TierDef {
   id: TierId;
@@ -49,6 +49,38 @@ export const TIERS: TierDef[] = [
     ],
   },
   {
+    id: "starter",
+    label: "Starter",
+    subtitle: "Starter plan · Platform AI included",
+    included: [
+      "500 AI-assisted captures / month",
+      "200 AI chats / month",
+      "20 voice notes / month",
+      "20 improve scans / month",
+      "AI parsing, classification & metadata extraction",
+      "Vector embeddings & semantic search",
+      "Gmail scanning & calendar integration",
+    ],
+    missing: [
+      "Premium AI models (Sonnet / GPT-4o)",
+      "All features unlocked",
+    ],
+  },
+  {
+    id: "starter_byok",
+    label: "Starter + Keys",
+    subtitle: "Starter plan · Your own API keys",
+    included: [
+      "All Starter features",
+      "Full AI via your own keys (no quota)",
+      "Custom model selection",
+    ],
+    missing: [
+      "Premium AI models (Sonnet / GPT-4o)",
+      "All features unlocked",
+    ],
+  },
+  {
     id: "pro",
     label: "Pro",
     subtitle: "Pro plan · Platform API keys",
@@ -91,14 +123,17 @@ export const TIERS: TierDef[] = [
 export const TIER_LABELS: Record<TierId, string> = {
   free: "Free",
   free_byok: "Free + Keys",
+  starter: "Starter",
+  starter_byok: "Starter + Keys",
   pro: "Pro",
   pro_byok: "Pro + Keys",
 };
 
 export function deriveTierId(plan: string, hasAnyKey: boolean): TierId {
-  const isPro = plan === "pro";
-  if (isPro && hasAnyKey) return "pro_byok";
-  if (isPro) return "pro";
-  if (hasAnyKey) return "free_byok";
+  if (plan === "pro"     && hasAnyKey) return "pro_byok";
+  if (plan === "pro")                  return "pro";
+  if (plan === "starter" && hasAnyKey) return "starter_byok";
+  if (plan === "starter")              return "starter";
+  if (hasAnyKey)                       return "free_byok";
   return "free";
 }
