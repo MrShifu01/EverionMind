@@ -9,6 +9,10 @@ interface Props {
   brains: Brain[];
   onDone: (updatedEntries: Entry[]) => void;
   onCancel: () => void;
+  onSelectAll?: () => void;
+  onDelete?: (ids: string[]) => Promise<void>;
+  onReenrich?: (ids: string[]) => Promise<void>;
+  allSelected?: boolean;
 }
 
 export default function BulkActionBar({
@@ -17,10 +21,16 @@ export default function BulkActionBar({
   brains,
   onDone,
   onCancel,
+  onSelectAll,
+  onDelete,
+  onReenrich,
+  allSelected = false,
 }: Props) {
   const [targetType, setTargetType] = useState("");
   const [targetBrainIds, setTargetBrainIds] = useState<Set<string>>(new Set());
   const [progress, setProgress] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [reenriching, setReenriching] = useState(false);
   const [typeOpen, setTypeOpen] = useState(false);
   const [brainsOpen, setBrainsOpen] = useState(false);
   const [aiTyping, setAiTyping] = useState(false);
@@ -87,6 +97,22 @@ export default function BulkActionBar({
       else next.add(id);
       return next;
     });
+  }
+
+  async function bulkDelete() {
+    if (!onDelete) return;
+    setDeleting(true);
+    await onDelete([...selectedIds]);
+    setDeleting(false);
+    onCancel();
+  }
+
+  async function bulkReenrich() {
+    if (!onReenrich) return;
+    setReenriching(true);
+    await onReenrich([...selectedIds]);
+    setReenriching(false);
+    onCancel();
   }
 
   async function apply() {
@@ -166,6 +192,19 @@ export default function BulkActionBar({
           >
             {count} selected
           </span>
+          {onSelectAll && (
+            <button
+              onClick={onSelectAll}
+              className="press-scale rounded-full px-3 py-2.5 text-xs font-semibold whitespace-nowrap transition-opacity hover:opacity-90"
+              style={{
+                background: allSelected ? "var(--ember-wash)" : "var(--color-surface-container)",
+                color: allSelected ? "var(--ember)" : "var(--color-on-surface-variant)",
+                border: `1px solid ${allSelected ? "var(--ember)" : "var(--color-outline-variant)"}`,
+              }}
+            >
+              {allSelected ? "Deselect all" : "Select all"}
+            </button>
+          )}
           <button
             onClick={() => setExpanded(true)}
             className="press-scale rounded-full px-3 py-2.5 text-xs font-semibold whitespace-nowrap transition-opacity hover:opacity-90"
@@ -404,12 +443,46 @@ export default function BulkActionBar({
         {/* Apply */}
         <button
           onClick={apply}
-          disabled={!hasAction || !!progress}
+          disabled={!hasAction || !!progress || deleting || reenriching}
           className="w-full rounded-xl py-2 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
           style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}
         >
           {progress ?? `Apply to ${count} ${count === 1 ? "entry" : "entries"}`}
         </button>
+
+        {/* Destructive / utility actions */}
+        {(onDelete || onReenrich) && (
+          <div className="flex gap-2">
+            {onReenrich && (
+              <button
+                onClick={bulkReenrich}
+                disabled={reenriching || deleting || !!progress}
+                className="flex-1 rounded-xl py-2 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
+                style={{
+                  background: "var(--surface-high)",
+                  color: "var(--ink-soft)",
+                  border: "1px solid var(--line-soft)",
+                }}
+              >
+                {reenriching ? "Re-enriching…" : `Re-enrich ${count}`}
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={bulkDelete}
+                disabled={deleting || reenriching || !!progress}
+                className="flex-1 rounded-xl py-2 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
+                style={{
+                  background: "color-mix(in oklch, var(--color-error) 12%, transparent)",
+                  color: "var(--color-error)",
+                  border: "1px solid color-mix(in oklch, var(--color-error) 30%, transparent)",
+                }}
+              >
+                {deleting ? "Deleting…" : `Delete ${count}`}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

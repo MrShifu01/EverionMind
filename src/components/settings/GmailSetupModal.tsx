@@ -101,7 +101,6 @@ export default function GmailSetupModal({
   }
 
   const highCats = CATEGORIES.filter((c) => c.priority === "high");
-  const midCats = CATEGORIES.filter((c) => c.priority === "medium");
 
   return (
     <div
@@ -151,48 +150,9 @@ export default function GmailSetupModal({
           </div>
         </div>
 
-        {/* High-value categories */}
+        {/* Categories */}
         <div style={{ marginBottom: 8 }}>
-          <div
-            className="f-sans"
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: "0.06em",
-              textTransform: "uppercase",
-              color: "var(--ink-faint)",
-              marginBottom: 10,
-            }}
-          >
-            Recommended
-          </div>
           {highCats.map((cat) => (
-            <CategoryRow
-              key={cat.id}
-              cat={cat}
-              checked={selected.includes(cat.id)}
-              onToggle={toggle}
-            />
-          ))}
-        </div>
-
-        {/* Medium-value categories */}
-        <div style={{ marginBottom: 8 }}>
-          <div
-            className="f-sans"
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: "0.06em",
-              textTransform: "uppercase",
-              color: "var(--ink-faint)",
-              marginBottom: 10,
-              marginTop: 16,
-            }}
-          >
-            Optional
-          </div>
-          {midCats.map((cat) => (
             <CategoryRow
               key={cat.id}
               cat={cat}

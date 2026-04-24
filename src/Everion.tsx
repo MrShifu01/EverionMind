@@ -444,6 +444,46 @@ function EverionContent({
                             selectedIds={appShell.selectedIds}
                             entries={entries}
                             brains={brains}
+                            allSelected={appShell.selectedIds.size === filtered.length}
+                            onSelectAll={() => {
+                              if (appShell.selectedIds.size === filtered.length) {
+                                filtered.forEach((e) => {
+                                  if (appShell.selectedIds.has(e.id)) appShell.toggleSelectId(e.id);
+                                });
+                              } else {
+                                filtered.forEach((e) => {
+                                  if (!appShell.selectedIds.has(e.id)) appShell.toggleSelectId(e.id);
+                                });
+                              }
+                            }}
+                            onDelete={async (ids) => {
+                              for (const id of ids) {
+                                setEntries((prev) => prev.filter((e) => e.id !== id));
+                                await authFetch("/api/delete-entry", {
+                                  method: "DELETE",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ id }),
+                                }).catch((err) => console.error("[bulkDelete]", err));
+                              }
+                            }}
+                            onReenrich={async (ids) => {
+                              await authFetch("/api/entries", {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  ids,
+                                  changes: {
+                                    metadata: {
+                                      enrichment: { embedded: false, parsed: false, concepts_count: 0, has_insight: false },
+                                    },
+                                  },
+                                }),
+                              }).catch(() => null);
+                              await authFetch(
+                                `/api/entries?action=enrich-batch&brain_id=${activeBrain?.id}`,
+                                { method: "POST" },
+                              ).catch(() => null);
+                            }}
                             onDone={(updated) => {
                               setEntries((prev) =>
                                 prev.map((e) => updated.find((u) => u.id === e.id) ?? e),

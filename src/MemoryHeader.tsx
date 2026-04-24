@@ -180,6 +180,31 @@ export default function MemoryHeader({
 
         <div style={{ flex: 1 }} />
 
+        {/* Select mode toggle */}
+        {appShell.view === "memory" && (
+          <button
+            className="press"
+            onClick={appShell.toggleSelectMode}
+            aria-pressed={appShell.selectMode}
+            style={{
+              height: 32,
+              minHeight: 32,
+              padding: "0 10px",
+              borderRadius: 6,
+              fontFamily: "var(--f-sans)",
+              fontSize: 13,
+              fontWeight: 500,
+              background: appShell.selectMode ? "var(--ember-wash)" : "transparent",
+              color: appShell.selectMode ? "var(--ember)" : "var(--ink-faint)",
+              border: appShell.selectMode ? "1px solid var(--ember)" : "1px solid transparent",
+              cursor: "pointer",
+              transition: "all 180ms",
+            }}
+          >
+            Select
+          </button>
+        )}
+
         {/* Sort cycle */}
         <button
           className="design-btn-ghost press"
