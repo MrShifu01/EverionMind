@@ -63,21 +63,21 @@ export function withAuth(opts: WithAuthOptions, impl: Impl): (req: ApiRequest, r
       return;
     }
 
-    if (limitSpec !== false) {
-      const limit = typeof limitSpec === "function" ? limitSpec(req) : limitSpec;
-      if (!(await rateLimit(req, limit))) {
-        res.status(429).json({ error: "Too many requests" });
+    try {
+      if (limitSpec !== false) {
+        const limit = typeof limitSpec === "function" ? limitSpec(req) : limitSpec;
+        if (!(await rateLimit(req, limit))) {
+          res.status(429).json({ error: "Too many requests" });
+          return;
+        }
+      }
+
+      const user = await verifyAuth(req);
+      if (!user) {
+        res.status(401).json({ error: "Unauthorized" });
         return;
       }
-    }
 
-    const user = await verifyAuth(req);
-    if (!user) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
-
-    try {
       await impl({ req, res, user });
     } catch (err) {
       if (err instanceof ApiError) {
@@ -136,28 +136,28 @@ export function withApiKey(
       return;
     }
 
-    if (limitSpec !== false) {
-      const limit = typeof limitSpec === "function" ? limitSpec(req) : limitSpec;
-      if (!(await rateLimit(req, limit))) {
-        res.status(429).json({ error: "Too many requests" });
+    try {
+      if (limitSpec !== false) {
+        const limit = typeof limitSpec === "function" ? limitSpec(req) : limitSpec;
+        if (!(await rateLimit(req, limit))) {
+          res.status(429).json({ error: "Too many requests" });
+          return;
+        }
+      }
+
+      const authHeader = (req.headers["authorization"] as string) ?? "";
+      const rawKey = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+      if (!rawKey) {
+        res.status(401).json({ error: "Missing Authorization header" });
         return;
       }
-    }
 
-    const authHeader = (req.headers["authorization"] as string) ?? "";
-    const rawKey = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
-    if (!rawKey) {
-      res.status(401).json({ error: "Missing Authorization header" });
-      return;
-    }
+      const auth = await resolveApiKey(rawKey);
+      if (!auth) {
+        res.status(401).json({ error: "Invalid or revoked API key" });
+        return;
+      }
 
-    const auth = await resolveApiKey(rawKey);
-    if (!auth) {
-      res.status(401).json({ error: "Invalid or revoked API key" });
-      return;
-    }
-
-    try {
       await impl({ req, res, auth });
     } catch (err) {
       if (err instanceof ApiError) {
