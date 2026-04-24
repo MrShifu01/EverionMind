@@ -100,6 +100,12 @@ Blended gross margin target: **85%+**
 
 ---
 
+## Data Architecture
+
+Tier is stored in `user_profiles.tier` (source of truth). `user_ai_settings.plan` is kept in sync via a DB trigger during the transition period and will be removed once all reads migrate to `user_profiles`. See design spec for full schema.
+
+---
+
 ## Stripe Products
 
 | Product | Stripe Price ID env var |
