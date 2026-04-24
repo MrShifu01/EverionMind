@@ -1,10 +1,10 @@
 # CLAUDE.md
 
 > **HARD LIMIT — Vercel Hobby plan: max 12 serverless functions.**
-> The project currently has 13 `api/*.ts` files (one over limit — needs consolidation or Pro plan upgrade).
+> The project is at exactly 12 `api/*.ts` files — the maximum allowed.
 > **Never create a new top-level file in `api/` without first consolidating an existing endpoint.**
 > Route new actions through an existing handler using `?resource=` or `?action=` query params instead.
-> Current functions: calendar, capture, entries, feedback, gmail, llm, mcp, memory-api, notifications, search, transfer, user-data, v1
+> Current functions (12): calendar, capture, entries, feedback, gmail, llm, mcp, memory-api, search, transfer, user-data, v1
 
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 

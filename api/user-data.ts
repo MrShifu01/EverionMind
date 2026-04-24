@@ -19,6 +19,7 @@ const MAX_CHARS = 8000;
 //   /api/push-subscribe     → /api/user-data?resource=push
 //   /api/brains             → /api/user-data?resource=brains
 //   /api/cron/daily         → /api/user-data?resource=cron-daily
+//   /api/notifications      → /api/user-data?resource=notifications
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
   applySecurityHeaders(res);
   const resource = req.query.resource as string | undefined;
@@ -32,6 +33,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   if (resource === "push") return handlePushSubscribe(req, res);
   if (resource === "brains") return handleBrains(req, res);
   if (resource === "cron-daily") return handleCronDaily(req, res);
+  if (resource === "notifications") return handleNotifications(req, res);
   // Default: memory
   return handleMemory(req, res);
 }
@@ -569,3 +571,41 @@ async function handleCronDaily(req: ApiRequest, res: ApiResponse): Promise<void>
 
   return void res.status(200).json({ push: pushResults, gmail: gmailResults });
 }
+
+// ── /api/notifications (rewritten to /api/user-data?resource=notifications) ──
+const handleNotifications = withAuth(
+  { methods: ["GET", "PATCH", "DELETE"], rateLimit: 60 },
+  async ({ req, res, user }) => {
+    if (req.method === "GET") {
+      const dismissed = req.query.dismissed === "true" ? "eq.true" : "eq.false";
+      const r = await fetch(
+        `${SB_URL}/rest/v1/notifications?user_id=eq.${encodeURIComponent(user.id)}&dismissed=${dismissed}&order=created_at.desc&limit=50`,
+        { headers: hdrs() },
+      );
+      if (!r.ok) return void res.status(502).json({ error: "Failed to fetch notifications" });
+      return void res.status(200).json(await r.json());
+    }
+
+    if (req.method === "PATCH") {
+      const { id, read, dismissed } = req.body as { id: string; read?: boolean; dismissed?: boolean };
+      if (!id) return void res.status(400).json({ error: "Missing id" });
+      const patch: Record<string, unknown> = {};
+      if (read !== undefined) patch.read = read;
+      if (dismissed !== undefined) patch.dismissed = dismissed;
+      if (!Object.keys(patch).length) return void res.status(400).json({ error: "Nothing to update" });
+      const r = await fetch(
+        `${SB_URL}/rest/v1/notifications?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(user.id)}`,
+        { method: "PATCH", headers: hdrs({ Prefer: "return=minimal" }), body: JSON.stringify(patch) },
+      );
+      if (!r.ok) return void res.status(502).json({ error: "Failed to update notification" });
+      return void res.status(200).json({ ok: true });
+    }
+
+    // DELETE — dismiss all
+    await fetch(
+      `${SB_URL}/rest/v1/notifications?user_id=eq.${encodeURIComponent(user.id)}&dismissed=eq.false`,
+      { method: "PATCH", headers: hdrs({ Prefer: "return=minimal" }), body: JSON.stringify({ dismissed: true }) },
+    );
+    return void res.status(200).json({ ok: true });
+  },
+);

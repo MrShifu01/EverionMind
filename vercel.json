@@ -28,6 +28,7 @@
     { "source": "/api/gmail-auth",      "destination": "/api/gmail?action=auth" },
     { "source": "/api/memory/retrieve",  "destination": "/api/memory-api?action=retrieve" },
     { "source": "/api/memory/upcoming",  "destination": "/api/memory-api?action=upcoming" },
+    { "source": "/api/notifications",    "destination": "/api/user-data?resource=notifications" },
     { "source": "/api/export",           "destination": "/api/transfer" },
     { "source": "/api/import",           "destination": "/api/transfer" },
     { "source": "/api/pin",              "destination": "/api/user-data?resource=pin" },
