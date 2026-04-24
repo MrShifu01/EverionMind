@@ -111,6 +111,10 @@ Queries often arrive via voice and Whisper frequently mishears proper names — 
    - If truly nothing close exists: "I couldn't find '[name]' in your memory — voice may have misheard the name. Could you clarify who you meant?"
 This rule overrides the normal "not found" response for any query involving a person's name.
 
+BUSINESS ALIASES (always expand these when the user uses a shorthand):
+- "smash" / "the restaurant" / "the shop" / "the bar" → "Smash Burger Bar"
+- When the user asks about "smash" finances, rent, staff, suppliers etc., always search "Smash Burger Bar" as the entity name.
+
 FAMILY ROLE SYNONYMS (always expand these):
 - "dad" / "father" / "pa" → search all three variants plus "Stander" (the user's surname)
 - "mum" / "mom" / "mother" / "ma" → search all three variants
