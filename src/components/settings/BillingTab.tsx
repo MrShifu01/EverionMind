@@ -59,6 +59,64 @@ function UsageMeter({
   );
 }
 
+function PlanCard({
+  name,
+  price,
+  tagline,
+  accent,
+  highlight = false,
+  onClick,
+}: {
+  name: string;
+  price: string;
+  tagline: string;
+  accent: string;
+  highlight?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="press f-sans"
+      style={{
+        width: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "14px 16px",
+        borderRadius: 12,
+        border: `1px solid ${highlight ? accent : "var(--line)"}`,
+        background: highlight ? `color-mix(in oklch, ${accent} 8%, var(--surface))` : "var(--surface)",
+        cursor: "pointer",
+        textAlign: "left",
+        gap: 12,
+      }}
+    >
+      <div>
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.07em",
+            textTransform: "uppercase",
+            color: accent,
+            marginBottom: 3,
+          }}
+        >
+          {name}
+        </div>
+        <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>{tagline}</div>
+      </div>
+      <div style={{ flexShrink: 0, textAlign: "right" }}>
+        <div style={{ fontSize: 17, fontWeight: 600, color: "var(--ink)", lineHeight: 1.1 }}>
+          {price}
+        </div>
+        <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 2 }}>/ mo</div>
+      </div>
+    </button>
+  );
+}
+
 async function startCheckout(plan: "starter" | "pro", interval: "month" | "year" = "month") {
   const r = await authFetch("/api/stripe-checkout", {
     method: "POST",
@@ -161,30 +219,42 @@ export default function BillingTab() {
 
       {/* Upgrade / manage buttons */}
       {tier === "free" && (
-        <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-          <SettingsButton onClick={() => startCheckout("starter")}>
-            Upgrade to Starter — $4.99 / mo
-          </SettingsButton>
-          <SettingsButton onClick={() => startCheckout("pro")}>
-            Upgrade to Pro — $9.99 / mo
-          </SettingsButton>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 20 }}>
+          <PlanCard
+            name="Starter"
+            price="$4.99"
+            tagline="Platform AI + 500 captures / mo"
+            accent="var(--moss)"
+            onClick={() => startCheckout("starter")}
+          />
+          <PlanCard
+            name="Pro"
+            price="$9.99"
+            tagline="Sonnet AI + 2 000 captures + all features"
+            accent="var(--ember)"
+            highlight
+            onClick={() => startCheckout("pro")}
+          />
         </div>
       )}
       {tier === "starter" && (
-        <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-          <SettingsButton onClick={() => startCheckout("pro")}>
-            Upgrade to Pro — $9.99 / mo
-          </SettingsButton>
-          <SettingsButton onClick={openPortal}>
-            Manage subscription
-          </SettingsButton>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 20 }}>
+          <PlanCard
+            name="Pro"
+            price="$9.99"
+            tagline="Sonnet AI + 2 000 captures + all features"
+            accent="var(--ember)"
+            highlight
+            onClick={() => startCheckout("pro")}
+          />
+          <div style={{ marginTop: 4 }}>
+            <SettingsButton onClick={openPortal}>Manage subscription</SettingsButton>
+          </div>
         </div>
       )}
       {(tier === "pro" || tier === "max") && (
         <div style={{ marginTop: 16 }}>
-          <SettingsButton onClick={openPortal}>
-            Manage subscription
-          </SettingsButton>
+          <SettingsButton onClick={openPortal}>Manage subscription</SettingsButton>
         </div>
       )}
 
