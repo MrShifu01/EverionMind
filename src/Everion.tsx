@@ -40,6 +40,7 @@ import OmniSearch from "./components/OmniSearch";
 import SettingsView from "./views/SettingsView";
 const GraphView = lazy(() => import("./views/GraphView"));
 import FloatingCaptureButton from "./components/FloatingCaptureButton";
+import MemoryHeader from "./MemoryHeader";
 import { useAppShell, type AppShellState } from "./hooks/useAppShell";
 import { useDataLayer } from "./hooks/useDataLayer";
 import { useBrain } from "./context/BrainContext";
@@ -94,7 +95,6 @@ const NAV_VIEWS = [
 
 interface EverionContentProps {
   appShell: AppShellState;
-  links: any[];
   cryptoKey: CryptoKey | null;
   handleVaultUnlock: (key: CryptoKey | null) => void;
   enriching: boolean;
@@ -122,8 +122,23 @@ interface EverionContentProps {
   nudge: any;
   setNudge: (n: any) => void;
   bgTasks: any[];
-  bgProcessFiles: (files: File[], brainId: string | undefined, onCreated: (e: Entry) => void) => void;
-  bgQueueDirectSave: (entry: { title: string; content: string; type: string; tags: string[]; metadata: Record<string, any>; rawContent?: string }, brainId: string | undefined, onCreated: (e: Entry) => void) => void;
+  bgProcessFiles: (
+    files: File[],
+    brainId: string | undefined,
+    onCreated: (e: Entry) => void,
+  ) => void;
+  bgQueueDirectSave: (
+    entry: {
+      title: string;
+      content: string;
+      type: string;
+      tags: string[];
+      metadata: Record<string, any>;
+      rawContent?: string;
+    },
+    brainId: string | undefined,
+    onCreated: (e: Entry) => void,
+  ) => void;
   bgDismissTask: (id: string) => void;
   bgDismissAll: () => void;
   filtered: Entry[];
@@ -134,7 +149,6 @@ interface EverionContentProps {
 
 function EverionContent({
   appShell,
-  links,
   cryptoKey,
   handleVaultUnlock,
   enriching,
@@ -172,7 +186,8 @@ function EverionContent({
   vaultEntries,
 }: EverionContentProps) {
   const { activeBrain, brains, setActiveBrain: _setActiveBrain, refresh: _refresh } = useBrain();
-  const { entries, entriesLoaded, selected, setSelected, handleDelete, handleUpdate } = useEntries();
+  const { entries, entriesLoaded, selected, setSelected, handleDelete, handleUpdate } =
+    useEntries();
   const [selectedVaultEntry, setSelectedVaultEntry] = useState<Entry | null>(null);
 
   const handleEntrySelect = useCallback(
@@ -192,7 +207,7 @@ function EverionContent({
   const { adminFlags } = useAdminDevMode();
   const ff = (key: FeatureFlagKey) => isFeatureEnabled(key, adminFlags);
   const visibleNavViews = NAV_VIEWS.filter(
-    (v) => !(v.id in FEATURE_FLAGS) || ff(v.id as FeatureFlagKey)
+    (v) => !(v.id in FEATURE_FLAGS) || ff(v.id as FeatureFlagKey),
   );
 
   // If the active view gets disabled, fall back to memory
@@ -244,11 +259,10 @@ function EverionContent({
         navViews={visibleNavViews}
         searchInput={appShell.searchInput}
         onSearchChange={appShell.setSearchInput}
-      >
-      </DesktopSidebar>
+      ></DesktopSidebar>
 
       <div className="w-full overflow-x-hidden">
-        <div className="bg-background lg:ml-60 lg:max-w-[calc(100vw-240px)] min-h-dvh">
+        <div className="bg-background min-h-dvh lg:ml-60 lg:max-w-[calc(100vw-240px)]">
           <MobileHeader
             onToggleTheme={toggleTheme}
             isDark={isDark}
@@ -259,8 +273,7 @@ function EverionContent({
                 new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }),
               )
             }
-          >
-          </MobileHeader>
+          ></MobileHeader>
 
           {appShell.view === "memory" && nudge && (
             <NudgeBanner
@@ -307,229 +320,15 @@ function EverionContent({
           <div key={appShell.view} className="animate-view-enter">
             {(appShell.view === "memory" || appShell.view === "timeline") && (
               <>
-                {/* Memory top bar — title + inline search + Remember */}
-                <header
-                  className="memory-topbar hidden lg:flex"
-                  style={{
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "18px 32px",
-                    borderBottom: "1px solid var(--line-soft)",
-                    minHeight: 80,
-                    background: "var(--bg)",
-                    gap: 20,
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <h1
-                      className="f-serif"
-                      style={{
-                        fontSize: 28,
-                        fontWeight: 450,
-                        letterSpacing: "-0.015em",
-                        lineHeight: 1.1,
-                        margin: 0,
-                        color: "var(--ink)",
-                      }}
-                    >
-                      Memory
-                    </h1>
-                    <div
-                      className="f-serif"
-                      style={{
-                        fontSize: 14,
-                        color: "var(--ink-faint)",
-                        fontStyle: "italic",
-                        marginTop: 4,
-                      }}
-                    >
-                      {entriesLoaded && entries.length > 0
-                        ? `${entries.length} entries`
-                        : "everything you've written down."}
-                    </div>
-                  </div>
-                  <button
-                    className="design-btn-primary press"
-                    onClick={() => appShell.setShowCapture(true)}
-                    style={{ borderRadius: 6 }}
-                  >
-                    <svg
-                      width="14" height="14"
-                      fill="none" stroke="currentColor" strokeWidth="1.5"
-                      strokeLinecap="round" strokeLinejoin="round"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <path d="M12 5v14M5 12h14"/>
-                    </svg>
-                    Capture
-                  </button>
-                </header>
-
-                {/* Filter row — Grid/Timeline + type pills + sort */}
-                <div
-                  className="memory-filter-row"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "14px 32px",
-                    borderBottom: "1px solid var(--line-soft)",
-                    background: "var(--bg)",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  {/* Grid / List / Timeline segmented */}
-                  <div
-                    style={{
-                      display: "inline-flex",
-                      padding: 3,
-                      background: "var(--surface-low)",
-                      border: "1px solid var(--line-soft)",
-                      borderRadius: 8,
-                      gap: 2,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {[
-                      { id: "memory-grid", label: "Grid" },
-                      { id: "memory-list", label: "List" },
-                      { id: "timeline", label: "Timeline" },
-                    ].map((v) => {
-                      const active =
-                        v.id === "timeline"
-                          ? appShell.view === "timeline"
-                          : v.id === "memory-grid"
-                            ? appShell.view === "memory" && appShell.gridViewMode === "grid"
-                            : appShell.view === "memory" && appShell.gridViewMode === "list";
-                      return (
-                        <button
-                          key={v.id}
-                          onClick={() => {
-                            appShell.setSelected(null);
-                            if (v.id === "timeline") {
-                              appShell.setView("timeline");
-                            } else if (v.id === "memory-grid") {
-                              appShell.setView("memory");
-                              appShell.setGridViewMode("grid");
-                            } else {
-                              appShell.setView("memory");
-                              appShell.setGridViewMode("list");
-                            }
-                          }}
-                          className="press"
-                          aria-pressed={active}
-                          style={{
-                            padding: "6px 14px",
-                            minHeight: 28,
-                            borderRadius: 6,
-                            fontFamily: "var(--f-sans)",
-                            fontSize: 13,
-                            fontWeight: 500,
-                            background: active ? "var(--surface-high)" : "transparent",
-                            color: active ? "var(--ink)" : "var(--ink-faint)",
-                            border: active ? "1px solid var(--line-soft)" : "1px solid transparent",
-                            cursor: "pointer",
-                            transition: "all 180ms",
-                          }}
-                        >
-                          {v.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* vertical rule */}
-                  <span
-                    aria-hidden="true"
-                    style={{ width: 1, height: 22, background: "var(--line-soft)", flexShrink: 0 }}
-                  />
-
-                  {/* Type pills */}
-                  <div
-                    className="scrollbar-hide"
-                    style={{
-                      display: "flex",
-                      gap: 6,
-                      alignItems: "center",
-                      overflowX: "auto",
-                      minWidth: 0,
-                    }}
-                  >
-                    {["all", "note", "link", "reminder", "idea", "contact", "file"].map((t) => {
-                      const active = appShell.gridFilters.type === t;
-                      return (
-                        <button
-                          key={t}
-                          onClick={() =>
-                            appShell.setGridFilters({
-                              ...appShell.gridFilters,
-                              type: t,
-                              brainId: activeBrain?.id,
-                            })
-                          }
-                          className="press f-sans"
-                          style={{
-                            flexShrink: 0,
-                            padding: "0 14px",
-                            height: 32,
-                            minHeight: 32,
-                            borderRadius: 6,
-                            fontSize: 13,
-                            fontWeight: 500,
-                            background: active ? "var(--ember-wash)" : "var(--surface)",
-                            color: active ? "var(--ember)" : "var(--ink-soft)",
-                            border: `1px solid ${active ? "var(--ember)" : "var(--line-soft)"}`,
-                            cursor: "pointer",
-                            transition: "all 180ms",
-                          }}
-                        >
-                          {t}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <div style={{ flex: 1 }} />
-
-                  {/* Sort cycle */}
-                  <button
-                    className="design-btn-ghost press"
-                    onClick={() => {
-                      const order: Array<"newest" | "oldest" | "pinned"> = [
-                        "newest",
-                        "oldest",
-                        "pinned",
-                      ];
-                      const idx = order.indexOf(appShell.gridFilters.sort as any);
-                      const next = order[(idx + 1) % order.length];
-                      appShell.setGridFilters({
-                        ...appShell.gridFilters,
-                        sort: next,
-                        brainId: activeBrain?.id,
-                      });
-                    }}
-                    style={{ fontSize: 13, height: 32, minHeight: 32, padding: "0 10px" }}
-                  >
-                    <svg
-                      width="14" height="14"
-                      fill="none" stroke="currentColor" strokeWidth="1.5"
-                      strokeLinecap="round" strokeLinejoin="round"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <path d="M7 4v16M4 7l3-3 3 3M17 20V4M14 17l3 3 3-3" />
-                    </svg>
-                    {appShell.gridFilters.sort === "oldest"
-                      ? "Oldest first"
-                      : appShell.gridFilters.sort === "pinned"
-                        ? "Pinned first"
-                        : "Recent first"}
-                  </button>
-                </div>
+                <MemoryHeader
+                  appShell={appShell}
+                  entries={entries}
+                  entriesLoaded={entriesLoaded}
+                  activeBrainId={activeBrain?.id}
+                />
 
                 {appShell.view === "timeline" && ff("timeline") && (
-                  <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:pb-8 pt-4 pb-32">
+                  <div className="mx-auto max-w-4xl px-4 pt-4 pb-32 sm:px-6 lg:pb-8">
                     <VirtualTimeline
                       sorted={sortedTimeline}
                       setSelected={handleEntrySelect}
@@ -537,117 +336,141 @@ function EverionContent({
                     />
                   </div>
                 )}
-                {appShell.view === "memory" && <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:pb-8 pt-4 pb-32 space-y-3">
-
-                {!entriesLoaded ? (
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    <SkeletonCard count={6} />
-                  </div>
-                ) : entries.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center gap-5 py-24 text-center">
-                    <div
-                      style={{
-                        width: 56, height: 56, borderRadius: "50%",
-                        background: "var(--ember-wash)",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                      }}
-                    >
-                      <svg
-                        width="24" height="24"
-                        fill="none" stroke="currentColor" strokeWidth="1.5"
-                        strokeLinecap="round" strokeLinejoin="round"
-                        viewBox="0 0 24 24"
-                        style={{ color: "var(--ember)" }}
-                      >
-                        <path d="M5 19c3-9 8-14 14-14-1 6-4 12-12 14M8 12l4 4"/>
-                      </svg>
-                    </div>
-                    <h2
-                      className="f-serif"
-                      style={{
-                        fontSize: 28, fontWeight: 400, letterSpacing: "-0.01em",
-                        color: "var(--ink)", margin: 0,
-                      }}
-                    >
-                      Nothing yet. That's fine.
-                    </h2>
-                    <p
-                      className="f-serif"
-                      style={{
-                        fontSize: 16, fontStyle: "italic",
-                        color: "var(--ink-soft)", margin: 0,
-                        maxWidth: 360, lineHeight: 1.5,
-                      }}
-                    >
-                      Remember something.
-                    </p>
-                    <button
-                      onClick={() => appShell.setShowCapture(true)}
-                      className="design-btn-primary press"
-                      style={{ marginTop: 8 }}
-                    >
-                      Capture a thought
-                    </button>
-                  </div>
-                ) : filtered.length > 0 ? (
-                  <>
-                    <VirtualGrid
-                      filtered={filtered}
-                      setSelected={appShell.selectMode ? () => {} : handleEntrySelect}
-                      typeIcons={appShell.typeIcons}
-                      onPin={(e) => e.type !== "secret" && handleUpdate(e.id, { pinned: !e.pinned })}
-                      onDelete={(e) => e.type !== "secret" && handleDelete(e.id)}
-                      selectMode={appShell.selectMode}
-                      selectedIds={appShell.selectedIds}
-                      onToggleSelect={appShell.toggleSelectId}
-                      viewMode={appShell.gridViewMode}
-                      conceptMap={conceptMap}
-                    />
-                    {appShell.selectMode && appShell.selectedIds.size > 0 && (
-                      <BulkActionBar
-                        selectedIds={appShell.selectedIds}
-                        entries={entries}
-                        brains={brains}
-                        onDone={(updated) => {
-                          setEntries((prev) =>
-                            prev.map((e) => updated.find((u) => u.id === e.id) ?? e),
-                          );
-                          appShell.toggleSelectMode();
-                        }}
-                        onCancel={appShell.toggleSelectMode}
-                      />
+                {appShell.view === "memory" && (
+                  <div className="mx-auto max-w-6xl space-y-3 px-4 pt-4 pb-32 sm:px-6 lg:pb-8">
+                    {!entriesLoaded ? (
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        <SkeletonCard count={6} />
+                      </div>
+                    ) : entries.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center gap-5 py-24 text-center">
+                        <div
+                          style={{
+                            width: 56,
+                            height: 56,
+                            borderRadius: "50%",
+                            background: "var(--ember-wash)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <svg
+                            width="24"
+                            height="24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            viewBox="0 0 24 24"
+                            style={{ color: "var(--ember)" }}
+                          >
+                            <path d="M5 19c3-9 8-14 14-14-1 6-4 12-12 14M8 12l4 4" />
+                          </svg>
+                        </div>
+                        <h2
+                          className="f-serif"
+                          style={{
+                            fontSize: 28,
+                            fontWeight: 400,
+                            letterSpacing: "-0.01em",
+                            color: "var(--ink)",
+                            margin: 0,
+                          }}
+                        >
+                          Nothing yet. That's fine.
+                        </h2>
+                        <p
+                          className="f-serif"
+                          style={{
+                            fontSize: 16,
+                            fontStyle: "italic",
+                            color: "var(--ink-soft)",
+                            margin: 0,
+                            maxWidth: 360,
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          Remember something.
+                        </p>
+                        <button
+                          onClick={() => appShell.setShowCapture(true)}
+                          className="design-btn-primary press"
+                          style={{ marginTop: 8 }}
+                        >
+                          Capture a thought
+                        </button>
+                      </div>
+                    ) : filtered.length > 0 ? (
+                      <>
+                        <VirtualGrid
+                          filtered={filtered}
+                          setSelected={appShell.selectMode ? () => {} : handleEntrySelect}
+                          typeIcons={appShell.typeIcons}
+                          onPin={(e) =>
+                            e.type !== "secret" && handleUpdate(e.id, { pinned: !e.pinned })
+                          }
+                          onDelete={(e) => e.type !== "secret" && handleDelete(e.id)}
+                          selectMode={appShell.selectMode}
+                          selectedIds={appShell.selectedIds}
+                          onToggleSelect={appShell.toggleSelectId}
+                          viewMode={appShell.gridViewMode}
+                          conceptMap={conceptMap}
+                        />
+                        {appShell.selectMode && appShell.selectedIds.size > 0 && (
+                          <BulkActionBar
+                            selectedIds={appShell.selectedIds}
+                            entries={entries}
+                            brains={brains}
+                            onDone={(updated) => {
+                              setEntries((prev) =>
+                                prev.map((e) => updated.find((u) => u.id === e.id) ?? e),
+                              );
+                              appShell.toggleSelectMode();
+                            }}
+                            onCancel={appShell.toggleSelectMode}
+                          />
+                        )}
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
+                        <h3
+                          className="f-serif"
+                          style={{
+                            fontSize: 22,
+                            fontWeight: 450,
+                            letterSpacing: "-0.005em",
+                            color: "var(--ink)",
+                            margin: 0,
+                          }}
+                        >
+                          nothing matches.
+                        </h3>
+                        <p
+                          className="f-serif"
+                          style={{
+                            fontSize: 15,
+                            fontStyle: "italic",
+                            color: "var(--ink-faint)",
+                            margin: 0,
+                            maxWidth: 320,
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          try a looser word. or a feeling.
+                        </p>
+                        <button
+                          onClick={() => appShell.setShowCapture(true)}
+                          className="design-btn-secondary press"
+                          style={{ marginTop: 8 }}
+                        >
+                          Capture something new
+                        </button>
+                      </div>
                     )}
-                  </>
-                ) : (
-                  <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
-                    <h3
-                      className="f-serif"
-                      style={{
-                        fontSize: 22, fontWeight: 450, letterSpacing: "-0.005em",
-                        color: "var(--ink)", margin: 0,
-                      }}
-                    >
-                      nothing matches.
-                    </h3>
-                    <p
-                      className="f-serif"
-                      style={{
-                        fontSize: 15, fontStyle: "italic",
-                        color: "var(--ink-faint)", margin: 0, maxWidth: 320, lineHeight: 1.5,
-                      }}
-                    >
-                      try a looser word. or a feeling.
-                    </p>
-                    <button
-                      onClick={() => appShell.setShowCapture(true)}
-                      className="design-btn-secondary press"
-                      style={{ marginTop: 8 }}
-                    >
-                      Capture something new
-                    </button>
                   </div>
                 )}
-                </div>}
               </>
             )}
 
@@ -663,7 +486,11 @@ function EverionContent({
             )}
             {appShell.view === "todos" && ff("todos") && (
               <Suspense fallback={<Loader />}>
-                <TodoView entries={entries} typeIcons={appShell.typeIcons} activeBrainId={activeBrain?.id} />
+                <TodoView
+                  entries={entries}
+                  typeIcons={appShell.typeIcons}
+                  activeBrainId={activeBrain?.id}
+                />
               </Suspense>
             )}
             {appShell.view === "vault" && ff("vault") && (
@@ -691,186 +518,198 @@ function EverionContent({
               />
             )}
             {appShell.view === "capture" && (
-              <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:pb-8 pt-4 pb-32">
+              <div className="mx-auto max-w-4xl px-4 pt-4 pb-32 sm:px-6 lg:pb-8">
                 {(() => {
-                if (!entriesLoaded)
-                  return (
-                    <div className="space-y-6">
-                      {/* Welcome skeleton */}
-                      <div
-                        className="h-16 animate-pulse rounded-3xl"
-                        style={{ background: "var(--color-surface-container)" }}
-                      />
-                      {/* Grid skeleton */}
-                      <div>
+                  if (!entriesLoaded)
+                    return (
+                      <div className="space-y-6">
+                        {/* Welcome skeleton */}
                         <div
-                          className="mb-3 h-3 w-24 animate-pulse rounded-full"
+                          className="h-16 animate-pulse rounded-3xl"
                           style={{ background: "var(--color-surface-container)" }}
                         />
-                        <div className="grid grid-cols-2 gap-3">
-                          {[0, 1, 2, 3].map((i) => (
-                            <div
-                              key={i}
-                              className="h-20 animate-pulse rounded-2xl"
-                              style={{ background: "var(--color-surface-container)" }}
-                            />
-                          ))}
+                        {/* Grid skeleton */}
+                        <div>
+                          <div
+                            className="mb-3 h-3 w-24 animate-pulse rounded-full"
+                            style={{ background: "var(--color-surface-container)" }}
+                          />
+                          <div className="grid grid-cols-2 gap-3">
+                            {[0, 1, 2, 3].map((i) => (
+                              <div
+                                key={i}
+                                className="h-20 animate-pulse rounded-2xl"
+                                style={{ background: "var(--color-surface-container)" }}
+                              />
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                      {/* List skeleton */}
-                      <div>
-                        <div
-                          className="mb-3 h-3 w-28 animate-pulse rounded-full"
-                          style={{ background: "var(--color-surface-container)" }}
-                        />
-                        <div
-                          className="overflow-hidden rounded-2xl border"
-                          style={{ borderColor: "var(--color-outline-variant)" }}
-                        >
-                          {[0, 1, 2].map((i) => (
-                            <div
-                              key={i}
-                              className="flex items-center gap-3 px-4 py-3"
-                              style={{
-                                borderTop:
-                                  i > 0 ? "1px solid var(--color-outline-variant)" : undefined,
-                              }}
-                            >
-                              <div
-                                className="h-5 w-5 animate-pulse rounded-full"
-                                style={{ background: "var(--color-surface-container)" }}
-                              />
-                              <div
-                                className="h-3 flex-1 animate-pulse rounded-full"
-                                style={{ background: "var(--color-surface-container)" }}
-                              />
-                              <div
-                                className="h-3 w-12 animate-pulse rounded-full"
-                                style={{ background: "var(--color-surface-container)" }}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                const recentEntries = [...entries]
-                  .sort(
-                    (a, b) =>
-                      new Date(b.updated_at ?? b.created_at ?? 0).getTime() -
-                      new Date(a.updated_at ?? a.created_at ?? 0).getTime(),
-                  )
-                  .slice(0, 5);
-                const quickActions = [
-                  { id: "todos", label: "Todos", icon: NavIcon.todos },
-                  { id: "memory", label: "Memory Grid", icon: NavIcon.grid },
-                ] as { id: string; label: string; icon: ReactNode }[];
-                return (
-                  <div className="space-y-8">
-                    {/* Welcome */}
-                    <div>
-                      <h2
-                        className="f-serif"
-                        style={{
-                          fontSize: 32, fontWeight: 400, letterSpacing: "-0.015em",
-                          color: "var(--ink)", margin: 0, lineHeight: 1.15,
-                        }}
-                      >
-                        welcome back.
-                      </h2>
-                      <p
-                        className="f-serif"
-                        style={{
-                          fontSize: 15, fontStyle: "italic",
-                          color: "var(--ink-faint)", margin: "6px 0 0",
-                        }}
-                      >
-                        {activeBrain?.name ?? "your brain"} · {entries.length}{" "}
-                        {entries.length === 1 ? "entry" : "entries"}
-                      </p>
-                    </div>
-
-                    {/* Quick actions */}
-                    <div>
-                      <div className="micro" style={{ marginBottom: 12 }}>Quick nav</div>
-                      <div className="grid grid-cols-2 gap-3">
-                        {quickActions.map((v) => (
-                          <button
-                            key={v.id}
-                            onClick={() => appShell.setView(v.id)}
-                            className="press design-card"
-                            style={{
-                              display: "flex",
-                              flexDirection: "column",
-                              alignItems: "flex-start",
-                              gap: 10,
-                              padding: 16,
-                              textAlign: "left",
-                              cursor: "pointer",
-                            }}
+                        {/* List skeleton */}
+                        <div>
+                          <div
+                            className="mb-3 h-3 w-28 animate-pulse rounded-full"
+                            style={{ background: "var(--color-surface-container)" }}
+                          />
+                          <div
+                            className="overflow-hidden rounded-2xl border"
+                            style={{ borderColor: "var(--color-outline-variant)" }}
                           >
-                            <span style={{ color: "var(--ink-faint)" }}>{v.icon}</span>
-                            <span
-                              className="f-serif"
-                              style={{ fontSize: 16, fontWeight: 450, color: "var(--ink)" }}
-                            >
-                              {v.label}
-                            </span>
-                          </button>
-                        ))}
+                            {[0, 1, 2].map((i) => (
+                              <div
+                                key={i}
+                                className="flex items-center gap-3 px-4 py-3"
+                                style={{
+                                  borderTop:
+                                    i > 0 ? "1px solid var(--color-outline-variant)" : undefined,
+                                }}
+                              >
+                                <div
+                                  className="h-5 w-5 animate-pulse rounded-full"
+                                  style={{ background: "var(--color-surface-container)" }}
+                                />
+                                <div
+                                  className="h-3 flex-1 animate-pulse rounded-full"
+                                  style={{ background: "var(--color-surface-container)" }}
+                                />
+                                <div
+                                  className="h-3 w-12 animate-pulse rounded-full"
+                                  style={{ background: "var(--color-surface-container)" }}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-
-                    {/* Recent activity */}
-                    {recentEntries.length > 0 && (
+                    );
+                  const recentEntries = [...entries]
+                    .sort(
+                      (a, b) =>
+                        new Date(b.updated_at ?? b.created_at ?? 0).getTime() -
+                        new Date(a.updated_at ?? a.created_at ?? 0).getTime(),
+                    )
+                    .slice(0, 5);
+                  const quickActions = [
+                    { id: "todos", label: "Todos", icon: NavIcon.todos },
+                    { id: "memory", label: "Memory Grid", icon: NavIcon.grid },
+                  ] as { id: string; label: string; icon: ReactNode }[];
+                  return (
+                    <div className="space-y-8">
+                      {/* Welcome */}
                       <div>
-                        <div className="micro" style={{ marginBottom: 12 }}>Recent</div>
-                        <div style={{ display: "grid", gap: 8 }}>
-                          {recentEntries.map((entry) => (
+                        <h2
+                          className="f-serif"
+                          style={{
+                            fontSize: 32,
+                            fontWeight: 400,
+                            letterSpacing: "-0.015em",
+                            color: "var(--ink)",
+                            margin: 0,
+                            lineHeight: 1.15,
+                          }}
+                        >
+                          welcome back.
+                        </h2>
+                        <p
+                          className="f-serif"
+                          style={{
+                            fontSize: 15,
+                            fontStyle: "italic",
+                            color: "var(--ink-faint)",
+                            margin: "6px 0 0",
+                          }}
+                        >
+                          {activeBrain?.name ?? "your brain"} · {entries.length}{" "}
+                          {entries.length === 1 ? "entry" : "entries"}
+                        </p>
+                      </div>
+
+                      {/* Quick actions */}
+                      <div>
+                        <div className="micro" style={{ marginBottom: 12 }}>
+                          Quick nav
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          {quickActions.map((v) => (
                             <button
-                              key={entry.id}
-                              onClick={() => setSelected(entry)}
+                              key={v.id}
+                              onClick={() => appShell.setView(v.id)}
                               className="press design-card"
                               style={{
                                 display: "flex",
-                                alignItems: "center",
-                                gap: 12,
-                                padding: "12px 16px",
+                                flexDirection: "column",
+                                alignItems: "flex-start",
+                                gap: 10,
+                                padding: 16,
                                 textAlign: "left",
                                 cursor: "pointer",
                               }}
                             >
-                              <span style={{ fontSize: 14 }} aria-hidden="true">
-                                {appShell.typeIcons[entry.type] ?? "📝"}
-                              </span>
+                              <span style={{ color: "var(--ink-faint)" }}>{v.icon}</span>
                               <span
-                                className="f-serif truncate flex-1"
-                                style={{
-                                  fontSize: 15, fontWeight: 450, color: "var(--ink)",
-                                }}
+                                className="f-serif"
+                                style={{ fontSize: 16, fontWeight: 450, color: "var(--ink)" }}
                               >
-                                {entry.title}
-                              </span>
-                              <span
-                                className="f-sans"
-                                style={{
-                                  fontSize: 11,
-                                  fontWeight: 600,
-                                  textTransform: "uppercase",
-                                  letterSpacing: "0.06em",
-                                  color: "var(--ink-faint)",
-                                }}
-                              >
-                                {entry.type}
+                                {v.label}
                               </span>
                             </button>
                           ))}
                         </div>
                       </div>
-                    )}
-                  </div>
-                );
-              })()}
+
+                      {/* Recent activity */}
+                      {recentEntries.length > 0 && (
+                        <div>
+                          <div className="micro" style={{ marginBottom: 12 }}>
+                            Recent
+                          </div>
+                          <div style={{ display: "grid", gap: 8 }}>
+                            {recentEntries.map((entry) => (
+                              <button
+                                key={entry.id}
+                                onClick={() => setSelected(entry)}
+                                className="press design-card"
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 12,
+                                  padding: "12px 16px",
+                                  textAlign: "left",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                <span style={{ fontSize: 14 }} aria-hidden="true">
+                                  {appShell.typeIcons[entry.type] ?? "📝"}
+                                </span>
+                                <span
+                                  className="f-serif flex-1 truncate"
+                                  style={{
+                                    fontSize: 15,
+                                    fontWeight: 450,
+                                    color: "var(--ink)",
+                                  }}
+                                >
+                                  {entry.title}
+                                </span>
+                                <span
+                                  className="f-sans"
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    textTransform: "uppercase",
+                                    letterSpacing: "0.06em",
+                                    color: "var(--ink-faint)",
+                                  }}
+                                >
+                                  {entry.type}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>
@@ -882,7 +721,10 @@ function EverionContent({
                 cryptoKey={cryptoKey}
                 onClose={() => setSelectedVaultEntry(null)}
                 onVaultUnlock={handleVaultUnlock}
-                onGoToVault={() => { setSelectedVaultEntry(null); appShell.setView("vault"); }}
+                onGoToVault={() => {
+                  setSelectedVaultEntry(null);
+                  appShell.setView("vault");
+                }}
               />
             )}
           </Suspense>
@@ -894,12 +736,9 @@ function EverionContent({
                 onClose={() => setSelected(null)}
                 onDelete={handleDelete}
                 onUpdate={handleUpdate}
-                entries={entries}
-                links={links}
                 canWrite={canWrite}
                 brains={brains}
                 vaultUnlocked={!!cryptoKey}
-                typeIcons={appShell.typeIcons}
                 onTypeIconChange={(type: string, icon: string) => {
                   registerTypeIcon(activeBrain?.id ?? "", type, icon);
                   appShell.refreshTypeIcons();
@@ -972,9 +811,7 @@ function EverionContent({
                         let parsed: any = {};
                         try {
                           parsed = JSON.parse(
-                            (data.content?.[0]?.text || "{}")
-                              .replace(/```json|```/g, "")
-                              .trim(),
+                            (data.content?.[0]?.text || "{}").replace(/```json|```/g, "").trim(),
                           );
                         } catch (err) {
                           console.error("[OpenBrain]", err);
@@ -1026,8 +863,12 @@ function EverionContent({
           <Suspense fallback={null}>
             <CaptureSheet
               isOpen={appShell.showCapture}
-              onClose={() => { appShell.setShowCapture(false); }}
-              onCreated={(e) => { handleCreated(e); }}
+              onClose={() => {
+                appShell.setShowCapture(false);
+              }}
+              onCreated={(e) => {
+                handleCreated(e);
+              }}
               brainId={activeBrain?.id}
               cryptoKey={cryptoKey}
               isOnline={isOnline}
@@ -1067,8 +908,7 @@ function EverionContent({
 // EverionContent (which calls useConceptGraph inside ConceptGraphProvider).
 
 export default function Everion({ initialShowCapture }: { initialShowCapture?: boolean } = {}) {
-  const { brains, activeBrain, setActiveBrain, refresh, loading: brainsLoading } =
-    useBrainHook();
+  const { brains, activeBrain, setActiveBrain, refresh, loading: brainsLoading } = useBrainHook();
 
   const patchEntryIdRef = useRef<(tempId: string, realId: string) => void>(() => {});
 
@@ -1098,7 +938,9 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
     refreshCount,
   });
 
-  patchEntryIdRef.current = dataLayer.patchEntryId;
+  useEffect(() => {
+    patchEntryIdRef.current = dataLayer.patchEntryId;
+  }, [dataLayer.patchEntryId]);
 
   // Single-user app — all brains are owned by the authenticated user.
   // If multi-user support is added, wire this to brain membership/ownership.
@@ -1109,8 +951,13 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
     activeBrain,
   });
 
-  const { tasks: bgTasks, processFiles: bgProcessFiles, queueDirectSave: bgQueueDirectSave, dismissTask: bgDismissTask, dismissAll: bgDismissAll } =
-    useBackgroundCapture();
+  const {
+    tasks: bgTasks,
+    processFiles: bgProcessFiles,
+    queueDirectSave: bgQueueDirectSave,
+    dismissTask: bgDismissTask,
+    dismissAll: bgDismissAll,
+  } = useBackgroundCapture();
 
   const allDisplayEntries = useMemo(
     () => [...dataLayer.entries, ...dataLayer.vaultEntries],
@@ -1144,10 +991,7 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
     [filtered],
   );
 
-  const availableEntryTypes = useMemo(
-    () => getEntryTypes(dataLayer.entries),
-    [dataLayer.entries],
-  );
+  const availableEntryTypes = useMemo(() => getEntryTypes(dataLayer.entries), [dataLayer.entries]);
 
   const entriesValue = useMemo(
     () => ({
@@ -1218,7 +1062,6 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
         <ConceptGraphProvider activeBrainId={activeBrain?.id}>
           <EverionContent
             appShell={appShell}
-            links={dataLayer.links}
             cryptoKey={dataLayer.cryptoKey}
             handleVaultUnlock={dataLayer.handleVaultUnlock}
             enriching={dataLayer.enriching}
