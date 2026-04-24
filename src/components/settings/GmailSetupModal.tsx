@@ -152,7 +152,13 @@ export default function GmailSetupModal({
           </div>
         </div>
 
-        {/* Categories */}
+        {/* Hard filters */}
+        <p
+          className="f-sans"
+          style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 600, color: "var(--ink-soft)", letterSpacing: "0.04em", textTransform: "uppercase" }}
+        >
+          Hard filters
+        </p>
         <div style={{ marginBottom: 4 }}>
           {highCats.map((cat) => (
             <CategoryRow
@@ -167,7 +173,7 @@ export default function GmailSetupModal({
           className="f-serif"
           style={{ margin: "0 0 10px", fontSize: 12, color: "var(--ink-faint)", fontStyle: "italic" }}
         >
-          All emails are scanned. Checked types are flagged first.
+          Only emails matching a checked type are captured. Untick all to rely solely on your custom rules below.
         </p>
 
         {/* Custom input — collapsible edit panel */}
