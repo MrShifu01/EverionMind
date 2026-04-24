@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { supabase } from "../lib/supabase";
 import { useBrain } from "../context/BrainContext";
 import AccountTab from "../components/settings/AccountTab";
@@ -281,6 +281,65 @@ function AuditCard({ brainId }: { brainId: string }) {
   );
 }
 
+function CollapseSection({
+  label,
+  open,
+  onToggle,
+  children,
+}: {
+  label: string;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <>
+      <button
+        onClick={onToggle}
+        className="f-sans press"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          width: "100%",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          padding: "16px 0",
+          gap: 6,
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+          color: "var(--ink-faint)",
+        }}
+      >
+        {label}
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
+          style={{
+            marginLeft: "auto",
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 200ms",
+            flexShrink: 0,
+          }}
+        >
+          <path
+            d="M2 3.5L5 6.5L8 3.5"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
+        </svg>
+      </button>
+      {open && <div style={{ paddingBottom: 16 }}>{children}</div>}
+    </>
+  );
+}
+
 function VaultRow({ onNavigate }: { onNavigate: (id: string) => void }) {
   return (
     <SettingsRow label="Vault" hint="end-to-end encrypted secrets.">
@@ -336,6 +395,8 @@ export default function SettingsView({
     }
   });
   const [apiOpen, setApiOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [gmailOpen, setGmailOpen] = useState(false);
   const [preloaded, setPreloaded] = useState<Set<SectionId>>(
     () => new Set([section, "notifications", "integrations"] as SectionId[]),
   );
@@ -580,16 +641,14 @@ export default function SettingsView({
                   title="Integrations"
                   subtitle="external connections and developer access."
                 />
-                <div className="micro" style={{ marginBottom: 16 }}>
-                  Calendar
-                </div>
-                <CalendarSyncTab />
-                <div style={{ margin: "32px 0 24px", borderTop: "1px solid var(--line-soft)" }} />
-                <div className="micro" style={{ marginBottom: 16 }}>
-                  Gmail
-                </div>
-                <GmailSyncTab isAdmin={isAdmin} />
-                <div style={{ margin: "32px 0 24px", borderTop: "1px solid var(--line-soft)" }} />
+                <CollapseSection label="Calendar" open={calendarOpen} onToggle={() => setCalendarOpen((o) => !o)}>
+                  <CalendarSyncTab />
+                </CollapseSection>
+                <div style={{ margin: "8px 0", borderTop: "1px solid var(--line-soft)" }} />
+                <CollapseSection label="Gmail" open={gmailOpen} onToggle={() => setGmailOpen((o) => !o)}>
+                  <GmailSyncTab isAdmin={isAdmin} />
+                </CollapseSection>
+                <div style={{ margin: "8px 0", borderTop: "1px solid var(--line-soft)" }} />
                 <button
                   onClick={() => setApiOpen((o) => !o)}
                   className="f-sans press"

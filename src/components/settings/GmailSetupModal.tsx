@@ -105,8 +105,8 @@ export default function GmailSetupModal({
 
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.45)" }}
+      className="fixed inset-0 z-[9999] flex items-start justify-center"
+      style={{ background: "rgba(0,0,0,0.45)", paddingTop: 16 }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -118,7 +118,7 @@ export default function GmailSetupModal({
         style={{
           width: "calc(100% - 32px)",
           maxWidth: 480,
-          height: "calc(100dvh - 32px)",
+          height: "calc(100dvh - 128px)",
           display: "flex",
           flexDirection: "column",
           background: "var(--bg)",
@@ -149,20 +149,6 @@ export default function GmailSetupModal({
               {mode === "connect" ? "Connect Gmail" : "Email preferences"}
             </h3>
           </div>
-          <p
-            className="f-serif"
-            style={{
-              margin: 0,
-              fontSize: 14,
-              color: "var(--ink-faint)",
-              fontStyle: "italic",
-              lineHeight: 1.5,
-            }}
-          >
-            {mode === "connect"
-              ? "Choose which types of emails Everion should flag for you."
-              : "Update which email types Everion monitors in your inbox."}
-          </p>
         </div>
 
         {/* High-value categories */}
@@ -290,18 +276,6 @@ export default function GmailSetupModal({
               );
             })}
           </div>
-          <p
-            className="f-serif"
-            style={{
-              margin: "6px 0 0",
-              fontSize: 12,
-              color: "var(--ink-faint)",
-              fontStyle: "italic",
-            }}
-          >
-            How far back to search when you tap "Scan now". The daily cron always scans since the
-            last run.
-          </p>
         </div>
 
         {/* Actions */}
