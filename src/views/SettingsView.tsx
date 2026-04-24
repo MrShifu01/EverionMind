@@ -11,6 +11,7 @@ import CalendarSyncTab from "../components/settings/CalendarSyncTab";
 import GmailSyncTab from "../components/settings/GmailSyncTab";
 import NotificationSettings from "../components/NotificationSettings";
 import AppearanceTab from "../components/settings/AppearanceTab";
+import BillingTab from "../components/settings/BillingTab";
 import AdminTab from "../components/settings/AdminTab";
 import SecurityTab from "../components/settings/SecurityTab";
 import SettingsRow, { SettingsButton } from "../components/settings/SettingsRow";
@@ -20,6 +21,7 @@ import { getDecisionCount } from "../lib/learningEngine";
 type SectionId =
   | "appearance"
   | "account"
+  | "billing"
   | "brain"
   | "data"
   | "ai"
@@ -34,6 +36,7 @@ const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
 const BASE_SECTIONS: { id: SectionId; label: string }[] = [
   { id: "appearance", label: "Appearance" },
   { id: "account", label: "Account" },
+  { id: "billing", label: "Billing" },
   { id: "brain", label: "Brain" },
   { id: "data", label: "Data" },
   { id: "ai", label: "AI" },
@@ -385,6 +388,7 @@ export default function SettingsView({
     const params = new URLSearchParams(window.location.search);
     if (params.has("calendarConnected") || params.has("calendarError")) return "integrations";
     if (params.has("gmailConnected") || params.has("gmailError")) return "integrations";
+    if (params.get("tab") === "billing" || params.has("billing")) return "billing";
     return "appearance";
   });
   const [email, setEmail] = useState(() => {
@@ -592,6 +596,13 @@ export default function SettingsView({
               <div style={{ display: section === "account" ? "block" : "none" }}>
                 <SectionHeader title="Account" />
                 <AccountTab email={email} />
+              </div>
+            )}
+
+            {preloaded.has("billing") && (
+              <div style={{ display: section === "billing" ? "block" : "none" }}>
+                <SectionHeader title="Billing" subtitle="manage your plan, usage, and subscription." />
+                <BillingTab />
               </div>
             )}
 

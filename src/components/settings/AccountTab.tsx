@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
-import { clearAISettingsCache, aiSettings } from "../../lib/aiSettings";
+import { clearAISettingsCache } from "../../lib/aiSettings";
 import SettingsRow, { SettingsButton, SettingsText } from "./SettingsRow";
-import { deriveTierId, TIERS } from "../../lib/tiers";
+import { useSubscription } from "../../lib/useSubscription";
 
 interface Props {
   email: string;
@@ -54,10 +54,9 @@ export default function AccountTab({ email }: Props) {
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
 
-  const s = aiSettings.get();
-  const hasByok = !!(s.anthropicKey || s.openaiKey || s.groqKey);
-  const tierId = deriveTierId(s.plan, hasByok);
-  const tier = TIERS.find((t) => t.id === tierId)!;
+  const { tier: billingTier } = useSubscription();
+  const tierLabel = billingTier === "pro" ? "Pro" : billingTier === "starter" ? "Starter" : "Free";
+  const tierColor = billingTier === "pro" ? "var(--ember)" : billingTier === "starter" ? "var(--moss)" : "var(--ink-ghost)";;
 
   const initials = (profile.display_name || email || "?")
     .split(/\s+/)
@@ -115,10 +114,9 @@ export default function AccountTab({ email }: Props) {
             {profile.display_name || email}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
-            <span className="f-sans" style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 999, background: "var(--ember-wash)", color: "var(--ember)", letterSpacing: "0.04em" }}>
-              {tier.label}
+            <span className="f-sans" style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: tierColor, background: `${tierColor}18`, padding: "3px 8px", borderRadius: 5 }}>
+              {tierLabel}
             </span>
-            <span className="f-sans" style={{ fontSize: 11, color: "var(--ink-faint)", fontStyle: "italic" }}>{tier.subtitle}</span>
           </div>
         </div>
       </div>
