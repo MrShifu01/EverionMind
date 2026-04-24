@@ -3,7 +3,7 @@
 > Run through this periodically and update status marks.
 > **Legend:** ✅ FIXED · ❌ UNFIXED · ⚠️ PARTIAL · ❓ CLARIFY NEEDED
 >
-> Last audit: 2026-04-25 · Last review: 2026-04-25 · Week 1+2 implemented: 2026-04-25
+> Last audit: 2026-04-25 · Last review: 2026-04-25 · Week 1+2 implemented: 2026-04-25 · Week 3 implemented: 2026-04-25
 
 ---
 

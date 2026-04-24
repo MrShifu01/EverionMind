@@ -16,6 +16,8 @@ import { retrieveEntries, rebuildConceptGraph } from "./_lib/retrievalCore.js";
 import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
 import { runEnrichEntry, scheduleEnrichJob } from "./_lib/enrichBatch.js";
 import { checkIdempotency, recordIdempotency } from "./_lib/idempotency.js";
+import { checkAndIncrement } from "./_lib/usage.js";
+import { getReqId, createLogger } from "./_lib/logger.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -112,6 +114,23 @@ async function handleIngest({ userId, brainId }: Auth, body: any) {
   const { title, content, type = "note", tags = [] } = body;
   if (!title || typeof title !== "string") throw { status: 400, message: "title is required" };
   if (!content || typeof content !== "string") throw { status: 400, message: "content is required" };
+
+  // Quota enforcement for external API ingest
+  const settingsRes = await fetch(
+    `${SB_URL}/rest/v1/user_ai_settings?user_id=eq.${encodeURIComponent(userId)}&select=plan,anthropic_key,gemini_key,openai_key&limit=1`,
+    { headers: hdrs() },
+  );
+  const settingsRows = settingsRes.ok ? await settingsRes.json() : [];
+  const settings = settingsRows[0] ?? {};
+  const plan = settings.plan ?? "starter";
+  const hasByok = !!(settings.anthropic_key || settings.gemini_key || settings.openai_key);
+  let quota: Awaited<ReturnType<typeof checkAndIncrement>>;
+  try {
+    quota = await checkAndIncrement(userId, "captures", plan, hasByok);
+  } catch {
+    throw { status: 503, message: "Quota service unavailable — try again shortly" };
+  }
+  if (!quota.allowed) throw { status: 429, message: `Monthly capture limit reached (${plan} plan)` };
 
   const safeTitle = title.trim().slice(0, 200);
   const safeContent = content.slice(0, 10000);
@@ -221,6 +240,10 @@ const HANDLERS: Record<string, (auth: Auth, body: any) => Promise<any>> = {
 export default withApiKey(
   { methods: ["POST"], rateLimit: 30 },
   async ({ req, res, auth }) => {
+    const reqId = getReqId(req);
+    res.setHeader("x-request-id", reqId);
+    const log = createLogger(reqId, { user_id: auth.userId, action: req.query.action });
+
     const fn = HANDLERS[req.query.action as string];
     if (!fn) throw new ApiError(404, `Unknown action: ${req.query.action}`);
 
@@ -237,6 +260,7 @@ export default withApiKey(
       recordIdempotency(auth.userId, iKey, (result as any).id).catch(() => {});
     }
 
+    log.info("ok");
     res.status(200).json(result);
   },
 );

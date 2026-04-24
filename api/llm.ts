@@ -16,6 +16,8 @@ import type { ProviderConfig } from "./_lib/providers/types.js";
 import { extractFile as geminiExtractFile } from "./_lib/providers/gemini.js";
 import { runChat, type ConfirmPolicy } from "./_lib/providers/chatRunner.js";
 import { checkAndIncrement } from "./_lib/usage.js";
+import { rateLimit } from "./_lib/rateLimit.js";
+import { getReqId } from "./_lib/logger.js";
 
 export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
 
@@ -473,6 +475,15 @@ export default withAuth(
   },
   async ({ req, res, user }) => {
     const action = (req.query.action as string) || "";
+    const reqId = getReqId(req);
+    res.setHeader("x-request-id", reqId);
+
+    // Per-action rate limits (separate budget per tool type)
+    const actionLimits: Record<string, number> = { chat: 20, split: 15, complete: 30, transcribe: 10, "extract-file": 20 };
+    const actionLimit = actionLimits[action];
+    if (actionLimit && !(await rateLimit(req, actionLimit, 60_000, action))) {
+      return res.status(429).json({ error: "Too many requests", action });
+    }
 
     if (action === "transcribe") return handleTranscribe(req, res);
 

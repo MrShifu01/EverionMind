@@ -1,6 +1,17 @@
 import { generateEmbedding, buildEntryText } from "./generateEmbedding.js";
 import { computeCompletenessScore } from "./completeness.js";
 import { storeNotification } from "./mergeDetect.js";
+import { encryptToken, decryptToken } from "./gmailTokenCrypto.js";
+
+// Mask sensitive PII before storing in metadata (POPIA/GDPR compliance).
+// Keeps first/last characters for user context; obscures the middle.
+function maskPii(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const s = value.trim();
+  if (s.length <= 4) return "*".repeat(s.length);
+  const show = Math.min(3, Math.floor(s.length * 0.25));
+  return s.slice(0, show) + "*".repeat(Math.max(1, s.length - show * 2)) + s.slice(-show);
+}
 
 // ── MIME / attachment helpers ────────────────────────────────────────────────
 
@@ -182,16 +193,19 @@ const SB_HEADERS = {
 // ── OAuth token refresh ─────────────────────────────────────────────────────
 
 export async function refreshGmailToken(integration: any): Promise<string | null> {
+  const currentAccessToken = decryptToken(integration.access_token ?? "");
   if (new Date(integration.token_expires_at) > new Date(Date.now() + 60_000)) {
-    return integration.access_token;
+    return currentAccessToken;
   }
+  const refreshToken = decryptToken(integration.refresh_token ?? "");
+  if (!refreshToken) return null;
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       client_id: process.env.GOOGLE_CLIENT_ID!,
       client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-      refresh_token: integration.refresh_token,
+      refresh_token: refreshToken,
       grant_type: "refresh_token",
     }),
   });
@@ -201,7 +215,7 @@ export async function refreshGmailToken(integration: any): Promise<string | null
     method: "PATCH",
     headers: SB_HEADERS,
     body: JSON.stringify({
-      access_token: t.access_token,
+      access_token: encryptToken(t.access_token),
       token_expires_at: new Date(Date.now() + t.expires_in * 1000).toISOString(),
     }),
   });
@@ -1076,10 +1090,10 @@ async function persistMatches(
       if (invoiceNumber) metadata.invoice_number = invoiceNumber;
       if (extractedName) metadata.name = extractedName;
       if (contactName) metadata.contact_name = contactName;
-      if (cellphone) metadata.cellphone = cellphone;
-      if (landline) metadata.landline = landline;
-      if (address) metadata.address = address;
-      if (idNumber) metadata.id_number = idNumber;
+      if (cellphone) metadata.cellphone = maskPii(cellphone);
+      if (landline) metadata.landline = maskPii(landline);
+      if (address) metadata.address = maskPii(address);
+      if (idNumber) metadata.id_number = maskPii(idNumber);
       if (renewalDate) metadata.renewal_date = renewalDate;
       if (expiryDate) metadata.expiry_date = expiryDate;
       if (attachmentText) metadata.attachment_text = attachmentText.slice(0, 6000);

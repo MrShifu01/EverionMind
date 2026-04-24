@@ -8,6 +8,7 @@ import {
 } from "../lib/enrichEntry";
 import { loadGraphFromDB } from "../lib/conceptGraph";
 import { authFetch } from "../lib/authFetch";
+import { getRealtimeClient } from "../lib/supabaseRealtime";
 import type { Entry } from "../types";
 
 interface UseEnrichmentOrchestratorParams {
@@ -76,27 +77,15 @@ export function useEnrichmentOrchestrator({
 
     let cancelled = false;
     const brainId = activeBrainId;
-    let timer: ReturnType<typeof setTimeout>;
+    let catchUpTimer: ReturnType<typeof setTimeout>;
 
-    const runPass = async () => {
-      // Server pass: parse + insight
-      try {
-        await authFetch("/api/entries?action=enrich-batch", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ brain_id: brainId }),
-        });
-      } catch {}
-
+    const runClientPass = async () => {
       if (cancelled || enrichingRef.current) return;
-
-      // Client pass: embed + concepts
       const current = entriesRef.current;
       const unenriched = current.filter((e) => !isFullyEnriched(e, current, conceptEntryIds));
       for (const entry of unenriched) {
         if (cancelled || enrichingRef.current) break;
         await enrichEntry(entry, brainId, updateAdapter);
-        // Promote staged entry once fully enriched
         if (entry.status === "staged" && isFullyEnriched(entry, current, conceptEntryIds)) {
           authFetch("/api/entries", {
             method: "PATCH",
@@ -107,15 +96,48 @@ export function useEnrichmentOrchestrator({
       }
     };
 
-    const schedule = async () => {
-      await runPass();
-      if (!cancelled) timer = setTimeout(schedule, 90_000);
+    const runCatchUp = async () => {
+      // Server catch-up: flush any entries that missed the Realtime event
+      try {
+        await authFetch("/api/entries?action=enrich-batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ brain_id: brainId }),
+        });
+      } catch {}
+      await runClientPass();
+      if (!cancelled) catchUpTimer = setTimeout(runCatchUp, 5 * 60_000); // 5 min catch-up
     };
 
-    timer = setTimeout(schedule, 15_000);
+    // Initial pass after 15 s to handle entries loaded before Realtime connected
+    catchUpTimer = setTimeout(runCatchUp, 15_000);
+
+    // Realtime: trigger a client pass when any entry in this brain is updated
+    const rt = getRealtimeClient();
+    const channel = rt.channel(`enrich:${brainId}`);
+    channel
+      .on(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        "postgres_changes" as any,
+        { event: "UPDATE", schema: "public", table: "entries", filter: `brain_id=eq.${brainId}` },
+        (payload: any) => {
+          const row = payload?.new;
+          if (!row?.id) return;
+          // Apply enrichment fields that the server just wrote
+          const patch: Record<string, unknown> = {};
+          if (row.status !== undefined) patch.status = row.status;
+          if (row.embedded_at !== undefined) patch.embedded_at = row.embedded_at;
+          if (Object.keys(patch).length > 0) updateAdapter(row.id, patch as Partial<Entry>);
+          // Run a client pass in case this entry just became partially enriched
+          runClientPass().catch(() => {});
+        },
+      )
+      .subscribe();
+
     return () => {
       cancelled = true;
-      clearTimeout(timer);
+      clearTimeout(catchUpTimer);
+      channel.unsubscribe();
     };
   }, [entriesLoaded, activeBrainId]); // eslint-disable-line react-hooks/exhaustive-deps
 

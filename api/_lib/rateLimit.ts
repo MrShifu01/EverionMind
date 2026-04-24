@@ -92,10 +92,10 @@ function _getIp(req: ApiRequest): string {
  * @param limit - max requests per window
  * @param windowMs - window size in milliseconds (default 60s)
  */
-export async function rateLimit(req: ApiRequest, limit: number = 20, windowMs: number = 60_000): Promise<boolean> {
+export async function rateLimit(req: ApiRequest, limit: number = 20, windowMs: number = 60_000, suffix?: string): Promise<boolean> {
   const ip = _getIp(req);
   const path = (req.url || "").split("?")[0].slice(0, 50);
-  const key = `${ip}:${path}`;
+  const key = suffix ? `${ip}:${path}:${suffix}` : `${ip}:${path}`;
   const hasUpstash = !!process.env.UPSTASH_REDIS_REST_URL;
   if (!hasUpstash && _onVercel) return false; // fail closed in prod without Redis
   const limited = hasUpstash

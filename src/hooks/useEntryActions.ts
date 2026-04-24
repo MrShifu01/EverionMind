@@ -42,19 +42,24 @@ export function useEntryActions({
 
   const commitPendingDelete = useCallback(() => {
     if (!pendingDeleteRef.current) return;
-    const { id } = pendingDeleteRef.current;
+    const { id, entry } = pendingDeleteRef.current;
     writeEntriesCache(entries.filter((e) => e.id !== id));
     if (isOnlineRef.current) {
       authFetch("/api/delete-entry", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
-      }).catch((err) => captureError(err, "commitPendingDelete"));
+      }).catch((err) => {
+        captureError(err, "commitPendingDelete");
+        // Restore the entry on failure so state stays consistent
+        setEntries((prev) => [entry, ...prev.filter((e) => e.id !== id)]);
+        showToast("Delete failed — entry restored.", "error");
+      });
     } else {
       showToast("You can't delete while offline.", "error");
     }
     pendingDeleteRef.current = null;
-  }, [entries, isOnlineRef]);
+  }, [entries, isOnlineRef, setEntries]);
 
   const handleDelete = useCallback(
     (id: string) => {
@@ -94,6 +99,15 @@ export function useEntryActions({
         if ((changes as any).content) serverChanges.content = encrypted.content;
         if ((changes as any).metadata) serverChanges.metadata = encrypted.metadata;
       }
+
+      // Apply optimistically before the request so the UI feels instant
+      setEntries((prev) => {
+        const next = prev.map((e) => (e.id === id ? { ...e, ...changes } : e));
+        writeEntriesCache(next);
+        return next;
+      });
+      setSelected((prev: any) => (prev?.id === id ? { ...prev, ...changes } : prev));
+
       try {
         const res = await authFetch("/api/update-entry", {
           method: "PATCH",
@@ -104,6 +118,15 @@ export function useEntryActions({
         if (!res.ok) throw new Error((data?.message || data?.error) ?? `HTTP ${res.status}`);
         if (Array.isArray(data) && data.length === 0) throw new Error(`No row matched id=${id}`);
       } catch (e: any) {
+        // Rollback optimistic update to previous state
+        if (previous) {
+          setEntries((prev) => {
+            const rolled = prev.map((e) => (e.id === id ? previous : e));
+            writeEntriesCache(rolled);
+            return rolled;
+          });
+          setSelected((prev: any) => (prev?.id === id ? previous : prev));
+        }
         captureError(e, "handleUpdate");
         if (!options?.silent) {
           showError(`Save failed: ${e.message}`);
@@ -125,13 +148,6 @@ export function useEntryActions({
       removeFromIndex(id);
       const updated = { ...entries.find((e) => e.id === id), ...changes } as Entry;
       indexEntry(updated);
-      setEntries((prev) => {
-        const next = prev.map((e) => (e.id === id ? { ...e, ...changes } : e));
-        // Invalidate cache immediately on mutation
-        writeEntriesCache(next);
-        return next;
-      });
-      setSelected((prev: any) => (prev?.id === id ? { ...prev, ...changes } : prev));
       if (previous && !options?.silent)
         setLastAction({
           type: "update",

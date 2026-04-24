@@ -21,6 +21,8 @@ import { retrieveEntries, rebuildConceptGraph } from "./_lib/retrievalCore.js";
 import { scanGmailForUser, type GmailPreferences } from "./_lib/gmailScan.js";
 import { runEnrichEntry, runEnrichBatchForUser, scheduleEnrichJob } from "./_lib/enrichBatch.js";
 import { checkIdempotency, recordIdempotency } from "./_lib/idempotency.js";
+import { checkAndIncrement } from "./_lib/usage.js";
+import { getReqId, createLogger } from "./_lib/logger.js";
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
@@ -165,6 +167,22 @@ const TOOLS = [
   },
 ];
 
+
+// ── Plan / tier lookup ────────────────────────────────────────────────────────
+
+async function getUserPlan(userId: string): Promise<{ plan: string; hasByok: boolean }> {
+  const r = await fetch(
+    `${SB_URL}/rest/v1/user_ai_settings?user_id=eq.${encodeURIComponent(userId)}&select=plan,anthropic_key,gemini_key,openai_key&limit=1`,
+    { headers: hdrs() },
+  );
+  if (!r.ok) return { plan: "starter", hasByok: false };
+  const rows: any[] = await r.json();
+  const row = rows[0] ?? {};
+  return {
+    plan: row.plan ?? "starter",
+    hasByok: !!(row.anthropic_key || row.gemini_key || row.openai_key),
+  };
+}
 
 // ── Tool implementations ──────────────────────────────────────────────────────
 
@@ -466,6 +484,8 @@ function mcpToolResult(content: unknown) {
 
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
   applySecurityHeaders(res);
+  const reqId = getReqId(req);
+  res.setHeader("x-request-id", reqId);
   if (!(await rateLimit(req, 30))) return res.status(429).json({ error: "Too many requests" });
 
   // OAuth discovery
@@ -534,6 +554,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   if (method === "tools/call") {
     const toolName = params?.name as string;
     const args = params?.arguments || {};
+    const log = createLogger(reqId, { user_id: userId, tool: toolName });
 
     try {
       let result: unknown;
@@ -553,6 +574,22 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
         if (!args.title || !args.content) {
           return res.status(200).json(jsonRpcErr(id, -32602, "title and content are required"));
         }
+        // Per-tool rate limit: 10 create_entry calls/min per IP
+        if (!(await rateLimit(req, 10, 60_000, "create_entry"))) {
+          return res.status(200).json(jsonRpcErr(id, -32000, "Rate limit exceeded for create_entry (10/min)"));
+        }
+        // Quota check: count against monthly captures budget
+        const { plan, hasByok } = await getUserPlan(userId);
+        let quota: Awaited<ReturnType<typeof checkAndIncrement>>;
+        try {
+          quota = await checkAndIncrement(userId, "captures", plan, hasByok);
+        } catch {
+          return res.status(200).json(jsonRpcErr(id, -32000, "Quota service unavailable — try again"));
+        }
+        if (!quota.allowed) {
+          log.warn("quota_exceeded", { plan, action: "captures" });
+          return res.status(200).json(jsonRpcErr(id, -32000, `Monthly capture limit reached (${plan} plan)`));
+        }
         const iKey = req.headers["idempotency-key"] as string | undefined;
         if (iKey) {
           const existingId = await checkIdempotency(userId, iKey);
@@ -563,6 +600,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
           if ((result as any)?.id) scheduleEnrichJob((result as any).id, userId);
           if (iKey && (result as any)?.id) recordIdempotency(userId, iKey, (result as any).id).catch(() => {});
         }
+        log.info("create_entry_ok", { entry_id: (result as any)?.id });
       } else if (toolName === "update_entry") {
         if (!args.id) return res.status(200).json(jsonRpcErr(id, -32602, "id is required"));
         if (args.title === undefined && args.content === undefined && args.type === undefined && args.tags === undefined) {
@@ -574,8 +612,14 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
         if (!args.id) return res.status(200).json(jsonRpcErr(id, -32602, "id is required"));
         result = await deleteEntry(brainId, args.id);
       } else if (toolName === "gmail_sync") {
+        // Per-tool rate limit: 5 gmail_sync calls/min per IP — prevents scan DoS
+        if (!(await rateLimit(req, 5, 60_000, "gmail_sync"))) {
+          return res.status(200).json(jsonRpcErr(id, -32000, "Rate limit exceeded for gmail_sync (5/min)"));
+        }
+        log.info("gmail_sync_start", { lookback_days: args.lookback_days });
         result = await gmailSync(userId, brainId, args.lookback_days);
         runEnrichBatchForUser(userId, brainId, 10).catch(() => {});
+        log.info("gmail_sync_ok", { created: (result as any)?.created });
       } else if (toolName === "gmail_review_queue") {
         result = await gmailReviewQueue(userId, args.limit, args.since_hours);
       } else if (toolName === "gmail_contacts") {

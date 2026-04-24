@@ -15,6 +15,7 @@ import type { ApiRequest, ApiResponse } from "./_lib/types";
 import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 import { verifyAuth } from "./_lib/verifyAuth.js";
 import { withAuth } from "./_lib/withAuth.js";
+import { encryptToken } from "./_lib/gmailTokenCrypto.js";
 import {
   type GmailPreferences,
   defaultPreferences,
@@ -141,8 +142,8 @@ async function callbackGoogle(req: ApiRequest, res: ApiResponse) {
     headers: { ...SB_HEADERS, Prefer: "resolution=merge-duplicates" },
     body: JSON.stringify({
       user_id: userId,
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
+      access_token: encryptToken(tokens.access_token),
+      refresh_token: encryptToken(tokens.refresh_token),
       token_expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
       gmail_email: profile.email ?? null,
       preferences,
