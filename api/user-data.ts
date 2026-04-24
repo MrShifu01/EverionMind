@@ -608,9 +608,12 @@ const handleNotifications = withAuth(
       return void res.status(200).json({ ok: true });
     }
 
-    // DELETE — dismiss all
+    // DELETE — dismiss all, or just a specific type if ?type= is provided
+    const typeFilter = typeof req.query.type === "string"
+      ? `&type=eq.${encodeURIComponent(req.query.type)}`
+      : "";
     await fetch(
-      `${SB_URL}/rest/v1/notifications?user_id=eq.${encodeURIComponent(user.id)}&dismissed=eq.false`,
+      `${SB_URL}/rest/v1/notifications?user_id=eq.${encodeURIComponent(user.id)}&dismissed=eq.false${typeFilter}`,
       { method: "PATCH", headers: hdrs({ Prefer: "return=minimal" }), body: JSON.stringify({ dismissed: true }) },
     );
     return void res.status(200).json({ ok: true });

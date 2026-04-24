@@ -483,7 +483,7 @@ export default function SettingsView({
           return (
             <button
               key={id}
-              onClick={() => setSection(id)}
+              onClick={() => { preload(id); setSection(id); }}
               aria-current={active ? "page" : undefined}
               className="press"
               style={{
@@ -535,7 +535,7 @@ export default function SettingsView({
             return (
               <button
                 key={id}
-                onClick={() => setSection(id)}
+                onClick={() => { preload(id); setSection(id); }}
                 aria-current={active ? "page" : undefined}
                 className="press"
                 style={{

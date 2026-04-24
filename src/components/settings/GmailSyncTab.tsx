@@ -351,7 +351,12 @@ export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
       {reviewItems.length > 0 && (
         <GmailScanReviewModal
           items={reviewItems}
-          onClose={() => { setReviewItems([]); fetchStagedCount(); refreshEntries(); }}
+          onClose={() => {
+            setReviewItems([]);
+            fetchStagedCount();
+            refreshEntries();
+            authFetch("/api/notifications?type=gmail_review", { method: "DELETE" }).catch(() => {});
+          }}
         />
       )}
 
