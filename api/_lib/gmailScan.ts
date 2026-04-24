@@ -1,5 +1,6 @@
 import { generateEmbedding, buildEntryText } from "./generateEmbedding.js";
 import { computeCompletenessScore } from "./completeness.js";
+import { storeNotification } from "./mergeDetect.js";
 
 // ── MIME / attachment helpers ────────────────────────────────────────────────
 
@@ -363,6 +364,10 @@ function extractName(header: string): string {
   return header.replace(/<.*>/, "").trim().replace(/^["']|["']$/g, "");
 }
 
+function normalizeSubject(s: string): string {
+  return s.replace(/^(re|fwd?|fw):\s*/gi, "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
 function isBulkThread(block: ThreadBlock): boolean {
   // A thread is "bulk" if EVERY message looks automated.
   return block.messages.every((m) => {
@@ -649,20 +654,30 @@ async function getUserBrainId(userId: string): Promise<string | null> {
   return rows[0]?.id ?? null;
 }
 
-async function fetchImportedIdentifiers(userId: string): Promise<{ threadIds: Set<string>; messageIds: Set<string> }> {
+async function fetchImportedIdentifiers(userId: string): Promise<{
+  threadIds: Set<string>;
+  messageIds: Set<string>;
+  subjectFromKeys: Set<string>;
+}> {
   const r = await fetch(
     `${SB_URL}/rest/v1/entries?user_id=eq.${encodeURIComponent(userId)}&metadata->>source=eq.gmail&deleted_at=is.null&select=metadata`,
     { headers: SB_HEADERS },
   );
-  if (!r.ok) return { threadIds: new Set(), messageIds: new Set() };
+  if (!r.ok) return { threadIds: new Set(), messageIds: new Set(), subjectFromKeys: new Set() };
   const rows: any[] = await r.json();
   const threadIds = new Set<string>();
   const messageIds = new Set<string>();
+  const subjectFromKeys = new Set<string>();
   for (const row of rows) {
     if (row.metadata?.gmail_thread_id) threadIds.add(row.metadata.gmail_thread_id);
     if (row.metadata?.gmail_message_id) messageIds.add(row.metadata.gmail_message_id);
+    if (row.metadata?.gmail_from && row.metadata?.gmail_subject) {
+      const fe = extractEmail(row.metadata.gmail_from);
+      const ns = normalizeSubject(row.metadata.gmail_subject);
+      if (fe && ns) subjectFromKeys.add(`${fe}::${ns}`);
+    }
   }
-  return { threadIds, messageIds };
+  return { threadIds, messageIds, subjectFromKeys };
 }
 
 async function upsertGmailContact(
@@ -842,9 +857,12 @@ async function persistMatches(
   geminiKey: string,
   importedThreadIds: Set<string>,
   importedMessageIds: Set<string>,
+  importedSubjectFromKeys: Set<string>,
   debug: ScanDebug,
 ): Promise<{ created: number; scanEntries: ScanResultItem[]; contactsUpserted: number }> {
   const threshold = prefs.minRelevanceScore ?? 60;
+  // Dedup contacts within this scan: reuse the same upsert promise per sender email.
+  const contactCache = new Map<string, Promise<string | null>>();
 
   type MatchResult = { scanEntry: ScanResultItem; contactUpserted: boolean } | null;
 
@@ -862,6 +880,19 @@ async function persistMatches(
         debug.skippedSubjects.push(block.primary.subject);
         return null;
       }
+      // Semantic dedup: same sender + same normalised subject already imported.
+      const fromEmail = extractEmail(block.primary.from);
+      const subjectKey = `${fromEmail}::${normalizeSubject(block.primary.subject)}`;
+      if (importedSubjectFromKeys.has(subjectKey)) {
+        debug.skippedDuplicates++;
+        debug.skippedSubjects.push(block.primary.subject);
+        return null;
+      }
+      // Reserve all dedup keys NOW (synchronously, before any await) so concurrent
+      // handlers in this Promise.all cannot slip through the same checks.
+      importedThreadIds.add(block.threadId);
+      for (const mid of block.messageIds) importedMessageIds.add(mid);
+      importedSubjectFromKeys.add(subjectKey);
 
       const relevanceScore = computeRelevanceScore(block, match);
       if (relevanceScore < threshold) {
@@ -931,8 +962,6 @@ async function persistMatches(
       const rows: any[] = await insertRes.json();
       const inserted = rows[0];
       debug.created++;
-      importedThreadIds.add(block.threadId);
-      for (const mid of block.messageIds) importedMessageIds.add(mid);
 
       // Fire-and-forget embedding
       if (inserted?.id && geminiKey) {
@@ -952,12 +981,14 @@ async function persistMatches(
           .catch((err) => console.error(`[gmail-scan:embed] entry ${inserted.id}:`, err));
       }
 
-      const contactId = await upsertGmailContact(
-        integration.user_id,
-        brainId,
-        block.primary.from,
-        block.primary.date || new Date().toISOString(),
-      );
+      // Contact dedup: share the same upsert promise for concurrent same-sender entries.
+      if (!contactCache.has(fromEmail)) {
+        contactCache.set(fromEmail, upsertGmailContact(
+          integration.user_id, brainId, block.primary.from,
+          block.primary.date || new Date().toISOString(),
+        ));
+      }
+      const contactId = await contactCache.get(fromEmail)!;
 
       return {
         scanEntry: {
@@ -1030,7 +1061,7 @@ export async function deepScanBatch(
   const { refs, nextPageToken, resultSizeEstimate } = await fetchMessageList(token, query, 100, params.cursor);
   if (!refs.length) return { nextCursor: null, processed: 0, created: 0, entries: [], done: true, totalEstimate: resultSizeEstimate };
 
-  const { threadIds: importedThreadIds, messageIds: importedMessageIds } = await fetchImportedIdentifiers(integration.user_id);
+  const { threadIds: importedThreadIds, messageIds: importedMessageIds, subjectFromKeys: importedSubjectFromKeys } = await fetchImportedIdentifiers(integration.user_id);
   const brainId = params.activeBrainId ?? await getUserBrainId(integration.user_id);
 
   const debug = emptyDebug();
@@ -1063,6 +1094,7 @@ export async function deepScanBatch(
     geminiKey,
     importedThreadIds,
     importedMessageIds,
+    importedSubjectFromKeys,
     debug,
   );
 
@@ -1144,7 +1176,7 @@ export async function scanGmailForUser(
 
     if (!refs.length) return { created: 0, debug, entries: [] };
 
-    const { threadIds: importedThreadIds, messageIds: importedMessageIds } = await fetchImportedIdentifiers(integration.user_id);
+    const { threadIds: importedThreadIds, messageIds: importedMessageIds, subjectFromKeys: importedSubjectFromKeys } = await fetchImportedIdentifiers(integration.user_id);
     const brainId = activeBrainId ?? await getUserBrainId(integration.user_id);
 
     // Repair: assign brain_id to any existing gmail entries missing it.
@@ -1206,11 +1238,24 @@ export async function scanGmailForUser(
       geminiKey,
       importedThreadIds,
       importedMessageIds,
+      importedSubjectFromKeys,
       debug,
     );
     debug.contactsUpserted = contactsUpserted;
 
-    return { created, debug, entries: groupBySender(scanEntries) };
+    // Persist review items as a notification so the user can return to them later
+    const grouped = groupBySender(scanEntries);
+    if (grouped.length > 0) {
+      storeNotification(
+        integration.user_id,
+        "gmail_review",
+        `${created} new item${created !== 1 ? "s" : ""} captured from Gmail`,
+        "Tap to review and remove anything irrelevant.",
+        { items: grouped, count: created, scanned_at: new Date().toISOString() },
+      ).catch(() => {});
+    }
+
+    return { created, debug, entries: grouped };
   } catch (e: any) {
     console.error("[scanGmailForUser] unexpected error:", e);
     if (!debug.classifierError) debug.classifierError = String(e?.message ?? e);

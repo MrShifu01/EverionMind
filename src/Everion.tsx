@@ -32,6 +32,7 @@ const GraphView = lazy(() => import("./views/GraphView"));
 import FloatingCaptureButton from "./components/FloatingCaptureButton";
 import MemoryHeader from "./MemoryHeader";
 import CaptureWelcomeScreen from "./CaptureWelcomeScreen";
+import { useNotifications } from "./hooks/useNotifications";
 import { useAppShell, type AppShellState } from "./hooks/useAppShell";
 import { useDataLayer } from "./hooks/useDataLayer";
 import { useBrain } from "./context/BrainContext";
@@ -266,6 +267,12 @@ function EverionContent({
                 new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }),
               )
             }
+            notifications={notifs.notifications}
+            unreadCount={notifs.unreadCount}
+            onDismissNotification={notifs.dismiss}
+            onMarkNotificationRead={notifs.markRead}
+            onDismissAllNotifications={notifs.dismissAll}
+            onAcceptMerge={notifs.acceptMerge}
           ></MobileHeader>
 
           {appShell.view === "memory" && nudge && (
@@ -318,6 +325,12 @@ function EverionContent({
                   entries={entries}
                   entriesLoaded={entriesLoaded}
                   activeBrainId={activeBrain?.id}
+                  notifications={notifs.notifications}
+                  unreadCount={notifs.unreadCount}
+                  onDismissNotification={notifs.dismiss}
+                  onMarkNotificationRead={notifs.markRead}
+                  onDismissAllNotifications={notifs.dismissAll}
+                  onAcceptMerge={notifs.acceptMerge}
                 />
 
                 {appShell.view === "timeline" && ff("timeline") && (
@@ -749,6 +762,7 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const appShell = useAppShell({ initialShowCapture, activeBrainId: activeBrain?.id });
+  const notifs = useNotifications();
 
   const dataLayer = useDataLayer({
     activeBrainId: activeBrain?.id,

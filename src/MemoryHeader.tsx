@@ -1,13 +1,25 @@
 import type { AppShellState } from "./hooks/useAppShell";
+import NotificationBell from "./components/NotificationBell";
+import type { AppNotification } from "./hooks/useNotifications";
 
 interface Props {
   appShell: AppShellState;
   entries: { length: number };
   entriesLoaded: boolean;
   activeBrainId: string | undefined;
+  notifications?: AppNotification[];
+  unreadCount?: number;
+  onDismissNotification?: (id: string) => void;
+  onMarkNotificationRead?: (id: string) => void;
+  onDismissAllNotifications?: () => void;
+  onAcceptMerge?: (n: AppNotification) => void;
 }
 
-export default function MemoryHeader({ appShell, entries, entriesLoaded, activeBrainId }: Props) {
+export default function MemoryHeader({
+  appShell, entries, entriesLoaded, activeBrainId,
+  notifications = [], unreadCount = 0,
+  onDismissNotification, onMarkNotificationRead, onDismissAllNotifications, onAcceptMerge,
+}: Props) {
   return (
     <>
       {/* Memory top bar — title + Remember */}
@@ -51,6 +63,16 @@ export default function MemoryHeader({ appShell, entries, entriesLoaded, activeB
               : "everything you've written down."}
           </div>
         </div>
+        {onDismissNotification && (
+          <NotificationBell
+            notifications={notifications}
+            unreadCount={unreadCount}
+            onDismiss={onDismissNotification}
+            onMarkRead={onMarkNotificationRead ?? (() => {})}
+            onDismissAll={onDismissAllNotifications ?? (() => {})}
+            onAcceptMerge={onAcceptMerge ?? (() => {})}
+          />
+        )}
         <button
           className="design-btn-primary press"
           onClick={() => appShell.setShowCapture(true)}

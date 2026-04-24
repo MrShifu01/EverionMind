@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import type { AppNotification } from "../hooks/useNotifications";
+import NotificationBell from "./NotificationBell";
 
 interface MobileHeaderProps {
   onToggleTheme: () => void;
@@ -7,6 +9,12 @@ interface MobileHeaderProps {
   pendingCount: number;
   onSearch?: () => void;
   children?: ReactNode;
+  notifications?: AppNotification[];
+  unreadCount?: number;
+  onDismissNotification?: (id: string) => void;
+  onMarkNotificationRead?: (id: string) => void;
+  onDismissAllNotifications?: () => void;
+  onAcceptMerge?: (n: AppNotification) => void;
 }
 
 export default function MobileHeader({
@@ -16,6 +24,12 @@ export default function MobileHeader({
   pendingCount,
   onSearch,
   children,
+  notifications = [],
+  unreadCount = 0,
+  onDismissNotification,
+  onMarkNotificationRead,
+  onDismissAllNotifications,
+  onAcceptMerge,
 }: MobileHeaderProps) {
   const statusColor = !isOnline
     ? "var(--ink-faint)"
@@ -53,8 +67,18 @@ export default function MobileHeader({
         {children}
       </div>
 
-      {/* Right: search, theme */}
+      {/* Right: notifications, search, theme */}
       <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
+        {onDismissNotification && (
+          <NotificationBell
+            notifications={notifications}
+            unreadCount={unreadCount}
+            onDismiss={onDismissNotification}
+            onMarkRead={onMarkNotificationRead ?? (() => {})}
+            onDismissAll={onDismissAllNotifications ?? (() => {})}
+            onAcceptMerge={onAcceptMerge ?? (() => {})}
+          />
+        )}
         {onSearch && (
           <button
             onClick={onSearch}

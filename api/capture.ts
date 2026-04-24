@@ -3,6 +3,7 @@ import { withAuth, requireBrainAccess, ApiError, type HandlerContext } from "./_
 import { generateEmbedding, generateEmbeddingsBatch, buildEntryText } from "./_lib/generateEmbedding.js";
 import { sbHeaders, sbHeadersNoContent } from "./_lib/sbHeaders.js";
 import { computeCompletenessScore } from "./_lib/completeness.js";
+import { detectAndStoreMerge } from "./_lib/mergeDetect.js";
 
 export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
 
@@ -113,6 +114,13 @@ async function handleCapture({ req, res, user }: HandlerContext): Promise<void> 
   const rawData: any = await response.json();
   const inserted = Array.isArray(rawData) ? rawData[0] : rawData;
   const data: any = inserted?.id ? { id: inserted.id } : rawData;
+
+  // Background merge detection (fire-and-forget)
+  if (response.ok && data?.id) {
+    detectAndStoreMerge(data.id, user.id).catch((err: any) =>
+      console.error("[capture:merge-detect]", err?.message),
+    );
+  }
 
   // Audit log (fire-and-forget)
   if (response.ok && data?.id) {

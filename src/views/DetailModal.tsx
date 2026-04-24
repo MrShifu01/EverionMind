@@ -5,6 +5,80 @@ import { authFetch } from "../lib/authFetch";
 import { CANONICAL_TYPES } from "../types";
 import type { Entry, Brain } from "../types";
 
+// ── Metadata highlights ───────────────────────────────────────────────────────
+
+const META_SKIP = new Set([
+  "source", "embedding_provider", "embedded_at", "gmail_message_id",
+  "gmail_thread_id", "gmail_thread_size", "gmail_participants",
+  "completeness_score", "attachment_text", "full_text", "raw_content",
+  "concepts", "confidence", "workspace", "email_type",
+]);
+
+const META_PRIORITY: { key: string; label: string }[] = [
+  { key: "email",            label: "Email"       },
+  { key: "phone",            label: "Phone"       },
+  { key: "amount",           label: "Amount"      },
+  { key: "price",            label: "Price"       },
+  { key: "id_number",        label: "ID Number"   },
+  { key: "national_id",      label: "ID Number"   },
+  { key: "account_number",   label: "Account"     },
+  { key: "reference_number", label: "Reference"   },
+  { key: "reference",        label: "Reference"   },
+  { key: "due_date",         label: "Due date"    },
+  { key: "deadline",         label: "Deadline"    },
+  { key: "expiry_date",      label: "Expires"     },
+  { key: "renewal_date",     label: "Renews"      },
+  { key: "event_date",       label: "Date"        },
+  { key: "date",             label: "Date"        },
+  { key: "url",              label: "Link"        },
+  { key: "gmail_from",       label: "From"        },
+  { key: "status",           label: "Status"      },
+  { key: "urgency",          label: "Urgency"     },
+];
+
+const DATE_KEYS = new Set(["due_date", "deadline", "expiry_date", "renewal_date", "event_date", "date"]);
+
+function fmtMetaValue(key: string, raw: string): string {
+  if (DATE_KEYS.has(key)) {
+    try {
+      const d = new Date(raw);
+      if (!isNaN(d.getTime()))
+        return d.toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" });
+    } catch {}
+  }
+  return raw;
+}
+
+function pickTopMetaFields(meta: Record<string, unknown>): { label: string; value: string; key: string }[] {
+  const result: { label: string; value: string; key: string }[] = [];
+  const usedLabels = new Set<string>();
+
+  for (const { key, label } of META_PRIORITY) {
+    if (result.length >= 5) break;
+    if (usedLabels.has(label)) continue;
+    const v = meta[key];
+    if (v == null) continue;
+    const str = String(v).trim();
+    if (!str || str === "null" || str === "undefined" || str === "0") continue;
+    result.push({ label, value: fmtMetaValue(key, str), key });
+    usedLabels.add(label);
+  }
+
+  for (const [key, val] of Object.entries(meta)) {
+    if (result.length >= 5) break;
+    if (META_SKIP.has(key) || META_PRIORITY.some((p) => p.key === key)) continue;
+    if (val == null || typeof val === "object") continue;
+    const str = String(val).trim();
+    if (!str || str === "null" || str === "undefined") continue;
+    const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    if (usedLabels.has(label)) continue;
+    result.push({ label, value: fmtMetaValue(key, str), key });
+    usedLabels.add(label);
+  }
+
+  return result;
+}
+
 interface DetailModalProps {
   entry: Entry;
   onClose: () => void;
@@ -777,6 +851,71 @@ No explanation, no punctuation, just one word.`,
                       {showFullText ? "show less" : "show more"}
                     </button>
                   )}
+
+                  {/* Key metadata highlights */}
+                  {(() => {
+                    const fields = entry.metadata
+                      ? pickTopMetaFields(entry.metadata as Record<string, unknown>)
+                      : [];
+                    if (!fields.length) return null;
+                    const chipStyle: React.CSSProperties = {
+                      padding: "10px 14px",
+                      borderRadius: 10,
+                      background: "var(--surface)",
+                      border: "1px solid var(--line-soft)",
+                      minWidth: 0,
+                      overflow: "hidden",
+                      textDecoration: "none",
+                      display: "block",
+                    };
+                    const labelStyle: React.CSSProperties = {
+                      fontFamily: "var(--f-sans)",
+                      fontSize: 9,
+                      fontWeight: 700,
+                      letterSpacing: "0.1em",
+                      textTransform: "uppercase",
+                      color: "var(--ink-faint)",
+                      marginBottom: 4,
+                    };
+                    return (
+                      <div>
+                        <div className="micro" style={{ marginBottom: 10 }}>Details</div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                          {fields.map(({ label, value, key }) => {
+                            const isEmail = key === "email";
+                            const isPhone = key === "phone";
+                            const isUrl   = key === "url";
+                            const isAccent = isEmail || isPhone || isUrl;
+                            const inner = (
+                              <>
+                                <div style={labelStyle}>{label}</div>
+                                <div
+                                  className="f-sans"
+                                  style={{
+                                    fontSize: 13,
+                                    fontWeight: 500,
+                                    color: isAccent ? "var(--ember)" : "var(--ink)",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {value}
+                                </div>
+                              </>
+                            );
+                            if (isEmail)
+                              return <a key={label} href={`mailto:${value}`} style={chipStyle}>{inner}</a>;
+                            if (isPhone)
+                              return <a key={label} href={`tel:${value}`} style={chipStyle}>{inner}</a>;
+                            if (isUrl)
+                              return <a key={label} href={value} target="_blank" rel="noopener noreferrer" style={chipStyle}>{inner}</a>;
+                            return <div key={label} style={chipStyle}>{inner}</div>;
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Tags — #admin style chips */}
                   {(entry.tags || []).length > 0 && (
