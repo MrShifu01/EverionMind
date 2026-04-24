@@ -220,6 +220,9 @@ export default function CaptureSheet({
     setStatus,
     errorDetail,
     setErrorDetail,
+    fileParseError,
+    setFileParseError,
+    retryLastFile,
     preview,
     setPreview,
     previewTitle,
@@ -957,19 +960,39 @@ export default function CaptureSheet({
                     {statusLabel[status] ?? status}
                   </p>
                 )}
-                {errorDetail && (
-                  <p
-                    style={{
-                      margin: 0,
-                      fontFamily: "var(--f-mono)",
-                      fontSize: 12,
-                      color: "var(--blood)",
-                      wordBreak: "break-all",
-                    }}
-                  >
+                {fileParseError ? (
+                  <div style={{ padding: "12px 14px", borderRadius: 10,
+                    background: "var(--blood-wash, #fef2f2)", border: "1px solid var(--blood, #e53e3e)" }}>
+                    <p className="f-sans" style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 600,
+                      color: "var(--blood)" }}>
+                      Couldn't read "{fileParseError}"
+                    </p>
+                    <p className="f-sans" style={{ margin: "0 0 10px", fontSize: 12,
+                      color: "var(--blood)" }}>
+                      {errorDetail ?? "The file is empty or in an unrecognised format."}
+                    </p>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button onClick={retryLastFile} className="press f-sans"
+                        style={{ flex: 1, height: 30, borderRadius: 7, fontSize: 12, fontWeight: 600,
+                          border: "1px solid var(--blood)", background: "transparent",
+                          color: "var(--blood)", cursor: "pointer" }}>
+                        Retry
+                      </button>
+                      <button onClick={() => { setFileParseError(null); setErrorDetail(null); }}
+                        className="press f-sans"
+                        style={{ flex: 1, height: 30, borderRadius: 7, fontSize: 12, fontWeight: 500,
+                          border: "1px solid var(--line)", background: "transparent",
+                          color: "var(--ink-soft)", cursor: "pointer" }}>
+                        Fill in manually
+                      </button>
+                    </div>
+                  </div>
+                ) : errorDetail ? (
+                  <p style={{ margin: 0, fontFamily: "var(--f-mono)", fontSize: 12,
+                    color: "var(--blood)", wordBreak: "break-all" }}>
                     {errorDetail}
                   </p>
-                )}
+                ) : null}
               </div>
             )}
 

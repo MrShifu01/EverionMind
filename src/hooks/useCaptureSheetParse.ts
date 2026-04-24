@@ -57,6 +57,8 @@ export function useCaptureSheetParse({
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [errorDetail, setErrorDetail] = useState<string | null>(null);
+  const [fileParseError, setFileParseError] = useState<string | null>(null);
+  const failedFileRef = useRef<{ file: File; isImage: boolean } | null>(null);
   const [preview, setPreview] = useState<ParsedEntry | null>(null);
   const [previewTitle, setPreviewTitle] = useState("");
   const [previewTags, setPreviewTags] = useState("");
@@ -504,15 +506,20 @@ export function useCaptureSheetParse({
     setLoading(true);
     setStatus("reading");
     setErrorDetail(null);
+    setFileParseError(null);
     try {
       const extracted = await extractTextFromFile(file);
       if (extracted.trim()) {
         setUploadedFiles((prev) => [...prev, { name: file.name, content: extracted.trim() }]);
       } else {
-        setErrorDetail("[image] No text extracted");
+        failedFileRef.current = { file, isImage: true };
+        setFileParseError(file.name);
+        setErrorDetail("No text could be extracted from this image.");
       }
     } catch (e: any) {
-      setErrorDetail(`[image] ${e?.message || String(e)}`);
+      failedFileRef.current = { file, isImage: true };
+      setFileParseError(file.name);
+      setErrorDetail(e?.message || "Extraction failed.");
     }
     setLoading(false);
     setStatus(null);
@@ -624,16 +631,21 @@ export function useCaptureSheetParse({
         setLoading(true);
         setStatus(`Reading ${file.name}…`);
         setErrorDetail(null);
+        setFileParseError(null);
         try {
           const text = await extractTextFromFile(file);
           if (text.trim()) {
             setUploadedFiles((prev) => [...prev, { name: file.name, content: text.trim() }]);
           } else {
-            setErrorDetail(`No text found in ${file.name}`);
+            failedFileRef.current = { file, isImage: false };
+            setFileParseError(file.name);
+            setErrorDetail("No content could be read from this file.");
           }
         } catch (e: any) {
           console.error(`[fileExtract:${file.name}]`, e);
-          setErrorDetail(`[${file.name}] ${e?.message || String(e)}`);
+          failedFileRef.current = { file, isImage: false };
+          setFileParseError(file.name);
+          setErrorDetail(e?.message || "Could not read file.");
         }
         setLoading(false);
         setStatus(null);
@@ -642,6 +654,15 @@ export function useCaptureSheetParse({
     [handleImageFile, handleVcfFile],
   );
 
+  const retryLastFile = useCallback(async () => {
+    if (!failedFileRef.current) return;
+    const { file, isImage } = failedFileRef.current;
+    setFileParseError(null);
+    setErrorDetail(null);
+    if (isImage) await handleImageFile(file);
+    else await handleDocFiles([file] as unknown as FileList);
+  }, [handleImageFile, handleDocFiles]);
+
   return {
     loading,
     setLoading,
@@ -649,6 +670,9 @@ export function useCaptureSheetParse({
     setStatus,
     errorDetail,
     setErrorDetail,
+    fileParseError,
+    setFileParseError,
+    retryLastFile,
     preview,
     setPreview,
     previewTitle,
