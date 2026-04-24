@@ -239,7 +239,7 @@ Rules:
   /**
    * api/llm.ts — extract raw text and structure from an uploaded file.
    */
-  EXTRACT_FILE: `Extract all text and information from this file. Preserve structure. Output only the extracted content, no commentary. Do not add phrases like "As an AI...", "Please verify...", "You may want to...", or any disclaimer, caveat, or observation — extracted text only.`,
+  EXTRACT_FILE: `Extract readable text from this file. Output only the verbatim text content found — no descriptions, no commentary, no observations about what the image shows. If there is no readable text (e.g. a photo of a landscape, blank page, or decorative image), output nothing at all — an empty response is correct. Do not add phrases like "As an AI...", "Please verify...", or any disclaimer.`,
 
   /**
    * api/entries.ts (handleAudit) — entry quality audit.

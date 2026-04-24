@@ -978,7 +978,14 @@ export default function CaptureSheet({
                           color: "var(--blood)", cursor: "pointer" }}>
                         Retry
                       </button>
-                      <button onClick={() => { setFileParseError(null); setErrorDetail(null); }}
+                      <button onClick={() => {
+                          setFileParseError(null);
+                          setErrorDetail(null);
+                          setPreview({ title: "", content: "", type: "note", tags: [] });
+                          setPreviewTitle("");
+                          setPreviewTags("");
+                          setPreviewType("note");
+                        }}
                         className="press f-sans"
                         style={{ flex: 1, height: 30, borderRadius: 7, fontSize: 12, fontWeight: 500,
                           border: "1px solid var(--line)", background: "transparent",

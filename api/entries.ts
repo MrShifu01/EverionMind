@@ -26,6 +26,7 @@ export default withAuth(
     if (ctx.req.method === "GET") return handleGet(ctx);
     if (ctx.req.method === "DELETE") return handleDelete(ctx);
     if (ctx.req.method === "PATCH") return handlePatch(ctx);
+    if (ctx.req.method === "POST" && (ctx.req.query.action as string) === "merge_into") return handleMergeInto(ctx);
     throw new ApiError(405, "Method not allowed");
   },
 );
@@ -384,6 +385,57 @@ async function handleAudit({ req, res, user }: HandlerContext): Promise<void> {
   }
 
   res.status(200).json({ flagged: Object.keys(flagsByEntry).length, entries: responseEntries });
+}
+
+// ── POST /api/entries?action=merge_into — merge source entry into target, then soft-delete source ──
+async function handleMergeInto({ req, res, user }: HandlerContext): Promise<void> {
+  const source_id = req.query.id as string | undefined;
+  const { target_id } = req.body;
+  if (!source_id || typeof source_id !== "string" || source_id.length > 100) throw new ApiError(400, "Missing or invalid id");
+  if (!target_id || typeof target_id !== "string" || target_id.length > 100) throw new ApiError(400, "Missing or invalid target_id");
+  if (source_id === target_id) throw new ApiError(400, "source and target must differ");
+
+  const [sourceRes, targetRes] = await Promise.all([
+    fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(source_id)}&select=${encodeURIComponent(ENTRY_FIELDS)}`, { headers: sbHeadersNoContent() }),
+    fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(target_id)}&select=${encodeURIComponent(ENTRY_FIELDS)}`, { headers: sbHeadersNoContent() }),
+  ]);
+  if (!sourceRes.ok || !targetRes.ok) throw new ApiError(502, "Database error");
+  const [source]: any[] = await sourceRes.json();
+  const [target]: any[] = await targetRes.json();
+  if (!source) throw new ApiError(404, "Source entry not found");
+  if (!target) throw new ApiError(404, "Target entry not found");
+
+  await Promise.all([
+    requireBrainAccess(user.id, source.brain_id),
+    requireBrainAccess(user.id, target.brain_id),
+  ]);
+
+  const mergedContent = [target.content, source.content].filter(Boolean).join("\n\n---\n\n");
+  const mergedTags = Array.from(new Set([...(target.tags ?? []), ...(source.tags ?? [])])).slice(0, 50);
+
+  const patchRes = await fetch(
+    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(target_id)}`,
+    {
+      method: "PATCH",
+      headers: sbHeaders({ "Prefer": "return=representation" }),
+      body: JSON.stringify({ content: mergedContent, tags: mergedTags }),
+    },
+  );
+  if (!patchRes.ok) throw new ApiError(502, "Failed to update target entry");
+
+  await fetch(
+    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(source_id)}`,
+    {
+      method: "PATCH",
+      headers: sbHeaders({ "Prefer": "return=minimal" }),
+      body: JSON.stringify({ deleted_at: new Date().toISOString() }),
+    },
+  );
+
+  console.log(`[audit] MERGE_INTO source=${source_id} target=${target_id} user=${user.id}`);
+
+  const [updated] = await patchRes.json();
+  res.status(200).json(updated ?? { ok: true });
 }
 
 // ── /api/entry-brains — multi-brain assignment management ──
