@@ -335,7 +335,7 @@ function CollapseSection({
           />
         </svg>
       </button>
-      {open && <div style={{ paddingBottom: 16 }}>{children}</div>}
+      <div style={{ display: open ? "block" : "none", paddingBottom: 16 }}>{children}</div>
     </>
   );
 }
@@ -659,7 +659,7 @@ export default function SettingsView({
                     background: "none",
                     border: "none",
                     cursor: "pointer",
-                    padding: "0 0 16px",
+                    padding: "16px 0",
                     gap: 6,
                     fontSize: 11,
                     fontWeight: 600,
