@@ -7,6 +7,7 @@ import {
   type EnrichError,
 } from "../lib/enrichEntry";
 import { loadGraphFromDB } from "../lib/conceptGraph";
+import { authFetch } from "../lib/authFetch";
 import type { Entry } from "../types";
 
 interface UseEnrichmentOrchestratorParams {
@@ -70,32 +71,51 @@ export function useEnrichmentOrchestrator({
     enrichingRef.current = enriching;
   }, [enriching]);
 
-  const autoEnrichBrainRef = useRef<string | null>(null);
-
   useEffect(() => {
     if (!entriesLoaded || !activeBrainId) return;
-    if (autoEnrichBrainRef.current === activeBrainId) return;
 
-    const entries = entriesRef.current;
-    const unenriched = entries.filter((e) => !isFullyEnriched(e, entries, conceptEntryIds));
-    if (unenriched.length === 0) return;
-
-    autoEnrichBrainRef.current = activeBrainId;
-    const snapshot = [...unenriched];
-    const brainId = activeBrainId;
     let cancelled = false;
+    const brainId = activeBrainId;
+    let timer: ReturnType<typeof setTimeout>;
 
-    (async () => {
-      await new Promise((r) => setTimeout(r, 15000));
-      for (let i = 0; i < snapshot.length; i++) {
+    const runPass = async () => {
+      // Server pass: parse + insight
+      try {
+        await authFetch("/api/entries?action=enrich-batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ brain_id: brainId }),
+        });
+      } catch {}
+
+      if (cancelled || enrichingRef.current) return;
+
+      // Client pass: embed + concepts
+      const current = entriesRef.current;
+      const unenriched = current.filter((e) => !isFullyEnriched(e, current, conceptEntryIds));
+      for (const entry of unenriched) {
         if (cancelled || enrichingRef.current) break;
-        await enrichEntry(snapshot[i], brainId, updateAdapter);
-        if (i < snapshot.length - 1) await new Promise((r) => setTimeout(r, 15000));
+        await enrichEntry(entry, brainId, updateAdapter);
+        // Promote staged entry once fully enriched
+        if (entry.status === "staged" && isFullyEnriched(entry, current, conceptEntryIds)) {
+          authFetch("/api/entries", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: entry.id, status: "active" }),
+          }).then(() => updateAdapter(entry.id, { status: "active" })).catch(() => {});
+        }
       }
-    })();
+    };
 
+    const schedule = async () => {
+      await runPass();
+      if (!cancelled) timer = setTimeout(schedule, 90_000);
+    };
+
+    timer = setTimeout(schedule, 15_000);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, [entriesLoaded, activeBrainId]); // eslint-disable-line react-hooks/exhaustive-deps
 

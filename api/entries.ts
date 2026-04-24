@@ -3,9 +3,10 @@ import { withAuth, requireBrainAccess, ApiError, type HandlerContext } from "./_
 import { sbHeaders, sbHeadersNoContent } from "./_lib/sbHeaders.js";
 import { computeCompletenessScore } from "./_lib/completeness.js";
 import { SERVER_PROMPTS } from "./_lib/prompts.js";
+import { runEnrichBatchForUser } from "./_lib/enrichBatch.js";
 
 const SB_URL = process.env.SUPABASE_URL;
-const ENTRY_FIELDS = "id,title,content,type,tags,metadata,brain_id,importance,pinned,created_at,embedded_at";
+const ENTRY_FIELDS = "id,title,content,type,tags,metadata,brain_id,importance,pinned,created_at,embedded_at,status";
 
 function rateLimitForEntries(req: ApiRequest): number {
   const resource = req.query.resource as string | undefined;
@@ -27,6 +28,7 @@ export default withAuth(
     if (ctx.req.method === "DELETE") return handleDelete(ctx);
     if (ctx.req.method === "PATCH") return handlePatch(ctx);
     if (ctx.req.method === "POST" && (ctx.req.query.action as string) === "merge_into") return handleMergeInto(ctx);
+    if (ctx.req.method === "POST" && (ctx.req.query.action as string) === "enrich-batch") return handleEnrichBatch(ctx);
     throw new ApiError(405, "Method not allowed");
   },
 );
@@ -37,9 +39,11 @@ async function handleGet({ req, res, user }: HandlerContext): Promise<void> {
   const limit = Math.min(parseInt((req.query.limit as string) || "1000", 10), 1000);
   const cursor = req.query.cursor as string | undefined;
   const trash = req.query.trash === "true";
+  const staged = req.query.staged === "true";
 
   const cursorFilter = cursor ? `&created_at=lt.${encodeURIComponent(cursor)}` : "";
   const deletedFilter = trash ? "&deleted_at=not.is.null" : "&deleted_at=is.null";
+  const statusFilter = staged ? "&status=eq.staged" : "&status=eq.active";
 
   if (brain_id) {
     await requireBrainAccess(user.id, brain_id);
@@ -56,7 +60,7 @@ async function handleGet({ req, res, user }: HandlerContext): Promise<void> {
       : "";
     const orFilter = `&or=(brain_id.eq.${encodeURIComponent(brain_id)}${sharedIdFilter})`;
 
-    const directUrl = `${SB_URL}/rest/v1/entries?select=${encodeURIComponent(ENTRY_FIELDS)}&order=created_at.desc&limit=${limit + 1}${deletedFilter}${orFilter}${cursorFilter}`;
+    const directUrl = `${SB_URL}/rest/v1/entries?select=${encodeURIComponent(ENTRY_FIELDS)}&order=created_at.desc&limit=${limit + 1}${deletedFilter}${statusFilter}${orFilter}${cursorFilter}`;
     const directRes = await fetch(directUrl, { headers: sbHeadersNoContent() });
     if (!directRes.ok) throw new ApiError(502, "Database error");
     const rows: any[] = await directRes.json();
@@ -68,7 +72,7 @@ async function handleGet({ req, res, user }: HandlerContext): Promise<void> {
     return;
   }
 
-  const url = `${SB_URL}/rest/v1/entries?select=${encodeURIComponent(ENTRY_FIELDS)}&order=created_at.desc&limit=${limit + 1}${deletedFilter}&user_id=eq.${encodeURIComponent(user.id)}${cursorFilter}`;
+  const url = `${SB_URL}/rest/v1/entries?select=${encodeURIComponent(ENTRY_FIELDS)}&order=created_at.desc&limit=${limit + 1}${deletedFilter}${statusFilter}&user_id=eq.${encodeURIComponent(user.id)}${cursorFilter}`;
   const response = await fetch(url, { headers: sbHeadersNoContent() });
   if (!response.ok) throw new ApiError(502, "Database error");
   const rows: any[] = await response.json();
@@ -175,7 +179,7 @@ async function handlePatch({ req, res, user }: HandlerContext): Promise<void> {
     return;
   }
 
-  const { id, title, content, type, tags, metadata, brain_id } = req.body;
+  const { id, title, content, type, tags, metadata, brain_id, status } = req.body;
   if (!id || typeof id !== "string" || id.length > 100) {
     throw new ApiError(400, "Missing or invalid id");
   }
@@ -185,6 +189,9 @@ async function handlePatch({ req, res, user }: HandlerContext): Promise<void> {
   if (type !== undefined && (typeof type !== "string" || type.length > 50)) {
     throw new ApiError(400, "Invalid type");
   }
+  if (status !== undefined && status !== "active" && status !== "staged") {
+    throw new ApiError(400, "Invalid status");
+  }
 
   const patch: Record<string, any> = {};
   if (title !== undefined) patch.title = title;
@@ -193,6 +200,7 @@ async function handlePatch({ req, res, user }: HandlerContext): Promise<void> {
   if (Array.isArray(tags)) patch.tags = tags.filter((t: any) => typeof t === "string").slice(0, 50);
   if (metadata !== undefined && typeof metadata === "object" && !Array.isArray(metadata)) patch.metadata = metadata;
   if (brain_id !== undefined && typeof brain_id === "string" && brain_id.length <= 100) patch.brain_id = brain_id;
+  if (status !== undefined) patch.status = status;
 
   const entryRes = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&select=brain_id,title,content,type,tags,metadata`, {
     headers: sbHeadersNoContent(),
@@ -385,6 +393,16 @@ async function handleAudit({ req, res, user }: HandlerContext): Promise<void> {
   }
 
   res.status(200).json({ flagged: Object.keys(flagsByEntry).length, entries: responseEntries });
+}
+
+// ── POST /api/entries?action=enrich-batch ──
+async function handleEnrichBatch({ req, res, user }: HandlerContext): Promise<void> {
+  const { brain_id, batch_size } = req.body;
+  if (!brain_id || typeof brain_id !== "string") throw new ApiError(400, "brain_id required");
+  await requireBrainAccess(user.id, brain_id);
+  const batchSize = typeof batch_size === "number" && batch_size > 0 ? Math.min(batch_size, 10) : 5;
+  const result = await runEnrichBatchForUser(user.id, brain_id, batchSize);
+  res.status(200).json(result);
 }
 
 // ── POST /api/entries?action=merge_into — merge source entry into target, then soft-delete source ──

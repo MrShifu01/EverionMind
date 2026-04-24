@@ -595,15 +595,9 @@ async function deepExtractEntry(
   currentTitle: string,
   currentSummary: string,
   currentAmount: string | null,
-): Promise<DeepExtractResult> {
-  const fallback: DeepExtractResult = {
-    title: currentTitle, content: currentSummary, amount: currentAmount,
-    account_number: null, reference_number: null, invoice_number: null,
-    name: null, cellphone: null, landline: null, address: null,
-    id_number: null, contact_name: null, due_date: null, renewal_date: null, expiry_date: null,
-  };
+): Promise<DeepExtractResult | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return fallback;
+  if (!apiKey) return null;
 
   const sourceText = attachmentText
     ? `Body:\n${emailBody.slice(0, 1200)}\n\nAttachment:\n${attachmentText.slice(0, 3000)}`
@@ -649,7 +643,7 @@ Field rules:
       }],
     }),
   });
-  if (!res.ok) return fallback;
+  if (!res.ok) return null;
   const data = await res.json();
   const text: string = data.content?.[0]?.text ?? "";
   try {
@@ -677,7 +671,7 @@ Field rules:
   } catch (e) {
     console.debug("[gmailScan] deepExtractEntry parse failed", e);
   }
-  return fallback;
+  return null;
 }
 
 const DEEP_EXTRACT_TYPES = new Set([
@@ -993,6 +987,8 @@ async function persistMatches(
       debug.attachmentsExtracted += block.attachments.length;
 
       // Always deep-extract for structured types — parses body + attachments for rich fields
+      // parsed is only true if the LLM actually ran; null return means it fell back
+      let deepExtractSucceeded = !DEEP_EXTRACT_TYPES.has(match.type);
       if (DEEP_EXTRACT_TYPES.has(match.type)) {
         const extracted = await deepExtractEntry(
           block.primary.subject,
@@ -1004,21 +1000,24 @@ async function persistMatches(
           summary,
           extractedAmount,
         );
-        title = extracted.title;
-        summary = extracted.content;
-        extractedAmount = extracted.amount;
-        accountNumber = extracted.account_number;
-        referenceNumber = extracted.reference_number;
-        invoiceNumber = extracted.invoice_number;
-        extractedName = extracted.name;
-        cellphone = extracted.cellphone;
-        landline = extracted.landline;
-        address = extracted.address;
-        idNumber = extracted.id_number;
-        contactName = extracted.contact_name;
-        deepDueDate = extracted.due_date ?? deepDueDate;
-        renewalDate = extracted.renewal_date;
-        expiryDate = extracted.expiry_date;
+        if (extracted) {
+          deepExtractSucceeded = true;
+          title = extracted.title;
+          summary = extracted.content;
+          extractedAmount = extracted.amount;
+          accountNumber = extracted.account_number;
+          referenceNumber = extracted.reference_number;
+          invoiceNumber = extracted.invoice_number;
+          extractedName = extracted.name;
+          cellphone = extracted.cellphone;
+          landline = extracted.landline;
+          address = extracted.address;
+          idNumber = extracted.id_number;
+          contactName = extracted.contact_name;
+          deepDueDate = extracted.due_date ?? deepDueDate;
+          renewalDate = extracted.renewal_date;
+          expiryDate = extracted.expiry_date;
+        }
       }
 
       const content = summary;
@@ -1039,7 +1038,7 @@ async function persistMatches(
         urgency: match.urgency ?? "medium",
         relevance_score: relevanceScore,
         completeness_score: computeCompletenessScore(title, content, type, tags, {}),
-        enrichment: { parsed: true },
+        enrichment: { parsed: deepExtractSucceeded },
       };
       if (accountNumber) metadata.account_number = accountNumber;
       if (referenceNumber) metadata.reference_number = referenceNumber;
@@ -1061,6 +1060,7 @@ async function persistMatches(
         type,
         tags,
         metadata,
+        status: "staged",
       };
       if (brainId) entry.brain_id = brainId;
 

@@ -2,6 +2,27 @@
 
 ---
 
+## [FEATURE] Gmail Staging Area — 2026-04-24
+**Tags**: GMAIL, SCHEMA, ENRICHMENT, UI
+
+Gmail entries now land in a `status="staged"` holding area instead of going
+directly into the brain. They promote to `status="active"` automatically once
+parse+insight+embedded all pass, or manually via the staging inbox UI.
+
+### Schema
+- `ALTER TABLE entries ADD COLUMN status TEXT NOT NULL DEFAULT 'active'`
+- Index on `status` WHERE staged. Migration SQL in `.smash-os/scratch/gmail-staging-migration.sql`
+- **Must run migration in Supabase before deploying.**
+
+### Key decisions
+- No new api/ files (Vercel 12-function limit). Status filter added to existing GET handler.
+- `deepExtractEntry` now returns `null` on failure — `parsed` flag only set true when LLM ran.
+- Client-side promote (useEnrichmentOrchestrator) is best-effort fast-path; server batch is authoritative.
+- Staged inbox reuses GmailScanReviewModal swipe pattern in new GmailStagingInbox.tsx.
+- Reject = existing soft-delete endpoint. Accept = PATCH status→active.
+
+---
+
 ## [IMPROVEMENT] Deferred items sweep — 2026-04-24
 **Tags**: TYPES, AUTH, ARCH, REFACTOR
 

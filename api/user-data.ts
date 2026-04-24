@@ -4,6 +4,7 @@ import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 import crypto from "crypto";
 import webpush from "web-push";
 import { runGmailScanAllUsers } from "./_lib/gmailScan.js";
+import { runEnrichBatchAllUsers } from "./_lib/enrichBatch.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -569,7 +570,13 @@ async function handleCronDaily(req: ApiRequest, res: ApiResponse): Promise<void>
     return { users: 0, created: 0, errors: 1 };
   });
 
-  return void res.status(200).json({ push: pushResults, gmail: gmailResults });
+  // ── Enrich batch (parse + insight) for all brains ──
+  const enrichResults = await runEnrichBatchAllUsers().catch((e) => {
+    console.error("[cron/daily] enrich batch failed:", e);
+    return { brains: 0, processed: 0 };
+  });
+
+  return void res.status(200).json({ push: pushResults, gmail: gmailResults, enrich: enrichResults });
 }
 
 // ── /api/notifications (rewritten to /api/user-data?resource=notifications) ──

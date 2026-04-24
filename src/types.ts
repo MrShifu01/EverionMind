@@ -68,6 +68,7 @@ export interface Entry {
   encrypted?: boolean;
   pinned?: boolean;
   importance?: number;
+  status?: "active" | "staged";
 }
 
 export interface TypeConfig {

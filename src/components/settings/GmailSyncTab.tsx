@@ -4,6 +4,7 @@ import { authFetch } from "../../lib/authFetch";
 import { SettingsButton } from "./SettingsRow";
 import GmailSetupModal from "./GmailSetupModal";
 import GmailScanReviewModal, { type ScanResultItem } from "./GmailScanReviewModal";
+import GmailStagingInbox from "./GmailStagingInbox";
 import { useEntries } from "../../context/EntriesContext";
 import { useBrain } from "../../context/BrainContext";
 
@@ -75,6 +76,18 @@ export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
   const [disconnecting, setDisconnecting] = useState(false);
   const [lastDebug, setLastDebug] = useState<ScanDebug | null>(null);
   const [reviewItems, setReviewItems] = useState<ScanResultItem[]>([]);
+  const [stagedCount, setStagedCount] = useState(0);
+  const [showStagingInbox, setShowStagingInbox] = useState(false);
+
+  function fetchStagedCount() {
+    authFetch("/api/entries?staged=true")
+      .then((r) => r?.json?.())
+      .then((d) => {
+        const gmail = (d?.entries ?? []).filter((e: any) => e.metadata?.source === "gmail");
+        setStagedCount(gmail.length);
+      })
+      .catch(() => {});
+  }
 
   function fetchIntegration() {
     return authFetch("/api/gmail?action=integration")
@@ -97,6 +110,7 @@ export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
       window.history.replaceState({}, "", window.location.pathname);
     }
     fetchIntegration().finally(() => setLoading(false));
+    fetchStagedCount();
   }, []);
 
   async function handleConnect(preferences: { categories: string[]; custom: string }) {
@@ -218,6 +232,9 @@ export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
             <>
               <SettingsButton onClick={handleScanNow} disabled={scanning}>
                 {scanning ? "Scanning…" : "Scan now"}
+              </SettingsButton>
+              <SettingsButton onClick={() => setShowStagingInbox(true)}>
+                Inbox{stagedCount > 0 ? ` (${stagedCount})` : ""}
               </SettingsButton>
               <SettingsButton onClick={() => setModalMode("edit")}>Preferences</SettingsButton>
               <SettingsButton onClick={handleDisconnect} disabled={disconnecting} danger>
@@ -430,7 +447,14 @@ export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
       {reviewItems.length > 0 && (
         <GmailScanReviewModal
           items={reviewItems}
-          onClose={() => setReviewItems([])}
+          onClose={() => { setReviewItems([]); fetchStagedCount(); refreshEntries(); }}
+        />
+      )}
+
+      {showStagingInbox && (
+        <GmailStagingInbox
+          onClose={() => { setShowStagingInbox(false); refreshEntries(); }}
+          onCountChange={setStagedCount}
         />
       )}
     </div>
