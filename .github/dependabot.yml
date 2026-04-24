@@ -6,9 +6,6 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 5
-    ignore:
-      # xlsx has known CVEs requiring a major rewrite — see H-2 in security audit
-      - dependency-name: "xlsx"
     groups:
       dev-dependencies:
         dependency-type: "development"
