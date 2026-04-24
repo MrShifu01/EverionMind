@@ -196,7 +196,7 @@ export default function NotificationBell({
 
       {open && (
         <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0,
-          width: 340, maxHeight: "calc(100dvh - 120px)", overflowY: "auto",
+          width: "min(340px, calc(100vw - 16px))", maxHeight: "calc(100dvh - 120px)", overflowY: "auto",
           background: "var(--surface-high)", border: "1px solid var(--line-soft)",
           borderRadius: 14, boxShadow: "var(--lift-3)", zIndex: 200 }}>
           {/* Header */}
