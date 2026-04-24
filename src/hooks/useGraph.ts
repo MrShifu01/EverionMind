@@ -21,8 +21,8 @@ const MAX_EDGES = 120;
 
 // Simulation is centered at (0, 0) — world container is positioned at
 // viewport center via CSS, so no panX/panY computation needed on init.
-export const SIM_CX = 0;
-export const SIM_CY = 0;
+const SIM_CX = 0;
+const SIM_CY = 0;
 
 const REPULSION = 5000;
 const SPRING_K = 0.02;

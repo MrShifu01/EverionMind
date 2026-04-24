@@ -18,6 +18,16 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rolldownOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('/node_modules/@supabase/')) return 'supabase';
+          if (id.includes('/node_modules/@sentry/')) return 'sentry';
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     tailwindcss(),

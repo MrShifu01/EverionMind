@@ -68,7 +68,7 @@ export function getEnrichmentGaps(
  * Handles: markdown fences, truncated responses (via brace-counting salvage).
  * Returns null if no usable JSON could be extracted.
  */
-export function parseAIJSON(rawAI: string): any | null {
+function parseAIJSON(rawAI: string): any | null {
   const aiText = rawAI.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "");
   // Try full array/object first
   const fullMatch = aiText.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);

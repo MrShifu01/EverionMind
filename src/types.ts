@@ -28,7 +28,7 @@ export type EntryType = string;
 
 export type Priority = "high" | "medium" | "low";
 
-export type ConfidenceLevel = "extracted" | "inferred";
+type ConfidenceLevel = "extracted" | "inferred";
 
 export type Workspace = "business" | "personal" | "both";
 

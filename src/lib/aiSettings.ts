@@ -10,11 +10,7 @@ const _taskModels: Record<string, string | null> = {};
 // ── Plan tier ──
 let _plan = "free";
 
-// ── Hydration signal: set true after loadUserAISettings completes ──
 let _loaded = false;
-export function isAISettingsLoaded(): boolean {
-  return _loaded;
-}
 
 // ── Cached user ID set at login — used by syncToSupabase ──
 let _cachedUserId: string | null = null;
@@ -86,7 +82,7 @@ function syncToSupabase(fields: Record<string, string | boolean | null>): void {
 }
 
 // ── Awaitable save — use in Save buttons to surface DB errors to the user ──
-export async function persistKeyToDb(
+async function persistKeyToDb(
   fields: Record<string, string | boolean | null>,
 ): Promise<{ error: string | null }> {
   const uid = _cachedUserId || getUserId();
@@ -126,16 +122,6 @@ const TASK_COL: Record<string, string> = {
   refine: "model_refine",
   chat: "model_chat",
 };
-
-export function getModelForTask(task: string): string | null {
-  return _taskModels[task] ?? null;
-}
-export function setModelForTask(task: string, model: string | null): void {
-  _taskModels[task] = model;
-  const col = TASK_COL[task];
-  if (!col) return;
-  syncToSupabase({ [col]: model || null });
-}
 
 // ── Load all settings from Supabase into memory / localStorage ──
 export async function loadUserAISettings(userId: string): Promise<void> {
@@ -188,11 +174,6 @@ export async function loadUserAISettings(userId: string): Promise<void> {
   } catch {
     /* non-browser */
   }
-}
-
-// ── Plan ──
-export function getPlan(): string {
-  return _plan;
 }
 
 // ── Anthropic ──
@@ -300,12 +281,6 @@ export interface AISettingsPatch {
   plan?: string;
 }
 
-export interface ProviderConfig {
-  provider: "anthropic" | "openai" | "gemini-byok" | "managed-gemini";
-  key: string;
-  model: string;
-}
-
 function _applyPatchToMemory(patch: AISettingsPatch): void {
   if (patch.groq_key !== undefined) _keys[KEYS.GROQ_KEY] = patch.groq_key;
   if (patch.gemini_key !== undefined) _keys[KEYS.GEMINI_KEY] = patch.gemini_key;
@@ -358,24 +333,3 @@ export const aiSettings = {
   },
 };
 
-export function resolveProvider(task?: string): ProviderConfig {
-  const snap = aiSettings.get();
-
-  if (snap.anthropicKey) {
-    const model = task
-      ? (_taskModels[task === "chat" ? "chat" : task] ?? snap.anthropicModel)
-      : snap.anthropicModel;
-    return { provider: "anthropic", key: snap.anthropicKey, model: model ?? snap.anthropicModel };
-  }
-
-  if (snap.openaiKey) {
-    const model = snap.openaiModel;
-    return { provider: "openai", key: snap.openaiKey, model };
-  }
-
-  if (snap.geminiKey) {
-    return { provider: "gemini-byok", key: snap.geminiKey, model: snap.geminiByokModel };
-  }
-
-  return { provider: "managed-gemini", key: "", model: snap.geminiByokModel };
-}

@@ -32,11 +32,10 @@
     "mammoth": "^1.12.0",
     "pdfjs-dist": "^5.6.205",
     "react": "^19.2.4",
-    "react-big-calendar": "^1.19.4",
     "react-dom": "^19.2.4",
     "tailwind-merge": "^3.5.0",
     "web-push": "^3.6.7",
-    "exceljs": "^4.4.0"
+    "xlsx": "^0.18.5"
   },
   "overrides": {
     "serialize-javascript": "^7.0.5",
@@ -52,7 +51,6 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",
-    "@types/react-big-calendar": "^1.16.3",
     "@types/react-dom": "^19.2.3",
     "@types/web-push": "^3.6.4",
     "@typescript-eslint/eslint-plugin": "^8.58.1",

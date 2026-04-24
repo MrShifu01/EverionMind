@@ -33,10 +33,3 @@ export function writeConceptsToGraph(brainId: string, incoming: ConceptGraph): P
   });
 }
 
-/**
- * Run an arbitrary read-modify-write under the per-brain lock.
- * Use when you need to read the current graph before deciding what to write.
- */
-export function withGraphLock(brainId: string, fn: () => Promise<void>): Promise<void> {
-  return _chain(brainId, fn);
-}

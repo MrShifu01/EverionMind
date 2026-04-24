@@ -18,7 +18,7 @@ export interface ChatMessage {
   debug?: DebugInfo;
 }
 
-export interface PendingAction {
+interface PendingAction {
   tool: string;
   args: Record<string, any>;
   label: string;

@@ -1,7 +1,6 @@
-import { useState, useRef, useEffect, lazy, Suspense } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { AppNotification } from "../hooks/useNotifications";
-
-const GmailScanReviewModal = lazy(() => import("./settings/GmailScanReviewModal"));
+import GmailScanReviewModal from "./settings/GmailScanReviewModal";
 
 interface Props {
   notifications: AppNotification[];
@@ -245,7 +244,6 @@ export default function NotificationBell({
 
       {/* Gmail review modal spawned from notification */}
       {reviewItems && reviewItems.length > 0 && (
-        <Suspense fallback={null}>
           <GmailScanReviewModal
             items={reviewItems}
             onClose={() => {
@@ -254,7 +252,6 @@ export default function NotificationBell({
               setReviewNotifId(null);
             }}
           />
-        </Suspense>
       )}
     </div>
   );

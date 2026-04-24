@@ -2,7 +2,7 @@ import { authFetch } from "./authFetch";
 import { PROMPTS } from "../config/prompts";
 import type { ParsedContact } from "./vcfParser";
 
-export type ContactCategory =
+type ContactCategory =
   | "plumbing"
   | "electrician"
   | "irrigation"
@@ -15,25 +15,25 @@ export type ContactCategory =
   | "business"
   | "unknown";
 
-export interface CategorizedContact extends ParsedContact {
+interface CategorizedContact extends ParsedContact {
   category: ContactCategory;
   tags: string[];
   confidence: number;
 }
 
-export interface GraphNode {
+interface GraphNode {
   id: string;
   type: "person" | "company" | "service";
   label: string;
 }
 
-export interface GraphEdge {
+interface GraphEdge {
   from: string;
   to: string;
   type: "provides" | "works_at";
 }
 
-export interface PipelineResult {
+interface PipelineResult {
   contacts: CategorizedContact[];
   nodes: GraphNode[];
   edges: GraphEdge[];

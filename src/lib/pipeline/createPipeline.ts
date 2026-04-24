@@ -1,7 +1,7 @@
 import type { Entry } from "../../types";
 import { enrichEntry, type EnrichError } from "../enrichEntry";
 
-export interface BulkEnrichProgress {
+interface BulkEnrichProgress {
   idx: number;
   total: number;
   done: number;
@@ -10,13 +10,13 @@ export interface BulkEnrichProgress {
   errors: EnrichError[];
 }
 
-export interface PipelineHooks {
+interface PipelineHooks {
   onUpdate: (id: string, changes: any) => Promise<void>;
   getEntries?: () => Entry[];
   throttleMs?: number;
 }
 
-export interface EnrichmentPipeline {
+interface EnrichmentPipeline {
   enrich(entry: Entry, brainId: string): void;
   enrichBulk(entries: Entry[], brainId: string): AsyncGenerator<BulkEnrichProgress>;
 }

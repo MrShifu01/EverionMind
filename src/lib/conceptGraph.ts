@@ -120,25 +120,6 @@ export function getConceptsForEntry(graph: ConceptGraph, entryId: string): Conce
   return graph.concepts.filter((c) => c.source_entries.includes(entryId));
 }
 
-/** Get entries related to a given entry via shared concepts */
-export function getRelatedEntries(
-  graph: ConceptGraph,
-  entryId: string,
-): Array<{ entryId: string; sharedConcepts: string[] }> {
-  const myConcepts = getConceptsForEntry(graph, entryId);
-  const relatedMap = new Map<string, Set<string>>();
-  for (const c of myConcepts) {
-    for (const eid of c.source_entries) {
-      if (eid === entryId) continue;
-      if (!relatedMap.has(eid)) relatedMap.set(eid, new Set());
-      relatedMap.get(eid)!.add(c.label);
-    }
-  }
-  return [...relatedMap.entries()]
-    .map(([eid, concepts]) => ({ entryId: eid, sharedConcepts: [...concepts] }))
-    .sort((a, b) => b.sharedConcepts.length - a.sharedConcepts.length);
-}
-
 /** Get top N concepts by degree (number of relationships) — "god nodes" */
 export function getGodNodes(graph: ConceptGraph, topN = 10, filter?: Set<string>): Concept[] {
   const GENERIC = new Set(["note", "task", "item", "thing", "entry", "other", "general"]);
@@ -155,69 +136,6 @@ export function getGodNodes(graph: ConceptGraph, topN = 10, filter?: Set<string>
     .filter((c) => !GENERIC.has(c.id) && (!filter || !filter.has(c.id)))
     .sort((a, b) => (degree.get(b.id) || 0) - (degree.get(a.id) || 0))
     .slice(0, topN);
-}
-
-/** Simple label propagation community detection */
-export function detectCommunities(
-  graph: ConceptGraph,
-): Array<{ clusterId: string; conceptIds: string[]; entryIds: string[] }> {
-  const labels = new Map<string, string>();
-  for (const c of graph.concepts) labels.set(c.id, c.id);
-
-  // Build adjacency
-  const adj = new Map<string, Set<string>>();
-  for (const r of graph.relationships) {
-    if (!adj.has(r.source_concept)) adj.set(r.source_concept, new Set());
-    if (!adj.has(r.target_concept)) adj.set(r.target_concept, new Set());
-    adj.get(r.source_concept)!.add(r.target_concept);
-    adj.get(r.target_concept)!.add(r.source_concept);
-  }
-
-  // Iterate label propagation (max 10 rounds)
-  for (let iter = 0; iter < 10; iter++) {
-    let changed = false;
-    for (const c of graph.concepts) {
-      const neighbors = adj.get(c.id);
-      if (!neighbors || neighbors.size === 0) continue;
-      const freq = new Map<string, number>();
-      for (const n of neighbors) {
-        const nl = labels.get(n) || n;
-        freq.set(nl, (freq.get(nl) || 0) + 1);
-      }
-      let best = labels.get(c.id)!;
-      let bestCount = 0;
-      for (const [l, count] of freq) {
-        if (count > bestCount) {
-          best = l;
-          bestCount = count;
-        }
-      }
-      if (best !== labels.get(c.id)) {
-        labels.set(c.id, best);
-        changed = true;
-      }
-    }
-    if (!changed) break;
-  }
-
-  // Group by label
-  const clusters = new Map<string, string[]>();
-  for (const [cid, label] of labels) {
-    if (!clusters.has(label)) clusters.set(label, []);
-    clusters.get(label)!.push(cid);
-  }
-
-  const conceptMap = new Map(graph.concepts.map((c) => [c.id, c]));
-  return [...clusters.entries()]
-    .filter(([, ids]) => ids.length >= 2)
-    .map(([clusterId, conceptIds]) => {
-      const entryIds = new Set<string>();
-      for (const cid of conceptIds) {
-        const c = conceptMap.get(cid);
-        if (c) c.source_entries.forEach((eid) => entryIds.add(eid));
-      }
-      return { clusterId, conceptIds, entryIds: [...entryIds] };
-    });
 }
 
 // ─── Storage helpers (DB-backed with localStorage cache) ───
@@ -303,29 +221,3 @@ export async function saveGraphToDB(brainId: string, graph: ConceptGraph): Promi
   }
 }
 
-/** Phase 7: Apply user feedback to strengthen/weaken relationship confidence */
-export async function applyFeedback(
-  brainId: string,
-  action: "accept" | "reject",
-  entryIdA: string,
-  entryIdB: string,
-): Promise<void> {
-  const graph = loadGraph(brainId);
-  const delta = action === "accept" ? 0.1 : -0.15;
-  for (const rel of graph.relationships) {
-    const srcEntries =
-      graph.concepts.find((c) => c.id === rel.source_concept)?.source_entries || [];
-    const tgtEntries =
-      graph.concepts.find((c) => c.id === rel.target_concept)?.source_entries || [];
-    if (
-      (srcEntries.includes(entryIdA) && tgtEntries.includes(entryIdB)) ||
-      (srcEntries.includes(entryIdB) && tgtEntries.includes(entryIdA))
-    ) {
-      rel.confidence_score = Math.max(0, Math.min(1, rel.confidence_score + delta));
-      if (action === "accept") rel.confidence = "extracted";
-    }
-  }
-  // Remove very low confidence relationships
-  graph.relationships = graph.relationships.filter((r) => r.confidence_score > 0.05);
-  await saveGraphToDB(brainId, graph);
-}

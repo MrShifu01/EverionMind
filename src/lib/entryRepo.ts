@@ -18,7 +18,7 @@ function normalizeList(data: unknown): Entry[] {
   return [];
 }
 
-export interface ListOptions {
+interface ListOptions {
   brainId?: string;
   limit?: number;
   trash?: boolean;

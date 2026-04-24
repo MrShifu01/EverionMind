@@ -1,7 +1,7 @@
 import type { Entry } from "../types";
 
 /* ─── Date extraction ─── */
-export const ALL_DATE_KEYS = [
+const ALL_DATE_KEYS = [
   "deadline",
   "due_date",
   "valid_to",
@@ -19,10 +19,10 @@ export const ALL_DATE_KEYS = [
   "expiry",
   "renewal_date",
 ];
-export const ACTION_DATE_KEYS = ["due_date", "deadline"];
-export const DATE_RE = /^\d{4}-\d{2}-\d{2}/;
-export const CONTENT_DATE_RE = /\b(\d{4}-\d{2}-\d{2})\b/g;
-export const DOW: Record<string, number> = {
+const ACTION_DATE_KEYS = ["due_date", "deadline"];
+const DATE_RE = /^\d{4}-\d{2}-\d{2}/;
+const CONTENT_DATE_RE = /\b(\d{4}-\d{2}-\d{2})\b/g;
+const DOW: Record<string, number> = {
   sunday: 0,
   monday: 1,
   tuesday: 2,
