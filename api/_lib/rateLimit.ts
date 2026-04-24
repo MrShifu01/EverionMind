@@ -8,8 +8,13 @@ import type { ApiRequest } from './types';
 // Add to Vercel env: UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN
 
 // ─── In-memory fallback (same serverless caveat as before) ───────────────────
+const _onVercel = !!process.env.VERCEL;
 if (!process.env.UPSTASH_REDIS_REST_URL) {
-  console.warn("[rateLimit] No Upstash URL configured — rate limiting is disabled in serverless");
+  if (_onVercel) {
+    console.error("[rateLimit] UPSTASH_REDIS_REST_URL not set — rate limiting will fail closed in serverless");
+  } else {
+    console.warn("[rateLimit] No Upstash URL configured — using in-memory rate limit (dev only)");
+  }
 }
 
 const _counts = new Map<string, { count: number; reset: number }>();
@@ -91,7 +96,9 @@ export async function rateLimit(req: ApiRequest, limit: number = 20, windowMs: n
   const ip = _getIp(req);
   const path = (req.url || "").split("?")[0].slice(0, 50);
   const key = `${ip}:${path}`;
-  const limited = process.env.UPSTASH_REDIS_REST_URL
+  const hasUpstash = !!process.env.UPSTASH_REDIS_REST_URL;
+  if (!hasUpstash && _onVercel) return false; // fail closed in prod without Redis
+  const limited = hasUpstash
     ? await _upstashLimited(key, windowMs, limit)
     : _inMemoryLimited(key, windowMs, limit);
   return !limited;

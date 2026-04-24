@@ -5,7 +5,7 @@ import { withAuth, type AuthedUser } from "./_lib/withAuth.js";
 import { retrieveEntries, rebuildConceptGraph } from "./_lib/retrievalCore.js";
 import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
 import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
-import { runEnrichEntry } from "./_lib/enrichBatch.js";
+import { runEnrichEntry, scheduleEnrichJob } from "./_lib/enrichBatch.js";
 import { sbHeaders } from "./_lib/sbHeaders.js";
 import {
   selectProvider,
@@ -198,7 +198,7 @@ async function execTool(name: string, args: Record<string, any>, userId: string,
     if (!r.ok) return { error: `Failed to create: ${await r.text().catch(() => r.status)}` };
     const rows: any[] = await r.json();
     if (GEMINI_API_KEY) rebuildConceptGraph(brainId, GEMINI_API_KEY).catch(() => {});
-    runEnrichEntry(id, userId).catch(() => {});
+    scheduleEnrichJob(id, userId);
     return rows[0];
   }
   if (name === "update_entry") {
@@ -490,7 +490,12 @@ export default withAuth(
       if (provider.provider === "gemini-managed") {
         const { plan, hasKey } = await resolveSettingsRaw(user.id);
         const usageAction = (req.query.action as string) === "transcribe" ? "voice" : "chats";
-        const check = await checkAndIncrement(user.id, usageAction, plan, hasKey);
+        let check: Awaited<ReturnType<typeof checkAndIncrement>>;
+        try {
+          check = await checkAndIncrement(user.id, usageAction, plan, hasKey);
+        } catch {
+          return void res.status(503).json({ error: "quota_unavailable", retryAfter: 10 });
+        }
         if (!check.allowed) {
           return void res.status(429).json({
             error: "monthly_limit_reached",

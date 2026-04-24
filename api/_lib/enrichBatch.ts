@@ -97,7 +97,7 @@ async function enrichSingleEntry(entry: any, userId: string): Promise<boolean> {
   // ── Insight ──
   if (!hasInsight(entry)) {
     const tagStr = entry.tags?.length ? ` [${entry.tags.join(", ")}]` : "";
-    const prompt = `Entry: "${entry.title}" (${entry.type || "note"})${tagStr}\n${String(entry.content || "").slice(0, 400)}`;
+    const prompt = `<user_entry>\nType: ${entry.type || "note"}${tagStr}\nTitle: ${entry.title}\n${String(entry.content || "").slice(0, 400)}\n</user_entry>`;
     const insight = await callAnthropic(SERVER_PROMPTS.INSIGHT, prompt, 150);
     if (insight.trim().length >= 20) {
       meta = { ...meta, ai_insight: insight.trim(), enrichment: { ...enr, has_insight: true } };
@@ -108,7 +108,7 @@ async function enrichSingleEntry(entry: any, userId: string): Promise<boolean> {
 
   // ── Concepts ──
   if (!hasConcepts(entry)) {
-    const conceptPrompt = `Entry ID: ${entry.id}\nTitle: ${entry.title}\nType: ${entry.type || "note"}\nContent: ${String(entry.content || "").slice(0, 600)}`;
+    const conceptPrompt = `Entry ID: ${entry.id}\n<user_entry>\nTitle: ${entry.title}\nType: ${entry.type || "note"}\nContent: ${String(entry.content || "").slice(0, 600)}\n</user_entry>`;
     const conceptRaw = await callAnthropic(SERVER_PROMPTS.ENTRY_CONCEPTS, conceptPrompt, 400);
     const conceptResult = parseAIJSON(conceptRaw);
     if (conceptResult?.concepts?.length > 0) {
@@ -133,6 +133,65 @@ async function enrichSingleEntry(entry: any, userId: string): Promise<boolean> {
   }
 
   return changed;
+}
+
+const JOB_URL = (entryId: string) =>
+  `${SB_URL}/rest/v1/entry_enrichment_jobs?entry_id=eq.${encodeURIComponent(entryId)}`;
+
+export function scheduleEnrichJob(entryId: string, userId: string): void {
+  fetch(`${SB_URL}/rest/v1/entry_enrichment_jobs`, {
+    method: "POST",
+    headers: { ...SB_HDR, Prefer: "resolution=ignore-duplicates,return=minimal" },
+    body: JSON.stringify({ entry_id: entryId, user_id: userId }),
+  }).catch(() => {});
+
+  runEnrichEntry(entryId, userId)
+    .then(() =>
+      fetch(JOB_URL(entryId), {
+        method: "PATCH",
+        headers: { ...SB_HDR, Prefer: "return=minimal" },
+        body: JSON.stringify({ status: "complete", updated_at: new Date().toISOString() }),
+      }).catch(() => {}),
+    )
+    .catch(() => {});
+}
+
+export async function drainEnrichmentJobs(maxJobs = 20): Promise<{ processed: number; failed: number }> {
+  const now = new Date().toISOString();
+  const r = await fetch(
+    `${SB_URL}/rest/v1/entry_enrichment_jobs?status=in.(pending,retry)&next_run_at=lte.${encodeURIComponent(now)}&select=entry_id,user_id,attempt&order=next_run_at.asc&limit=${maxJobs}`,
+    { headers: SB_HDR },
+  );
+  if (!r.ok) return { processed: 0, failed: 0 };
+  const jobs: any[] = await r.json();
+  let processed = 0, failed = 0;
+  for (const job of jobs) {
+    try {
+      await runEnrichEntry(job.entry_id, job.user_id);
+      await fetch(JOB_URL(job.entry_id), {
+        method: "PATCH",
+        headers: { ...SB_HDR, Prefer: "return=minimal" },
+        body: JSON.stringify({ status: "complete", updated_at: new Date().toISOString() }),
+      });
+      processed++;
+    } catch (err: any) {
+      const attempt = (job.attempt ?? 0) + 1;
+      const backoffMs = Math.min(2 ** attempt * 60_000, 24 * 60 * 60 * 1000);
+      await fetch(JOB_URL(job.entry_id), {
+        method: "PATCH",
+        headers: { ...SB_HDR, Prefer: "return=minimal" },
+        body: JSON.stringify({
+          status: attempt >= 5 ? "dead_letter" : "retry",
+          attempt,
+          next_run_at: new Date(Date.now() + backoffMs).toISOString(),
+          error: String(err?.message ?? "unknown").slice(0, 500),
+          updated_at: new Date().toISOString(),
+        }),
+      }).catch(() => {});
+      failed++;
+    }
+  }
+  return { processed, failed };
 }
 
 export async function runEnrichEntry(entryId: string, userId: string): Promise<void> {

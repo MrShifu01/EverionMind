@@ -21,7 +21,6 @@ export default withAuth(
   { methods: ["GET", "POST", "PATCH", "DELETE"], rateLimit: rateLimitForEntries },
   async (ctx) => {
     const resource = ctx.req.query.resource as string | undefined;
-    if (resource === "entry-brains") return handleEntryBrains(ctx);
     if (resource === "audit" && ctx.req.method === "POST") return handleAudit(ctx);
     if (resource === "graph") return handleGraph(ctx);
     if (ctx.req.method === "GET") return handleGet(ctx);
@@ -48,19 +47,7 @@ async function handleGet({ req, res, user }: HandlerContext): Promise<void> {
   if (brain_id) {
     await requireBrainAccess(user.id, brain_id);
 
-    const sharedRes = await fetch(
-      `${SB_URL}/rest/v1/entry_brains?brain_id=eq.${encodeURIComponent(brain_id)}&select=entry_id`,
-      { headers: sbHeadersNoContent() }
-    );
-    const sharedRows: any[] = sharedRes.ok ? await sharedRes.json() : [];
-    const sharedIds: string[] = sharedRows.map((r: any) => r.entry_id).filter(Boolean);
-
-    const sharedIdFilter = sharedIds.length > 0
-      ? `,id.in.(${sharedIds.map(encodeURIComponent).join(",")})`
-      : "";
-    const orFilter = `&or=(brain_id.eq.${encodeURIComponent(brain_id)}${sharedIdFilter})`;
-
-    const directUrl = `${SB_URL}/rest/v1/entries?select=${encodeURIComponent(ENTRY_FIELDS)}&order=created_at.desc&limit=${limit + 1}${deletedFilter}${statusFilter}${orFilter}${cursorFilter}`;
+    const directUrl = `${SB_URL}/rest/v1/entries?select=${encodeURIComponent(ENTRY_FIELDS)}&order=created_at.desc&limit=${limit + 1}${deletedFilter}${statusFilter}&brain_id=eq.${encodeURIComponent(brain_id)}${cursorFilter}`;
     const directRes = await fetch(directUrl, { headers: sbHeadersNoContent() });
     if (!directRes.ok) throw new ApiError(502, "Database error");
     const rows: any[] = await directRes.json();
@@ -459,68 +446,6 @@ async function handleMergeInto({ req, res, user }: HandlerContext): Promise<void
   const [updated] = await patchRes.json();
   res.status(200).json(updated ?? { ok: true });
   runEnrichEntry(target_id, user.id).catch(() => {});
-}
-
-// ── /api/entry-brains — multi-brain assignment management ──
-async function handleEntryBrains({ req, res, user }: HandlerContext): Promise<void> {
-  if (req.method === "GET") {
-    const entry_id = req.query.entry_id as string | undefined;
-    if (!entry_id || typeof entry_id !== "string") throw new ApiError(400, "Missing entry_id");
-    const r = await fetch(
-      `${SB_URL}/rest/v1/entry_brains?entry_id=eq.${encodeURIComponent(entry_id)}&select=brain_id`,
-      { headers: sbHeadersNoContent() },
-    );
-    if (!r.ok) throw new ApiError(502, "Database error");
-    const rows: any[] = await r.json();
-    res.status(200).json(rows.map((row: any) => row.brain_id));
-    return;
-  }
-
-  if (req.method === "POST") {
-    const { entry_id, brain_id } = req.body;
-    if (!entry_id || !brain_id) throw new ApiError(400, "Missing entry_id or brain_id");
-    const entryRes = await fetch(
-      `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entry_id)}&select=brain_id`,
-      { headers: sbHeadersNoContent() },
-    );
-    if (!entryRes.ok) throw new ApiError(502, "Database error");
-    const [entry]: any[] = await entryRes.json();
-    if (!entry) throw new ApiError(404, "Not found");
-    await requireBrainAccess(user.id, entry.brain_id);
-
-    const r = await fetch(`${SB_URL}/rest/v1/entry_brains`, {
-      method: "POST",
-      headers: sbHeaders({ Prefer: "return=minimal" }),
-      body: JSON.stringify({ entry_id, brain_id }),
-    });
-    if (!r.ok) throw new ApiError(502, "Database error");
-    res.status(200).json({ ok: true });
-    return;
-  }
-
-  if (req.method === "DELETE") {
-    const entry_id = req.query.entry_id as string | undefined;
-    const brain_id = req.query.brain_id as string | undefined;
-    if (!entry_id || !brain_id) throw new ApiError(400, "Missing entry_id or brain_id");
-    const entryRes = await fetch(
-      `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entry_id)}&select=brain_id`,
-      { headers: sbHeadersNoContent() },
-    );
-    if (!entryRes.ok) throw new ApiError(502, "Database error");
-    const [entry]: any[] = await entryRes.json();
-    if (!entry) throw new ApiError(404, "Not found");
-    await requireBrainAccess(user.id, entry.brain_id);
-
-    const r = await fetch(
-      `${SB_URL}/rest/v1/entry_brains?entry_id=eq.${encodeURIComponent(entry_id)}&brain_id=eq.${encodeURIComponent(brain_id)}`,
-      { method: "DELETE", headers: sbHeadersNoContent() },
-    );
-    if (!r.ok) throw new ApiError(502, "Database error");
-    res.status(200).json({ ok: true });
-    return;
-  }
-
-  throw new ApiError(405, "Method not allowed");
 }
 
 // ── /api/graph (rewritten to /api/entries?resource=graph) ──

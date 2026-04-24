@@ -10,9 +10,12 @@
  */
 import { randomUUID } from "crypto";
 import { withApiKey, ApiError } from "./_lib/withAuth.js";
+
+export const config = { api: { bodyParser: { sizeLimit: "1mb" } } };
 import { retrieveEntries, rebuildConceptGraph } from "./_lib/retrievalCore.js";
 import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
-import { runEnrichEntry } from "./_lib/enrichBatch.js";
+import { runEnrichEntry, scheduleEnrichJob } from "./_lib/enrichBatch.js";
+import { checkIdempotency, recordIdempotency } from "./_lib/idempotency.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -136,8 +139,7 @@ async function handleIngest({ userId, brainId }: Auth, body: any) {
   });
   if (!r.ok) throw new Error(`Failed to create entry: ${await r.text().catch(() => String(r.status))}`);
   const rows: any[] = await r.json();
-  if (GEMINI_API_KEY) await rebuildConceptGraph(brainId, GEMINI_API_KEY);
-  runEnrichEntry(id, userId).catch(() => {});
+  scheduleEnrichJob(id, userId);
   return { id: rows[0].id, title: rows[0].title, created_at: rows[0].created_at };
 }
 
@@ -221,7 +223,20 @@ export default withApiKey(
   async ({ req, res, auth }) => {
     const fn = HANDLERS[req.query.action as string];
     if (!fn) throw new ApiError(404, `Unknown action: ${req.query.action}`);
+
+    const iKey = req.headers["idempotency-key"] as string | undefined;
+    const isIngest = req.query.action === "ingest";
+    if (iKey && isIngest) {
+      const existingId = await checkIdempotency(auth.userId, iKey);
+      if (existingId) return void res.status(200).json({ id: existingId, idempotent_replay: true });
+    }
+
     const result = await fn({ userId: auth.userId, brainId: auth.brainId }, req.body ?? {});
+
+    if (iKey && isIngest && (result as any)?.id) {
+      recordIdempotency(auth.userId, iKey, (result as any).id).catch(() => {});
+    }
+
     res.status(200).json(result);
   },
 );

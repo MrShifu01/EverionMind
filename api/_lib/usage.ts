@@ -38,7 +38,7 @@ export async function checkAndIncrement(
     const pct = Math.min(100, Math.round((count / limit) * 100));
     return { allowed: count < limit, remaining, pct };
   } catch (err) {
-    console.error("[usage] checkAndIncrement failed, failing open:", err);
-    return { allowed: true, remaining: Infinity, pct: 0 };
+    console.error("[usage] checkAndIncrement failed:", err);
+    throw Object.assign(new Error("quota_check_failed"), { status: 503 });
   }
 }

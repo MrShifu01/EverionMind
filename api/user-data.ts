@@ -8,7 +8,8 @@ import type Stripe from "stripe";
 import crypto from "crypto";
 import webpush from "web-push";
 import { runGmailScanAllUsers } from "./_lib/gmailScan.js";
-import { runEnrichBatchAllUsers } from "./_lib/enrichBatch.js";
+import { runEnrichBatchAllUsers, drainEnrichmentJobs } from "./_lib/enrichBatch.js";
+import { verifyCronBearer } from "./_lib/cronAuth.js";
 
 export const config = { api: { bodyParser: false } };
 
@@ -533,7 +534,7 @@ const handlePushSubscribe = withAuth(
 // Sends push notifications + runs Gmail inbox scan for all connected users.
 async function handleCronDaily(req: ApiRequest, res: ApiResponse): Promise<void> {
   const auth = (req.headers as any).authorization as string | undefined;
-  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!process.env.CRON_SECRET || !verifyCronBearer(auth, process.env.CRON_SECRET)) {
     return void res.status(401).json({ error: "Unauthorized" });
   }
 
@@ -599,7 +600,13 @@ async function handleCronDaily(req: ApiRequest, res: ApiResponse): Promise<void>
     return { brains: 0, processed: 0 };
   });
 
-  return void res.status(200).json({ push: pushResults, gmail: gmailResults, enrich: enrichResults });
+  // ── Drain enrichment retry queue ──
+  const drainResults = await drainEnrichmentJobs(50).catch((e) => {
+    console.error("[cron/daily] drain jobs failed:", e);
+    return { processed: 0, failed: 0 };
+  });
+
+  return void res.status(200).json({ push: pushResults, gmail: gmailResults, enrich: enrichResults, drain: drainResults });
 }
 
 // ── /api/notifications (rewritten to /api/user-data?resource=notifications) ──

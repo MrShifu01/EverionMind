@@ -19,7 +19,8 @@ import { resolveApiKey } from "./_lib/resolveApiKey.js";
 import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
 import { retrieveEntries, rebuildConceptGraph } from "./_lib/retrievalCore.js";
 import { scanGmailForUser, type GmailPreferences } from "./_lib/gmailScan.js";
-import { runEnrichEntry, runEnrichBatchForUser } from "./_lib/enrichBatch.js";
+import { runEnrichEntry, runEnrichBatchForUser, scheduleEnrichJob } from "./_lib/enrichBatch.js";
+import { checkIdempotency, recordIdempotency } from "./_lib/idempotency.js";
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
@@ -552,8 +553,16 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
         if (!args.title || !args.content) {
           return res.status(200).json(jsonRpcErr(id, -32602, "title and content are required"));
         }
-        result = await createEntry(userId, brainId, args.title, args.content, args.type, args.tags);
-        runEnrichEntry((result as any)?.id, userId).catch(() => {});
+        const iKey = req.headers["idempotency-key"] as string | undefined;
+        if (iKey) {
+          const existingId = await checkIdempotency(userId, iKey);
+          if (existingId) { result = { id: existingId, idempotent_replay: true }; }
+        }
+        if (!result) {
+          result = await createEntry(userId, brainId, args.title, args.content, args.type, args.tags);
+          if ((result as any)?.id) scheduleEnrichJob((result as any).id, userId);
+          if (iKey && (result as any)?.id) recordIdempotency(userId, iKey, (result as any).id).catch(() => {});
+        }
       } else if (toolName === "update_entry") {
         if (!args.id) return res.status(200).json(jsonRpcErr(id, -32602, "id is required"));
         if (args.title === undefined && args.content === undefined && args.type === undefined && args.tags === undefined) {

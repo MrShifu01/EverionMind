@@ -5,7 +5,8 @@ import { sbHeaders, sbHeadersNoContent } from "./_lib/sbHeaders.js";
 import { computeCompletenessScore } from "./_lib/completeness.js";
 import { detectAndStoreMerge } from "./_lib/mergeDetect.js";
 import { checkAndIncrement } from "./_lib/usage.js";
-import { runEnrichEntry } from "./_lib/enrichBatch.js";
+import { scheduleEnrichJob } from "./_lib/enrichBatch.js";
+import { checkIdempotency, recordIdempotency } from "./_lib/idempotency.js";
 
 export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
 
@@ -88,6 +89,13 @@ async function handleCapture({ req, res, user }: HandlerContext): Promise<void> 
     }
   }
 
+  // Idempotency — replay original entry on duplicate submission
+  const idempotencyKey = req.headers["idempotency-key"] as string | undefined;
+  if (idempotencyKey) {
+    const existingId = await checkIdempotency(user.id, idempotencyKey);
+    if (existingId) return void res.status(200).json({ id: existingId, idempotent_replay: true });
+  }
+
   // Usage gate: only applies to platform AI (managed provider)
   if (GEMINI_API_KEY) {
     const r = await fetch(
@@ -97,7 +105,12 @@ async function handleCapture({ req, res, user }: HandlerContext): Promise<void> 
     const [row] = r.ok ? await r.json() : [null];
     const plan: string = row?.plan ?? "free";
     const hasKey = !!(row?.anthropic_key || row?.openai_key || row?.gemini_key);
-    const check = await checkAndIncrement(user.id, "captures", plan, hasKey);
+    let check: Awaited<ReturnType<typeof checkAndIncrement>>;
+    try {
+      check = await checkAndIncrement(user.id, "captures", plan, hasKey);
+    } catch {
+      return void res.status(503).json({ error: "quota_unavailable", retryAfter: 10 });
+    }
     if (!check.allowed) {
       return void res.status(429).json({
         error: "monthly_limit_reached",
@@ -118,16 +131,6 @@ async function handleCapture({ req, res, user }: HandlerContext): Promise<void> 
       if (dupe) {
         const merged = { ...dupe.metadata, sources: [...(dupe.metadata?.sources || []), sourceUrl] };
         await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(dupe.id)}`, { method: "PATCH", headers: sbHeaders({ Prefer: "return=representation" }), body: JSON.stringify({ metadata: merged }) });
-        if (Array.isArray(p_extra_brain_ids) && p_extra_brain_ids.length > 0) {
-          const extraIds = p_extra_brain_ids.filter((id: any) => typeof id === "string" && id !== p_brain_id);
-          if (extraIds.length > 0) {
-            fetch(`${SB_URL}/rest/v1/entry_brains`, {
-              method: "POST",
-              headers: sbHeaders({ Prefer: "resolution=ignore-duplicates" }),
-              body: JSON.stringify(extraIds.map((brain_id: string) => ({ entry_id: dupe.id, brain_id }))),
-            }).catch((err: any) => console.error('[capture:dedup:entry_brains]', err));
-          }
-        }
         res.status(200).json({ id: dupe.id, merged: true });
         return;
       }
@@ -154,9 +157,28 @@ async function handleCapture({ req, res, user }: HandlerContext): Promise<void> 
     body: JSON.stringify(insertBody),
   });
 
+  // P0 #9 race: unique index on source_url fires → find and return the existing entry
+  if (response.status === 409) {
+    const sourceUrl = safeBody.p_metadata?.source_url || safeBody.p_metadata?.url;
+    if (sourceUrl && safeBody.p_brain_id) {
+      const dupeRes = await fetch(
+        `${SB_URL}/rest/v1/entries?user_id=eq.${encodeURIComponent(user.id)}&deleted_at=is.null&select=id&limit=1`,
+        { headers: sbHeadersNoContent() },
+      );
+      const [existing] = dupeRes.ok ? await dupeRes.json() : [];
+      if (existing?.id) return void res.status(200).json({ id: existing.id, merged: true });
+    }
+    return void res.status(409).json({ error: "duplicate_entry" });
+  }
+
   const rawData: any = await response.json();
   const inserted = Array.isArray(rawData) ? rawData[0] : rawData;
   const data: any = inserted?.id ? { id: inserted.id } : rawData;
+
+  // Record idempotency key so retries return this entry
+  if (response.ok && data?.id && idempotencyKey) {
+    recordIdempotency(user.id, idempotencyKey, data.id).catch(() => {});
+  }
 
   // Background merge detection (fire-and-forget)
   if (response.ok && data?.id) {
@@ -177,19 +199,6 @@ async function handleCapture({ req, res, user }: HandlerContext): Promise<void> 
         timestamp: new Date().toISOString(),
       }),
     }).catch((err: any) => console.error('[capture:audit_log]', err.message));
-  }
-
-  // Extra-brain sharing
-  if (response.ok && data?.id && Array.isArray(p_extra_brain_ids) && p_extra_brain_ids.length > 0) {
-    const extraIds = p_extra_brain_ids.filter((id: any) => typeof id === "string" && id !== p_brain_id);
-    if (extraIds.length > 0) {
-      const rows = extraIds.map((brain_id: string) => ({ entry_id: data.id, brain_id }));
-      fetch(`${SB_URL}/rest/v1/entry_brains`, {
-        method: "POST",
-        headers: sbHeaders({ Prefer: "resolution=ignore-duplicates" }),
-        body: JSON.stringify(rows),
-      }).catch((err: any) => console.error('[capture:entry_brains]', err));
-    }
   }
 
   // Auto-embed (must be awaited on Vercel serverless)
@@ -232,9 +241,7 @@ async function handleCapture({ req, res, user }: HandlerContext): Promise<void> 
 
   // Enrichment after embed — staged→active promotion needs embedded_at to be set first
   if (response.ok && data?.id) {
-    runEnrichEntry(data.id, user.id).catch((err: any) =>
-      console.error("[capture:enrich]", err?.message),
-    );
+    scheduleEnrichJob(data.id, user.id);
   }
 
   updateStreak(user.id).catch((err) => console.error("[capture] streak update failed", err));
