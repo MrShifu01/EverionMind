@@ -212,24 +212,32 @@ async function enrichSingleEntry(entry: any, userId: string): Promise<boolean> {
 const JOB_URL = (entryId: string) =>
   `${SB_URL}/rest/v1/entry_enrichment_jobs?entry_id=eq.${encodeURIComponent(entryId)}`;
 
-export function scheduleEnrichJob(entryId: string, userId: string): void {
-  fetch(`${SB_URL}/rest/v1/entry_enrichment_jobs`, {
+export async function scheduleEnrichJob(entryId: string, userId: string): Promise<void> {
+  // Vercel terminates serverless functions as soon as the response is flushed.
+  // Fire-and-forget Promises started from inside a handler do not survive that
+  // termination, so the job row never lands and the LLM call never completes.
+  // Make the work awaitable: callers that `await scheduleEnrichJob(...)` keep
+  // the function alive until the queue row + enrichment + completion patch
+  // have all run.
+  await fetch(`${SB_URL}/rest/v1/entry_enrichment_jobs`, {
     method: "POST",
     headers: { ...SB_HDR, Prefer: "resolution=ignore-duplicates,return=minimal" },
     body: JSON.stringify({ entry_id: entryId, user_id: userId }),
   }).catch(() => {});
 
-  runEnrichEntry(entryId, userId)
-    .then(() =>
-      // Only mark complete if the job is still active. A row that was already
-      // promoted to dead_letter must not silently resurrect.
-      fetch(`${JOB_URL(entryId)}&status=in.(pending,retry)`, {
-        method: "PATCH",
-        headers: { ...SB_HDR, Prefer: "return=minimal" },
-        body: JSON.stringify({ status: "complete", updated_at: new Date().toISOString() }),
-      }).catch(() => {}),
-    )
-    .catch(() => {});
+  try {
+    await runEnrichEntry(entryId, userId);
+    // Only mark complete if the job is still active. A row that was already
+    // promoted to dead_letter must not silently resurrect.
+    await fetch(`${JOB_URL(entryId)}&status=in.(pending,retry)`, {
+      method: "PATCH",
+      headers: { ...SB_HDR, Prefer: "return=minimal" },
+      body: JSON.stringify({ status: "complete", updated_at: new Date().toISOString() }),
+    }).catch(() => {});
+  } catch (err: any) {
+    console.error("[scheduleEnrichJob] enrich failed:", err?.message ?? err);
+    // Leave the queue row pending — daily cron will retry it.
+  }
 }
 
 export async function drainEnrichmentJobs(maxJobs = 20): Promise<{ processed: number; failed: number }> {

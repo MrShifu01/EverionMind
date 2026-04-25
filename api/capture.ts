@@ -263,9 +263,13 @@ async function handleCapture({ req, res, user, req_id }: HandlerContext): Promis
     }).catch((err: any) => console.error('[capture:audit_log]', err.message));
   }
 
-  // Schedule enrichment job immediately (doesn't need embed to complete first)
+  // Run enrichment inline — Vercel kills the function as soon as we respond,
+  // so a fire-and-forget Promise here would never complete. The wait is ~1-3s
+  // for Gemini; capture has maxDuration: 30 in vercel.json to cover it.
   if (response.ok && data?.id) {
-    scheduleEnrichJob(data.id, user.id);
+    await scheduleEnrichJob(data.id, user.id).catch((err: any) =>
+      console.error("[capture:enrich]", err?.message ?? err),
+    );
   }
 
   // §2.2 + P0 #11: Fire-and-forget embed — respond to client now, embed in background.
