@@ -37,53 +37,16 @@ export default function AppearanceTab() {
   const { variant, mode, setVariant, setMode } = useDesignTheme();
 
   return (
-    <div
-      className="design-card"
-      style={{
-        background: "var(--surface)",
-        border: "1px solid var(--line-soft)",
-        borderRadius: 12,
-        padding: 20,
-      }}
-    >
-      <div style={{ marginBottom: 20 }}>
-        <h3
-          className="f-serif"
-          style={{
-            fontSize: 20,
-            fontWeight: 450,
-            margin: 0,
-            color: "var(--ink)",
-            letterSpacing: "-0.01em",
-          }}
-        >
-          Appearance
-        </h3>
-        <p
-          className="f-serif"
-          style={{
-            fontSize: 13,
-            color: "var(--ink-faint)",
-            fontStyle: "italic",
-            marginTop: 4,
-            marginBottom: 0,
-            lineHeight: 1.5,
-          }}
-        >
-          three rooms, two moods. pick the one you want to live in.
-        </p>
-      </div>
-
-      {/* Design picker — three cards */}
+    <div>
       <div className="micro" style={{ marginBottom: 10 }}>
         Design
       </div>
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
           gap: 10,
-          marginBottom: 24,
+          marginBottom: 28,
         }}
       >
         {VARIANTS.map((v) => {
@@ -147,7 +110,6 @@ export default function AppearanceTab() {
         })}
       </div>
 
-      {/* Mode picker — segmented */}
       <div className="micro" style={{ marginBottom: 10 }}>
         Mode
       </div>
@@ -170,8 +132,9 @@ export default function AppearanceTab() {
               aria-pressed={active}
               className="press"
               style={{
-                padding: "8px 20px",
-                minHeight: 32,
+                padding: "0 18px",
+                height: 30,
+                minHeight: 30,
                 borderRadius: 6,
                 fontFamily: "var(--f-sans)",
                 fontSize: 13,

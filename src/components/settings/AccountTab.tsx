@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
 import { clearAISettingsCache } from "../../lib/aiSettings";
-import SettingsRow, { SettingsButton, SettingsText } from "./SettingsRow";
+import SettingsRow, { SettingsButton, SettingsExpand, SettingsText } from "./SettingsRow";
 import { useSubscription } from "../../lib/useSubscription";
 
 interface Props {
@@ -135,46 +135,38 @@ export default function AccountTab({ email, isAdmin }: Props) {
             <SettingsText>{profile.display_name}</SettingsText>
           )}
           <SettingsButton onClick={() => setProfileOpen((v) => !v)}>
-            {profileOpen ? "Close" : "Edit"}
+            {profileOpen ? "Done" : "Edit"}
           </SettingsButton>
         </div>
       </SettingsRow>
 
-      {profileOpen && (
-        <div
-          style={{
-            padding: "0 0 18px",
-            borderBottom: "1px solid var(--line-soft)",
-            display: "flex",
-            flexDirection: "column",
-            gap: 12,
-          }}
-        >
-          {(Object.keys(PROFILE_LABELS) as (keyof ProfileFields)[]).map((field) => (
-            <label key={field} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <span className="micro">{PROFILE_LABELS[field]}</span>
-              <input
-                className="design-input f-sans"
-                value={profile[field]}
-                onChange={(e) => setProfile((p) => ({ ...p, [field]: e.target.value }))}
-              />
-            </label>
-          ))}
-          {profileError && (
-            <p className="f-sans" style={{ fontSize: 12, color: "var(--blood)", margin: 0 }}>
-              {profileError}
-            </p>
-          )}
-          {profileSaved && (
-            <p className="f-sans" style={{ fontSize: 12, color: "var(--moss)", margin: 0 }}>
-              Saved.
-            </p>
-          )}
+      <SettingsExpand open={profileOpen}>
+        {(Object.keys(PROFILE_LABELS) as (keyof ProfileFields)[]).map((field) => (
+          <label key={field} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span className="micro">{PROFILE_LABELS[field]}</span>
+            <input
+              className="design-input f-sans"
+              value={profile[field]}
+              onChange={(e) => setProfile((p) => ({ ...p, [field]: e.target.value }))}
+            />
+          </label>
+        ))}
+        {profileError && (
+          <p className="f-sans" style={{ fontSize: 12, color: "var(--blood)", margin: 0 }}>
+            {profileError}
+          </p>
+        )}
+        {profileSaved && (
+          <p className="f-sans" style={{ fontSize: 12, color: "var(--moss)", margin: 0 }}>
+            Saved.
+          </p>
+        )}
+        <div>
           <SettingsButton onClick={saveProfile} disabled={profileSaving}>
             {profileSaving ? "Saving…" : "Save profile"}
           </SettingsButton>
         </div>
-      )}
+      </SettingsExpand>
 
       <SettingsRow label="Onboarding" hint="see the welcome flow again.">
         <SettingsButton

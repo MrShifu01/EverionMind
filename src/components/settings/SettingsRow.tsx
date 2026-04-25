@@ -59,6 +59,36 @@ export default function SettingsRow({ label, hint, children, last }: SettingsRow
   );
 }
 
+/**
+ * Canonical inline-expand panel for SettingsRow disclosures. Sits directly below
+ * a SettingsRow whose action toggles `open`. Renders the same padding + hairline
+ * divider as a row so the visual rhythm continues unbroken.
+ */
+export function SettingsExpand({
+  open,
+  children,
+  last,
+}: {
+  open: boolean;
+  children: ReactNode;
+  last?: boolean;
+}) {
+  if (!open) return null;
+  return (
+    <div
+      style={{
+        padding: "0 0 18px",
+        borderBottom: last ? "none" : "1px solid var(--line-soft)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 /** Italic serif value — used for right-side informational text like "Hanno's brain". */
 export function SettingsValue({ children }: { children: ReactNode }) {
   return (

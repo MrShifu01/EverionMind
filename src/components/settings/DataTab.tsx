@@ -5,7 +5,7 @@ import { KEYS } from "../../lib/storageKeys";
 import TrashView from "../../views/TrashView";
 import MemoryImportPanel from "../MemoryImportPanel";
 import type { Brain } from "../../types";
-import SettingsRow, { SettingsButton } from "./SettingsRow";
+import SettingsRow, { SettingsButton, SettingsExpand } from "./SettingsRow";
 
 const GoogleKeepImportPanel = lazy(() => import("./GoogleKeepImportPanel"));
 
@@ -224,59 +224,39 @@ export default function DataTab({ brainId, activeBrain }: Props) {
 
       <SettingsRow label="Trash" hint="deleted entries clear automatically after 30 days.">
         <SettingsButton onClick={() => setShowTrash((s) => !s)}>
-          {showTrash ? "Hide" : "View"}
+          {showTrash ? "Done" : "View"}
         </SettingsButton>
       </SettingsRow>
-      {showTrash && (
-        <div style={{ padding: "0 0 18px", borderBottom: "1px solid var(--line-soft)" }}>
-          <TrashView brainId={activeBrain?.id} />
-        </div>
-      )}
+      <SettingsExpand open={showTrash}>
+        <TrashView brainId={activeBrain?.id} />
+      </SettingsExpand>
 
       <SettingsRow
         label="Imports"
-        hint="bring in memories Claude or ChatGPT already know about you."
+        hint="bring in memories claude or chatgpt already know about you."
       >
         <SettingsButton onClick={() => setImportsOpen((v) => !v)}>
-          {importsOpen ? "Close" : "Manage"}
+          {importsOpen ? "Done" : "Manage"}
         </SettingsButton>
       </SettingsRow>
-      {importsOpen && (
-        <div
-          style={{
-            padding: "0 0 18px",
-            borderBottom: "1px solid var(--line-soft)",
-            display: "flex",
-            flexDirection: "column",
-            gap: 12,
-          }}
-        >
-          <MemoryImportPanel brainId={brainId} />
-          {brainId && (
-            <Suspense
-              fallback={<div style={{ fontSize: 12, color: "var(--ink-faint)" }}>Loading…</div>}
-            >
-              <GoogleKeepImportPanel brainId={brainId} />
-            </Suspense>
-          )}
-        </div>
-      )}
+      <SettingsExpand open={importsOpen}>
+        <MemoryImportPanel brainId={brainId} />
+        {brainId && (
+          <Suspense
+            fallback={<div style={{ fontSize: 12, color: "var(--ink-faint)" }}>Loading…</div>}
+          >
+            <GoogleKeepImportPanel brainId={brainId} />
+          </Suspense>
+        )}
+      </SettingsExpand>
 
       <SettingsRow label="Export entries" hint="your data is yours — take it anywhere, any time.">
         <SettingsButton onClick={() => setExportOpen((v) => !v)}>
-          {exportOpen ? "Close" : "Export"}
+          {exportOpen ? "Done" : "Export"}
         </SettingsButton>
       </SettingsRow>
-      {exportOpen && (
-        <div
-          style={{
-            padding: "0 0 18px",
-            borderBottom: "1px solid var(--line-soft)",
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 8,
-          }}
-        >
+      <SettingsExpand open={exportOpen}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           <SettingsButton onClick={handleExportJSON} disabled={exporting}>
             {exporting ? "Exporting…" : "JSON"}
           </SettingsButton>
@@ -286,16 +266,13 @@ export default function DataTab({ brainId, activeBrain }: Props) {
           <SettingsButton onClick={handleExportVCard} disabled={exporting}>
             vCard (contacts)
           </SettingsButton>
-          {exportError && (
-            <p
-              className="f-sans"
-              style={{ fontSize: 12, color: "var(--blood)", margin: 0, width: "100%" }}
-            >
-              {exportError}
-            </p>
-          )}
         </div>
-      )}
+        {exportError && (
+          <p className="f-sans" style={{ fontSize: 12, color: "var(--blood)", margin: 0 }}>
+            {exportError}
+          </p>
+        )}
+      </SettingsExpand>
 
       <SettingsRow
         label="Brain backup"
@@ -303,47 +280,37 @@ export default function DataTab({ brainId, activeBrain }: Props) {
         last={!backupOpen}
       >
         <SettingsButton onClick={() => setBackupOpen((v) => !v)}>
-          {backupOpen ? "Close" : "Manage"}
+          {backupOpen ? "Done" : "Manage"}
         </SettingsButton>
       </SettingsRow>
-      {backupOpen && (
-        <div
-          style={{
-            padding: "0 0 18px",
-            borderBottom: "1px solid var(--line-soft)",
-            display: "flex",
-            flexDirection: "column",
-            gap: 10,
-          }}
-        >
-          <div style={{ display: "flex", gap: 8 }}>
-            <SettingsButton onClick={handleBrainExport} disabled={!activeBrain}>
-              Export brain
-            </SettingsButton>
-            <input
-              type="file"
-              accept=".json"
-              ref={fileRef}
-              onChange={handleBrainImport}
-              className="hidden"
-            />
-            <SettingsButton
-              onClick={() => fileRef.current?.click()}
-              disabled={importing || !activeBrain}
-            >
-              {importing ? "Importing…" : "Import JSON"}
-            </SettingsButton>
-          </div>
-          {statusMsg && (
-            <p
-              className="f-sans"
-              style={{ fontSize: 12, color: statusOk ? "var(--moss)" : "var(--blood)", margin: 0 }}
-            >
-              {statusMsg}
-            </p>
-          )}
+      <SettingsExpand open={backupOpen} last>
+        <div style={{ display: "flex", gap: 8 }}>
+          <SettingsButton onClick={handleBrainExport} disabled={!activeBrain}>
+            Export brain
+          </SettingsButton>
+          <input
+            type="file"
+            accept=".json"
+            ref={fileRef}
+            onChange={handleBrainImport}
+            className="hidden"
+          />
+          <SettingsButton
+            onClick={() => fileRef.current?.click()}
+            disabled={importing || !activeBrain}
+          >
+            {importing ? "Importing…" : "Import JSON"}
+          </SettingsButton>
         </div>
-      )}
+        {statusMsg && (
+          <p
+            className="f-sans"
+            style={{ fontSize: 12, color: statusOk ? "var(--moss)" : "var(--blood)", margin: 0 }}
+          >
+            {statusMsg}
+          </p>
+        )}
+      </SettingsExpand>
     </div>
   );
 }

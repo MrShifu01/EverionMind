@@ -1,8 +1,6 @@
 import { useState } from "react";
-import type { ReactNode } from "react";
 import ProvidersTab from "./ProvidersTab";
-import SettingsRow from "./SettingsRow";
-import { SettingsButton } from "./SettingsRow";
+import SettingsRow, { SettingsButton, SettingsExpand } from "./SettingsRow";
 import type { Brain } from "../../types";
 
 interface Props {
@@ -26,62 +24,10 @@ function StatusDot({ on }: { on: boolean }) {
   );
 }
 
-function Section({
-  label,
-  defaultOpen = true,
-  children,
-}: {
-  label: string;
-  defaultOpen?: boolean;
-  children: ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          width: "100%",
-          background: "none",
-          border: "none",
-          padding: "0 0 16px 0",
-          cursor: "pointer",
-          gap: 8,
-        }}
-      >
-        <div className="micro">{label}</div>
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 14 14"
-          fill="none"
-          style={{
-            transition: "transform 200ms",
-            transform: open ? "rotate(180deg)" : "rotate(0deg)",
-            color: "var(--ink-ghost)",
-            flexShrink: 0,
-          }}
-        >
-          <path
-            d="M3 5l4 4 4-4"
-            stroke="currentColor"
-            strokeWidth="1.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </button>
-      {open && children}
-    </div>
-  );
-}
-
-export default function AITab({ activeBrain, isAdmin = false }: Props) {
+export default function AITab({ activeBrain }: Props) {
   const [enriching, setEnriching] = useState(false);
   const [enrichResult, setEnrichResult] = useState<{ processed: number; remaining: number } | null>(null);
+  const [byokOpen, setByokOpen] = useState(false);
 
   async function runEnrichNow() {
     if (!activeBrain?.id || enriching) return;
@@ -100,43 +46,56 @@ export default function AITab({ activeBrain, isAdmin = false }: Props) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-      <Section label="Everion Provided AI">
-        <SettingsRow
-          label="Google Gemini"
-          hint="powers enrichment, chat, and parsing — provided and managed by Everion."
-          last
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <StatusDot on />
-            <SettingsButton disabled>Managed</SettingsButton>
-          </div>
-        </SettingsRow>
-      </Section>
+    <div>
+      <SettingsRow
+        label="Provider"
+        hint="powers enrichment, chat, and parsing — managed by Everion."
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <StatusDot on />
+          <span className="f-sans" style={{ fontSize: 13, color: "var(--ink-soft)" }}>
+            Google Gemini
+          </span>
+        </div>
+      </SettingsRow>
 
-      <Section label="BYOK" defaultOpen={false}>
-        <ProvidersTab activeBrain={activeBrain} />
-      </Section>
-
-      <Section label="Enrichment">
-        <SettingsRow
-          label="Auto-enrichment"
-          hint="Entries are enriched automatically after capture. Cards show a pulsing dot while processing."
-          last
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <StatusDot on />
-            <SettingsButton onClick={runEnrichNow} disabled={enriching || !activeBrain?.id}>
-              {enriching ? "Running…" : "Run Now"}
-            </SettingsButton>
-          </div>
-        </SettingsRow>
-        {enrichResult && (
-          <p className="f-sans" style={{ fontSize: 12, color: "var(--ink-ghost)", margin: "8px 0 0", lineHeight: 1.5 }}>
-            Processed {enrichResult.processed} {enrichResult.remaining > 0 ? `· ${enrichResult.remaining} remaining` : "· all up to date"}
+      <SettingsRow
+        label="Auto-enrichment"
+        hint="entries are enriched automatically after capture. cards show a pulsing dot while processing."
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <StatusDot on />
+          <SettingsButton onClick={runEnrichNow} disabled={enriching || !activeBrain?.id}>
+            {enriching ? "Running…" : "Run now"}
+          </SettingsButton>
+        </div>
+      </SettingsRow>
+      {enrichResult && (
+        <SettingsExpand open>
+          <p
+            className="f-sans"
+            style={{ fontSize: 13, color: "var(--ink-soft)", margin: 0, lineHeight: 1.5 }}
+          >
+            Processed {enrichResult.processed}
+            {enrichResult.remaining > 0
+              ? ` · ${enrichResult.remaining} remaining`
+              : " · all up to date"}
           </p>
-        )}
-      </Section>
+        </SettingsExpand>
+      )}
+
+      <SettingsRow
+        label="Bring your own keys"
+        hint="optional — connect anthropic, openai, gemini, or groq with your own api key."
+        last={!byokOpen}
+      >
+        <SettingsButton onClick={() => setByokOpen((v) => !v)}>
+          {byokOpen ? "Done" : "Manage"}
+        </SettingsButton>
+      </SettingsRow>
+      <SettingsExpand open={byokOpen} last>
+        <ProvidersTab activeBrain={activeBrain} />
+      </SettingsExpand>
     </div>
   );
 }

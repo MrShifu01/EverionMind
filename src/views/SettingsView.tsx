@@ -1,4 +1,4 @@
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { useBrain } from "../context/BrainContext";
 import AccountTab from "../components/settings/AccountTab";
@@ -14,7 +14,10 @@ import AppearanceTab from "../components/settings/AppearanceTab";
 import BillingTab from "../components/settings/BillingTab";
 import AdminTab from "../components/settings/AdminTab";
 import SecurityTab from "../components/settings/SecurityTab";
-import SettingsRow, { SettingsButton } from "../components/settings/SettingsRow";
+import SettingsRow, {
+  SettingsButton,
+  SettingsExpand,
+} from "../components/settings/SettingsRow";
 import { authFetch } from "../lib/authFetch";
 import { getDecisionCount } from "../lib/learningEngine";
 
@@ -36,7 +39,6 @@ const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
 const BASE_SECTIONS: { id: SectionId; label: string }[] = [
   { id: "appearance", label: "Appearance" },
   { id: "account", label: "Account" },
-  // { id: "billing", label: "Billing" },  // re-enable when Stripe is activated
   { id: "brain", label: "Brain" },
   { id: "data", label: "Data" },
   { id: "ai", label: "AI" },
@@ -89,50 +91,28 @@ function SectionHeader({
   );
 }
 
-function LearningStatusCard({ brainId }: { brainId: string }) {
-  const [count, setCount] = useState<number>(() => getDecisionCount(brainId));
-
-  useEffect(() => {
-    setCount(getDecisionCount(brainId));
-    // Re-poll on window focus — cheap enough and keeps the number fresh when the
-    // user returns to Settings after editing entries elsewhere in the app.
-    const refresh = () => setCount(getDecisionCount(brainId));
-    window.addEventListener("focus", refresh);
-    return () => window.removeEventListener("focus", refresh);
-  }, [brainId]);
-
+function EmptyState({ message }: { message: string }) {
   return (
-    <div
+    <p
+      className="f-serif"
       style={{
-        background: "var(--surface)",
-        border: "1px solid var(--line-soft)",
-        borderRadius: 12,
-        padding: 20,
-        marginTop: 16,
+        fontSize: 14,
+        fontStyle: "italic",
+        color: "var(--ink-faint)",
+        margin: "8px 0 0",
+        lineHeight: 1.5,
       }}
     >
-      <div className="f-serif" style={{ fontSize: 16, fontWeight: 450, color: "var(--ink)" }}>
-        Brain learning
-      </div>
-      <div
-        className="f-serif"
-        style={{ fontSize: 13, color: "var(--ink-faint)", fontStyle: "italic", marginTop: 3 }}
-      >
-        {count === 0
-          ? "no decisions recorded yet. your edits to entry titles, types, and tags will teach the AI your preferences."
-          : count < 10
-            ? `${count} decision${count === 1 ? "" : "s"} recorded. ${10 - count} more until summarisation kicks in.`
-            : `${count} decisions recorded — chat and capture now adapt to your patterns.`}
-      </div>
-    </div>
+      {message}
+    </p>
   );
 }
 
-function AuditCard({ brainId }: { brainId: string }) {
+function BrainAuditRow({ brainId }: { brainId: string }) {
   type AuditState =
     | { status: "idle" }
     | { status: "loading" }
-    | { status: "done"; flagged: number; entries: Record<string, any[] | null>; raw: string }
+    | { status: "done"; flagged: number; entries: Record<string, any[] | null> }
     | { status: "error"; message: string };
 
   const [state, setState] = useState<AuditState>({ status: "idle" });
@@ -147,206 +127,102 @@ function AuditCard({ brainId }: { brainId: string }) {
       });
       const raw = await r.text();
       if (!r.ok) {
-        setState({ status: "error", message: `HTTP ${r.status}: ${raw}` });
+        setState({ status: "error", message: `Audit endpoint returned ${r.status}.` });
         return;
       }
       let parsed: { flagged: number; entries: Record<string, any[] | null> };
       try {
         parsed = JSON.parse(raw);
       } catch {
-        setState({ status: "error", message: `Invalid JSON response:\n${raw}` });
+        setState({ status: "error", message: "Audit response was malformed." });
         return;
       }
-      setState({ status: "done", flagged: parsed.flagged, entries: parsed.entries, raw });
+      setState({ status: "done", flagged: parsed.flagged, entries: parsed.entries });
     } catch (e: any) {
       setState({ status: "error", message: String(e?.message ?? e) });
     }
   }
 
-  return (
-    <div
-      style={{
-        background: "var(--surface)",
-        border: "1px solid var(--line-soft)",
-        borderRadius: 12,
-        padding: 20,
-        marginTop: 16,
-      }}
-    >
-      <div
-        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}
-      >
-        <div>
-          <div className="f-serif" style={{ fontSize: 16, fontWeight: 450, color: "var(--ink)" }}>
-            Quality audit
-          </div>
-          <div
-            className="f-serif"
-            style={{ fontSize: 13, color: "var(--ink-faint)", fontStyle: "italic", marginTop: 3 }}
-          >
-            ai analysis of your 25 newest entries.
-          </div>
-        </div>
-        <button
-          onClick={runAudit}
-          disabled={state.status === "loading"}
-          aria-busy={state.status === "loading"}
-          className="press f-sans"
-          style={{
-            flexShrink: 0,
-            height: 32,
-            minHeight: 32,
-            padding: "0 14px",
-            borderRadius: 6,
-            fontSize: 13,
-            fontWeight: 600,
-            letterSpacing: "normal",
-            textTransform: "none",
-            background: "var(--surface-high)",
-            color: "var(--ink-soft)",
-            border: "1px solid var(--line-soft)",
-            cursor: state.status === "loading" ? "not-allowed" : "pointer",
-            opacity: state.status === "loading" ? 0.6 : 1,
-            transition: "opacity 0.2s",
-          }}
-        >
-          {state.status === "loading" ? "Running…" : "Run audit"}
-        </button>
-      </div>
+  const showExpand = state.status === "done" || state.status === "error";
 
-      {state.status === "done" && (
-        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-          <p className="f-sans" style={{ fontSize: 13, color: "var(--ink)", margin: 0 }}>
-            {state.flagged === 0
-              ? "No issues found."
-              : `${state.flagged} entr${state.flagged === 1 ? "y" : "ies"} flagged. Run again after fixing entries to verify.`}
-          </p>
-          {Object.entries(state.entries).map(([id, flags]) =>
-            flags?.length ? (
-              <div
-                key={id}
-                className="f-sans"
-                style={{
-                  background: "var(--surface-low)",
-                  border: "1px solid var(--line-soft)",
-                  padding: 10,
-                  borderRadius: 8,
-                  fontSize: 12,
-                  color: "var(--ink-soft)",
-                }}
-              >
-                <p style={{ margin: 0, fontFamily: "var(--f-mono)", opacity: 0.5, fontSize: 11 }}>
-                  {id}
-                </p>
-                {flags.map((f, i) => (
-                  <p key={i} style={{ margin: "2px 0 0" }}>
-                    <span style={{ fontWeight: 600, color: "var(--ink)" }}>{f.type}</span>
-                    {f.reason ? ` — ${f.reason}` : ""}
-                  </p>
-                ))}
-              </div>
-            ) : null,
-          )}
-        </div>
-      )}
-
-      {state.status === "error" && (
-        <div
-          style={{
-            marginTop: 14,
-            background: "var(--blood-wash)",
-            border: "1px solid var(--blood)",
-            padding: 12,
-            borderRadius: 8,
-          }}
-        >
-          <p
-            className="f-sans"
-            style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "var(--blood)" }}
-          >
-            Audit failed
-          </p>
-          <pre
-            style={{
-              margin: "4px 0 0",
-              fontFamily: "var(--f-mono)",
-              fontSize: 11,
-              color: "var(--ink-soft)",
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-all",
-            }}
-          >
-            {state.message}
-          </pre>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CollapseSection({
-  label,
-  open,
-  onToggle,
-  children,
-}: {
-  label: string;
-  open: boolean;
-  onToggle: () => void;
-  children: ReactNode;
-}) {
   return (
     <>
-      <button
-        onClick={onToggle}
-        className="f-sans press"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          width: "100%",
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          padding: "16px 0",
-          gap: 6,
-          fontSize: 11,
-          fontWeight: 600,
-          letterSpacing: "0.06em",
-          textTransform: "uppercase",
-          color: "var(--ink-faint)",
-        }}
+      <SettingsRow
+        label="Quality audit"
+        hint="ai analysis of your 25 newest entries."
       >
-        {label}
-        <svg
-          width="10"
-          height="10"
-          viewBox="0 0 10 10"
-          style={{
-            marginLeft: "auto",
-            transform: open ? "rotate(180deg)" : "rotate(0deg)",
-            transition: "transform 200ms",
-            flexShrink: 0,
-          }}
-        >
-          <path
-            d="M2 3.5L5 6.5L8 3.5"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            fill="none"
-          />
-        </svg>
-      </button>
-      <div style={{ display: open ? "block" : "none", paddingBottom: 16 }}>{children}</div>
+        <SettingsButton onClick={runAudit} disabled={state.status === "loading"}>
+          {state.status === "loading" ? "Running…" : "Run audit"}
+        </SettingsButton>
+      </SettingsRow>
+      <SettingsExpand open={showExpand}>
+        {state.status === "done" && (
+          <>
+            <p className="f-sans" style={{ fontSize: 13, color: "var(--ink)", margin: 0 }}>
+              {state.flagged === 0
+                ? "No issues found."
+                : `${state.flagged} entr${state.flagged === 1 ? "y" : "ies"} flagged. Run again after fixing entries to verify.`}
+            </p>
+            {Object.entries(state.entries).map(([id, flags]) =>
+              flags?.length ? (
+                <div
+                  key={id}
+                  className="f-sans"
+                  style={{
+                    background: "var(--surface-low)",
+                    border: "1px solid var(--line-soft)",
+                    padding: 10,
+                    borderRadius: 8,
+                    fontSize: 12,
+                    color: "var(--ink-soft)",
+                  }}
+                >
+                  <p style={{ margin: 0, fontFamily: "var(--f-mono)", opacity: 0.5, fontSize: 11 }}>
+                    {id}
+                  </p>
+                  {flags.map((f, i) => (
+                    <p key={i} style={{ margin: "2px 0 0" }}>
+                      <span style={{ fontWeight: 600, color: "var(--ink)" }}>{f.type}</span>
+                      {f.reason ? ` — ${f.reason}` : ""}
+                    </p>
+                  ))}
+                </div>
+              ) : null,
+            )}
+          </>
+        )}
+        {state.status === "error" && (
+          <p className="f-sans" style={{ fontSize: 13, color: "var(--blood)", margin: 0 }}>
+            {state.message}
+          </p>
+        )}
+      </SettingsExpand>
     </>
   );
 }
 
-function VaultRow({ onNavigate }: { onNavigate: (id: string) => void }) {
+function BrainLearningRow({ brainId }: { brainId: string }) {
+  const [count, setCount] = useState<number>(() => getDecisionCount(brainId));
+
+  useEffect(() => {
+    setCount(getDecisionCount(brainId));
+    const refresh = () => setCount(getDecisionCount(brainId));
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, [brainId]);
+
+  const hint =
+    count === 0
+      ? "no decisions recorded yet. your edits to titles, types, and tags will teach the ai your preferences."
+      : count < 10
+        ? `${10 - count} more until summarisation kicks in.`
+        : "chat and capture now adapt to your patterns.";
+
   return (
-    <SettingsRow label="Vault" hint="end-to-end encrypted secrets.">
-      <SettingsButton onClick={() => onNavigate("vault")}>Open vault</SettingsButton>
+    <SettingsRow label="Brain learning" hint={hint} last>
+      <span className="f-sans" style={{ fontSize: 14, color: "var(--ink)" }}>
+        {count} {count === 1 ? "decision" : "decisions"}
+      </span>
     </SettingsRow>
   );
 }
@@ -370,16 +246,13 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
       return "";
     }
   });
-  const [apiOpen, setApiOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [gmailOpen, setGmailOpen] = useState(false);
-  const [preloaded, setPreloaded] = useState<Set<SectionId>>(
-    () => new Set([section, "notifications", "integrations"] as SectionId[]),
-  );
+  const [apiOpen, setApiOpen] = useState(false);
+  const [visited, setVisited] = useState<Set<SectionId>>(() => new Set([section]));
 
-  function preload(id: SectionId) {
-    if (id === "admin") return;
-    setPreloaded((prev) => {
+  function visit(id: SectionId) {
+    setVisited((prev) => {
       if (prev.has(id)) return prev;
       const next = new Set(prev);
       next.add(id);
@@ -401,8 +274,36 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
 
   const isAdmin = ADMIN_EMAIL ? Boolean(email && email === ADMIN_EMAIL) : Boolean(email);
   const SECTIONS = isAdmin
-    ? [...BASE_SECTIONS, { id: "billing" as SectionId, label: "Billing" }, { id: "admin" as SectionId, label: "Admin" }]
+    ? [
+        ...BASE_SECTIONS,
+        { id: "billing" as SectionId, label: "Billing" },
+        { id: "admin" as SectionId, label: "Admin" },
+      ]
     : BASE_SECTIONS;
+
+  function navButtonStyle(active: boolean, isDanger: boolean): React.CSSProperties {
+    return {
+      flexShrink: 0,
+      width: "100%",
+      textAlign: "left",
+      padding: "0 14px",
+      minHeight: 38,
+      height: 38,
+      borderRadius: 8,
+      fontFamily: "var(--f-sans)",
+      fontSize: 14,
+      fontWeight: 500,
+      color: active ? "var(--ink)" : "var(--ink-soft)",
+      background: active ? "var(--surface-high)" : "transparent",
+      border: "none",
+      cursor: "pointer",
+      transition: "background 180ms, color 180ms",
+      whiteSpace: "nowrap",
+      // a small italic accent on the danger entry hints at its nature without
+      // shouting in red before the user has done anything destructive
+      fontStyle: isDanger ? "italic" : "normal",
+    };
+  }
 
   return (
     <div
@@ -415,7 +316,6 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
         flexDirection: "column",
       }}
     >
-      {/* Top bar */}
       <header
         className="settings-topbar"
         style={{
@@ -441,12 +341,10 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
         </h1>
       </header>
 
-      {/* Mobile tab strip */}
       <nav
         className="settings-mobile-tabs scrollbar-hide"
         aria-label="Settings sections"
         style={{
-          display: "none",
           overflowX: "auto",
           padding: "8px 12px",
           borderBottom: "1px solid var(--line-soft)",
@@ -456,31 +354,22 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
       >
         {SECTIONS.map(({ id, label }) => {
           const active = section === id;
+          const isDanger = id === "danger";
           return (
             <button
               key={id}
-              onClick={() => { preload(id); setSection(id); }}
+              onClick={() => {
+                visit(id);
+                setSection(id);
+              }}
               aria-current={active ? "page" : undefined}
               className="press"
               style={{
-                flexShrink: 0,
+                ...navButtonStyle(active, isDanger),
+                width: "auto",
                 padding: "0 14px",
                 height: 36,
                 minHeight: 36,
-                borderRadius: 999,
-                fontFamily: "var(--f-sans)",
-                fontSize: 13,
-                fontWeight: 500,
-                color: active
-                  ? "var(--ember)"
-                  : id === "danger"
-                    ? "var(--blood)"
-                    : "var(--ink-soft)",
-                background: active ? "var(--ember-wash)" : "transparent",
-                border: "1px solid",
-                borderColor: active ? "var(--ember)" : "transparent",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
               }}
             >
               {label}
@@ -489,7 +378,6 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
         })}
       </nav>
 
-      {/* Body: left nav (desktop) + content */}
       <div className="settings-body" style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         <nav
           className="settings-desktop-nav scrollbar-hide"
@@ -508,43 +396,18 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
         >
           {SECTIONS.map(({ id, label }) => {
             const active = section === id;
+            const isDanger = id === "danger";
             return (
               <button
                 key={id}
-                onClick={() => { preload(id); setSection(id); }}
+                onClick={() => {
+                  visit(id);
+                  setSection(id);
+                }}
+                onMouseEnter={() => visit(id)}
                 aria-current={active ? "page" : undefined}
                 className="press"
-                style={{
-                  display: "block",
-                  width: "100%",
-                  textAlign: "left",
-                  padding: "0 14px",
-                  minHeight: 38,
-                  height: 38,
-                  borderRadius: 8,
-                  fontFamily: "var(--f-sans)",
-                  fontSize: 14,
-                  fontWeight: 500,
-                  color: active
-                    ? "var(--ink)"
-                    : id === "danger"
-                      ? "var(--blood)"
-                      : "var(--ink-soft)",
-                  background: active ? "var(--surface-high)" : "transparent",
-                  border: "none",
-                  cursor: "pointer",
-                  transition: "background 180ms, color 180ms",
-                }}
-                onMouseEnter={(e) => {
-                  if (!active) e.currentTarget.style.color = "var(--ink)";
-                  preload(id);
-                }}
-                onMouseLeave={(e) => {
-                  if (!active) {
-                    e.currentTarget.style.color =
-                      id === "danger" ? "var(--blood)" : "var(--ink-soft)";
-                  }
-                }}
+                style={navButtonStyle(active, isDanger)}
               >
                 {label}
               </button>
@@ -554,7 +417,7 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
 
         <div className="settings-content scrollbar-hide" style={{ flex: 1, overflowY: "auto" }}>
           <div className="settings-content-inner" style={{ maxWidth: 720 }}>
-            {preloaded.has("appearance") && (
+            {visited.has("appearance") && (
               <div style={{ display: section === "appearance" ? "block" : "none" }}>
                 <SectionHeader
                   title="Appearance"
@@ -564,123 +427,117 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
               </div>
             )}
 
-            {preloaded.has("account") && (
+            {visited.has("account") && (
               <div style={{ display: section === "account" ? "block" : "none" }}>
                 <SectionHeader title="Account" />
                 <AccountTab email={email} isAdmin={isAdmin} />
               </div>
             )}
 
-            {preloaded.has("billing") && (
+            {visited.has("billing") && (
               <div style={{ display: section === "billing" ? "block" : "none" }}>
-                <SectionHeader title="Billing" subtitle="manage your plan, usage, and subscription." />
+                <SectionHeader
+                  title="Billing"
+                  subtitle="manage your plan, usage, and subscription."
+                />
                 <BillingTab />
               </div>
             )}
 
-            {preloaded.has("brain") && activeBrain && (
+            {visited.has("brain") && (
               <div style={{ display: section === "brain" ? "block" : "none" }}>
                 <SectionHeader title="Brain" />
-                <BrainTab activeBrain={activeBrain} onRefreshBrains={refresh} />
-                <AuditCard brainId={activeBrain.id} />
-                <LearningStatusCard brainId={activeBrain.id} />
+                {activeBrain ? (
+                  <>
+                    <BrainTab activeBrain={activeBrain} onRefreshBrains={refresh} />
+                    <BrainAuditRow brainId={activeBrain.id} />
+                    <BrainLearningRow brainId={activeBrain.id} />
+                  </>
+                ) : (
+                  <EmptyState message="no brain selected. create or pick one to manage its settings." />
+                )}
               </div>
             )}
 
-            {preloaded.has("data") && (
+            {visited.has("data") && (
               <div style={{ display: section === "data" ? "block" : "none" }}>
                 <SectionHeader title="Data" subtitle="imports, exports, and your entry archive." />
                 <DataTab brainId={activeBrain?.id} activeBrain={activeBrain ?? undefined} />
               </div>
             )}
 
-            {preloaded.has("ai") && (
+            {visited.has("ai") && (
               <div style={{ display: section === "ai" ? "block" : "none" }}>
                 <SectionHeader title="AI" subtitle="model providers and enrichment pipeline." />
-                <AITab
-                  activeBrain={activeBrain ?? undefined}
-                  isAdmin={isAdmin}
-                />
+                <AITab activeBrain={activeBrain ?? undefined} isAdmin={isAdmin} />
               </div>
             )}
 
-            {preloaded.has("notifications") && (
+            {visited.has("notifications") && (
               <div style={{ display: section === "notifications" ? "block" : "none" }}>
                 <SectionHeader title="Notifications" />
                 <NotificationSettings />
               </div>
             )}
 
-            {preloaded.has("integrations") && (
+            {visited.has("integrations") && (
               <div style={{ display: section === "integrations" ? "block" : "none" }}>
                 <SectionHeader
                   title="Integrations"
                   subtitle="external connections and developer access."
                 />
-                <CollapseSection label="Calendar" open={calendarOpen} onToggle={() => setCalendarOpen((o) => !o)}>
-                  <CalendarSyncTab />
-                </CollapseSection>
-                <div style={{ margin: "8px 0", borderTop: "1px solid var(--line-soft)" }} />
-                <CollapseSection label="Gmail" open={gmailOpen} onToggle={() => setGmailOpen((o) => !o)}>
-                  <GmailSyncTab isAdmin={isAdmin} />
-                </CollapseSection>
-                <div style={{ margin: "8px 0", borderTop: "1px solid var(--line-soft)" }} />
-                <button
-                  onClick={() => setApiOpen((o) => !o)}
-                  className="f-sans press"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    width: "100%",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: "16px 0",
-                    gap: 6,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    color: "var(--ink-faint)",
-                  }}
+                <SettingsRow
+                  label="Calendar"
+                  hint="sync google calendar events into your brain."
                 >
-                  API & Developer
-                  <svg
-                    width="10"
-                    height="10"
-                    viewBox="0 0 10 10"
-                    style={{
-                      marginLeft: "auto",
-                      transform: apiOpen ? "rotate(180deg)" : "rotate(0deg)",
-                      transition: "transform 200ms",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <path
-                      d="M2 3.5L5 6.5L8 3.5"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      fill="none"
-                    />
-                  </svg>
-                </button>
-                {apiOpen && <ClaudeCodeTab />}
+                  <SettingsButton onClick={() => setCalendarOpen((o) => !o)}>
+                    {calendarOpen ? "Done" : "Manage"}
+                  </SettingsButton>
+                </SettingsRow>
+                <SettingsExpand open={calendarOpen}>
+                  <CalendarSyncTab />
+                </SettingsExpand>
+
+                <SettingsRow
+                  label="Gmail"
+                  hint="scan your inbox for invoices, deadlines, and action items."
+                >
+                  <SettingsButton onClick={() => setGmailOpen((o) => !o)}>
+                    {gmailOpen ? "Done" : "Manage"}
+                  </SettingsButton>
+                </SettingsRow>
+                <SettingsExpand open={gmailOpen}>
+                  <GmailSyncTab isAdmin={isAdmin} />
+                </SettingsExpand>
+
+                <SettingsRow
+                  label="API & developer"
+                  hint="generate api tokens for claude code and other clients."
+                  last={!apiOpen}
+                >
+                  <SettingsButton onClick={() => setApiOpen((o) => !o)}>
+                    {apiOpen ? "Done" : "Manage"}
+                  </SettingsButton>
+                </SettingsRow>
+                <SettingsExpand open={apiOpen} last>
+                  <ClaudeCodeTab />
+                </SettingsExpand>
               </div>
             )}
 
-            {preloaded.has("security") && (
+            {visited.has("security") && (
               <div style={{ display: section === "security" ? "block" : "none" }}>
                 <SectionHeader
                   title="Security"
-                  subtitle="manage the PIN that protects your vault secrets."
+                  subtitle="manage the pin that protects your vault secrets."
                 />
                 <SecurityTab />
                 {onNavigate && (
-                  <div style={{ marginTop: 16 }}>
-                    <VaultRow onNavigate={onNavigate} />
-                  </div>
+                  <SettingsRow label="Vault" hint="end-to-end encrypted secrets." last>
+                    <SettingsButton onClick={() => onNavigate("vault")}>
+                      Open vault
+                    </SettingsButton>
+                  </SettingsRow>
                 )}
               </div>
             )}
@@ -695,40 +552,43 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
               </>
             )}
 
-            {preloaded.has("danger") && activeBrain && (
+            {visited.has("danger") && (
               <div style={{ display: section === "danger" ? "block" : "none" }}>
                 <SectionHeader
                   title="Danger zone"
                   subtitle="all of these are irreversible. we've made them clear, not hidden."
                   danger
                 />
-                <DangerTab
-                  activeBrain={activeBrain}
-                  deleteBrain={async (_id: string) => {
-                    /* single brain — no-op */
-                  }}
-                  isOwner={true}
-                  deleteAccount={async () => {
-                    const session = await supabase.auth.getSession();
-                    const token = session.data.session?.access_token;
-                    const r = await fetch("/api/user-data?resource=account", {
-                      method: "DELETE",
-                      headers: { Authorization: `Bearer ${token}` },
-                    });
-                    if (!r.ok) {
-                      const data = await r.json().catch(() => ({}));
-                      throw new Error(data.error || "Failed to delete account");
-                    }
-                    await supabase.auth.signOut();
-                  }}
-                />
+                {activeBrain ? (
+                  <DangerTab
+                    activeBrain={activeBrain}
+                    deleteBrain={async (_id: string) => {
+                      /* single brain — no-op */
+                    }}
+                    isOwner={true}
+                    deleteAccount={async () => {
+                      const session = await supabase.auth.getSession();
+                      const token = session.data.session?.access_token;
+                      const r = await fetch("/api/user-data?resource=account", {
+                        method: "DELETE",
+                        headers: { Authorization: `Bearer ${token}` },
+                      });
+                      if (!r.ok) {
+                        const data = await r.json().catch(() => ({}));
+                        throw new Error(data.error || "Failed to delete account");
+                      }
+                      await supabase.auth.signOut();
+                    }}
+                  />
+                ) : (
+                  <EmptyState message="no brain selected. create or pick one to access destructive actions." />
+                )}
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Responsive CSS */}
       <style>{`
         .settings-topbar { padding: 18px 32px; min-height: 72px; }
         .settings-content { padding: 32px 40px; }
@@ -736,8 +596,8 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
         .settings-desktop-nav { display: flex; }
         @media (max-width: 1024px) {
           .settings-topbar { display: none; }
-          .settings-mobile-tabs { display: flex !important; }
-          .settings-desktop-nav { display: none !important; }
+          .settings-mobile-tabs { display: flex; }
+          .settings-desktop-nav { display: none; }
           .settings-content { padding: 20px 16px calc(96px + env(safe-area-inset-bottom)); }
           .settings-body { flex-direction: column; }
           .settings-content-inner { max-width: 100%; }
