@@ -21,15 +21,19 @@ export default withAuth(
   { methods: ["GET", "POST", "PATCH", "DELETE"], rateLimit: rateLimitForEntries },
   async (ctx) => {
     const resource = ctx.req.query.resource as string | undefined;
+    const action = ctx.req.query.action as string | undefined;
     if (resource === "audit" && ctx.req.method === "POST") return handleAudit(ctx);
     if (resource === "graph") return handleGraph(ctx);
-    if (ctx.req.method === "GET") return handleGet(ctx);
+    // Action-based routes must be checked BEFORE the catch-all method handlers,
+    // otherwise a generic `if (method === "GET") return handleGet(ctx)` shadows
+    // any GET-with-action endpoint defined below it.
+    if (ctx.req.method === "GET"  && action === "enrich-debug")          return handleEnrichDebug(ctx);
+    if (ctx.req.method === "POST" && action === "enrich-batch")          return handleEnrichBatch(ctx);
+    if (ctx.req.method === "POST" && action === "enrich-clear-backfill") return handleClearBackfill(ctx);
+    if (ctx.req.method === "POST" && action === "merge_into")            return handleMergeInto(ctx);
+    if (ctx.req.method === "GET")    return handleGet(ctx);
     if (ctx.req.method === "DELETE") return handleDelete(ctx);
-    if (ctx.req.method === "PATCH") return handlePatch(ctx);
-    if (ctx.req.method === "POST" && (ctx.req.query.action as string) === "merge_into") return handleMergeInto(ctx);
-    if (ctx.req.method === "POST" && (ctx.req.query.action as string) === "enrich-batch") return handleEnrichBatch(ctx);
-    if (ctx.req.method === "GET" && (ctx.req.query.action as string) === "enrich-debug") return handleEnrichDebug(ctx);
-    if (ctx.req.method === "POST" && (ctx.req.query.action as string) === "enrich-clear-backfill") return handleClearBackfill(ctx);
+    if (ctx.req.method === "PATCH")  return handlePatch(ctx);
     throw new ApiError(405, "Method not allowed");
   },
 );
@@ -402,9 +406,12 @@ async function handleEnrichBatch({ req, res, user }: HandlerContext): Promise<vo
 }
 
 function isAdminUser(user: { email?: string }): boolean {
-  const adminEmail = process.env.ADMIN_EMAIL;
+  // Accept either ADMIN_EMAIL or VITE_ADMIN_EMAIL — the latter is what the
+  // frontend uses (Vite-prefixed envs leak into the bundle), so projects often
+  // only have that one set on Vercel.
+  const adminEmail = process.env.ADMIN_EMAIL || process.env.VITE_ADMIN_EMAIL;
   if (!adminEmail) return false;
-  return user.email === adminEmail;
+  return !!user.email && user.email === adminEmail;
 }
 
 // ── GET /api/entries?action=enrich-debug — admin only ──

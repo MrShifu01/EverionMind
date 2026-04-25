@@ -208,6 +208,25 @@ export default function AITab({ activeBrain, isAdmin }: Props) {
 }
 
 function DebugView({ debug }: { debug: DebugPayload }) {
+  // Defensive: if the endpoint returns an unexpected shape (e.g. an upstream
+  // route shadow returning the regular entries listing instead of the debug
+  // payload), don't blow up the whole settings tab.
+  if (!debug || !debug.providers || !debug.counts) {
+    return (
+      <p className="f-sans" style={{ fontSize: 12, color: "var(--blood)", margin: 0 }}>
+        Diagnostics endpoint returned an unexpected shape. Check that the deploy
+        is fresh and ADMIN_EMAIL is set in Vercel env. Raw payload:
+        <code style={{ display: "block", marginTop: 6, fontSize: 11, color: "var(--ink-faint)", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+          {JSON.stringify(debug).slice(0, 400)}
+        </code>
+      </p>
+    );
+  }
+
+  const providers = debug.providers;
+  const counts = debug.counts;
+  const recent = debug.recent ?? [];
+
   const stat = (label: string, value: number, accent?: "warn" | "ok") => (
     <div
       className="f-sans"
@@ -265,17 +284,17 @@ function DebugView({ debug }: { debug: DebugPayload }) {
       >
         <span>
           Gemini key{" "}
-          <strong style={{ color: debug.providers.gemini ? "var(--moss)" : "var(--blood)" }}>
-            {debug.providers.gemini ? "present" : "MISSING"}
+          <strong style={{ color: providers.gemini ? "var(--moss)" : "var(--blood)" }}>
+            {providers.gemini ? "present" : "MISSING"}
           </strong>
         </span>
         <span>
           Anthropic key{" "}
-          <strong style={{ color: debug.providers.anthropic ? "var(--moss)" : "var(--ink-faint)" }}>
-            {debug.providers.anthropic ? "present" : "absent"}
+          <strong style={{ color: providers.anthropic ? "var(--moss)" : "var(--ink-faint)" }}>
+            {providers.anthropic ? "present" : "absent"}
           </strong>
         </span>
-        <span style={{ color: "var(--ink-faint)" }}>model · {debug.providers.gemini_model}</span>
+        <span style={{ color: "var(--ink-faint)" }}>model · {providers.gemini_model}</span>
       </div>
 
       <div
@@ -285,16 +304,16 @@ function DebugView({ debug }: { debug: DebugPayload }) {
           gap: 8,
         }}
       >
-        {stat("Total", debug.counts.total)}
-        {stat("Pending", debug.counts.fully_pending, debug.counts.fully_pending > 0 ? "warn" : "ok")}
-        {stat("Backfilled", debug.counts.backfilled)}
-        {stat("Missing parsed", debug.counts.missing_parsed)}
-        {stat("Missing insight", debug.counts.missing_insight)}
-        {stat("Missing concepts", debug.counts.missing_concepts)}
+        {stat("Total", counts.total)}
+        {stat("Pending", counts.fully_pending, counts.fully_pending > 0 ? "warn" : "ok")}
+        {stat("Backfilled", counts.backfilled)}
+        {stat("Missing parsed", counts.missing_parsed)}
+        {stat("Missing insight", counts.missing_insight)}
+        {stat("Missing concepts", counts.missing_concepts)}
       </div>
 
       <div className="f-sans" style={{ fontSize: 12, color: "var(--ink-faint)" }}>
-        Latest 12 entries · server time {new Date(debug.server_time).toLocaleTimeString()}
+        Latest {recent.length} entries · server time {debug.server_time ? new Date(debug.server_time).toLocaleTimeString() : "—"}
       </div>
       <div
         style={{
@@ -304,7 +323,7 @@ function DebugView({ debug }: { debug: DebugPayload }) {
           background: "var(--surface-low)",
         }}
       >
-        {debug.recent.map((e, i) => (
+        {recent.map((e, i) => (
           <div
             key={e.id}
             className="f-sans"
