@@ -69,6 +69,37 @@ const STOP = new Set([
   "well","take","come","good","know","need","feel","seem","same",
 ]);
 
+/**
+ * Find vault-locked entries whose titles match the query.
+ *
+ * Returns titles only — never content, metadata, or tags. The point of this
+ * surface is to let chat acknowledge "you have a vault entry titled X — open
+ * the Vault to view" instead of pretending the row doesn't exist (which is
+ * what the hard secret-exclusion in retrieveEntries would otherwise produce).
+ *
+ * Title-only disclosure is the maximum we can leak here. Full content would
+ * defeat the whole point of the vault.
+ */
+export async function findLockedSecretTitles(
+  query: string,
+  brainId: string,
+  limit = 5,
+): Promise<Array<{ id: string; title: string }>> {
+  const qTokens = query.trim().split(/\s+/)
+    .map((w) => w.replace(/[^a-zA-Z0-9]/g, ""))
+    .filter((w) => w.length > 3 && !STOP.has(w.toLowerCase()))
+    .slice(0, 6);
+  if (qTokens.length === 0) return [];
+
+  const orFilter = qTokens.map((kw) => `title.ilike.*${kw}*`).join(",");
+  const r = await fetch(
+    `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&type=eq.secret&or=(${encodeURIComponent(orFilter)})&select=id,title&limit=${limit}`,
+    { headers: SB_HEADERS },
+  );
+  if (!r.ok) return [];
+  return r.json();
+}
+
 export async function retrieveEntries(
   query: string,
   brainId: string,

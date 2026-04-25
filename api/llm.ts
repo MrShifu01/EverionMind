@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import type { ApiRequest, ApiResponse } from "./_lib/types";
 import { SERVER_PROMPTS } from "./_lib/prompts.js";
 import { withAuth, type AuthedUser } from "./_lib/withAuth.js";
-import { retrieveEntries, rebuildConceptGraph } from "./_lib/retrievalCore.js";
+import { retrieveEntries, rebuildConceptGraph, findLockedSecretTitles } from "./_lib/retrievalCore.js";
 import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
 import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
 import { enrichInline } from "./_lib/enrich.js";
@@ -143,7 +143,11 @@ const DESTRUCTIVE_TOOLS = new Set(["update_entry", "delete_entry"]);
 
 async function execTool(name: string, args: Record<string, any>, userId: string, brainId: string): Promise<unknown> {
   if (name === "retrieve_memory") {
-    return retrieveEntries(args.query, brainId, GEMINI_API_KEY, Math.min(Math.max(1, args.limit || 15), 50));
+    const [result, lockedSecrets] = await Promise.all([
+      retrieveEntries(args.query, brainId, GEMINI_API_KEY, Math.min(Math.max(1, args.limit || 15), 50)),
+      findLockedSecretTitles(args.query, brainId, 5),
+    ]);
+    return { ...result, lockedSecrets };
   }
   if (name === "search_entries") {
     const embedding = await generateEmbedding(args.query, GEMINI_API_KEY);
