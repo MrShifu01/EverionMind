@@ -35,6 +35,7 @@ import CaptureWelcomeScreen from "./CaptureWelcomeScreen";
 import { useNotifications } from "./hooks/useNotifications";
 import { useAppShell, type AppShellState } from "./hooks/useAppShell";
 import { useDataLayer } from "./hooks/useDataLayer";
+import { useEntryRealtime } from "./hooks/useEntryRealtime";
 import { useBrain } from "./context/BrainContext";
 import { useEntries } from "./context/EntriesContext";
 import type { Entry } from "./types";
@@ -786,6 +787,10 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
     isOnlineRef,
     refreshCount,
   });
+
+  // Live-updates the chips and wave-dot as the server pipeline finishes
+  // each step. Without this, dataLayer.entries only changes on refresh.
+  useEntryRealtime(activeBrain?.id, dataLayer.setEntries);
 
   useEffect(() => {
     patchEntryIdRef.current = dataLayer.patchEntryId;
