@@ -19,7 +19,7 @@ import { checkAndIncrement } from "./_lib/usage.js";
 import { rateLimit } from "./_lib/rateLimit.js";
 import { getReqId, createLogger } from "./_lib/logger.js";
 
-export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
+export const config = { api: { bodyParser: { sizeLimit: "25mb" } } };
 
 // ── Environment ──────────────────────────────────────────────────────────────
 
@@ -437,13 +437,15 @@ async function handleSplit(req: ApiRequest, res: ApiResponse, userId: string): P
 
 // ── File extraction (always Gemini) ──────────────────────────────────────────
 
-const MAX_FILE_B64 = 20 * 1024 * 1024;
+// 33 MB base64 ≈ 24 MB raw file. Sits just under the 25 MB bodyParser cap
+// so the JSON envelope (mimeType, quotes, etc.) still fits.
+const MAX_FILE_B64 = 33 * 1024 * 1024;
 
 async function handleExtractFile(req: ApiRequest, res: ApiResponse, geminiKey: string): Promise<void> {
   const { fileData, mimeType } = req.body as { fileData?: string; mimeType?: string };
   if (!fileData || typeof fileData !== "string") { res.status(400).json({ error: "fileData required" }); return; }
   if (!mimeType) { res.status(400).json({ error: "mimeType required" }); return; }
-  if (fileData.length > MAX_FILE_B64) { res.status(413).json({ error: "File too large (max ~15 MB)" }); return; }
+  if (fileData.length > MAX_FILE_B64) { res.status(413).json({ error: "File too large (max ~24 MB)" }); return; }
 
   try {
     const result = await geminiExtractFile(

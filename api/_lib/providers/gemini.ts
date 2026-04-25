@@ -98,7 +98,11 @@ export async function extractFile(
   const r = await fetch(url(model, "generateContent", key), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig: { maxOutputTokens: 4096 } }),
+    // 32k output tokens ≈ ~120K characters ≈ ~80–100 dense PDF pages. Gemini
+    // 2.5 supports up to 65535; 32768 leaves headroom and stays well within
+    // the model's per-request budget for typical brand-guideline / report
+    // sized documents.
+    body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig: { maxOutputTokens: 32768 } }),
   });
   const data: any = await r.json();
   if (!r.ok) return { ok: false, status: r.status, error: data };
