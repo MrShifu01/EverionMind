@@ -13,6 +13,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
+    { "source": "/api/profile",            "destination": "/api/user-data?resource=profile" },
     { "source": "/api/notification-prefs", "destination": "/api/user-data?resource=prefs" },
     { "source": "/api/push-subscribe",     "destination": "/api/user-data?resource=push" },
     { "source": "/api/anthropic",        "destination": "/api/llm?provider=anthropic" },

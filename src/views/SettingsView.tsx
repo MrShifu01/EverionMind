@@ -11,6 +11,7 @@ import CalendarSyncTab from "../components/settings/CalendarSyncTab";
 import GmailSyncTab from "../components/settings/GmailSyncTab";
 import NotificationSettings from "../components/NotificationSettings";
 import AppearanceTab from "../components/settings/AppearanceTab";
+import ProfileTab from "../components/settings/ProfileTab";
 import BillingTab from "../components/settings/BillingTab";
 import AdminTab from "../components/settings/AdminTab";
 import SecurityTab from "../components/settings/SecurityTab";
@@ -24,6 +25,7 @@ import { getDecisionCount } from "../lib/learningEngine";
 type SectionId =
   | "appearance"
   | "account"
+  | "profile"
   | "billing"
   | "brain"
   | "data"
@@ -39,6 +41,7 @@ const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
 const BASE_SECTIONS: { id: SectionId; label: string }[] = [
   { id: "appearance", label: "Appearance" },
   { id: "account", label: "Account" },
+  { id: "profile", label: "About you" },
   { id: "brain", label: "Brain" },
   { id: "data", label: "Data" },
   { id: "ai", label: "AI" },
@@ -443,6 +446,16 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
               <div style={{ display: section === "account" ? "block" : "none" }}>
                 <SectionHeader title="Account" />
                 <AccountTab email={email} isAdmin={isAdmin} />
+              </div>
+            )}
+
+            {visited.has("profile") && (
+              <div style={{ display: section === "profile" ? "block" : "none" }}>
+                <SectionHeader
+                  title="About you"
+                  subtitle="who the assistant is talking to. injected into every chat — never includes IDs, passport, banking, or anything that belongs in the vault."
+                />
+                <ProfileTab />
               </div>
             )}
 

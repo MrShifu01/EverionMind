@@ -71,9 +71,71 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   if (resource === "notifications") return handleNotifications(req, res);
   if (resource === "stripe-checkout") return handleStripeCheckout(req, res);
   if (resource === "stripe-portal")   return handleStripePortal(req, res);
+  if (resource === "profile") return handleProfile(req, res);
   // Default: memory
   return handleMemory(req, res);
 }
+
+// ── /api/profile (rewritten to /api/user-data?resource=profile) ──
+// One row per user in public.user_profiles; injected into chat system prompts.
+// NEVER store sensitive identifiers here — those live in the encrypted Vault.
+const handleProfile = withAuth(
+  { methods: ["GET", "PUT"], rateLimit: 30 },
+  async ({ req, res, user }) => {
+    if (req.method === "GET") {
+      const r = await fetch(
+        `${SB_URL}/rest/v1/user_profiles?user_id=eq.${encodeURIComponent(user.id)}&select=*&limit=1`,
+        { headers: hdrs() },
+      );
+      if (!r.ok) return void res.status(502).json({ error: "Failed to fetch profile" });
+      const rows: any[] = await r.json();
+      return void res.status(200).json({ profile: rows[0] ?? null });
+    }
+
+    // PUT — upsert. Server enforces field whitelist + length caps so the
+    // preamble can never blow past its token budget.
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const trimStr = (v: unknown, max: number): string | null => {
+      if (typeof v !== "string") return null;
+      const s = v.trim();
+      return s ? s.slice(0, max) : null;
+    };
+    const trimArr = (v: unknown, maxItems: number, transform: (item: any) => any): any[] => {
+      if (!Array.isArray(v)) return [];
+      return v.slice(0, maxItems).map(transform).filter(Boolean);
+    };
+
+    const upsert = {
+      user_id: user.id,
+      full_name: trimStr(body.full_name, 120),
+      preferred_name: trimStr(body.preferred_name, 60),
+      pronouns: trimStr(body.pronouns, 40),
+      family: trimArr(body.family, 10, (f: any) => {
+        const relation = trimStr(f?.relation, 40);
+        const name = trimStr(f?.name, 80);
+        const notes = trimStr(f?.notes, 120);
+        if (!relation && !name) return null;
+        return { relation, name, notes };
+      }),
+      habits: trimArr(body.habits, 12, (h: any) => trimStr(h, 120)),
+      context: trimStr(body.context, 4000),
+      enabled: body.enabled !== false,
+      updated_at: new Date().toISOString(),
+    };
+
+    const r = await fetch(`${SB_URL}/rest/v1/user_profiles?on_conflict=user_id`, {
+      method: "POST",
+      headers: hdrs({ Prefer: "resolution=merge-duplicates,return=representation" }),
+      body: JSON.stringify(upsert),
+    });
+    if (!r.ok) {
+      const text = await r.text().catch(() => "");
+      return void res.status(500).json({ error: "save_failed", detail: text.slice(0, 200) });
+    }
+    const saved = await r.json();
+    return void res.status(200).json({ profile: Array.isArray(saved) ? saved[0] : saved });
+  },
+);
 
 // ── /api/brains (rewritten to /api/user-data?resource=brains) ──
 const handleBrains = withAuth(

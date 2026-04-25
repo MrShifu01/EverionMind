@@ -16,6 +16,7 @@ import type { ProviderConfig } from "./_lib/providers/types.js";
 import { extractFile as geminiExtractFile } from "./_lib/providers/gemini.js";
 import { extractFromBuffer } from "./_lib/fileExtract.js";
 import { runChat, type ConfirmPolicy } from "./_lib/providers/chatRunner.js";
+import { buildProfilePreamble } from "./_lib/buildProfilePreamble.js";
 import { checkAndIncrement } from "./_lib/usage.js";
 import { rateLimit } from "./_lib/rateLimit.js";
 import { getReqId, createLogger } from "./_lib/logger.js";
@@ -335,10 +336,17 @@ async function handleChat(
     { role: "user" as const, content: message },
   ];
 
+  // Personalisation preamble — injected unconditionally when the user has a
+  // profile row with enabled=true. Returns "" otherwise. Cheap to fetch and
+  // stable enough across calls that prompt caching pays for it after call 1.
+  const profilePreamble = await buildProfilePreamble(user.id).catch(() => "");
+
   // Learnings are client-side (localStorage per brain). Truncate defensively.
-  const systemPrompt = typeof learnings === "string" && learnings.trim()
-    ? `${SERVER_PROMPTS.CHAT_AGENT}\n\n--- USER LEARNING CONTEXT ---\nThis user's past decisions reveal preferences. Adapt your output accordingly:\n${learnings.slice(0, 4000)}\n--- END LEARNING CONTEXT ---`
-    : SERVER_PROMPTS.CHAT_AGENT;
+  const learningsBlock = typeof learnings === "string" && learnings.trim()
+    ? `\n\n--- USER LEARNING CONTEXT ---\nThis user's past decisions reveal preferences. Adapt your output accordingly:\n${learnings.slice(0, 4000)}\n--- END LEARNING CONTEXT ---`
+    : "";
+
+  const systemPrompt = `${SERVER_PROMPTS.CHAT_AGENT}${profilePreamble}${learningsBlock}`;
 
   const confirmPolicy: ConfirmPolicy = {
     requiresConfirmation: (name) => DESTRUCTIVE_TOOLS.has(name),
