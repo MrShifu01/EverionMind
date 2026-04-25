@@ -249,7 +249,7 @@ export default function DataTab({ brainId, activeBrain }: Props) {
           <Suspense
             fallback={<div style={{ fontSize: 12, color: "var(--ink-faint)" }}>Loading…</div>}
           >
-            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 24, paddingTop: 18 }}>
               <MemoryImportPanel brainId={brainId} />
               <GoogleKeepImportPanel brainId={brainId} />
               <ObsidianImportPanel brainId={brainId} />
