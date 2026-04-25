@@ -8,6 +8,11 @@ import type { Brain } from "../../types";
 import SettingsRow, { SettingsButton, SettingsExpand } from "./SettingsRow";
 
 const GoogleKeepImportPanel = lazy(() => import("./GoogleKeepImportPanel"));
+const ObsidianImportPanel = lazy(() => import("./ObsidianImportPanel"));
+const BearImportPanel = lazy(() => import("./BearImportPanel"));
+const NotionImportPanel = lazy(() => import("./NotionImportPanel"));
+const EvernoteImportPanel = lazy(() => import("./EvernoteImportPanel"));
+const ReadwiseImportPanel = lazy(() => import("./ReadwiseImportPanel"));
 
 interface Props {
   brainId?: string;
@@ -245,7 +250,14 @@ export default function DataTab({ brainId, activeBrain }: Props) {
           <Suspense
             fallback={<div style={{ fontSize: 12, color: "var(--ink-faint)" }}>Loading…</div>}
           >
-            <GoogleKeepImportPanel brainId={brainId} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+              <GoogleKeepImportPanel brainId={brainId} />
+              <ObsidianImportPanel brainId={brainId} />
+              <NotionImportPanel brainId={brainId} />
+              <BearImportPanel brainId={brainId} />
+              <EvernoteImportPanel brainId={brainId} />
+              <ReadwiseImportPanel brainId={brainId} />
+            </div>
           </Suspense>
         )}
       </SettingsExpand>
