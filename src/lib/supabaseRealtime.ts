@@ -22,7 +22,9 @@ export function getRealtimeClient(): RealtimeClient {
     params: { apikey: anonKey },
     accessToken: async () => {
       const { data } = await supabase.auth.getSession();
-      return data.session?.access_token ?? null;
+      const token = data.session?.access_token ?? null;
+      console.log("[realtime:auth] accessToken callback →", token ? `present (len ${token.length})` : "null");
+      return token;
     },
   });
   _client.connect();
@@ -31,7 +33,8 @@ export function getRealtimeClient(): RealtimeClient {
   // changes (sign-in, sign-out, refresh). Without this, a session that was
   // refreshed after the first connect keeps using the stale token until
   // the websocket reconnects.
-  supabase.auth.onAuthStateChange((_event, session) => {
+  supabase.auth.onAuthStateChange((event, session) => {
+    console.log("[realtime:auth] state change", event, session ? "→ token applied" : "→ cleared");
     _client?.setAuth(session?.access_token ?? null);
   });
 

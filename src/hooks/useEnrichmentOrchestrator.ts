@@ -122,6 +122,10 @@ export function useEnrichmentOrchestrator({
         { event: "UPDATE", schema: "public", table: "entries", filter: `brain_id=eq.${brainId}` },
         (payload: any) => {
           const row = payload?.new;
+          console.log("[realtime] entry update", row?.id, {
+            embedding_status: row?.embedding_status,
+            enrichment: row?.metadata?.enrichment,
+          });
           if (!row?.id) return;
           // Mirror every field the chips and wave-dot read so the UI updates
           // live as the server PATCHes through stepParse → stepInsight →
@@ -137,7 +141,12 @@ export function useEnrichmentOrchestrator({
           runClientPass().catch(() => {});
         },
       )
-      .subscribe();
+      .subscribe((status: string, err?: Error) => {
+        // SUBSCRIBED = ready. CHANNEL_ERROR usually = RLS rejected the join
+        // (anon key only, JWT didn't reach the server). TIMED_OUT = WS dead.
+        // CLOSED = unsubscribed by us.
+        console.log(`[realtime] enrich:${brainId} → ${status}`, err ?? "");
+      });
 
     return () => {
       cancelled = true;
