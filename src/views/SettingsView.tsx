@@ -378,12 +378,17 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
         })}
       </nav>
 
-      <div className="settings-body" style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+      <div className="settings-body" style={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 0 }}>
         <nav
           className="settings-desktop-nav scrollbar-hide"
           style={{
             width: 220,
             flexShrink: 0,
+            // height: 100% forces the background to fill the body's full
+            // height. Without this, overflowY: auto on a flex item with no
+            // explicit height collapsed the nav to its content size and
+            // surface-low only painted a few rows tall.
+            height: "100%",
             padding: "20px 16px",
             borderRight: "1px solid var(--line-soft)",
             background: "var(--surface-low)",

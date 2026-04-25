@@ -260,6 +260,17 @@ export default function DesktopSidebar({
       >
         {SEARCH_ICON}
         <input
+          // type=search + name="memory-search" + autoComplete="off"
+          // disable Safari/Chrome's credential autofill, which was
+          // sometimes prefilling the user's email here and silently
+          // distorting the memory grid. data-* attrs cover password
+          // managers (1Password, Bitwarden, LastPass) too.
+          type="search"
+          name="memory-search"
+          autoComplete="off"
+          data-1p-ignore
+          data-lpignore="true"
+          data-form-type="other"
           value={searchInput}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Search everything…"
