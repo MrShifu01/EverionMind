@@ -3,6 +3,21 @@ import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import type { Entry } from "../types";
 import { resolveIcon } from "../lib/typeIcons";
 
+const ADMIN_EMAIL = (import.meta.env.VITE_ADMIN_EMAIL as string | undefined) ?? "";
+
+// Cheap sync admin check — used to gate the diagnostic flag chips on entry
+// cards. The async source of truth lives in useAdminDevMode; this just reads
+// the cached email AccountTab/SettingsView already stash in localStorage so
+// we don't pay an async session lookup per rendered card.
+function isAdminSync(): boolean {
+  if (!ADMIN_EMAIL) return false;
+  try {
+    return localStorage.getItem("everion_email") === ADMIN_EMAIL;
+  } catch {
+    return false;
+  }
+}
+
 const IconPin = (
   <svg
     width="12"
@@ -46,6 +61,50 @@ function EnrichingDot() {
   return (
     <span className="enriching-dot" aria-label="AI processing" title="AI enriching…">
       <span /><span /><span />
+    </span>
+  );
+}
+
+// Admin-only diagnostic chip cluster — three letters showing which enrichment
+// flags are set on the entry. Hidden for non-admins.
+function EnrichFlagChips({ entry }: { entry: Entry }) {
+  const enr = (entry.metadata as any)?.enrichment ?? {};
+  const flags = {
+    parsed: enr.parsed === true,
+    has_insight: enr.has_insight === true || !!(entry.metadata as any)?.ai_insight,
+    concepts_extracted: enr.concepts_extracted === true,
+    backfilled: !!enr.backfilled_at,
+  };
+  const chip = (label: string, on: boolean, title: string) => (
+    <span
+      title={title}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: 14,
+        height: 14,
+        borderRadius: 3,
+        fontSize: 9,
+        fontWeight: 700,
+        fontFamily: "var(--f-mono)",
+        background: on
+          ? "color-mix(in oklch, var(--moss) 18%, transparent)"
+          : "color-mix(in oklch, var(--blood) 14%, transparent)",
+        color: on ? "var(--moss)" : "var(--blood)",
+        letterSpacing: 0,
+        lineHeight: 1,
+      }}
+    >
+      {label}
+    </span>
+  );
+  return (
+    <span style={{ display: "inline-flex", gap: 2, flexShrink: 0 }} aria-hidden="true">
+      {chip("P", flags.parsed, "parsed")}
+      {chip("I", flags.has_insight, "insight")}
+      {chip("C", flags.concepts_extracted, "concepts")}
+      {flags.backfilled && chip("B", true, "backfilled — not really enriched")}
     </span>
   );
 }
@@ -95,6 +154,7 @@ const EntryCard = memo(function EntryCard({
   const isVault = e.type === "secret";
   const emoji = resolveIcon(e.type, typeIcons);
   const createdAt = (e as any).created_at || (e as any).createdAt;
+  const showAdminFlags = isAdminSync() && !isVault;
 
   const [swipeX, setSwipeX] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -341,6 +401,7 @@ const EntryCard = memo(function EntryCard({
           {isPinned && <span style={{ color: "var(--ember)" }}>{IconPin}</span>}
           {isVault && <span>{IconVault}</span>}
           {isPendingEnrichment(e) && <EnrichingDot />}
+          {showAdminFlags && <EnrichFlagChips entry={e} />}
           {e.embedding_status === "failed" && (
             <span
               aria-label="Embedding failed — not searchable"
@@ -499,6 +560,7 @@ const EntryRow = memo(function EntryRow({
 }) {
   const isPinned = !!(e as any).pinned;
   const emoji = resolveIcon(e.type, typeIcons);
+  const showAdminFlags = isAdminSync() && e.type !== "secret";
 
   const [swipeX, setSwipeX] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -701,6 +763,7 @@ const EntryRow = memo(function EntryRow({
           {e.title}
         </span>
         {isPendingEnrichment(e) && <EnrichingDot />}
+        {showAdminFlags && <EnrichFlagChips entry={e} />}
         {/* Desktop hover-reveal actions */}
         {(onPin || onDelete) && (
           <div className="flex flex-shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">

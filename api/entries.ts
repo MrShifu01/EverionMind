@@ -28,6 +28,8 @@ export default withAuth(
     if (ctx.req.method === "PATCH") return handlePatch(ctx);
     if (ctx.req.method === "POST" && (ctx.req.query.action as string) === "merge_into") return handleMergeInto(ctx);
     if (ctx.req.method === "POST" && (ctx.req.query.action as string) === "enrich-batch") return handleEnrichBatch(ctx);
+    if (ctx.req.method === "GET" && (ctx.req.query.action as string) === "enrich-debug") return handleEnrichDebug(ctx);
+    if (ctx.req.method === "POST" && (ctx.req.query.action as string) === "enrich-clear-backfill") return handleClearBackfill(ctx);
     throw new ApiError(405, "Method not allowed");
   },
 );
@@ -397,6 +399,118 @@ async function handleEnrichBatch({ req, res, user }: HandlerContext): Promise<vo
   const batchSize = typeof batch_size === "number" && batch_size > 0 ? Math.min(batch_size, 10) : 5;
   const result = await runEnrichBatchForUser(user.id, brain_id, batchSize);
   res.status(200).json(result);
+}
+
+function isAdminUser(user: { email?: string }): boolean {
+  const adminEmail = process.env.ADMIN_EMAIL;
+  if (!adminEmail) return false;
+  return user.email === adminEmail;
+}
+
+// ── GET /api/entries?action=enrich-debug — admin only ──
+// Returns provider status, entry-flag counts, and recent entries with their
+// enrichment flags so the user can see what the server is doing without
+// needing Vercel function logs.
+async function handleEnrichDebug({ req, res, user }: HandlerContext): Promise<void> {
+  if (!isAdminUser(user)) throw new ApiError(403, "Forbidden");
+  const brain_id = req.query.brain_id as string | undefined;
+  if (!brain_id || typeof brain_id !== "string") throw new ApiError(400, "brain_id required");
+  await requireBrainAccess(user.id, brain_id);
+
+  const r = await fetch(
+    `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brain_id)}&deleted_at=is.null&select=id,title,type,created_at,metadata&order=created_at.desc&limit=200`,
+    { headers: sbHeadersNoContent() },
+  );
+  if (!r.ok) throw new ApiError(502, "Database error");
+  const all: any[] = await r.json();
+
+  const flagOf = (e: any) => {
+    const enr = e.metadata?.enrichment ?? {};
+    return {
+      parsed: enr.parsed === true,
+      has_insight: enr.has_insight === true || !!e.metadata?.ai_insight,
+      concepts_extracted: enr.concepts_extracted === true,
+      backfilled: !!enr.backfilled_at,
+    };
+  };
+
+  const counts = {
+    total: all.length,
+    secrets: all.filter((e) => e.type === "secret").length,
+    missing_parsed: all.filter((e) => e.type !== "secret" && !flagOf(e).parsed).length,
+    missing_insight: all.filter((e) => e.type !== "secret" && !flagOf(e).has_insight).length,
+    missing_concepts: all.filter((e) => e.type !== "secret" && !flagOf(e).concepts_extracted).length,
+    fully_pending: all.filter((e) => {
+      if (e.type === "secret") return false;
+      const f = flagOf(e);
+      return !f.parsed || !f.has_insight || !f.concepts_extracted;
+    }).length,
+    backfilled: all.filter((e) => flagOf(e).backfilled).length,
+  };
+
+  const recent = all.slice(0, 12).map((e) => ({
+    id: e.id,
+    title: e.title,
+    type: e.type,
+    created_at: e.created_at,
+    flags: flagOf(e),
+  }));
+
+  res.status(200).json({
+    providers: {
+      gemini: !!process.env.GEMINI_API_KEY,
+      anthropic: !!process.env.ANTHROPIC_API_KEY,
+      gemini_model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
+    },
+    brain_id,
+    counts,
+    recent,
+    server_time: new Date().toISOString(),
+  });
+}
+
+// ── POST /api/entries?action=enrich-clear-backfill — admin only ──
+// Strips the {parsed,has_insight,concepts_extracted} flags from entries that
+// were marked via the backfill so a Run-now pass actually finds them. Useful
+// when the user wants to re-run the (now Gemini-powered) pipeline against
+// rows that were stamped enriched purely to silence the loading dot.
+async function handleClearBackfill({ req, res, user }: HandlerContext): Promise<void> {
+  if (!isAdminUser(user)) throw new ApiError(403, "Forbidden");
+  const { brain_id } = req.body;
+  if (!brain_id || typeof brain_id !== "string") throw new ApiError(400, "brain_id required");
+  await requireBrainAccess(user.id, brain_id);
+
+  // Pull all backfilled entries in this brain — we need the full metadata to
+  // patch in place since PostgREST can't do a SET-difference on jsonb.
+  const r = await fetch(
+    `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brain_id)}&deleted_at=is.null&select=id,metadata&metadata->enrichment->>backfilled_at=not.is.null`,
+    { headers: sbHeadersNoContent() },
+  );
+  if (!r.ok) throw new ApiError(502, "Database error");
+  const rows: any[] = await r.json();
+
+  let cleared = 0;
+  for (const row of rows) {
+    const meta = { ...(row.metadata ?? {}) };
+    const enr = { ...(meta.enrichment ?? {}) };
+    delete enr.parsed;
+    delete enr.has_insight;
+    delete enr.concepts_extracted;
+    delete enr.backfilled_at;
+    meta.enrichment = enr;
+
+    const patch = await fetch(
+      `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(row.id)}&user_id=eq.${encodeURIComponent(user.id)}`,
+      {
+        method: "PATCH",
+        headers: sbHeaders({ Prefer: "return=minimal" }),
+        body: JSON.stringify({ metadata: meta }),
+      },
+    );
+    if (patch.ok) cleared++;
+  }
+
+  res.status(200).json({ cleared, scanned: rows.length });
 }
 
 // ── POST /api/entries?action=merge_into — merge source entry into target, then soft-delete source ──
