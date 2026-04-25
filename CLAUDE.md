@@ -88,6 +88,10 @@ Key facts:
 - `entry_brains` and `audit_log` tables do NOT exist — errors from them are expected/silent
 - `user_usage` has no row for new billing periods → 406 on `.single()` (fixed with `.maybeSingle()`)
 
+## AI provider in use
+
+**This project runs on Gemini, not Anthropic.** `GEMINI_API_KEY` is the active provider key (used for embeddings, enrichment, chat, classification). The Anthropic key is not yet valid — do not assume `ANTHROPIC_API_KEY` is configured, do not recommend setting it, and do not gate features on it. If a code path checks `ANTHROPIC_API_KEY` and it's blocking behaviour the user reports as broken, the fix is to switch the gate to Gemini, not to ask the user to add an Anthropic key.
+
 ### Vercel
 Use `mcp__plugin_vercel_vercel__authenticate` to start OAuth if not already authenticated.
 - Function logs show errors from serverless functions

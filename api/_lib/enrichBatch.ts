@@ -48,6 +48,46 @@ async function callAnthropic(system: string, content: string, maxTokens = 1500):
   return d?.content?.[0]?.text ?? "";
 }
 
+async function callGemini(system: string, content: string, maxTokens = 1500): Promise<string> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return "";
+  const model = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: content }] }],
+        systemInstruction: { parts: [{ text: system }] },
+        generationConfig: { maxOutputTokens: maxTokens },
+      }),
+    },
+  );
+  if (!res.ok) {
+    console.error(`[enrichBatch:gemini] HTTP ${res.status}`, await res.text().catch(() => ""));
+    return "";
+  }
+  const d = await res.json();
+  const parts: any[] = d?.candidates?.[0]?.content?.parts || [];
+  const text = parts.filter((p: any) => !p.thought).map((p: any) => p.text || "").join("").trim();
+  return text || parts.map((p: any) => p.text || "").join("").trim();
+}
+
+// Provider dispatcher: Gemini is the active provider on this project. Anthropic
+// stays as a fallback in case the env var is set in some environments — order
+// is "Gemini first, Anthropic second" so adding ANTHROPIC_API_KEY later doesn't
+// break the existing flow.
+async function callAI(system: string, content: string, maxTokens = 1500): Promise<string> {
+  if (process.env.GEMINI_API_KEY) return callGemini(system, content, maxTokens);
+  if (process.env.ANTHROPIC_API_KEY) return callAnthropic(system, content, maxTokens);
+  return "";
+}
+
+function hasAIProvider(): boolean {
+  return !!(process.env.GEMINI_API_KEY || process.env.ANTHROPIC_API_KEY);
+}
+
 function parseAIJSON(raw: string): any | null {
   const text = raw.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "");
   const match = text.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
@@ -112,7 +152,7 @@ async function enrichSingleEntry(entry: any, userId: string): Promise<boolean> {
   // ── Parse ──
   if (!isParsed(entry)) {
     const raw = String(meta.full_text || entry.content || entry.title || "");
-    const aiRaw = await callAnthropic(SERVER_PROMPTS.CAPTURE, raw, 1500);
+    const aiRaw = await callAI(SERVER_PROMPTS.CAPTURE, raw, 1500);
     const candidate = parseAIJSON(aiRaw);
     const parsed = candidate ? CaptureResultSchema.safeParse(candidate) : null;
     if (parsed?.success && (parsed.data.type || parsed.data.title || parsed.data.content)) {
@@ -131,7 +171,7 @@ async function enrichSingleEntry(entry: any, userId: string): Promise<boolean> {
   if (!hasInsight(entry)) {
     const tagStr = entry.tags?.length ? ` [${entry.tags.join(", ")}]` : "";
     const prompt = `<user_entry>\nType: ${entry.type || "note"}${tagStr}\nTitle: ${entry.title}\n${String(entry.content || "").slice(0, 1500)}\n</user_entry>`;
-    const insight = await callAnthropic(SERVER_PROMPTS.INSIGHT, prompt, 150);
+    const insight = await callAI(SERVER_PROMPTS.INSIGHT, prompt, 150);
     if (insight.trim().length >= 20) {
       meta = { ...meta, ai_insight: insight.trim(), enrichment: { ...enr, has_insight: true } };
       enr = meta.enrichment;
@@ -142,7 +182,7 @@ async function enrichSingleEntry(entry: any, userId: string): Promise<boolean> {
   // ── Concepts ──
   if (!hasConcepts(entry)) {
     const conceptPrompt = `Entry ID: ${entry.id}\n<user_entry>\nTitle: ${entry.title}\nType: ${entry.type || "note"}\nContent: ${String(entry.content || "").slice(0, 2000)}\n</user_entry>`;
-    const conceptRaw = await callAnthropic(SERVER_PROMPTS.ENTRY_CONCEPTS, conceptPrompt, 400);
+    const conceptRaw = await callAI(SERVER_PROMPTS.ENTRY_CONCEPTS, conceptPrompt, 400);
     const candidate = parseAIJSON(conceptRaw);
     const parsed = candidate ? ConceptResultSchema.safeParse(candidate) : null;
     if (parsed?.success && parsed.data.concepts.length > 0) {
@@ -235,7 +275,7 @@ export async function drainEnrichmentJobs(maxJobs = 20): Promise<{ processed: nu
 }
 
 export async function runEnrichEntry(entryId: string, userId: string): Promise<void> {
-  if (!process.env.ANTHROPIC_API_KEY) return;
+  if (!hasAIProvider()) return;
   const r = await fetch(
     `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entryId)}&user_id=eq.${encodeURIComponent(userId)}&deleted_at=is.null&select=id,title,content,type,tags,metadata,embedded_at,status`,
     { headers: SB_HDR },
@@ -250,7 +290,7 @@ export async function runEnrichBatchForUser(
   brainId: string,
   batchSize = 5,
 ): Promise<{ processed: number; remaining: number }> {
-  if (!process.env.ANTHROPIC_API_KEY) return { processed: 0, remaining: 0 };
+  if (!hasAIProvider()) return { processed: 0, remaining: 0 };
 
   const r = await fetch(
     `${SB_URL}/rest/v1/entries?user_id=eq.${encodeURIComponent(userId)}&brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&select=id,title,content,type,tags,metadata,embedded_at,status&limit=200&order=created_at.desc`,
