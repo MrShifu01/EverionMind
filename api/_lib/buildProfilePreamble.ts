@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // buildProfilePreamble
 //
-// Reads the user's personalisation profile (public.user_profiles) and renders
+// Reads the user's personalisation profile (public.user_personas) and renders
 // it into a compact "ABOUT THE USER" block that the chat handler prepends to
 // the system message on every call. Capped at ~400 tokens so prompt caching
 // makes it effectively free after the first hit in a session.
@@ -48,7 +48,7 @@ export async function buildProfilePreamble(userId: string): Promise<string> {
   let row: ProfileRow | undefined;
   try {
     const r = await fetch(
-      `${SB_URL}/rest/v1/user_profiles?user_id=eq.${encodeURIComponent(userId)}&select=full_name,preferred_name,pronouns,family,habits,context,enabled&limit=1`,
+      `${SB_URL}/rest/v1/user_personas?user_id=eq.${encodeURIComponent(userId)}&select=full_name,preferred_name,pronouns,family,habits,context,enabled&limit=1`,
       { headers: sbHeaders() },
     );
     if (!r.ok) return "";

@@ -77,14 +77,14 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
 }
 
 // ── /api/profile (rewritten to /api/user-data?resource=profile) ──
-// One row per user in public.user_profiles; injected into chat system prompts.
+// One row per user in public.user_personas; injected into chat system prompts.
 // NEVER store sensitive identifiers here — those live in the encrypted Vault.
 const handleProfile = withAuth(
   { methods: ["GET", "PUT"], rateLimit: 30 },
   async ({ req, res, user }) => {
     if (req.method === "GET") {
       const r = await fetch(
-        `${SB_URL}/rest/v1/user_profiles?user_id=eq.${encodeURIComponent(user.id)}&select=*&limit=1`,
+        `${SB_URL}/rest/v1/user_personas?user_id=eq.${encodeURIComponent(user.id)}&select=*&limit=1`,
         { headers: hdrs() },
       );
       if (!r.ok) return void res.status(502).json({ error: "Failed to fetch profile" });
@@ -123,7 +123,7 @@ const handleProfile = withAuth(
       updated_at: new Date().toISOString(),
     };
 
-    const r = await fetch(`${SB_URL}/rest/v1/user_profiles?on_conflict=user_id`, {
+    const r = await fetch(`${SB_URL}/rest/v1/user_personas?on_conflict=user_id`, {
       method: "POST",
       headers: hdrs({ Prefer: "resolution=merge-duplicates,return=representation" }),
       body: JSON.stringify(upsert),
@@ -736,7 +736,7 @@ const handleStripeCheckout = withAuth(
 
     // Get or create Stripe Customer
     const profileRes = await fetch(
-      `${SB_URL}/rest/v1/user_profiles?id=eq.${encodeURIComponent(user.id)}&select=stripe_customer_id`,
+      `${SB_URL}/rest/v1/user_personas?id=eq.${encodeURIComponent(user.id)}&select=stripe_customer_id`,
       { headers: sbHeaders() },
     );
     if (!profileRes.ok) {
@@ -757,7 +757,7 @@ const handleStripeCheckout = withAuth(
         return void res.status(502).json({ error: "Payment provider unavailable" });
       }
       const patchRes = await fetch(
-        `${SB_URL}/rest/v1/user_profiles?id=eq.${encodeURIComponent(user.id)}`,
+        `${SB_URL}/rest/v1/user_personas?id=eq.${encodeURIComponent(user.id)}`,
         {
           method: "PATCH",
           headers: sbHeaders({ Prefer: "return=minimal" }),
@@ -829,7 +829,7 @@ async function handleStripeWebhook(
         : "starter";
 
     await fetch(
-      `${SB_URL}/rest/v1/user_profiles?stripe_customer_id=eq.${encodeURIComponent(customerId)}`,
+      `${SB_URL}/rest/v1/user_personas?stripe_customer_id=eq.${encodeURIComponent(customerId)}`,
       {
         method: "PATCH",
         headers: sbHeaders({ Prefer: "return=minimal" }),
@@ -849,7 +849,7 @@ async function handleStripeWebhook(
     const periodEnd = periodEndTs ? new Date(periodEndTs * 1000).toISOString() : null;
 
     await fetch(
-      `${SB_URL}/rest/v1/user_profiles?stripe_customer_id=eq.${encodeURIComponent(customerId)}`,
+      `${SB_URL}/rest/v1/user_personas?stripe_customer_id=eq.${encodeURIComponent(customerId)}`,
       {
         method: "PATCH",
         headers: sbHeaders({ Prefer: "return=minimal" }),
@@ -870,7 +870,7 @@ const handleStripePortal = withAuth(
   { methods: ["POST"], rateLimit: 10 },
   async ({ req, res, user }) => {
     const profileRes = await fetch(
-      `${SB_URL}/rest/v1/user_profiles?id=eq.${encodeURIComponent(user.id)}&select=stripe_customer_id`,
+      `${SB_URL}/rest/v1/user_personas?id=eq.${encodeURIComponent(user.id)}&select=stripe_customer_id`,
       { headers: sbHeaders() },
     );
     if (!profileRes.ok) {
