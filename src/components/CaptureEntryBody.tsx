@@ -120,6 +120,10 @@ export default function CaptureEntryBody({
         }}
       >
         <textarea
+          // Auto-focus on mount so desktop users can type the moment the
+          // capture sheet opens, no extra click required. Mobile keyboards
+          // also pop up automatically — same UX both places.
+          autoFocus
           value={text}
           onChange={(e) => onTextChange(e.target.value)}
           onKeyDown={(e) => {
