@@ -454,7 +454,27 @@ async function handleEnrichDebug({ req, res, user }: HandlerContext): Promise<vo
     backfilled: all.filter((e) => flagsOf(e).backfilled).length,
   };
 
-  const recent = all.slice(0, 12).map((e) => ({
+  // Sort by missing-flag count desc so stuck entries surface first. The
+  // chronological list was less useful — fully-enriched entries dominated
+  // the top slots and the actual outliers got buried. Tiebreak by created_at
+  // desc to keep recent ordering within an equivalence class.
+  const missingCount = (e: any): number => {
+    if (e.type === "secret") return 0;
+    const f = flagsOf(e);
+    let n = 0;
+    if (!f.parsed) n++;
+    if (!f.has_insight) n++;
+    if (!f.concepts_extracted) n++;
+    if (!f.embedded && f.embedding_status !== "failed") n++;
+    if (f.embedding_status === "failed") n++;
+    return n;
+  };
+  const ranked = [...all].sort((a, b) => {
+    const diff = missingCount(b) - missingCount(a);
+    if (diff !== 0) return diff;
+    return String(b.created_at).localeCompare(String(a.created_at));
+  });
+  const recent = ranked.slice(0, 12).map((e) => ({
     id: e.id,
     title: e.title,
     type: e.type,

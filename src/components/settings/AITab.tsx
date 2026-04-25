@@ -358,7 +358,7 @@ function DebugView({ debug }: { debug: DebugPayload }) {
       </div>
 
       <div className="f-sans" style={{ fontSize: 12, color: "var(--ink-faint)" }}>
-        Latest {recent.length} entries · server time {debug.server_time ? new Date(debug.server_time).toLocaleTimeString() : "—"}
+        Top {recent.length} most-unenriched · server time {debug.server_time ? new Date(debug.server_time).toLocaleTimeString() : "—"}
       </div>
       <div
         style={{

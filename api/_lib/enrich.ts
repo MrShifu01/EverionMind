@@ -200,18 +200,17 @@ async function stepConcepts(entry: Entry, cfg: AICall): Promise<Record<string, a
     maxTokens: 400,
     json: true,
   });
-  if (!conceptRaw) return null;
+  if (!conceptRaw) return null; // genuine LLM failure — let next pass retry
 
+  // We got *some* response. Mirror the parse-step policy: stamp the flag so
+  // the entry isn't stuck pending forever. Only attach concepts when the
+  // response actually validates against the schema — unparseable output just
+  // means there was nothing to extract for this entry.
   const candidate = parseAIJSON(conceptRaw);
   const parsed = candidate ? ConceptResultSchema.safeParse(candidate) : null;
-  if (!parsed?.success) return null;
-
-  // Stamp the flag whenever the call succeeded, even if concepts is empty —
-  // a content-less entry genuinely has nothing to extract and we don't want
-  // to retry indefinitely.
   return {
     ...meta,
-    ...(parsed.data.concepts.length > 0 ? { concepts: parsed.data.concepts } : {}),
+    ...(parsed?.success && parsed.data.concepts.length > 0 ? { concepts: parsed.data.concepts } : {}),
     enrichment: { ...(meta.enrichment ?? {}), concepts_extracted: true },
   };
 }
