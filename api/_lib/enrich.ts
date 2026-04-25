@@ -27,6 +27,7 @@ import { SERVER_PROMPTS } from "./prompts.js";
 import { callAI, type AICall } from "./aiProvider.js";
 import { resolveProviderForUser, resolveEmbedProviderForUser } from "./resolveProvider.js";
 import { flagsOf } from "./enrichFlags.js";
+import { classifyPersona } from "./classifyPersona.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -119,13 +120,23 @@ async function fetchEntry(entryId: string, userId: string): Promise<Entry | null
   return row ?? null;
 }
 
-async function patchMetadata(entryId: string, userId: string, metadata: Record<string, any>): Promise<void> {
+async function patchMetadata(
+  entryId: string,
+  userId: string,
+  metadata: Record<string, any>,
+  typeChange?: { type: string; tags: string[] } | null,
+): Promise<void> {
+  const body: Record<string, unknown> = { metadata };
+  if (typeChange) {
+    body.type = typeChange.type;
+    body.tags = typeChange.tags;
+  }
   await fetch(
     `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entryId)}&user_id=eq.${encodeURIComponent(userId)}`,
     {
       method: "PATCH",
       headers: { ...SB_HDR, Prefer: "return=minimal" },
-      body: JSON.stringify({ metadata }),
+      body: JSON.stringify(body),
     },
   );
 }
@@ -323,6 +334,81 @@ async function stepEmbed(entry: Entry, embed: EmbedConfig): Promise<void> {
   }
 }
 
+// ── Step: persona classifier ────────────────────────────────────────────────
+//
+// After parse/insight have run, look at the entry and decide: is this a
+// durable, first-person fact about who the user is? If yes (confidence
+// ≥ 0.85) → flip type to 'persona' and stamp the persona metadata block.
+// Either way, set enrichment.persona_classified=true so the step never
+// runs twice for the same entry. Capture-time `metadata.skip_persona`
+// short-circuits the call (used by chat-tool writes that already know
+// they're persona).
+const PERSONA_PROMOTION_THRESHOLD = 0.85;
+
+async function stepPersonaClassify(entry: Entry): Promise<{
+  meta: Record<string, any>;
+  newType: string | null;
+  newTags: string[] | null;
+} | null> {
+  const meta = { ...(entry.metadata ?? {}) };
+  const enr = (meta.enrichment ?? {}) as Record<string, unknown>;
+  if (enr.persona_classified === true) return null;
+
+  // Already a persona entry (chat-tool / manual write) — just stamp the flag.
+  if (entry.type === "persona") {
+    return {
+      meta: { ...meta, enrichment: { ...enr, persona_classified: true } },
+      newType: null,
+      newTags: null,
+    };
+  }
+  // Caller asked to skip (e.g. chat tool path that's about to write a persona).
+  if (meta.skip_persona === true) {
+    const { skip_persona: _omit, ...rest } = meta;
+    return {
+      meta: { ...rest, enrichment: { ...enr, persona_classified: true } },
+      newType: null,
+      newTags: null,
+    };
+  }
+
+  const result = await classifyPersona({
+    title: entry.title,
+    content: entry.content || "",
+    type: entry.type || "note",
+    tags: entry.tags ?? undefined,
+  });
+  // Always stamp the flag — even on classifier failure or non-persona — so
+  // we don't churn this entry on every cron pass.
+  if (!result || !result.persona || result.confidence < PERSONA_PROMOTION_THRESHOLD || !result.bucket) {
+    return {
+      meta: { ...meta, enrichment: { ...enr, persona_classified: true } },
+      newType: null,
+      newTags: null,
+    };
+  }
+
+  // Promote.
+  const personaMeta = {
+    ...meta,
+    bucket: result.bucket,
+    status: "active",
+    source: meta.source || "capture",
+    confidence: Math.min(1, Math.max(0, result.confidence)),
+    pinned: false,
+    evidence_count: 1,
+    last_referenced_at: new Date().toISOString(),
+    enrichment: { ...enr, persona_classified: true },
+  };
+  const tags = Array.isArray(entry.tags) ? entry.tags : [];
+  const newTags = [
+    ...tags.filter((t) => t !== "persona" && t !== result.bucket),
+    "persona",
+    result.bucket,
+  ];
+  return { meta: personaMeta, newType: "persona", newTags };
+}
+
 // ── Public: enrichInline ────────────────────────────────────────────────────
 //
 // Awaited from capture and any other entry-creation site. Runs every step
@@ -360,14 +446,33 @@ export async function enrichInline(entryId: string, userId: string): Promise<boo
         changed = true;
       }
     }
-    if (changed) await patchMetadata(entry.id, userId, workingMeta);
   }
 
-  // Embedding is independent of the LLM provider.
+  // Persona classifier — runs whether or not the LLM enrichment ran. Skipped
+  // internally if persona_classified is already true. May flip type='persona'
+  // and rewrite tags atomically alongside the metadata patch.
+  let personaTypeChange: { type: string; tags: string[] } | null = null;
+  const personaResult = await stepPersonaClassify({ ...entry, metadata: workingMeta }).catch(() => null);
+  if (personaResult) {
+    workingMeta = personaResult.meta;
+    if (personaResult.newType) {
+      personaTypeChange = { type: personaResult.newType, tags: personaResult.newTags || [] };
+    }
+    changed = true;
+  }
+
+  if (changed) await patchMetadata(entry.id, userId, workingMeta, personaTypeChange);
+
+  // Embedding is independent of the LLM provider. Use the post-classifier
+  // type/tags so a freshly-promoted persona entry gets indexed with the
+  // right metadata in its embedding text.
   if (!flags.embedded && flags.embedding_status !== "failed") {
     const embedCfg = await resolveEmbedProviderForUser(userId);
     if (embedCfg) {
-      await stepEmbed({ ...entry, metadata: workingMeta }, embedCfg);
+      const embedEntry = personaTypeChange
+        ? { ...entry, type: personaTypeChange.type, tags: personaTypeChange.tags, metadata: workingMeta }
+        : { ...entry, metadata: workingMeta };
+      await stepEmbed(embedEntry, embedCfg);
       changed = true;
     }
   }

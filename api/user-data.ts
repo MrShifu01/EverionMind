@@ -10,6 +10,7 @@ import webpush from "web-push";
 import { runGmailScanAllUsers } from "./_lib/gmailScan.js";
 import { enrichAllBrains } from "./_lib/enrich.js";
 import { verifyCronBearer } from "./_lib/cronAuth.js";
+import { runPersonaDecayPass, runPersonaWeeklyPass } from "./_lib/personaHygiene.js";
 
 export const config = { api: { bodyParser: false } };
 
@@ -662,7 +663,28 @@ async function handleCronDaily(req: ApiRequest, res: ApiResponse): Promise<void>
     return { brains: 0, processed: 0 };
   });
 
-  return void res.status(200).json({ push: pushResults, gmail: gmailResults, enrich: enrichResults });
+  // ── Persona hygiene ──
+  // Decay every day; dedup + digest only on Sundays so users get one summary
+  // per week instead of seven. UTC day-of-week to match the cron schedule.
+  const personaDecay = await runPersonaDecayPass().catch((e) => {
+    console.error("[cron/daily] persona decay failed:", e);
+    return { scanned: 0, decayed: 0, faded: 0, archived: 0 };
+  });
+  let personaWeekly: { dedups_proposed: number; digests_written: number } | null = null;
+  if (new Date().getUTCDay() === 0) {
+    personaWeekly = await runPersonaWeeklyPass().catch((e) => {
+      console.error("[cron/daily] persona weekly failed:", e);
+      return { dedups_proposed: 0, digests_written: 0 };
+    });
+  }
+
+  return void res.status(200).json({
+    push: pushResults,
+    gmail: gmailResults,
+    enrich: enrichResults,
+    persona_decay: personaDecay,
+    persona_weekly: personaWeekly,
+  });
 }
 
 // ── /api/notifications (rewritten to /api/user-data?resource=notifications) ──

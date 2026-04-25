@@ -17,6 +17,13 @@ import { extractFile as geminiExtractFile } from "./_lib/providers/gemini.js";
 import { extractFromBuffer } from "./_lib/fileExtract.js";
 import { runChat, type ConfirmPolicy } from "./_lib/providers/chatRunner.js";
 import { buildProfilePreamble } from "./_lib/buildProfilePreamble.js";
+import {
+  PERSONA_TOOL_SCHEMAS,
+  PERSONA_DESTRUCTIVE_TOOLS,
+  PERSONA_TOOL_NAMES,
+  buildPersonaConfirmLabel,
+  execPersonaTool,
+} from "./_lib/personaTools.js";
 import { checkAndIncrement } from "./_lib/usage.js";
 import { rateLimit } from "./_lib/rateLimit.js";
 import { getReqId, createLogger } from "./_lib/logger.js";
@@ -100,7 +107,17 @@ async function resolveSettingsRaw(userId: string): Promise<{ plan: string; hasKe
 
 // ── Tool declarations ─────────────────────────────────────────────────────────
 
-const CHAT_TOOLS = [
+interface ToolSchema {
+  name: string;
+  description: string;
+  parameters: {
+    type: string;
+    properties: Record<string, { type: string; description?: string; items?: { type: string } }>;
+    required: string[];
+  };
+}
+
+const CHAT_TOOLS: ToolSchema[] = [
   {
     name: "retrieve_memory",
     description: "Full semantic retrieval using vector search + keyword expansion + graph boost. Use this for most queries — it finds the most relevant entries.",
@@ -139,11 +156,21 @@ const CHAT_TOOLS = [
 ];
 
 const DATE_FIELDS = ["due_date", "deadline", "expiry_date", "event_date"] as const;
-const DESTRUCTIVE_TOOLS = new Set(["update_entry", "delete_entry"]);
+const DESTRUCTIVE_TOOLS = new Set([
+  "update_entry",
+  "delete_entry",
+  ...Array.from(PERSONA_DESTRUCTIVE_TOOLS),
+]);
+
+// Append persona tools to the chat tool list.
+CHAT_TOOLS.push(...(PERSONA_TOOL_SCHEMAS as unknown as ToolSchema[]));
 
 // ── Tool execution ────────────────────────────────────────────────────────────
 
 async function execTool(name: string, args: Record<string, any>, userId: string, brainId: string): Promise<unknown> {
+  if (PERSONA_TOOL_NAMES.has(name)) {
+    return execPersonaTool(name, args, userId, brainId);
+  }
   if (name === "retrieve_memory") {
     const [result, lockedSecrets] = await Promise.all([
       retrieveEntries(args.query, brainId, GEMINI_API_KEY, Math.min(Math.max(1, args.limit || 15), 50)),
@@ -339,7 +366,7 @@ async function handleChat(
   // Personalisation preamble — injected unconditionally when the user has a
   // profile row with enabled=true. Returns "" otherwise. Cheap to fetch and
   // stable enough across calls that prompt caching pays for it after call 1.
-  const profilePreamble = await buildProfilePreamble(user.id).catch(() => "");
+  const profilePreamble = await buildProfilePreamble(user.id, brain_id).catch(() => "");
 
   // Learnings are client-side (localStorage per brain). Truncate defensively.
   const learningsBlock = typeof learnings === "string" && learnings.trim()
@@ -351,14 +378,20 @@ async function handleChat(
   const confirmPolicy: ConfirmPolicy = {
     requiresConfirmation: (name) => DESTRUCTIVE_TOOLS.has(name),
     buildLabel: async (toolName, args) => {
+      if (PERSONA_DESTRUCTIVE_TOOLS.has(toolName)) {
+        return buildPersonaConfirmLabel(toolName, args, brain_id);
+      }
       const verb = toolName === "delete_entry" ? "Delete" : "Update";
       const title = await fetchEntryTitle(args.id, brain_id);
       return title ? `${verb} "${title}"` : `${verb} entry (${String(args.id).slice(0, 8)}…)`;
     },
-    defaultConfirmText: (toolName) =>
-      toolName === "delete_entry"
+    defaultConfirmText: (toolName) => {
+      if (toolName === "persona.retire_fact") return "I'm about to move this from your About You into history. Confirm?";
+      if (toolName === "persona.update_fact") return "I'm about to replace this fact with a new version. Confirm?";
+      return toolName === "delete_entry"
         ? "I'm about to delete this entry. Confirm?"
-        : "I'm about to update this entry. Confirm?",
+        : "I'm about to update this entry. Confirm?";
+    },
   };
 
   const isManaged = provider.provider === "gemini-managed";

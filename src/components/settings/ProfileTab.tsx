@@ -1,48 +1,81 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // ProfileTab — "About you"
 //
-// Lets the user write the personal-context block that gets injected into every
-// chat call. Distinct from AccountTab's profile (display_name/phone/address) —
-// this one is about who you are, not how to bill or contact you.
+// Two stacked panels:
 //
-// Sensitive identifiers (ID, passport, driver's licence, banking, medical aid)
-// are NOT stored here. They live in the encrypted Vault. The form copy makes
-// this explicit.
+//   1. Core (singular fields stored in user_personas)
+//      preferred name, full name, pronouns, free-form context, master toggle.
+//      Saved via PUT /api/profile.
+//
+//   2. Living memory (persona-typed entries)
+//      Active facts grouped by bucket (identity / family / habit / preference
+//      / event), with badges for source and pinned state. Each row has
+//      pin / edit / retire actions. A collapsed "Fading" section shows
+//      decayed facts the user can rescue. A second collapsed "History"
+//      section shows retired facts as a timeline.
+//
+// All persona facts go through /api/capture and /api/entries — the same
+// pipelines that handle every other entry. No new endpoints.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import SettingsRow, { SettingsToggle } from "./SettingsRow";
 import { authFetch } from "../../lib/authFetch";
-
-interface FamilyMember {
-  relation: string | null;
-  name: string | null;
-  notes: string | null;
-}
+import { useBrain } from "../../context/BrainContext";
 
 interface ProfileFields {
   full_name: string;
   preferred_name: string;
   pronouns: string;
-  family: FamilyMember[];
-  habits: string[];
   context: string;
   enabled: boolean;
 }
 
-const EMPTY: ProfileFields = {
+interface PersonaFact {
+  id: string;
+  title: string;
+  content: string | null;
+  tags: string[] | null;
+  metadata: {
+    bucket?: string;
+    status?: "active" | "fading" | "archived";
+    source?: string;
+    confidence?: number;
+    pinned?: boolean;
+    last_referenced_at?: string;
+    retired_at?: string;
+    retired_reason?: string;
+  } | null;
+  created_at: string;
+  updated_at: string;
+}
+
+const EMPTY_CORE: ProfileFields = {
   full_name: "",
   preferred_name: "",
   pronouns: "",
-  family: [],
-  habits: [],
   context: "",
   enabled: true,
 };
 
 const CONTEXT_MAX = 4000;
-const HABITS_MAX = 12;
-const FAMILY_MAX = 10;
+
+const BUCKET_ORDER = ["identity", "family", "habit", "preference", "event"] as const;
+const BUCKET_LABELS: Record<string, string> = {
+  identity: "Identity",
+  family: "Family & people",
+  habit: "Habits & routines",
+  preference: "Preferences",
+  event: "Notable events",
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  manual: "you",
+  chat: "chat",
+  capture: "captured",
+  import: "imported",
+  inference: "inferred",
+};
 
 function inputStyle(): React.CSSProperties {
   return {
@@ -59,61 +92,27 @@ function inputStyle(): React.CSSProperties {
   };
 }
 
-function chipStyle(active = false): React.CSSProperties {
-  return {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-    height: 28,
-    padding: "0 10px",
-    fontFamily: "var(--f-sans)",
-    fontSize: 12,
-    fontWeight: 500,
-    color: active ? "var(--ember)" : "var(--ink)",
-    background: active ? "var(--ember-wash)" : "var(--surface)",
-    border: `1px solid ${active ? "color-mix(in oklch, var(--ember) 30%, transparent)" : "var(--line-soft)"}`,
-    borderRadius: 999,
-    cursor: "default",
-  };
-}
-
-function buildPreview(p: ProfileFields): string {
-  if (!p.enabled) return "Personalisation is off — chat will not see this profile.";
-  const lines: string[] = [];
-  const preferred = p.preferred_name.trim();
-  const full = p.full_name.trim();
-  if (preferred && full && preferred.toLowerCase() !== full.toLowerCase()) {
-    lines.push(`Name: ${preferred} (full name: ${full})`);
-  } else if (preferred || full) {
-    lines.push(`Name: ${preferred || full}`);
-  }
-  if (p.pronouns.trim()) lines.push(`Pronouns: ${p.pronouns.trim()}`);
-  const fam = p.family
-    .map((f) => {
-      const rel = (f.relation || "").trim();
-      const name = (f.name || "").trim();
-      const notes = (f.notes || "").trim();
-      if (!rel && !name) return "";
-      const head = rel && name ? `${rel}: ${name}` : rel || name;
-      return notes ? `${head} (${notes})` : head;
-    })
-    .filter(Boolean);
-  if (fam.length) lines.push(`Family: ${fam.join("; ")}`);
-  if (p.habits.length) lines.push(`Habits: ${p.habits.join("; ")}`);
-  if (p.context.trim()) lines.push(`Context: ${p.context.trim()}`);
-  return lines.length
-    ? `--- ABOUT THE USER ---\n${lines.join("\n")}\n--- END ---`
-    : "Empty — chat will not see anything yet.";
-}
-
 export default function ProfileTab() {
-  const [fields, setFields] = useState<ProfileFields>(EMPTY);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [savedFlash, setSavedFlash] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [habitDraft, setHabitDraft] = useState("");
+  const brainCtx = useBrain();
+  const brainId = brainCtx?.activeBrain?.id;
 
+  const [core, setCore] = useState<ProfileFields>(EMPTY_CORE);
+  const [coreLoaded, setCoreLoaded] = useState(false);
+  const [coreSaving, setCoreSaving] = useState(false);
+  const [coreSaved, setCoreSaved] = useState(false);
+  const [coreError, setCoreError] = useState<string | null>(null);
+
+  const [facts, setFacts] = useState<PersonaFact[]>([]);
+  const [factsLoaded, setFactsLoaded] = useState(false);
+  const [factsError, setFactsError] = useState<string | null>(null);
+  const [showFading, setShowFading] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+
+  const [newFactText, setNewFactText] = useState("");
+  const [newFactBucket, setNewFactBucket] = useState<typeof BUCKET_ORDER[number]>("preference");
+  const [adding, setAdding] = useState(false);
+
+  // ── Load core ─────────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -124,129 +123,232 @@ export default function ProfileTab() {
         if (cancelled) return;
         const p = data.profile;
         if (p) {
-          setFields({
+          setCore({
             full_name: p.full_name || "",
             preferred_name: p.preferred_name || "",
             pronouns: p.pronouns || "",
-            family: Array.isArray(p.family) ? p.family : [],
-            habits: Array.isArray(p.habits) ? p.habits : [],
             context: p.context || "",
             enabled: p.enabled !== false,
           });
         }
       } catch {
-        // Empty profile is fine — keep defaults.
+        /* empty profile is fine */
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setCoreLoaded(true);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
-  const preview = useMemo(() => buildPreview(fields), [fields]);
+  // ── Load persona facts ────────────────────────────────────────────────────
+  async function reloadFacts() {
+    if (!brainId) return;
+    try {
+      const r = await authFetch(
+        `/api/entries?brain_id=${encodeURIComponent(brainId)}&type=persona&include_archived=true`,
+      );
+      if (!r?.ok) throw new Error("fetch_failed");
+      const data = await r.json();
+      const rows: PersonaFact[] = Array.isArray(data) ? data : (data.entries ?? []);
+      setFacts(rows);
+      setFactsError(null);
+    } catch (e: any) {
+      setFactsError(e?.message || "Could not load facts");
+    } finally {
+      setFactsLoaded(true);
+    }
+  }
+  useEffect(() => { reloadFacts(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, [brainId]);
 
-  function patch(p: Partial<ProfileFields>) {
-    setFields((prev) => ({ ...prev, ...p }));
-    setSavedFlash(false);
+  // ── Bucket grouping ───────────────────────────────────────────────────────
+  const grouped = useMemo(() => {
+    const out: { active: Record<string, PersonaFact[]>; fading: PersonaFact[]; history: PersonaFact[] } = {
+      active: {},
+      fading: [],
+      history: [],
+    };
+    for (const f of facts) {
+      const status = f.metadata?.status || "active";
+      if (status === "archived") {
+        out.history.push(f);
+        continue;
+      }
+      if (status === "fading") {
+        out.fading.push(f);
+        continue;
+      }
+      const bucket = f.metadata?.bucket || "preference";
+      (out.active[bucket] ??= []).push(f);
+    }
+    // Sort each active bucket: pinned first, then by confidence desc, then by recency.
+    for (const bucket of Object.keys(out.active)) {
+      out.active[bucket]!.sort((a, b) => {
+        const ap = a.metadata?.pinned ? 1 : 0;
+        const bp = b.metadata?.pinned ? 1 : 0;
+        if (ap !== bp) return bp - ap;
+        const ac = a.metadata?.confidence ?? 0.5;
+        const bc = b.metadata?.confidence ?? 0.5;
+        if (ac !== bc) return bc - ac;
+        return (b.updated_at || "").localeCompare(a.updated_at || "");
+      });
+    }
+    out.history.sort((a, b) => (b.metadata?.retired_at || b.updated_at).localeCompare(a.metadata?.retired_at || a.updated_at));
+    return out;
+  }, [facts]);
+
+  // ── Core save ─────────────────────────────────────────────────────────────
+  function patchCore(p: Partial<ProfileFields>) {
+    setCore((prev) => ({ ...prev, ...p }));
+    setCoreSaved(false);
   }
 
-  function addHabit(raw: string) {
-    const v = raw.trim();
-    if (!v) return;
-    setFields((prev) => {
-      if (prev.habits.includes(v) || prev.habits.length >= HABITS_MAX) return prev;
-      return { ...prev, habits: [...prev.habits, v.slice(0, 120)] };
-    });
-    setHabitDraft("");
-    setSavedFlash(false);
-  }
-
-  function removeHabit(idx: number) {
-    setFields((prev) => ({ ...prev, habits: prev.habits.filter((_, i) => i !== idx) }));
-    setSavedFlash(false);
-  }
-
-  function addFamily() {
-    setFields((prev) =>
-      prev.family.length >= FAMILY_MAX
-        ? prev
-        : { ...prev, family: [...prev.family, { relation: "", name: "", notes: "" }] },
-    );
-    setSavedFlash(false);
-  }
-
-  function patchFamily(i: number, patch: Partial<FamilyMember>) {
-    setFields((prev) => ({
-      ...prev,
-      family: prev.family.map((f, idx) => (idx === i ? { ...f, ...patch } : f)),
-    }));
-    setSavedFlash(false);
-  }
-
-  function removeFamily(i: number) {
-    setFields((prev) => ({ ...prev, family: prev.family.filter((_, idx) => idx !== i) }));
-    setSavedFlash(false);
-  }
-
-  async function save() {
-    setSaving(true);
-    setError(null);
+  async function saveCore() {
+    setCoreSaving(true);
+    setCoreError(null);
     try {
       const r = await authFetch("/api/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(fields),
+        body: JSON.stringify(core),
       });
-      if (!r?.ok) {
-        const data = await r?.json().catch(() => ({}));
-        throw new Error(data?.error || "save_failed");
-      }
-      setSavedFlash(true);
-      setTimeout(() => setSavedFlash(false), 1800);
+      if (!r?.ok) throw new Error("save_failed");
+      setCoreSaved(true);
+      setTimeout(() => setCoreSaved(false), 1800);
     } catch (e: any) {
-      setError(e?.message || "Could not save profile");
+      setCoreError(e?.message || "Could not save");
     } finally {
-      setSaving(false);
+      setCoreSaving(false);
     }
   }
 
-  function handleHabitKey(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      addHabit(habitDraft);
-    } else if (e.key === "Backspace" && !habitDraft && fields.habits.length) {
-      removeHabit(fields.habits.length - 1);
+  // ── Fact actions (all go through /api/capture or /api/entries) ────────────
+  async function addFact() {
+    const text = newFactText.trim();
+    if (!text || !brainId) return;
+    setAdding(true);
+    try {
+      const r = await authFetch("/api/capture", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          p_title: text.slice(0, 200),
+          p_content: text,
+          p_type: "persona",
+          p_brain_id: brainId,
+          p_tags: ["persona", newFactBucket],
+          p_metadata: {
+            bucket: newFactBucket,
+            status: "active",
+            source: "manual",
+            confidence: 1.0,
+            pinned: false,
+            evidence_count: 1,
+            last_referenced_at: new Date().toISOString(),
+            // Tell the enrichment classifier to skip — we already know it's persona.
+            skip_persona: true,
+          },
+        }),
+      });
+      if (!r?.ok) throw new Error("add_failed");
+      setNewFactText("");
+      await reloadFacts();
+    } catch (e: any) {
+      setFactsError(e?.message || "Could not add fact");
+    } finally {
+      setAdding(false);
     }
   }
 
-  if (loading) {
-    return (
-      <p
-        className="f-serif"
-        style={{
-          fontStyle: "italic",
-          color: "var(--ink-faint)",
-          padding: "32px 0",
-          margin: 0,
-        }}
-      >
-        Loading…
-      </p>
+  async function patchFact(id: string, metaPatch: Record<string, unknown>) {
+    if (!brainId) return;
+    const f = facts.find((x) => x.id === id);
+    if (!f) return;
+    const newMeta = { ...(f.metadata ?? {}), ...metaPatch };
+    try {
+      await authFetch("/api/entries", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, changes: { metadata: newMeta } }),
+      });
+      await reloadFacts();
+    } catch {
+      /* swallow; reload will reflect server truth */
+    }
+  }
+
+  async function retireFact(id: string) {
+    const f = facts.find((x) => x.id === id);
+    if (!f) return;
+    const reason = window.prompt(
+      `Retire "${f.title}"?\n\nWhy doesn't this apply anymore? (becomes part of your history)`,
+      "",
     );
+    if (reason === null) return; // cancelled
+    if (!brainId) return;
+    try {
+      // Server-side retire-with-history is in personaTools — call it via a
+      // tiny wrapper that hits /api/entries with the retire intent. For the
+      // settings UI we just patch metadata directly and the daily cron does
+      // the right thing; the chat tool path is the magic version.
+      const tags = Array.isArray(f.tags) ? f.tags : [];
+      const newTags = tags.includes("history") ? tags : [...tags, "history"];
+      await authFetch("/api/entries", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          changes: {
+            tags: newTags,
+            metadata: {
+              ...(f.metadata ?? {}),
+              status: "archived",
+              retired_at: new Date().toISOString(),
+              retired_reason: reason || null,
+            },
+          },
+        }),
+      });
+      await reloadFacts();
+    } catch (e: any) {
+      setFactsError(e?.message || "Could not retire");
+    }
   }
+
+  async function deleteFactCompletely(id: string) {
+    const f = facts.find((x) => x.id === id);
+    if (!f) return;
+    if (!window.confirm(`Permanently delete "${f.title}"?\n\nThis removes it from history too.`)) return;
+    try {
+      await authFetch("/api/delete-entry", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      await reloadFacts();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function handleAddKey(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      addFact();
+    }
+  }
+
+  if (!coreLoaded) return <Loading />;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      {/* Personalisation toggle */}
+      {/* Master toggle */}
       <SettingsRow
         label="Personalise chat with this profile"
         hint="When on, the assistant sees a short ‘about you’ summary on every chat call. Turn off if you want the assistant to forget who you are."
       >
         <SettingsToggle
-          value={fields.enabled}
-          onChange={(v) => patch({ enabled: v })}
+          value={core.enabled}
+          onChange={(v) => { patchCore({ enabled: v }); }}
           ariaLabel="Personalisation toggle"
         />
       </SettingsRow>
@@ -263,12 +365,7 @@ export default function ProfileTab() {
       >
         <p
           className="f-serif"
-          style={{
-            margin: 0,
-            fontSize: 13,
-            color: "var(--ink)",
-            lineHeight: 1.5,
-          }}
+          style={{ margin: 0, fontSize: 13, color: "var(--ink)", lineHeight: 1.5 }}
         >
           <strong style={{ fontWeight: 600 }}>Never put ID numbers, passport, driver's licence, banking or medical details here.</strong>{" "}
           Those go in your encrypted{" "}
@@ -276,25 +373,26 @@ export default function ProfileTab() {
         </p>
       </div>
 
-      {/* Names */}
+      {/* Core scalars */}
+      <SectionTitle>Core</SectionTitle>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
         <Field label="Preferred name / nickname">
           <input
             type="text"
-            value={fields.preferred_name}
+            value={core.preferred_name}
             maxLength={60}
             placeholder="e.g. Chris"
-            onChange={(e) => patch({ preferred_name: e.target.value })}
+            onChange={(e) => patchCore({ preferred_name: e.target.value })}
             style={inputStyle()}
           />
         </Field>
         <Field label="Full name">
           <input
             type="text"
-            value={fields.full_name}
+            value={core.full_name}
             maxLength={120}
             placeholder="e.g. Christian Stander"
-            onChange={(e) => patch({ full_name: e.target.value })}
+            onChange={(e) => patchCore({ full_name: e.target.value })}
             style={inputStyle()}
           />
         </Field>
@@ -303,175 +401,25 @@ export default function ProfileTab() {
       <Field label="Pronouns">
         <input
           type="text"
-          value={fields.pronouns}
+          value={core.pronouns}
           maxLength={40}
           placeholder="e.g. he/him"
-          onChange={(e) => patch({ pronouns: e.target.value })}
+          onChange={(e) => patchCore({ pronouns: e.target.value })}
           style={{ ...inputStyle(), maxWidth: 240 }}
         />
       </Field>
 
-      {/* Habits */}
-      <div style={{ marginTop: 22 }}>
-        <Label>Habits & preferences</Label>
+      <div style={{ marginTop: 14 }}>
+        <Label>About you (free-form)</Label>
         <Hint>
-          Short, factual notes the assistant should hold in mind — wake-up time, dietary rules, recurring routines, things to avoid mentioning.
-        </Hint>
-        <div
-          style={{
-            marginTop: 8,
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 6,
-            padding: 8,
-            background: "var(--surface)",
-            border: "1px solid var(--line-soft)",
-            borderRadius: 10,
-            minHeight: 48,
-          }}
-        >
-          {fields.habits.map((h, i) => (
-            <span key={`${h}-${i}`} style={chipStyle(true)}>
-              {h}
-              <button
-                type="button"
-                onClick={() => removeHabit(i)}
-                aria-label={`Remove ${h}`}
-                style={{
-                  background: "transparent",
-                  border: 0,
-                  color: "var(--ember)",
-                  cursor: "pointer",
-                  fontSize: 14,
-                  lineHeight: 1,
-                  padding: 0,
-                  marginLeft: 2,
-                }}
-              >
-                ×
-              </button>
-            </span>
-          ))}
-          <input
-            type="text"
-            value={habitDraft}
-            onChange={(e) => setHabitDraft(e.target.value)}
-            onKeyDown={handleHabitKey}
-            placeholder={fields.habits.length === 0 ? "Type a habit and press Enter" : "+ add"}
-            disabled={fields.habits.length >= HABITS_MAX}
-            style={{
-              flex: 1,
-              minWidth: 140,
-              background: "transparent",
-              border: 0,
-              outline: "none",
-              fontFamily: "var(--f-sans)",
-              fontSize: 13,
-              color: "var(--ink)",
-            }}
-          />
-        </div>
-        <SubHint>
-          {fields.habits.length} / {HABITS_MAX}
-        </SubHint>
-      </div>
-
-      {/* Family */}
-      <div style={{ marginTop: 22 }}>
-        <Label>Family & close people</Label>
-        <Hint>
-          Who matters most. The assistant will use names and relationships in conversation, never identifiers.
-        </Hint>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
-          {fields.family.map((f, i) => (
-            <div
-              key={i}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "120px 1fr 1fr 32px",
-                gap: 8,
-                alignItems: "center",
-              }}
-            >
-              <input
-                type="text"
-                value={f.relation || ""}
-                maxLength={40}
-                placeholder="Relation"
-                onChange={(e) => patchFamily(i, { relation: e.target.value })}
-                style={inputStyle()}
-              />
-              <input
-                type="text"
-                value={f.name || ""}
-                maxLength={80}
-                placeholder="Name"
-                onChange={(e) => patchFamily(i, { name: e.target.value })}
-                style={inputStyle()}
-              />
-              <input
-                type="text"
-                value={f.notes || ""}
-                maxLength={120}
-                placeholder="Notes (optional)"
-                onChange={(e) => patchFamily(i, { notes: e.target.value })}
-                style={inputStyle()}
-              />
-              <button
-                type="button"
-                onClick={() => removeFamily(i)}
-                aria-label="Remove person"
-                style={{
-                  width: 32,
-                  height: 32,
-                  border: "1px solid var(--line-soft)",
-                  borderRadius: 8,
-                  background: "var(--surface)",
-                  color: "var(--ink-faint)",
-                  cursor: "pointer",
-                  fontSize: 16,
-                }}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={addFamily}
-            disabled={fields.family.length >= FAMILY_MAX}
-            className="press f-sans"
-            style={{
-              alignSelf: "flex-start",
-              height: 32,
-              padding: "0 14px",
-              fontSize: 13,
-              fontWeight: 500,
-              borderRadius: 8,
-              background: "var(--surface)",
-              color: "var(--ink)",
-              border: "1px solid var(--line)",
-              cursor: fields.family.length >= FAMILY_MAX ? "not-allowed" : "pointer",
-              opacity: fields.family.length >= FAMILY_MAX ? 0.5 : 1,
-            }}
-          >
-            + Add person
-          </button>
-        </div>
-      </div>
-
-      {/* Context */}
-      <div style={{ marginTop: 22 }}>
-        <Label>About you</Label>
-        <Hint>
-          Free-form prose. Anything you want the assistant to keep in mind — your work, projects, where you live, things you care about.
+          Anything else you want the assistant to keep in mind — your work, projects, where you live, things you care about.
         </Hint>
         <textarea
-          value={fields.context}
+          value={core.context}
           maxLength={CONTEXT_MAX}
-          rows={6}
-          placeholder="e.g. I run Smash Burger Bar in Pretoria. Building EverionMind as a personal second-brain. I wake at 5:30 and prefer concise, direct answers."
-          onChange={(e) => patch({ context: e.target.value })}
+          rows={5}
+          placeholder="e.g. I run Smash Burger Bar in Pretoria. I'm building EverionMind as a personal second-brain. I prefer concise, direct answers."
+          onChange={(e) => patchCore({ context: e.target.value })}
           style={{
             ...inputStyle(),
             resize: "vertical",
@@ -480,51 +428,14 @@ export default function ProfileTab() {
             marginTop: 8,
           }}
         />
-        <SubHint>
-          {fields.context.length} / {CONTEXT_MAX}
-        </SubHint>
+        <SubHint>{core.context.length} / {CONTEXT_MAX}</SubHint>
       </div>
 
-      {/* Live preview of injected block */}
-      <div style={{ marginTop: 22 }}>
-        <Label>Preview — what the assistant sees</Label>
-        <Hint>
-          This block is prepended to the system message on every chat call. Prompt caching makes it effectively free after the first call.
-        </Hint>
-        <pre
-          className="f-sans"
-          style={{
-            marginTop: 8,
-            padding: 14,
-            background: "var(--surface-low)",
-            border: "1px solid var(--line-soft)",
-            borderRadius: 10,
-            fontSize: 12,
-            color: "var(--ink-soft)",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-            margin: 0,
-            maxHeight: 280,
-            overflow: "auto",
-          }}
-        >
-          {preview}
-        </pre>
-      </div>
-
-      {/* Save bar */}
-      <div
-        style={{
-          marginTop: 22,
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-        }}
-      >
+      <div style={{ marginTop: 14, display: "flex", gap: 12, alignItems: "center" }}>
         <button
           type="button"
-          onClick={save}
-          disabled={saving}
+          onClick={saveCore}
+          disabled={coreSaving}
           className="press f-sans"
           style={{
             height: 36,
@@ -535,38 +446,355 @@ export default function ProfileTab() {
             background: "var(--ember)",
             color: "var(--ember-ink)",
             border: 0,
-            cursor: saving ? "not-allowed" : "pointer",
-            opacity: saving ? 0.6 : 1,
+            cursor: coreSaving ? "not-allowed" : "pointer",
+            opacity: coreSaving ? 0.6 : 1,
           }}
         >
-          {saving ? "Saving…" : "Save profile"}
+          {coreSaving ? "Saving…" : "Save core"}
         </button>
-        {savedFlash && (
-          <span
-            className="f-serif"
-            style={{
-              fontSize: 13,
-              fontStyle: "italic",
-              color: "var(--moss)",
-            }}
-          >
-            saved.
-          </span>
+        {coreSaved && <span className="f-serif" style={{ fontSize: 13, fontStyle: "italic", color: "var(--moss)" }}>saved.</span>}
+        {coreError && <span className="f-serif" style={{ fontSize: 13, fontStyle: "italic", color: "var(--blood)" }}>{coreError}</span>}
+      </div>
+
+      {/* ── Living memory ─────────────────────────────────────────────────── */}
+      <SectionTitle style={{ marginTop: 32 }}>Living memory</SectionTitle>
+      <Hint>
+        Facts your second brain has learned about you — from chat, captures, and imports. Each one is a real entry; pinned facts never decay.
+      </Hint>
+
+      {/* Manual add */}
+      <div
+        style={{
+          marginTop: 12,
+          padding: 12,
+          background: "var(--surface)",
+          border: "1px solid var(--line-soft)",
+          borderRadius: 10,
+          display: "flex",
+          gap: 8,
+        }}
+      >
+        <select
+          value={newFactBucket}
+          onChange={(e) => setNewFactBucket(e.target.value as typeof BUCKET_ORDER[number])}
+          style={{
+            ...inputStyle(),
+            width: 130,
+            padding: "8px 10px",
+          }}
+        >
+          {BUCKET_ORDER.map((b) => <option key={b} value={b}>{BUCKET_LABELS[b]}</option>)}
+        </select>
+        <input
+          type="text"
+          value={newFactText}
+          onChange={(e) => setNewFactText(e.target.value)}
+          onKeyDown={handleAddKey}
+          placeholder="A short fact about yourself, third person — e.g. 'Wakes at 5:30 every weekday'"
+          maxLength={200}
+          style={{ ...inputStyle(), flex: 1 }}
+        />
+        <button
+          type="button"
+          onClick={addFact}
+          disabled={adding || !newFactText.trim() || !brainId}
+          className="press f-sans"
+          style={{
+            height: 38,
+            padding: "0 16px",
+            fontSize: 13,
+            fontWeight: 600,
+            borderRadius: 8,
+            background: "var(--ember)",
+            color: "var(--ember-ink)",
+            border: 0,
+            cursor: adding ? "not-allowed" : "pointer",
+            opacity: adding || !newFactText.trim() ? 0.5 : 1,
+          }}
+        >
+          {adding ? "…" : "Add"}
+        </button>
+      </div>
+
+      {factsError && (
+        <p className="f-serif" style={{ color: "var(--blood)", fontStyle: "italic", fontSize: 13, marginTop: 8 }}>
+          {factsError}
+        </p>
+      )}
+
+      {/* Active facts grouped by bucket */}
+      <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 18 }}>
+        {!factsLoaded && <Loading />}
+
+        {factsLoaded && BUCKET_ORDER.map((bucket) => {
+          const items = grouped.active[bucket] || [];
+          if (!items.length) return null;
+          return (
+            <div key={bucket}>
+              <BucketHeader label={BUCKET_LABELS[bucket]} count={items.length} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
+                {items.map((f) => (
+                  <FactRow
+                    key={f.id}
+                    fact={f}
+                    onPin={() => patchFact(f.id, { pinned: !f.metadata?.pinned })}
+                    onRetire={() => retireFact(f.id)}
+                    onDelete={() => deleteFactCompletely(f.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+
+        {factsLoaded && Object.keys(grouped.active).length === 0 && grouped.fading.length === 0 && grouped.history.length === 0 && (
+          <p className="f-serif" style={{ fontStyle: "italic", color: "var(--ink-faint)", fontSize: 14, padding: "16px 0" }}>
+            No facts yet. Add one above, or just have a chat — the assistant will start learning who you are.
+          </p>
         )}
-        {error && (
-          <span
-            className="f-serif"
-            style={{
-              fontSize: 13,
-              fontStyle: "italic",
-              color: "var(--blood)",
-            }}
-          >
-            {error}
-          </span>
+
+        {/* Fading */}
+        {grouped.fading.length > 0 && (
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowFading((v) => !v)}
+              className="f-sans"
+              style={{
+                background: "transparent", border: 0, padding: 0, cursor: "pointer",
+                fontSize: 12, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase",
+                color: "var(--ink-faint)",
+              }}
+            >
+              {showFading ? "▾" : "▸"} Fading ({grouped.fading.length}) — not in chat preamble until reinforced
+            </button>
+            {showFading && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+                {grouped.fading.map((f) => (
+                  <FactRow
+                    key={f.id}
+                    fact={f}
+                    onPin={() => patchFact(f.id, { pinned: true, status: "active", confidence: 1.0 })}
+                    onRetire={() => retireFact(f.id)}
+                    onDelete={() => deleteFactCompletely(f.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* History */}
+        {grouped.history.length > 0 && (
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowHistory((v) => !v)}
+              className="f-sans"
+              style={{
+                background: "transparent", border: 0, padding: 0, cursor: "pointer",
+                fontSize: 12, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase",
+                color: "var(--ink-faint)",
+              }}
+            >
+              {showHistory ? "▾" : "▸"} History ({grouped.history.length}) — life events archived
+            </button>
+            {showHistory && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+                {grouped.history.map((f) => (
+                  <FactRow
+                    key={f.id}
+                    fact={f}
+                    historyMode
+                    onPin={() => {}}
+                    onRetire={() => {}}
+                    onDelete={() => deleteFactCompletely(f.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sub-components
+// ─────────────────────────────────────────────────────────────────────────────
+
+function FactRow({
+  fact,
+  historyMode,
+  onPin,
+  onRetire,
+  onDelete,
+}: {
+  fact: PersonaFact;
+  historyMode?: boolean;
+  onPin: () => void;
+  onRetire: () => void;
+  onDelete: () => void;
+}) {
+  const meta = fact.metadata ?? {};
+  const pinned = meta.pinned === true;
+  const source = (meta.source as string) || "chat";
+  const confidence = typeof meta.confidence === "number" ? meta.confidence : null;
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 12,
+        padding: "10px 12px",
+        background: pinned
+          ? "color-mix(in oklch, var(--ember-wash) 60%, var(--surface))"
+          : "var(--surface)",
+        border: pinned
+          ? "1px solid color-mix(in oklch, var(--ember) 25%, var(--line-soft))"
+          : "1px solid var(--line-soft)",
+        borderRadius: 8,
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p
+          className="f-sans"
+          style={{
+            margin: 0,
+            fontSize: 14,
+            color: "var(--ink)",
+            lineHeight: 1.5,
+            wordBreak: "break-word",
+          }}
+        >
+          {pinned && <span title="Pinned" style={{ marginRight: 6 }}>📌</span>}
+          {fact.title}
+        </p>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4, flexWrap: "wrap" }}>
+          <Badge>{SOURCE_LABELS[source] || source}</Badge>
+          {confidence !== null && !historyMode && (
+            <Badge muted>{Math.round(confidence * 100)}%</Badge>
+          )}
+          {historyMode && meta.retired_at && (
+            <Badge muted>retired {new Date(meta.retired_at).toLocaleDateString("en-ZA")}</Badge>
+          )}
+          {historyMode && meta.retired_reason && (
+            <span className="f-serif" style={{ fontSize: 12, fontStyle: "italic", color: "var(--ink-faint)" }}>
+              — {meta.retired_reason}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+        {!historyMode && (
+          <>
+            <IconBtn label={pinned ? "Unpin" : "Pin"} onClick={onPin}>
+              {pinned ? "📍" : "📌"}
+            </IconBtn>
+            <IconBtn label="Retire to history" onClick={onRetire}>↩</IconBtn>
+          </>
+        )}
+        <IconBtn label="Delete completely" onClick={onDelete} danger>×</IconBtn>
+      </div>
+    </div>
+  );
+}
+
+function IconBtn({
+  children,
+  label,
+  onClick,
+  danger,
+}: {
+  children: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      style={{
+        width: 30,
+        height: 30,
+        border: "1px solid var(--line-soft)",
+        borderRadius: 6,
+        background: "transparent",
+        color: danger ? "var(--blood)" : "var(--ink-faint)",
+        cursor: "pointer",
+        fontSize: 14,
+        lineHeight: 1,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Badge({ children, muted }: { children: React.ReactNode; muted?: boolean }) {
+  return (
+    <span
+      className="f-sans"
+      style={{
+        fontSize: 10,
+        fontWeight: 600,
+        letterSpacing: "0.06em",
+        textTransform: "uppercase",
+        padding: "2px 6px",
+        borderRadius: 999,
+        background: muted ? "var(--surface-low)" : "var(--ember-wash)",
+        color: muted ? "var(--ink-faint)" : "var(--ember)",
+        border: muted ? "1px solid var(--line-soft)" : "1px solid color-mix(in oklch, var(--ember) 24%, transparent)",
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function BucketHeader({ label, count }: { label: string; count: number }) {
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+      <h3
+        className="f-serif"
+        style={{
+          margin: 0,
+          fontSize: 16,
+          fontWeight: 500,
+          color: "var(--ink)",
+          letterSpacing: "-0.005em",
+        }}
+      >
+        {label}
+      </h3>
+      <span className="f-sans" style={{ fontSize: 12, color: "var(--ink-faint)" }}>
+        {count}
+      </span>
+    </div>
+  );
+}
+
+function SectionTitle({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <h2
+      className="f-serif"
+      style={{
+        margin: 0,
+        marginBottom: 6,
+        fontSize: 18,
+        fontWeight: 500,
+        color: "var(--ink)",
+        letterSpacing: "-0.005em",
+        ...style,
+      }}
+    >
+      {children}
+    </h2>
   );
 }
 
@@ -615,16 +843,16 @@ function Hint({ children }: { children: React.ReactNode }) {
 
 function SubHint({ children }: { children: React.ReactNode }) {
   return (
-    <p
-      className="f-sans"
-      style={{
-        margin: "6px 0 0",
-        fontSize: 11,
-        color: "var(--ink-ghost)",
-        textAlign: "right",
-      }}
-    >
+    <p className="f-sans" style={{ margin: "6px 0 0", fontSize: 11, color: "var(--ink-ghost)", textAlign: "right" }}>
       {children}
+    </p>
+  );
+}
+
+function Loading() {
+  return (
+    <p className="f-serif" style={{ fontStyle: "italic", color: "var(--ink-faint)", padding: "16px 0", margin: 0 }}>
+      Loading…
     </p>
   );
 }

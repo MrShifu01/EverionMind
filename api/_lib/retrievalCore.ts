@@ -221,7 +221,61 @@ export async function retrieveEntries(
     }
   } catch { /* non-fatal */ }
 
-  return { entries: entries.slice(0, limit) as RetrievedEntry[], concepts: matchedConcepts };
+  const finalEntries = entries.slice(0, limit) as RetrievedEntry[];
+
+  // Reinforce persona facts that were retrieved — bumps last_referenced_at
+  // and evidence_count, and nudges confidence up. Fire-and-forget so chat
+  // latency is unchanged. Cap nudge so a fact can't pin itself by being
+  // retrieved often.
+  reinforcePersonaFacts(finalEntries).catch(() => {});
+
+  return { entries: finalEntries, concepts: matchedConcepts };
+}
+
+async function reinforcePersonaFacts(entries: RetrievedEntry[]): Promise<void> {
+  const personaIds = entries.filter((e) => e.type === "persona").map((e) => e.id);
+  if (!personaIds.length) return;
+  const now = new Date().toISOString();
+  // We bump in parallel; each PATCH is small and indexed by primary key.
+  await Promise.all(
+    personaIds.map(async (id) => {
+      try {
+        const r = await fetch(
+          `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&select=metadata&limit=1`,
+          { headers: SB_HEADERS },
+        );
+        if (!r.ok) return;
+        const rows: Array<{ metadata: Record<string, any> | null }> = await r.json();
+        const meta = rows[0]?.metadata ?? {};
+        if (meta.pinned === true) {
+          // Pinned facts already at ceiling — only bump the timestamp.
+          await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`, {
+            method: "PATCH",
+            headers: { ...SB_HEADERS, Prefer: "return=minimal" },
+            body: JSON.stringify({ metadata: { ...meta, last_referenced_at: now } }),
+          });
+          return;
+        }
+        const conf = typeof meta.confidence === "number" ? meta.confidence : 0.7;
+        const nextConf = Math.min(1, conf + 0.02); // +2% per retrieval, capped
+        const evidence = typeof meta.evidence_count === "number" ? meta.evidence_count : 0;
+        await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`, {
+          method: "PATCH",
+          headers: { ...SB_HEADERS, Prefer: "return=minimal" },
+          body: JSON.stringify({
+            metadata: {
+              ...meta,
+              confidence: nextConf,
+              evidence_count: evidence + 1,
+              last_referenced_at: now,
+            },
+          }),
+        });
+      } catch {
+        /* non-fatal */
+      }
+    }),
+  );
 }
 
 export async function rebuildConceptGraph(brainId: string, geminiApiKey: string): Promise<void> {
