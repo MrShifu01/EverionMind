@@ -6,7 +6,13 @@ import { computeCompletenessScore } from "./_lib/completeness.js";
 import { detectAndStoreMerge } from "./_lib/mergeDetect.js";
 import { checkAndIncrement } from "./_lib/usage.js";
 import { scheduleEnrichJob } from "./_lib/enrichBatch.js";
-import { checkIdempotency, recordIdempotency } from "./_lib/idempotency.js";
+import {
+  reserveIdempotency,
+  finalizeIdempotency,
+  releaseIdempotency,
+  normalizeIdempotencyKey,
+  IdempotencyError,
+} from "./_lib/idempotency.js";
 
 export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
 
@@ -53,7 +59,7 @@ async function updateStreak(userId: string): Promise<void> {
 }
 
 // ── POST /api/capture ──
-async function handleCapture({ req, res, user }: HandlerContext): Promise<void> {
+async function handleCapture({ req, res, user, req_id }: HandlerContext): Promise<void> {
   const { p_title, p_content, p_type, p_metadata, p_tags, p_brain_id, p_extra_brain_ids } = req.body;
 
   if (!p_title || typeof p_title !== "string" || p_title.trim().length === 0) {
@@ -89,12 +95,37 @@ async function handleCapture({ req, res, user }: HandlerContext): Promise<void> 
     }
   }
 
-  // Idempotency — replay original entry on duplicate submission
-  const idempotencyKey = req.headers["idempotency-key"] as string | undefined;
-  if (idempotencyKey) {
-    const existingId = await checkIdempotency(user.id, idempotencyKey);
-    if (existingId) return void res.status(200).json({ id: existingId, idempotent_replay: true });
+  // Idempotency — atomic reserve before insert closes the check-then-act race.
+  let idempotencyKey: string | null;
+  try {
+    idempotencyKey = normalizeIdempotencyKey(req.headers["idempotency-key"]);
+  } catch (e) {
+    if (e instanceof IdempotencyError) throw new ApiError(e.status, e.publicMessage);
+    throw e;
   }
+  let reservationOwned = false;
+  if (idempotencyKey) {
+    const reserve = await reserveIdempotency(user.id, idempotencyKey);
+    if (reserve.kind === "replay") {
+      return void res.status(200).json({ id: reserve.entryId, idempotent_replay: true });
+    }
+    if (reserve.kind === "in_flight") {
+      return void res.status(409).json({ error: "duplicate_in_flight", idempotent_replay: true });
+    }
+    reservationOwned = true;
+  }
+
+  try {
+    await runCapture();
+  } catch (err) {
+    if (reservationOwned && idempotencyKey) {
+      releaseIdempotency(user.id, idempotencyKey).catch(() => {});
+    }
+    throw err;
+  }
+  return;
+
+  async function runCapture(): Promise<void> {
 
   // Usage gate: only applies to platform AI (managed provider)
   if (GEMINI_API_KEY) {
@@ -135,16 +166,20 @@ async function handleCapture({ req, res, user }: HandlerContext): Promise<void> 
     }
   }
 
-  // URL deduplication — merge instead of duplicate when same URL exists
+  // URL deduplication — point query against the entries_user_source_url unique
+  // index so this stays O(1) regardless of how many entries the user has.
   const sourceUrl = rawSourceUrl;
-  if (sourceUrl && p_brain_id) {
-    const dedupRes = await fetch(`${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(p_brain_id)}&deleted_at=is.null&select=id,metadata&limit=500`, { headers: sbHeadersNoContent() });
+  if (sourceUrl) {
+    const dedupRes = await fetch(
+      `${SB_URL}/rest/v1/entries?user_id=eq.${encodeURIComponent(user.id)}&deleted_at=is.null&metadata->>source_url=eq.${encodeURIComponent(sourceUrl)}&select=id,metadata&limit=1`,
+      { headers: sbHeadersNoContent() },
+    );
     if (dedupRes.ok) {
-      const existing: any[] = await dedupRes.json();
-      const dupe = existing.find((e: any) => e.metadata?.source_url === sourceUrl || e.metadata?.url === sourceUrl);
-      if (dupe) {
+      const [dupe]: any[] = await dedupRes.json();
+      if (dupe?.id) {
         const merged = { ...dupe.metadata, sources: [...(dupe.metadata?.sources || []), sourceUrl] };
         await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(dupe.id)}`, { method: "PATCH", headers: sbHeaders({ Prefer: "return=representation" }), body: JSON.stringify({ metadata: merged }) });
+        if (idempotencyKey) await finalizeIdempotency(user.id, idempotencyKey, dupe.id);
         res.status(200).json({ id: dupe.id, merged: true });
         return;
       }
@@ -176,17 +211,22 @@ async function handleCapture({ req, res, user }: HandlerContext): Promise<void> 
     body: JSON.stringify(insertBody),
   });
 
-  // P0 #9 race: unique index on source_url fires → find and return the existing entry
+  // P0 #9 race: unique index on (user_id, source_url) fires → look up the row
+  // by the actual source_url (filtering by user_id alone returns a random entry).
   if (response.status === 409) {
-    const sourceUrl = safeBody.p_metadata?.source_url || safeBody.p_metadata?.url;
-    if (sourceUrl && safeBody.p_brain_id) {
+    const conflictUrl = safeBody.p_metadata?.source_url || safeBody.p_metadata?.url;
+    if (conflictUrl) {
       const dupeRes = await fetch(
-        `${SB_URL}/rest/v1/entries?user_id=eq.${encodeURIComponent(user.id)}&deleted_at=is.null&select=id&limit=1`,
+        `${SB_URL}/rest/v1/entries?user_id=eq.${encodeURIComponent(user.id)}&deleted_at=is.null&metadata->>source_url=eq.${encodeURIComponent(String(conflictUrl))}&select=id&limit=1`,
         { headers: sbHeadersNoContent() },
       );
       const [existing] = dupeRes.ok ? await dupeRes.json() : [];
-      if (existing?.id) return void res.status(200).json({ id: existing.id, merged: true });
+      if (existing?.id) {
+        if (idempotencyKey) await finalizeIdempotency(user.id, idempotencyKey, existing.id);
+        return void res.status(200).json({ id: existing.id, merged: true });
+      }
     }
+    if (idempotencyKey) await releaseIdempotency(user.id, idempotencyKey);
     return void res.status(409).json({ error: "duplicate_entry" });
   }
 
@@ -194,9 +234,11 @@ async function handleCapture({ req, res, user }: HandlerContext): Promise<void> 
   const inserted = Array.isArray(rawData) ? rawData[0] : rawData;
   const data: any = inserted?.id ? { id: inserted.id } : rawData;
 
-  // Record idempotency key so retries return this entry
+  // Attach the entry id to the previously-reserved idempotency slot.
   if (response.ok && data?.id && idempotencyKey) {
-    recordIdempotency(user.id, idempotencyKey, data.id).catch(() => {});
+    finalizeIdempotency(user.id, idempotencyKey, data.id).catch(() => {});
+  } else if (!response.ok && idempotencyKey) {
+    releaseIdempotency(user.id, idempotencyKey).catch(() => {});
   }
 
   // Background merge detection (fire-and-forget)
@@ -215,6 +257,7 @@ async function handleCapture({ req, res, user }: HandlerContext): Promise<void> 
         user_id: user.id,
         action: 'entry_capture',
         resource_id: data.id,
+        request_id: req_id,
         timestamp: new Date().toISOString(),
       }),
     }).catch((err: any) => console.error('[capture:audit_log]', err.message));
@@ -243,17 +286,24 @@ async function handleCapture({ req, res, user }: HandlerContext): Promise<void> 
               embedded_at: new Date().toISOString(),
               embedding_provider: "google",
               embedding_model: "gemini-embedding-001",
+              embedding_status: "done",
             }),
           },
         );
       } catch (err: any) {
         console.error("[embed:failed]", err?.message || String(err));
+        fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entryId)}`, {
+          method: "PATCH",
+          headers: sbHeaders({ Prefer: "return=minimal" }),
+          body: JSON.stringify({ embedding_status: "failed" }),
+        }).catch(() => {});
       }
     })();
   }
 
   updateStreak(user.id).catch((err) => console.error("[capture] streak update failed", err));
   res.status(response.status).json(data);
+  }
 }
 
 // ── POST /api/save-links (rewritten to /api/capture?action=links) ──
@@ -317,7 +367,7 @@ async function handleEmbed({ req, res, user }: HandlerContext): Promise<void> {
 
   if (entry_id && !batch) {
     if (typeof entry_id !== "string" || entry_id.length > 100) throw new ApiError(400, "Invalid entry_id");
-    const entryRes = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entry_id)}&select=id,title,content,tags,brain_id`, { headers: sbHeadersNoContent() });
+    const entryRes = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entry_id)}&user_id=eq.${encodeURIComponent(user.id)}&select=id,title,content,tags,brain_id`, { headers: sbHeadersNoContent() });
     if (!entryRes.ok) throw new ApiError(502, "Database error");
     const [entry]: any[] = await entryRes.json();
     if (!entry) throw new ApiError(404, "Entry not found");
@@ -332,7 +382,7 @@ async function handleEmbed({ req, res, user }: HandlerContext): Promise<void> {
         await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entry_id)}`, {
           method: "PATCH",
           headers: sbHeaders({ Prefer: "return=minimal" }),
-          body: JSON.stringify({ embedding: `[${embedding.join(",")}]`, embedded_at: new Date().toISOString(), embedding_provider: "google" }),
+          body: JSON.stringify({ embedding: `[${embedding.join(",")}]`, embedded_at: new Date().toISOString(), embedding_provider: "google", embedding_status: "done" }),
         });
         res.status(200).json({ ok: true });
         return;
@@ -347,6 +397,31 @@ async function handleEmbed({ req, res, user }: HandlerContext): Promise<void> {
   if (batch && brain_id) {
     if (typeof brain_id !== "string" || brain_id.length > 100) throw new ApiError(400, "Invalid brain_id");
     await requireBrainAccess(user.id, brain_id);
+
+    // Audit #5: gate batch re-embeds against the user's monthly capture quota.
+    // BYOK users still pass freely (checkAndIncrement short-circuits on hasByok).
+    const settingsRes = await fetch(
+      `${SB_URL}/rest/v1/user_ai_settings?user_id=eq.${encodeURIComponent(user.id)}&select=plan,anthropic_key,openai_key,gemini_key&limit=1`,
+      { headers: sbHeaders() },
+    );
+    const [settings] = settingsRes.ok ? await settingsRes.json() : [null];
+    const plan: string = settings?.plan ?? "free";
+    const hasKey = !!(settings?.anthropic_key || settings?.openai_key || settings?.gemini_key);
+    let embedCheck: Awaited<ReturnType<typeof checkAndIncrement>>;
+    try {
+      embedCheck = await checkAndIncrement(user.id, "captures", plan, hasKey);
+    } catch {
+      throw new ApiError(503, "quota_unavailable");
+    }
+    if (!embedCheck.allowed) {
+      res.status(429).json({
+        error: "monthly_limit_reached",
+        action: "captures",
+        remaining: 0,
+        upgrade_url: "/settings?tab=billing",
+      });
+      return;
+    }
 
     const baseFilter = `brain_id=eq.${encodeURIComponent(brain_id)}&deleted_at=is.null`;
     const filter = force
@@ -368,7 +443,7 @@ async function handleEmbed({ req, res, user }: HandlerContext): Promise<void> {
         fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entry.id)}`, {
           method: "PATCH",
           headers: sbHeaders({ Prefer: "return=minimal" }),
-          body: JSON.stringify({ embedding: `[${embeddings[idx].join(",")}]`, embedded_at: new Date().toISOString(), embedding_provider: "google" }),
+          body: JSON.stringify({ embedding: `[${embeddings[idx].join(",")}]`, embedded_at: new Date().toISOString(), embedding_provider: "google", embedding_status: "done" }),
         }).then(async (r: Response) => {
           if (r.ok) { processed++; }
           else { const err = await r.text().catch(() => String(r.status)); console.error("[embed:patch]", entry.id, r.status, err); failed++; }

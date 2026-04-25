@@ -3,7 +3,7 @@
 > Run through this periodically and update status marks.
 > **Legend:** ✅ FIXED · ❌ UNFIXED · ⚠️ PARTIAL · ❓ CLARIFY NEEDED
 >
-> Last audit: 2026-04-25 · Last review: 2026-04-25 · Week 1+2 implemented: 2026-04-25 · Week 3 implemented: 2026-04-25 · Week 4 implemented: 2026-04-25 · Session 5 implemented: 2026-04-25
+> Last audit: 2026-04-25 · Last review: 2026-04-25 · Week 1+2 implemented: 2026-04-25 · Week 3 implemented: 2026-04-25 · Week 4 implemented: 2026-04-25 · Session 5 implemented: 2026-04-25 · Session 6 implemented: 2026-04-25 · Audit follow-up: 2026-04-25
 
 ---
 
@@ -11,15 +11,15 @@
 
 | # | Status | Issue | Location | Fix |
 |---|--------|-------|----------|-----|
-| 1 | ❓ | **IDOR on entry_brains POST/DELETE** — source entry access checked but target `brain_id` ownership not validated | `api/entries.ts:479–521` | `entry_brains` was dropped in migration 025. Dead code still exists and still calls the dropped table. Decide: fully delete the handler, or revive the table with `requireBrainAccess(user.id, brain_id)` on the *target* before every write. |
-| 2 | ⚠️ | **Service-role key bypasses RLS on every write** — missed call-site = silent cross-tenant write | `api/capture.ts:151`, `api/v1.ts:128`, `api/transfer.ts:70`, `api/mcp.ts`, `api/llm.ts`, `api/gmail.ts` | (a) Single `insertEntry()` helper that enforces `requireBrainAccess + user_id === authedUser`; (b) DB trigger `entries_brain_owner_match` that rejects mismatches; (c) defence-in-depth RLS. |
+| 1 | ✅ | **IDOR on entry_brains POST/DELETE** — source entry access checked but target `brain_id` ownership not validated | `api/entries.ts:479–521` | Dead code purged: no `entry_brains` references remain in active `api/` files. (Worktree branches still contain references.) |
+| 2 | ✅ | **Service-role key bypasses RLS on every write** — missed call-site = silent cross-tenant write | `api/capture.ts:151`, `api/v1.ts:128`, `api/transfer.ts:70`, `api/mcp.ts`, `api/llm.ts`, `api/gmail.ts` | DB trigger `entries_brain_owner_match` (migration 043) enforces `entries.user_id = brains.owner_id` for every INSERT/UPDATE — any future missed `requireBrainAccess` callsite is now blocked at the database. The `insertEntry()` helper consolidation remains a code-hygiene win but is no longer security-critical. |
 | 3 | ✅ | **Quota check fails open** — RPC error → `{ allowed: true, remaining: Infinity }` | `api/_lib/usage.ts:40–43` | Fail closed: on any quota-check error return 503 + `Retry-After`, not success. |
 | 4 | ✅ | **Rate limiter is a no-op without Upstash** — in-memory fallback is per-instance, evicted on cold start | `api/_lib/rateLimit.ts:11–13, 62–70` | On missing `UPSTASH_REDIS_REST_URL`, fail closed (return 503). Require env var in prod. |
 | 5 | ✅ | **Cron auth uses plaintext bearer; `verifyCronHmac()` exists but is never called** | `api/user-data.ts:536`, `api/_lib/cronAuth.ts:3–10` | Replace plaintext compare with `verifyCronHmac(auth, CRON_SECRET)`. Rotate `CRON_SECRET`. |
 | 6 | ✅ | **Prompt injection in INSIGHT / CONCEPTS** — user `title`/`content` interpolated verbatim; `CAPTURE` prompt has injection defence, the other two do not | `api/_lib/enrichBatch.ts:100,111`, `api/_lib/prompts.ts:11–12` | Move user text into a separate user-turn boundary. Add injection-defence paragraph to `INSIGHT` and `ENTRY_CONCEPTS` prompts matching the one in `CAPTURE`. Reject responses that don't match a tight schema. |
 | 7 | ✅ | **Gmail raw body → LLM classifier with weak HTML stripping** — attacker emails a prompt-injection payload | `api/_lib/gmailScan.ts:463–521` | Sanitise subject/body (strip control chars, JSON-escape), bound length per-section, run classifier in structured-output / tool-call mode. |
-| 8 | ✅ | **No idempotency keys** — double-submit / lost-response retry creates duplicate entries | `api/capture.ts`, `api/llm.ts:193`, `api/mcp.ts:276`, `api/v1.ts:126` | Accept `Idempotency-Key` header; store `(user_id, idempotency_key) → entry_id` in `idempotency_keys` table with 24 h TTL. Return original entry on replay. |
-| 9 | ✅ | **Race on capture URL-dedup** — fetch-then-check-then-insert with no lock; concurrent same-URL requests both insert | `api/capture.ts:111–135` | Add `UNIQUE INDEX entries_user_source_url ON entries (user_id, (metadata->>'source_url')) WHERE metadata ? 'source_url' AND deleted_at IS NULL`; swap to `INSERT … ON CONFLICT` upsert. *(URL dedup now capped at 500 rows — better, but race remains.)* |
+| 8 | ✅ | **No idempotency keys** — double-submit / lost-response retry creates duplicate entries | `api/capture.ts`, `api/llm.ts:193`, `api/mcp.ts:276`, `api/v1.ts:126` | Atomic `reserveIdempotency` flow: INSERT idempotency_keys with entry_id=NULL first, only the PK winner proceeds with the entry insert; loser replays. Length-validated header. Probabilistic cleanup. Closes the prior check-then-act race. |
+| 9 | ✅ | **Race on capture URL-dedup** — fetch-then-check-then-insert with no lock; concurrent same-URL requests both insert | `api/capture.ts:111–135` | UNIQUE INDEX `entries_user_source_url` is the safety net. Audit follow-up: dedup pre-check rewritten as a direct point query against the index (was an O(n) scan capped at 500 rows that silently missed for users with many entries) and the 409 fallback now correctly looks up the conflicting row by source_url instead of returning a random entry. |
 | 10 | ✅ | **Quota enforced after insert** — 429 returned but row already existed | `api/capture.ts:92–109` | Fixed: quota check now runs at line 100, insert at line 151. |
 | 11 | ✅ | **Embedding dimension hardcoded to `vector(768)`** — switching provider silently stores incomparable vectors | `supabase/migrations/008_pgvector.sql`, `api/_lib/generateEmbedding.ts` | `embedding_model TEXT` column added in migration 039; `embedding_model: "gemini-embedding-001"` now written on every embed PATCH in `capture.ts`. |
 | 12 | ✅ | **Enrichment is fire-and-forget with no retry queue / dead-letter** — Anthropic down = entries stuck forever | All ingestion paths `.catch(() => {})` | `entry_enrichment_jobs` table created (migration 039) + `scheduleEnrichJob`/`drainEnrichmentJobs` with exponential backoff implemented in `enrichBatch.ts`. |
@@ -53,10 +53,15 @@
 | ✅ | Dedup on `ThreadId + MessageId + (from + normSubject)` | Solid — keep as-is |
 | ❌ | PII extracted into plaintext metadata — `id_number`, `cellphone`, `landline`, `address` (`gmailScan.ts:607–662`) | Redact or encrypt at rest (pgcrypto column-level / Supabase Vault) |
 | ❓ | OAuth tokens — are they encrypted at rest in `gmail_integrations`? | Verify column storage; if plaintext, apply `pgcrypto` column-level encryption |
-| ❌ | HTML stripping is a naive regex (`gmailScan.ts:11–18`) — misses entities, malformed tags, CSS-hidden text | Use a real HTML parser (e.g. `node-html-parser` + `sanitize-html`) |
+| ✅ | HTML stripping is a naive regex (`gmailScan.ts:11–18`) — misses entities, malformed tags, CSS-hidden text | `node-html-parser` installed; `stripHtml` replaced with DOM-based parser that removes hidden elements and decodes entities. |
 | ❌ | Attachments ≤10 MB go to Gemini raw — PDFs with medical/legal data leave the perimeter | Add content-type allow-list; warn user; offer opt-out |
 | ✅ | Manual / deep scan (200/100 msgs) has no endpoint-level rate limit — DoS via repeat triggering | 5/min for scan, 3/min for deep-scan per user via `rateLimit()` in `gmail.ts`. |
 | ✅ | Token-refresh failure indistinguishable from empty inbox to the user | `data.debug.tokenRefreshFailed` check in `GmailSyncTab.handleScanNow` shows actionable reconnect message. |
+| ✅ | scan/deep-scan accepted client-supplied `brain_id` without ownership check (audit-follow-up IDOR) | `requireBrainAccess(user.id, brainId)` enforced before scan and deep-scan in `api/gmail.ts`. |
+| ✅ | `delete-entries` accepted unbounded, untyped IDs (audit follow-up) | UUID validation + 200-id cap in `api/gmail.ts`. |
+| ✅ | `upsertGmailContact` SELECT-then-INSERT race produced duplicate contacts under concurrent scans (audit follow-up) | Partial unique index `entries_contact_email_uniq` (migration 043) + INSERT-then-PATCH-on-conflict flow in `gmailScan.ts`. |
+| ✅ | `fetchImportedIdentifiers` loaded every gmail entry into memory on every scan (audit follow-up) | Bounded to most-recent 10 000 rows ordered by `created_at` desc. |
+| ✅ | `deepExtractEntry` Anthropic prompt had no injection-defence paragraph and accepted untyped LLM output into entry metadata (audit follow-up) | Defence paragraph added; subject/body/attachment fields routed through `sanitizeEmailField`; LLM output coerced to string-or-null with per-field length caps before persistence. |
 
 ### 2.4 Google Keep Import
 
@@ -111,8 +116,8 @@
 | ✅ | Candidate cap at 50 rows (was 200) | Fixed in a32fd92 |
 | ✅ | `parseAIJSON` silently drops all but first concept when model returns an array (`enrichBatch.ts:32`) | Array of concept-like objects now wrapped as `{ concepts: p, relationships: [] }`; capture splits still use `p[0]`. |
 | ✅ | Content truncated silently at 400 chars (insight) / 600 chars (concepts) | Limits raised to 1500 (insight) and 2000 (concepts) in `enrichBatch.ts`. |
-| ❌ | Manual brace-balancing JSON repair accepts partially-formed responses as valid | Validate against Zod schema; reject-and-retry on mismatch |
-| ⚠️ | Embeddings have no fallback — Gemini down = `embedded_at: null` entries that never appear in search | Embed failures logged + enrichment cron retries `embedded_at IS NULL` entries. Full `embedding_status` column + UI indicator deferred. |
+| ✅ | Manual brace-balancing JSON repair accepts partially-formed responses as valid | Zod schemas (`CaptureResultSchema`, `ConceptResultSchema`) now validate the parsed AI output before merging into entry metadata in `enrichBatch.ts`. Schema mismatch falls through to the heuristic completeness path; no half-formed metadata is written. |
+| ✅ | Embeddings have no fallback — Gemini down = `embedded_at: null` entries that never appear in search | `embedding_status` column added (migration 042); set to `'done'` on success, `'failed'` on catch in `capture.ts`/`gmailScan.ts`; ⚠ badge shown in `EntryList` for failed entries. |
 | ✅ | No persistent enrichment job table — `runEnrichEntry` / `runEnrichBatchForUser` called everywhere but failures silently lost | `entry_enrichment_jobs` table (migration 039) + `drainEnrichmentJobs` with exponential backoff in `enrichBatch.ts`. |
 | ✅ | No completeness-based prioritisation — oldest-first, weakest entries enriched last | `unenriched.sort()` by `computeCompletenessScore` ASC in `runEnrichBatchForUser`. |
 | ⚠️ | Cron runs once daily at 18:00 UTC — real-time feel depends on per-write `runEnrichEntry` call | Per-write wiring now in place (40634ff). Still need cron for catch-up + the persistent job table for failures. |
@@ -123,7 +128,7 @@
 
 | Status | Issue | Fix |
 |--------|-------|-----|
-| ❌ | `entries` base `CREATE TABLE` not in any migration — schema unauditable, can't rebuild from migrations | Capture current schema into `000_init.sql` (requires `pg_dump` from live Supabase — deferred to standalone task) |
+| ✅ | `entries` base `CREATE TABLE` not in any migration — schema unauditable, can't rebuild from migrations | `000_init.sql` generated from live Supabase schema (all 29 tables, indexes, RLS policies). Snapshot taken at migration 042. |
 | ✅ | `audit_log` referenced in code (`capture.ts:170–179`, `entries.ts:110,137,254`) but table never created — DELETE/PATCH/merge have no audit trail | Table created in migration 039 with RLS + indexes. |
 | ❓ | `entry_brains` dropped in migration 025 but still actively queried in `api/entries.ts:52,470–515` and `api/capture.ts:124,187` | Decide: fully delete dead handler + all call-sites, or revive the table |
 | ✅ | `user_usage` 406 on `.single()` for new billing periods | Fixed: all call-sites use `.maybeSingle()` (confirmed in CLAUDE.md) |
@@ -132,6 +137,8 @@
 | ✅ | Missing hot-path index `entries (user_id, created_at DESC) WHERE deleted_at IS NULL` | `entries_user_created_at_idx` added in migration 039. |
 | ✅ | `brain_id` FK on entries — no explicit `ON DELETE` clause | `ON DELETE CASCADE` chosen; migration 041 drops old FK and re-adds with CASCADE. |
 | ❌ | RLS on entries is `user_id = auth.uid()` only — brain-member isolation dropped in migration 032 | If/when shared brains ship, restore a brain-member RLS policy |
+| ✅ | DB does not reject entries with `user_id ≠ brains.owner_id` — service-role miss = silent cross-tenant write (audit follow-up) | Trigger `entries_brain_owner_match` (migration 043) raises an exception on INSERT/UPDATE when `entries.user_id` does not match the row's `brains.owner_id`. |
+| ✅ | `idempotency_keys.entry_id` was `ON DELETE SET NULL` — orphan rows replayed as `{ id: null }` after hard-delete (audit follow-up) | FK swapped to `ON DELETE CASCADE` in migration 043. |
 | ❌ | `IVFFlat lists=100` adequate to ~100k rows; plan HNSW reindex beyond that | Reindex to HNSW once `entries` exceeds 100k rows |
 | ❌ | `vector(768)` hardcoded — switch to any other provider silently breaks semantic search (see P0 #11) | See P0 #11 fix |
 
@@ -160,6 +167,7 @@
 | Status | Issue | Path | Worst case |
 |--------|-------|------|-----------|
 | ❌ | `/api/capture` spammed — no token budget on enrichment | Per-user | ~120 LLM calls/min unmetered |
+| ✅ | `/api/capture?action=embed&batch=true` had no quota check — managed Gemini key burnable indefinitely (audit follow-up) | `checkAndIncrement("captures")` enforced before batch embed runs. |
 | ❌ | `/api/v1/ingest` triggers brain-wide concept-graph LLM sweep on every call | Per-write | O(N) LLM calls/write |
 | ❌ | `/api/entries?action=audit` — 500 entries × 4k tokens × batches of 50 | Per-run | 200k+ tokens unmetered |
 | ❌ | `retrieve_memory` tool in chat — free embed call per invocation | Per chat turn | Burns Gemini quota unmetered |
@@ -174,7 +182,7 @@
 
 | Status | Gap | Fix |
 |--------|-----|-----|
-| ⚠️ | No structured logging — `console.error` only, no `user_id`/`request_id`/`entry_id`/`step` | Adopt: generate `req_id` header if absent → thread through every log + `audit_log.request_id` + JSON stdout → pipe Vercel logs to Axiom/BetterStack |
+| ✅ | No structured logging — `console.error` only, no `user_id`/`request_id`/`entry_id`/`step` | `createLogger`/`getReqId` threaded into `withAuth` + `withApiKey`; `req_id` echoed in `x-request-id` response header; JSON lines to stdout — Vercel log drain can pipe to Axiom/BetterStack unchanged. |
 | ❌ | No metrics — no counters for enrichment success rate, LLM latency p95, provider 429s, dedup hits | 4 dashboard panels minimum |
 | ❌ | No tracing — can't correlate "user says capture is broken" to a failing row | Attach `req_id` at API boundary; log at each enrichment step |
 | ❌ | No admin re-run — single-entry re-enrich requires an authenticated POST the user doesn't know exists | Add admin UI: re-enrich / re-embed / failed-job inspector |

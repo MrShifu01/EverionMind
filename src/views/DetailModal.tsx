@@ -36,6 +36,15 @@ const META_PRIORITY: { key: string; label: string }[] = [
 
 const DATE_KEYS = new Set(["due_date", "deadline", "expiry_date", "renewal_date", "event_date", "date"]);
 
+function safeUrl(url: string): string {
+  try {
+    const { protocol } = new URL(url);
+    return protocol === "https:" || protocol === "http:" ? url : "#";
+  } catch {
+    return "#";
+  }
+}
+
 function fmtMetaValue(key: string, raw: string): string {
   if (DATE_KEYS.has(key)) {
     try {
@@ -895,7 +904,7 @@ No explanation, no punctuation, just one word.`,
                             if (isPhone)
                               return <a key={label} href={`tel:${value}`} style={chipStyle}>{inner}</a>;
                             if (isUrl)
-                              return <a key={label} href={value} target="_blank" rel="noopener noreferrer" style={chipStyle}>{inner}</a>;
+                              return <a key={label} href={safeUrl(value)} target="_blank" rel="noopener noreferrer" style={chipStyle}>{inner}</a>;
                             return <div key={label} style={chipStyle}>{inner}</div>;
                           })}
                         </div>

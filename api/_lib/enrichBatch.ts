@@ -1,9 +1,31 @@
+import { z } from "zod";
 import { SERVER_PROMPTS } from "./prompts.js";
 import { computeCompletenessScore } from "./completeness.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const SB_HDR = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json" };
+
+// Audit #9: validate AI output before merging into entry metadata. Anthropic
+// occasionally truncates JSON; the older brace-balancer accepted half-formed
+// objects whose missing keys then polluted metadata. These schemas reject
+// anything that doesn't match the shape we actually consume.
+const CaptureResultSchema = z.object({
+  type: z.string().max(80).optional(),
+  title: z.string().max(500).optional(),
+  content: z.string().max(20_000).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+}).passthrough();
+
+const ConceptItemSchema = z.object({
+  label: z.string().min(1).max(80),
+  entry_ids: z.array(z.string()).optional(),
+}).passthrough();
+
+const ConceptResultSchema = z.object({
+  concepts: z.array(ConceptItemSchema).max(20),
+  relationships: z.array(z.unknown()).optional(),
+}).passthrough();
 
 async function callAnthropic(system: string, content: string, maxTokens = 1500): Promise<string> {
   const key = process.env.ANTHROPIC_API_KEY;
@@ -91,9 +113,10 @@ async function enrichSingleEntry(entry: any, userId: string): Promise<boolean> {
   if (!isParsed(entry)) {
     const raw = String(meta.full_text || entry.content || entry.title || "");
     const aiRaw = await callAnthropic(SERVER_PROMPTS.CAPTURE, raw, 1500);
-    const result = parseAIJSON(aiRaw);
-    if (result && (result.type || result.title || result.content)) {
-      const { confidence: _c, ...resultMeta } = result.metadata ?? {};
+    const candidate = parseAIJSON(aiRaw);
+    const parsed = candidate ? CaptureResultSchema.safeParse(candidate) : null;
+    if (parsed?.success && (parsed.data.type || parsed.data.title || parsed.data.content)) {
+      const { confidence: _c, ...resultMeta } = parsed.data.metadata ?? {};
       meta = { ...meta, ...resultMeta, enrichment: { ...enr, parsed: true } };
       enr = meta.enrichment;
       changed = true;
@@ -120,9 +143,10 @@ async function enrichSingleEntry(entry: any, userId: string): Promise<boolean> {
   if (!hasConcepts(entry)) {
     const conceptPrompt = `Entry ID: ${entry.id}\n<user_entry>\nTitle: ${entry.title}\nType: ${entry.type || "note"}\nContent: ${String(entry.content || "").slice(0, 2000)}\n</user_entry>`;
     const conceptRaw = await callAnthropic(SERVER_PROMPTS.ENTRY_CONCEPTS, conceptPrompt, 400);
-    const conceptResult = parseAIJSON(conceptRaw);
-    if (conceptResult?.concepts?.length > 0) {
-      meta = { ...meta, concepts: conceptResult.concepts, enrichment: { ...enr, concepts_extracted: true } };
+    const candidate = parseAIJSON(conceptRaw);
+    const parsed = candidate ? ConceptResultSchema.safeParse(candidate) : null;
+    if (parsed?.success && parsed.data.concepts.length > 0) {
+      meta = { ...meta, concepts: parsed.data.concepts, enrichment: { ...enr, concepts_extracted: true } };
       enr = meta.enrichment;
       changed = true;
     }
@@ -157,7 +181,9 @@ export function scheduleEnrichJob(entryId: string, userId: string): void {
 
   runEnrichEntry(entryId, userId)
     .then(() =>
-      fetch(JOB_URL(entryId), {
+      // Only mark complete if the job is still active. A row that was already
+      // promoted to dead_letter must not silently resurrect.
+      fetch(`${JOB_URL(entryId)}&status=in.(pending,retry)`, {
         method: "PATCH",
         headers: { ...SB_HDR, Prefer: "return=minimal" },
         body: JSON.stringify({ status: "complete", updated_at: new Date().toISOString() }),
@@ -186,12 +212,16 @@ export async function drainEnrichmentJobs(maxJobs = 20): Promise<{ processed: nu
       processed++;
     } catch (err: any) {
       const attempt = (job.attempt ?? 0) + 1;
+      // Wider retry window: 8 attempts × exponential backoff caps at ~24h.
+      // Attempt 8 sits ~4h26m past attempt 7, so we cover transient outages
+      // up to roughly a day before declaring dead_letter.
+      const MAX_ATTEMPTS = 8;
       const backoffMs = Math.min(2 ** attempt * 60_000, 24 * 60 * 60 * 1000);
       await fetch(JOB_URL(job.entry_id), {
         method: "PATCH",
         headers: { ...SB_HDR, Prefer: "return=minimal" },
         body: JSON.stringify({
-          status: attempt >= 5 ? "dead_letter" : "retry",
+          status: attempt >= MAX_ATTEMPTS ? "dead_letter" : "retry",
           attempt,
           next_run_at: new Date(Date.now() + backoffMs).toISOString(),
           error: String(err?.message ?? "unknown").slice(0, 500),

@@ -15,7 +15,13 @@ export const config = { api: { bodyParser: { sizeLimit: "1mb" } } };
 import { retrieveEntries } from "./_lib/retrievalCore.js";
 import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
 import { runEnrichEntry, scheduleEnrichJob } from "./_lib/enrichBatch.js";
-import { checkIdempotency, recordIdempotency } from "./_lib/idempotency.js";
+import {
+  reserveIdempotency,
+  finalizeIdempotency,
+  releaseIdempotency,
+  normalizeIdempotencyKey,
+  IdempotencyError,
+} from "./_lib/idempotency.js";
 import { checkAndIncrement } from "./_lib/usage.js";
 import { getReqId, createLogger } from "./_lib/logger.js";
 
@@ -246,17 +252,38 @@ export default withApiKey(
     const fn = HANDLERS[req.query.action as string];
     if (!fn) throw new ApiError(404, `Unknown action: ${req.query.action}`);
 
-    const iKey = req.headers["idempotency-key"] as string | undefined;
     const isIngest = req.query.action === "ingest";
-    if (iKey && isIngest) {
-      const existingId = await checkIdempotency(auth.userId, iKey);
-      if (existingId) return void res.status(200).json({ id: existingId, idempotent_replay: true });
+    let iKey: string | null = null;
+    try {
+      iKey = normalizeIdempotencyKey(req.headers["idempotency-key"]);
+    } catch (e) {
+      if (e instanceof IdempotencyError) throw new ApiError(e.status, e.publicMessage);
+      throw e;
     }
 
-    const result = await fn({ userId: auth.userId, brainId: auth.brainId }, req.body ?? {});
+    let reservationOwned = false;
+    if (iKey && isIngest) {
+      const reserve = await reserveIdempotency(auth.userId, iKey);
+      if (reserve.kind === "replay") {
+        return void res.status(200).json({ id: reserve.entryId, idempotent_replay: true });
+      }
+      if (reserve.kind === "in_flight") {
+        return void res.status(409).json({ error: "duplicate_in_flight", idempotent_replay: true });
+      }
+      reservationOwned = true;
+    }
 
-    if (iKey && isIngest && (result as any)?.id) {
-      recordIdempotency(auth.userId, iKey, (result as any).id).catch(() => {});
+    let result: any;
+    try {
+      result = await fn({ userId: auth.userId, brainId: auth.brainId }, req.body ?? {});
+    } catch (err) {
+      if (reservationOwned && iKey) releaseIdempotency(auth.userId, iKey).catch(() => {});
+      throw err;
+    }
+
+    if (reservationOwned && iKey) {
+      if (result?.id) finalizeIdempotency(auth.userId, iKey, result.id).catch(() => {});
+      else releaseIdempotency(auth.userId, iKey).catch(() => {});
     }
 
     log.info("ok");

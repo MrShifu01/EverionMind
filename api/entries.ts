@@ -6,7 +6,7 @@ import { SERVER_PROMPTS } from "./_lib/prompts.js";
 import { runEnrichBatchForUser, runEnrichEntry } from "./_lib/enrichBatch.js";
 
 const SB_URL = process.env.SUPABASE_URL;
-const ENTRY_FIELDS = "id,title,content,type,tags,metadata,brain_id,importance,pinned,created_at,embedded_at,status";
+const ENTRY_FIELDS = "id,title,content,type,tags,metadata,brain_id,importance,pinned,created_at,embedded_at,embedding_status,status";
 
 function rateLimitForEntries(req: ApiRequest): number {
   const resource = req.query.resource as string | undefined;
@@ -70,7 +70,7 @@ async function handleGet({ req, res, user }: HandlerContext): Promise<void> {
 }
 
 // ── DELETE /api/entries (was /api/delete-entry) — soft delete or hard delete ──
-async function handleDelete({ req, res, user }: HandlerContext): Promise<void> {
+async function handleDelete({ req, res, user, req_id }: HandlerContext): Promise<void> {
   const { id } = req.body;
   if (!id || typeof id !== "string" || id.length > 100) {
     throw new ApiError(400, "Missing or invalid id");
@@ -101,6 +101,7 @@ async function handleDelete({ req, res, user }: HandlerContext): Promise<void> {
         user_id: user.id,
         action: 'entry_permanent_delete',
         resource_id: id,
+        request_id: req_id,
         timestamp: new Date().toISOString(),
       }),
     }).catch(() => {});
@@ -128,6 +129,7 @@ async function handleDelete({ req, res, user }: HandlerContext): Promise<void> {
       user_id: user.id,
       action: 'entry_delete',
       resource_id: id,
+      request_id: req_id,
       timestamp: new Date().toISOString(),
     }),
   }).catch(() => {});
@@ -136,7 +138,7 @@ async function handleDelete({ req, res, user }: HandlerContext): Promise<void> {
 }
 
 // ── PATCH /api/entries (was /api/update-entry) ──
-async function handlePatch({ req, res, user }: HandlerContext): Promise<void> {
+async function handlePatch({ req, res, user, req_id }: HandlerContext): Promise<void> {
   const action = req.query.action as string | undefined;
 
   if (action === "restore") {
@@ -245,6 +247,7 @@ async function handlePatch({ req, res, user }: HandlerContext): Promise<void> {
       user_id: user.id,
       action: 'entry_update',
       resource_id: id,
+      request_id: req_id,
       timestamp: new Date().toISOString(),
     }),
   }).catch(() => {});

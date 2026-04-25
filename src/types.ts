@@ -65,6 +65,7 @@ export interface Entry {
   created_at?: string;
   updated_at?: string;
   embedded_at?: string;
+  embedding_status?: "pending" | "done" | "failed";
   encrypted?: boolean;
   pinned?: boolean;
   importance?: number;

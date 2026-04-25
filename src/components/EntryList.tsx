@@ -341,6 +341,15 @@ const EntryCard = memo(function EntryCard({
           {isPinned && <span style={{ color: "var(--ember)" }}>{IconPin}</span>}
           {isVault && <span>{IconVault}</span>}
           {isPendingEnrichment(e) && <EnrichingDot />}
+          {e.embedding_status === "failed" && (
+            <span
+              aria-label="Embedding failed — not searchable"
+              title="Embedding failed — won't appear in semantic search"
+              style={{ color: "var(--ember)", lineHeight: 1, fontSize: 12 }}
+            >
+              ⚠
+            </span>
+          )}
         </div>
 
         <h3

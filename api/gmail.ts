@@ -14,7 +14,7 @@
 import type { ApiRequest, ApiResponse } from "./_lib/types";
 import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 import { verifyAuth } from "./_lib/verifyAuth.js";
-import { withAuth } from "./_lib/withAuth.js";
+import { withAuth, requireBrainAccess } from "./_lib/withAuth.js";
 import { rateLimit } from "./_lib/rateLimit.js";
 import { encryptToken } from "./_lib/gmailTokenCrypto.js";
 import {
@@ -227,6 +227,9 @@ const authedHandler = withAuth(
       const rows: any[] = r.ok ? await r.json() : [];
       if (!rows[0]) return void res.status(404).json({ error: "No Gmail integration found" });
       const brainId = typeof req.body?.brain_id === "string" ? req.body.brain_id : undefined;
+      // Audit #4: prevent brain_id IDOR — caller cannot redirect scan output
+      // into a brain they don't own.
+      if (brainId) await requireBrainAccess(user.id, brainId);
       try {
         const result = await scanGmailForUser(rows[0], true, brainId);
         if (brainId) runEnrichBatchForUser(user.id, brainId, 10).catch(() => {});
@@ -240,12 +243,17 @@ const authedHandler = withAuth(
     if (req.method === "POST" && action === "delete-entries") {
       const { entryIds } = req.body ?? {};
       if (!Array.isArray(entryIds) || entryIds.length === 0) return void res.status(400).json({ error: "entryIds required" });
-      const ids = entryIds.map((id: string) => encodeURIComponent(id)).join(",");
+      // Audit #6: validate UUIDs and cap length so a malicious client cannot
+      // explode the URL or sneak operators past encodeURIComponent.
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const cleanIds = entryIds.filter((id: any) => typeof id === "string" && uuidRe.test(id)).slice(0, 200);
+      if (!cleanIds.length) return void res.status(400).json({ error: "entryIds must be UUIDs" });
+      const ids = cleanIds.map((id: string) => encodeURIComponent(id)).join(",");
       await fetch(`${SB_URL}/rest/v1/entries?id=in.(${ids})&user_id=eq.${user.id}`, {
         method: "DELETE",
         headers: SB_HEADERS,
       });
-      return void res.status(200).json({ ok: true });
+      return void res.status(200).json({ ok: true, deleted: cleanIds.length });
     }
 
     if (req.method === "POST" && action === "deep-scan") {
@@ -260,10 +268,13 @@ const authedHandler = withAuth(
       const rows: any[] = r.ok ? await r.json() : [];
       if (!rows[0]) return void res.status(404).json({ error: "No Gmail integration found" });
       const { cursor, sinceMs, brain_id } = req.body ?? {};
+      const deepBrainId = typeof brain_id === "string" ? brain_id : undefined;
+      // Audit #4: prevent brain_id IDOR on deep-scan path too.
+      if (deepBrainId) await requireBrainAccess(user.id, deepBrainId);
       const result = await deepScanBatch(rows[0], {
         cursor: typeof cursor === "string" ? cursor : undefined,
         sinceMs: typeof sinceMs === "number" ? sinceMs : Date.now() - 365 * 24 * 60 * 60 * 1000,
-        activeBrainId: typeof brain_id === "string" ? brain_id : undefined,
+        activeBrainId: deepBrainId,
       });
       return void res.status(200).json(result);
     }

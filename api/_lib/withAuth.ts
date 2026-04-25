@@ -4,6 +4,7 @@ import { rateLimit } from "./rateLimit.js";
 import { verifyAuth } from "./verifyAuth.js";
 import { checkBrainAccess } from "./checkBrainAccess.js";
 import { resolveApiKey } from "./resolveApiKey.js";
+import { getReqId, createLogger, type Logger } from "./logger.js";
 
 export class ApiError extends Error {
   constructor(public status: number, public publicMessage: string, public details?: unknown) {
@@ -26,6 +27,8 @@ export interface HandlerContext {
   req: ApiRequest;
   res: ApiResponse;
   user: AuthedUser;
+  log: Logger;
+  req_id: string;
 }
 
 export interface WithAuthOptions {
@@ -58,6 +61,9 @@ export function withAuth(opts: WithAuthOptions, impl: Impl): (req: ApiRequest, r
     applySecurityHeaders(res);
     if (opts.cacheControl) res.setHeader("Cache-Control", opts.cacheControl);
 
+    const req_id = getReqId(req);
+    res.setHeader("x-request-id", req_id);
+
     if (!methods.includes(req.method || "")) {
       res.status(405).json({ error: "Method not allowed" });
       return;
@@ -78,13 +84,15 @@ export function withAuth(opts: WithAuthOptions, impl: Impl): (req: ApiRequest, r
         return;
       }
 
-      await impl({ req, res, user });
+      const log = createLogger(req_id, { user_id: user.id });
+      await impl({ req, res, user, log, req_id });
     } catch (err) {
       if (err instanceof ApiError) {
         res.status(err.status).json({ error: err.publicMessage });
         return;
       }
-      console.error("[withAuth] unhandled error:", err);
+      const log = createLogger(req_id);
+      log.error("unhandled error in withAuth", { err: String(err) });
       if (!(res as any).headersSent) {
         res.status(500).json({ error: "Internal Server Error" });
       }
@@ -112,6 +120,8 @@ export interface ApiKeyContext {
   req: ApiRequest;
   res: ApiResponse;
   auth: { userId: string; keyId: string; brainId: string };
+  log: Logger;
+  req_id: string;
 }
 
 type ApiKeyImpl = (ctx: ApiKeyContext) => Promise<void> | void;
@@ -130,6 +140,9 @@ export function withApiKey(
   return async (req, res) => {
     applySecurityHeaders(res);
     if (opts.cacheControl) res.setHeader("Cache-Control", opts.cacheControl);
+
+    const req_id = getReqId(req);
+    res.setHeader("x-request-id", req_id);
 
     if (!methods.includes(req.method || "")) {
       res.status(405).json({ error: "Method not allowed" });
@@ -158,7 +171,8 @@ export function withApiKey(
         return;
       }
 
-      await impl({ req, res, auth });
+      const log = createLogger(req_id, { user_id: auth.userId, key_id: auth.keyId });
+      await impl({ req, res, auth, log, req_id });
     } catch (err) {
       if (err instanceof ApiError) {
         res.status(err.status).json({ error: err.publicMessage });
@@ -168,7 +182,8 @@ export function withApiKey(
         res.status((err as any).status).json({ error: (err as any).message });
         return;
       }
-      console.error("[withApiKey] unhandled error:", err);
+      const log = createLogger(req_id);
+      log.error("unhandled error in withApiKey", { err: String(err) });
       if (!(res as any).headersSent) {
         res.status(500).json({ error: "Internal Server Error" });
       }

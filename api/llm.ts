@@ -17,7 +17,7 @@ import { extractFile as geminiExtractFile } from "./_lib/providers/gemini.js";
 import { runChat, type ConfirmPolicy } from "./_lib/providers/chatRunner.js";
 import { checkAndIncrement } from "./_lib/usage.js";
 import { rateLimit } from "./_lib/rateLimit.js";
-import { getReqId } from "./_lib/logger.js";
+import { getReqId, createLogger } from "./_lib/logger.js";
 
 export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
 
@@ -268,12 +268,35 @@ async function handleCompletion(
   return res.status(200).json({ content: [{ type: "text", text: result.text ?? "" }], model: provider.model });
 }
 
+async function auditToolCalls(
+  userId: string,
+  brainId: string,
+  reqId: string,
+  toolCalls: Array<{ tool: string; args: unknown; result: unknown }>,
+): Promise<void> {
+  if (!toolCalls.length) return;
+  const rows = toolCalls.map((tc) => ({
+    user_id: userId,
+    action: `chat:${tc.tool}`,
+    request_id: reqId,
+    metadata: { tool: tc.tool, brain_id: brainId, args_summary: JSON.stringify(tc.args).slice(0, 500) },
+  }));
+  await fetch(`${SB_URL}/rest/v1/audit_log`, {
+    method: "POST",
+    headers: { ...sbHeaders(), Prefer: "return=minimal" },
+    body: JSON.stringify(rows),
+  });
+}
+
 async function handleChat(
   req: ApiRequest,
   res: ApiResponse,
   user: AuthedUser,
   provider: ProviderConfig,
+  reqId: string,
+  quotaCtx?: { plan: string; hasKey: boolean },
 ): Promise<void> {
+  const log = createLogger(reqId, { user_id: user.id });
   const t0 = Date.now();
   const { message, brain_id, history = [], confirmed = false, pending_action, learnings } = req.body as ChatBody;
   if (!message || typeof message !== "string") { res.status(400).json({ error: "message required" }); return; }
@@ -309,6 +332,15 @@ async function handleChat(
         : "I'm about to update this entry. Confirm?",
   };
 
+  const isManaged = provider.provider === "gemini-managed";
+  const instrumentedExecTool = async (name: string, args: Record<string, any>) => {
+    log.info("tool_call", { tool: name, brain_id });
+    if (isManaged && quotaCtx) {
+      checkAndIncrement(user.id, "chats", quotaCtx.plan, quotaCtx.hasKey).catch(() => {});
+    }
+    return execTool(name, args, user.id, brain_id);
+  };
+
   const result = await runChat({
     config: provider,
     system: systemPrompt,
@@ -316,9 +348,11 @@ async function handleChat(
     initialMessages,
     confirmed,
     pendingAction: pending_action ? { tool: pending_action.tool, args: pending_action.args } : null,
-    execTool: (name, args) => execTool(name, args, user.id, brain_id),
+    execTool: instrumentedExecTool,
     confirmPolicy,
   });
+
+  auditToolCalls(user.id, brain_id, reqId, result.toolCalls).catch(() => {});
 
   const debug = {
     provider: provider.provider,
@@ -498,25 +532,26 @@ export default withAuth(
     if (action === "chat") {
       const provider = await resolveProvider(user.id, true);
       if (!provider) return res.status(402).json({ error: "no_ai_provider", message: "Add an API key in Settings or upgrade to Pro." });
+      let quotaCtx: { plan: string; hasKey: boolean } | undefined;
       if (provider.provider === "gemini-managed") {
         const { plan, hasKey } = await resolveSettingsRaw(user.id);
-        const usageAction = (req.query.action as string) === "transcribe" ? "voice" : "chats";
         let check: Awaited<ReturnType<typeof checkAndIncrement>>;
         try {
-          check = await checkAndIncrement(user.id, usageAction, plan, hasKey);
+          check = await checkAndIncrement(user.id, "chats", plan, hasKey);
         } catch {
           return void res.status(503).json({ error: "quota_unavailable", retryAfter: 10 });
         }
         if (!check.allowed) {
           return void res.status(429).json({
             error: "monthly_limit_reached",
-            action: usageAction,
+            action: "chats",
             remaining: 0,
             upgrade_url: "/settings?tab=billing",
           });
         }
+        quotaCtx = { plan, hasKey };
       }
-      return handleChat(req, res, user, provider);
+      return handleChat(req, res, user, provider, reqId, quotaCtx);
     }
 
     // Default: text completion (enrichment parsing, insight, etc.)
