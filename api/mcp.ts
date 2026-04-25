@@ -207,6 +207,7 @@ async function getUpcoming(brainId: string, days = 30): Promise<unknown> {
       const params = new URLSearchParams({
         "brain_id": `eq.${resolvedBrainId}`,
         "deleted_at": "is.null",
+        "type": "neq.secret",
         [`metadata->>${field}`]: `gte.${today}`,
         "select": "id,title,type,tags,content,metadata,created_at",
         "limit": "100",
@@ -241,7 +242,7 @@ async function searchEntries(brainId: string, query: string): Promise<unknown> {
   const embedding = await generateEmbedding(query, GEMINI_API_KEY);
   if (!embedding) {
     const fallback = await fetch(
-      `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&select=id,title,content,type,tags,created_at&limit=10`,
+      `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&type=neq.secret&select=id,title,content,type,tags,created_at&limit=10`,
       { headers: hdrs() },
     );
     return fallback.json();
@@ -268,6 +269,8 @@ async function getEntry(brainId: string, id: string): Promise<unknown> {
   if (!r.ok) throw new Error("Failed to fetch entry");
   const rows: any[] = await r.json();
   if (!rows.length) throw new Error("Entry not found");
+  // Vault-typed entries are PIN-gated; MCP must not surface their content.
+  if (rows[0].type === "secret") throw new Error("Entry is locked in Vault — open the app to view");
   return rows[0];
 }
 
@@ -284,6 +287,9 @@ async function createEntry(
   const safeTitle = title.trim().slice(0, 200);
   const safeContent = content.slice(0, 10000);
   const safeType = type.trim().slice(0, 50).toLowerCase() || "note";
+  if (safeType === "secret") {
+    throw new Error("Cannot create vault entries via MCP — use the in-app Vault to encrypt secrets");
+  }
   const safeTags = Array.isArray(tags) ? tags.slice(0, 20).map((t) => String(t).slice(0, 50)) : [];
 
   // Generate embedding
@@ -324,17 +330,24 @@ async function updateEntry(
   fields: { title?: string; content?: string; type?: string; tags?: string[] },
 ): Promise<unknown> {
   const entryRes = await fetch(
-    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&select=id,title,content,tags&limit=1`,
+    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&select=id,title,content,tags,type&limit=1`,
     { headers: hdrs() },
   );
   if (!entryRes.ok) throw new Error("Failed to fetch entry");
   const rows: any[] = await entryRes.json();
   if (!rows.length) throw new Error("Entry not found");
+  if (rows[0].type === "secret") throw new Error("Entry is locked in Vault — open the app to edit");
 
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (fields.title !== undefined) patch.title = fields.title.trim().slice(0, 200);
   if (fields.content !== undefined) patch.content = fields.content.slice(0, 10000);
-  if (fields.type !== undefined) patch.type = fields.type.trim().slice(0, 50).toLowerCase();
+  if (fields.type !== undefined) {
+    const newType = fields.type.trim().slice(0, 50).toLowerCase();
+    if (newType === "secret") {
+      throw new Error("Cannot retype an entry to 'secret' via MCP — move it through the in-app Vault flow");
+    }
+    patch.type = newType;
+  }
   if (fields.tags !== undefined) patch.tags = fields.tags.slice(0, 20).map((t) => String(t).slice(0, 50));
 
   // Regenerate embedding if searchable fields changed
@@ -447,12 +460,13 @@ async function gmailIgnorePattern(userId: string, pattern: string): Promise<unkn
 
 async function deleteEntry(brainId: string, id: string): Promise<unknown> {
   const entryRes = await fetch(
-    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&select=id&limit=1`,
+    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&select=id,type&limit=1`,
     { headers: hdrs() },
   );
   if (!entryRes.ok) throw new Error("Failed to fetch entry");
   const rows: any[] = await entryRes.json();
   if (!rows.length) throw new Error("Entry not found");
+  if (rows[0].type === "secret") throw new Error("Entry is locked in Vault — open the app to delete");
 
   const r = await fetch(
     `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`,

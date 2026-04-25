@@ -100,7 +100,7 @@ export async function retrieveEntries(
   if (qTokens.length > 0) {
     const orFilter = qTokens.map((kw) => `title.ilike.*${kw}*,content.ilike.*${kw}*`).join(",");
     const kwRes = await fetch(
-      `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&or=(${encodeURIComponent(orFilter)})&select=id,title,type,tags,content&limit=10`,
+      `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&type=neq.secret&or=(${encodeURIComponent(orFilter)})&select=id,title,type,tags,content&limit=10`,
       { headers: SB_HEADERS },
     );
     if (kwRes.ok) {
@@ -127,7 +127,7 @@ export async function retrieveEntries(
   if (tagTokens.size > 0) {
     const orFilter = Array.from(tagTokens).slice(0, 8).map((kw) => `title.ilike.*${kw}*`).join(",");
     const sibRes = await fetch(
-      `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&or=(${encodeURIComponent(orFilter)})&select=id,title,type,tags,content,metadata&limit=10`,
+      `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&type=neq.secret&or=(${encodeURIComponent(orFilter)})&select=id,title,type,tags,content,metadata&limit=10`,
       { headers: SB_HEADERS },
     );
     if (sibRes.ok) {
@@ -208,9 +208,12 @@ export async function rebuildConceptGraph(brainId: string, geminiApiKey: string)
       }
     }
 
-    // Fetch top 100 entries by recency
+    // Fetch top 100 entries by recency.
+    // type=neq.secret: vault-typed entries must never be fed to the LLM during
+    // concept-graph rebuild — concept descriptions would otherwise leak titles
+    // and snippets back into the chat surface.
     const entriesRes = await fetch(
-      `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&select=id,title,type,tags,content&order=created_at.desc&limit=100`,
+      `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&type=neq.secret&select=id,title,type,tags,content&order=created_at.desc&limit=100`,
       { headers: SB_HEADERS },
     );
     if (!entriesRes.ok) return;

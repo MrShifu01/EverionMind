@@ -161,7 +161,9 @@ async function execTool(name: string, args: Record<string, any>, userId: string,
     );
     if (!r.ok) return { error: "Failed to fetch entry" };
     const rows: any[] = await r.json();
-    return rows[0] || { error: "Entry not found" };
+    if (!rows[0]) return { error: "Entry not found" };
+    if (rows[0].type === "secret") return { error: "Entry is locked in Vault — open the app to view" };
+    return rows[0];
   }
   if (name === "get_upcoming") {
     const days = Math.min(Math.max(1, args.days || 30), 365);
@@ -169,7 +171,7 @@ async function execTool(name: string, args: Record<string, any>, userId: string,
     const future = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
     const fetches = await Promise.all(
       DATE_FIELDS.map(async (field) => {
-        const params = new URLSearchParams({ brain_id: `eq.${brainId}`, deleted_at: "is.null", [`metadata->>${field}`]: `gte.${today}`, select: "id,title,type,tags,content,metadata,created_at", limit: "100" });
+        const params = new URLSearchParams({ brain_id: `eq.${brainId}`, deleted_at: "is.null", type: "neq.secret", [`metadata->>${field}`]: `gte.${today}`, select: "id,title,type,tags,content,metadata,created_at", limit: "100" });
         const r = await fetch(`${SB_URL}/rest/v1/entries?${params}&metadata->>${field}=lte.${future}`, { headers: sbHeaders() });
         if (!r.ok) return [];
         const rows: any[] = await r.json();
@@ -189,6 +191,7 @@ async function execTool(name: string, args: Record<string, any>, userId: string,
     const safeTitle = String(args.title || "").trim().slice(0, 200);
     const safeContent = String(args.content || "").slice(0, 10000);
     const safeType = String(args.type || "note").trim().slice(0, 50).toLowerCase();
+    if (safeType === "secret") return { error: "Cannot create vault entries via chat — use the in-app Vault to encrypt secrets" };
     const safeTags = Array.isArray(args.tags) ? args.tags.slice(0, 20).map((t: any) => String(t).slice(0, 50)) : [];
     let embedding: number[] | null = null;
     if (GEMINI_API_KEY) embedding = await generateEmbedding(buildEntryText({ title: safeTitle, content: safeContent, tags: safeTags }), GEMINI_API_KEY);
@@ -205,16 +208,21 @@ async function execTool(name: string, args: Record<string, any>, userId: string,
   }
   if (name === "update_entry") {
     const entryRes = await fetch(
-      `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(args.id)}&brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&select=id,title,content,tags&limit=1`,
+      `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(args.id)}&brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&select=id,title,content,tags,type&limit=1`,
       { headers: sbHeaders() },
     );
     if (!entryRes.ok) return { error: "Failed to fetch entry" };
     const rows: any[] = await entryRes.json();
     if (!rows.length) return { error: "Entry not found" };
+    if (rows[0].type === "secret") return { error: "Entry is locked in Vault — open the app to edit" };
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (args.title !== undefined) patch.title = String(args.title).trim().slice(0, 200);
     if (args.content !== undefined) patch.content = String(args.content).slice(0, 10000);
-    if (args.type !== undefined) patch.type = String(args.type).trim().slice(0, 50).toLowerCase();
+    if (args.type !== undefined) {
+      const newType = String(args.type).trim().slice(0, 50).toLowerCase();
+      if (newType === "secret") return { error: "Cannot retype an entry to 'secret' via chat — move it through the in-app Vault flow" };
+      patch.type = newType;
+    }
     if (args.tags !== undefined) patch.tags = (args.tags as any[]).slice(0, 20).map((t) => String(t).slice(0, 50));
     if (GEMINI_API_KEY && (args.title !== undefined || args.content !== undefined || args.tags !== undefined)) {
       const merged = { title: (patch.title ?? rows[0].title) as string, content: (patch.content ?? rows[0].content) as string, tags: (patch.tags ?? rows[0].tags ?? []) as string[] };
@@ -231,6 +239,14 @@ async function execTool(name: string, args: Record<string, any>, userId: string,
     return updated[0];
   }
   if (name === "delete_entry") {
+    const checkRes = await fetch(
+      `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(args.id)}&brain_id=eq.${encodeURIComponent(brainId)}&user_id=eq.${encodeURIComponent(userId)}&select=type&limit=1`,
+      { headers: sbHeaders() },
+    );
+    if (!checkRes.ok) return { error: "Failed to fetch entry" };
+    const checkRows: any[] = await checkRes.json();
+    if (!checkRows.length) return { error: "Entry not found" };
+    if (checkRows[0].type === "secret") return { error: "Entry is locked in Vault — open the app to delete" };
     const r = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(args.id)}&brain_id=eq.${encodeURIComponent(brainId)}&user_id=eq.${encodeURIComponent(userId)}`, {
       method: "PATCH", headers: { ...sbHeaders(), Prefer: "return=minimal" }, body: JSON.stringify({ deleted_at: new Date().toISOString() }),
     });

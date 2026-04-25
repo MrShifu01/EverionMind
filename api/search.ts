@@ -40,7 +40,7 @@ async function handleGraph({ req, res, user }: HandlerContext): Promise<void> {
   const threshold = parseFloat(req.query.threshold as string) || 0.4;
 
   const countRes = await fetch(
-    `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brain_id!)}&embedding=not.is.null&select=id`,
+    `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brain_id!)}&embedding=not.is.null&type=neq.secret&select=id`,
     { headers: { ...sbHeaders(), "Prefer": "count=exact" } },
   );
   const embeddedCount = parseInt(countRes.headers.get("content-range")?.split("/")?.[1] || "0", 10);
