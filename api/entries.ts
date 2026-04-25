@@ -3,7 +3,8 @@ import { withAuth, requireBrainAccess, ApiError, type HandlerContext } from "./_
 import { sbHeaders, sbHeadersNoContent } from "./_lib/sbHeaders.js";
 import { computeCompletenessScore } from "./_lib/completeness.js";
 import { SERVER_PROMPTS } from "./_lib/prompts.js";
-import { runEnrichBatchForUser, runEnrichEntry, isParsed, hasInsight, hasConcepts } from "./_lib/enrichBatch.js";
+import { enrichInline, enrichBrain } from "./_lib/enrich.js";
+import { flagsOf } from "./_lib/enrichFlags.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const ENTRY_FIELDS = "id,title,content,type,tags,metadata,brain_id,importance,pinned,created_at,embedded_at,embedding_status,status";
@@ -30,6 +31,7 @@ export default withAuth(
     if (ctx.req.method === "GET"  && action === "enrich-debug")          return handleEnrichDebug(ctx);
     if (ctx.req.method === "POST" && action === "enrich-batch")          return handleEnrichBatch(ctx);
     if (ctx.req.method === "POST" && action === "enrich-clear-backfill") return handleClearBackfill(ctx);
+    if (ctx.req.method === "POST" && action === "enrich-retry-failed")   return handleRetryFailed(ctx);
     if (ctx.req.method === "POST" && action === "merge_into")            return handleMergeInto(ctx);
     if (ctx.req.method === "GET")    return handleGet(ctx);
     if (ctx.req.method === "DELETE") return handleDelete(ctx);
@@ -221,12 +223,14 @@ async function handlePatch({ req, res, user, req_id }: HandlerContext): Promise<
   const contentChanged = patch.content !== undefined && patch.content !== (entry.content ?? "");
   const typeChanged = patch.type !== undefined && patch.type !== (entry.type ?? "note");
   if (titleChanged || contentChanged) {
+    // Clear the explicit flags so the next enrichInline pass re-runs every
+    // step against the new content. embedded_at is cleared via column update
+    // by the embed step itself when it runs.
     (finalMeta as any).enrichment = {
       ...((finalMeta as any).enrichment ?? {}),
-      embedded: false,
-      concepts_count: 0,
-      has_insight: false,
       parsed: false,
+      has_insight: false,
+      concepts_extracted: false,
     };
   }
   if (titleChanged || contentChanged || typeChanged) {
@@ -262,7 +266,7 @@ async function handlePatch({ req, res, user, req_id }: HandlerContext): Promise<
   res.status(response.ok ? 200 : 502).json(data);
 
   if (response.ok && (titleChanged || contentChanged)) {
-    runEnrichEntry(id, user.id).catch(() => {});
+    enrichInline(id, user.id).catch(() => {});
   }
 }
 
@@ -401,7 +405,7 @@ async function handleEnrichBatch({ req, res, user }: HandlerContext): Promise<vo
   if (!brain_id || typeof brain_id !== "string") throw new ApiError(400, "brain_id required");
   await requireBrainAccess(user.id, brain_id);
   const batchSize = typeof batch_size === "number" && batch_size > 0 ? Math.min(batch_size, 10) : 5;
-  const result = await runEnrichBatchForUser(user.id, brain_id, batchSize);
+  const result = await enrichBrain(user.id, brain_id, batchSize);
   res.status(200).json(result);
 }
 
@@ -431,39 +435,23 @@ async function handleEnrichDebug({ req, res, user }: HandlerContext): Promise<vo
   if (!r.ok) throw new ApiError(502, "Database error");
   const all: any[] = await r.json();
 
-  // Use the same helpers Run-now uses, so the diagnostic reflects what the
-  // enrichment filter actually treats as "done". A strict `=== true` check on
-  // the explicit flag drifts from runtime when the flag was never stamped but
-  // the entry passes the fallback heuristic (e.g. has metadata keys, or has
-  // ai_insight set without enrichment.has_insight=true).
-  const flagOf = (e: any) => {
-    const enr = e.metadata?.enrichment ?? {};
-    return {
-      parsed: isParsed(e),
-      has_insight: hasInsight(e),
-      concepts_extracted: hasConcepts(e),
-      backfilled: !!enr.backfilled_at,
-      // Embedding is "done" when either embedded_at is set or the explicit
-      // status column says so. "failed" surfaces in its own count below.
-      embedded: e.embedding_status === "done" || !!e.embedded_at,
-      embedding_status: (e.embedding_status as string | null) ?? null,
-    };
-  };
-
+  // Single source of truth — same flagsOf the runtime pipeline uses, so the
+  // diagnostic always agrees with what the next enrichment pass will treat
+  // as "done."
   const counts = {
     total: all.length,
     secrets: all.filter((e) => e.type === "secret").length,
-    missing_parsed: all.filter((e) => e.type !== "secret" && !flagOf(e).parsed).length,
-    missing_insight: all.filter((e) => e.type !== "secret" && !flagOf(e).has_insight).length,
-    missing_concepts: all.filter((e) => e.type !== "secret" && !flagOf(e).concepts_extracted).length,
-    missing_embedding: all.filter((e) => e.type !== "secret" && !flagOf(e).embedded && flagOf(e).embedding_status !== "failed").length,
-    failed_embedding: all.filter((e) => e.type !== "secret" && flagOf(e).embedding_status === "failed").length,
+    missing_parsed: all.filter((e) => e.type !== "secret" && !flagsOf(e).parsed).length,
+    missing_insight: all.filter((e) => e.type !== "secret" && !flagsOf(e).has_insight).length,
+    missing_concepts: all.filter((e) => e.type !== "secret" && !flagsOf(e).concepts_extracted).length,
+    missing_embedding: all.filter((e) => e.type !== "secret" && !flagsOf(e).embedded && flagsOf(e).embedding_status !== "failed").length,
+    failed_embedding: all.filter((e) => e.type !== "secret" && flagsOf(e).embedding_status === "failed").length,
     fully_pending: all.filter((e) => {
       if (e.type === "secret") return false;
-      const f = flagOf(e);
-      return !f.parsed || !f.has_insight || !f.concepts_extracted;
+      const f = flagsOf(e);
+      return !f.parsed || !f.has_insight || !f.concepts_extracted || !f.embedded;
     }).length,
-    backfilled: all.filter((e) => flagOf(e).backfilled).length,
+    backfilled: all.filter((e) => flagsOf(e).backfilled).length,
   };
 
   const recent = all.slice(0, 12).map((e) => ({
@@ -471,7 +459,7 @@ async function handleEnrichDebug({ req, res, user }: HandlerContext): Promise<vo
     title: e.title,
     type: e.type,
     created_at: e.created_at,
-    flags: flagOf(e),
+    flags: flagsOf(e),
   }));
 
   res.status(200).json({
@@ -531,6 +519,31 @@ async function handleClearBackfill({ req, res, user }: HandlerContext): Promise<
   res.status(200).json({ cleared, scanned: rows.length });
 }
 
+// ── POST /api/entries?action=enrich-retry-failed — admin only ──
+// Resets `embedding_status` from 'failed' back to NULL on every entry in the
+// brain so the new pipeline's `!f.embedded && f.embedding_status !== 'failed'`
+// filter picks them up again. Then runs one batch through enrichBrain so the
+// retry actually starts before the user closes the dialog.
+async function handleRetryFailed({ req, res, user }: HandlerContext): Promise<void> {
+  if (!isAdminUser(user)) throw new ApiError(403, "Forbidden");
+  const { brain_id } = req.body;
+  if (!brain_id || typeof brain_id !== "string") throw new ApiError(400, "brain_id required");
+  await requireBrainAccess(user.id, brain_id);
+
+  const r = await fetch(
+    `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brain_id)}&deleted_at=is.null&embedding_status=eq.failed`,
+    {
+      method: "PATCH",
+      headers: sbHeaders({ Prefer: "return=representation" }),
+      body: JSON.stringify({ embedding_status: null }),
+    },
+  );
+  if (!r.ok) throw new ApiError(502, "Failed to reset embedding status");
+  const reset: any[] = await r.json();
+  const result = await enrichBrain(user.id, brain_id, 10);
+  res.status(200).json({ reset: reset.length, ...result });
+}
+
 // ── POST /api/entries?action=merge_into — merge source entry into target, then soft-delete source ──
 async function handleMergeInto({ req, res, user }: HandlerContext): Promise<void> {
   const source_id = req.query.id as string | undefined;
@@ -580,7 +593,7 @@ async function handleMergeInto({ req, res, user }: HandlerContext): Promise<void
 
   const [updated] = await patchRes.json();
   res.status(200).json(updated ?? { ok: true });
-  runEnrichEntry(target_id, user.id).catch(() => {});
+  enrichInline(target_id, user.id).catch(() => {});
 }
 
 // ── /api/graph (rewritten to /api/entries?resource=graph) ──

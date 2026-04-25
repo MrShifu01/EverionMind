@@ -5,7 +5,7 @@ import { sbHeaders, sbHeadersNoContent } from "./_lib/sbHeaders.js";
 import { computeCompletenessScore } from "./_lib/completeness.js";
 import { detectAndStoreMerge } from "./_lib/mergeDetect.js";
 import { checkAndIncrement } from "./_lib/usage.js";
-import { scheduleEnrichJob } from "./_lib/enrichBatch.js";
+import { enrichInline } from "./_lib/enrich.js";
 import {
   reserveIdempotency,
   finalizeIdempotency,
@@ -264,44 +264,13 @@ async function handleCapture({ req, res, user, req_id }: HandlerContext): Promis
   }
 
   // Run enrichment inline — Vercel kills the function as soon as we respond,
-  // so a fire-and-forget Promise here would never complete. The wait is ~1-3s
-  // for Gemini; capture has maxDuration: 30 in vercel.json to cover it.
+  // so a fire-and-forget Promise here would never complete. enrichInline runs
+  // every step (parse, insight, concepts, embed) end-to-end, awaited.
+  // capture has maxDuration: 30 in vercel.json which covers it.
   if (response.ok && data?.id) {
-    await scheduleEnrichJob(data.id, user.id).catch((err: any) =>
+    await enrichInline(data.id, user.id).catch((err: any) =>
       console.error("[capture:enrich]", err?.message ?? err),
     );
-  }
-
-  // Awaited inline — Vercel terminates the function as soon as we respond,
-  // so a fire-and-forget IIFE here would never complete. Capture has
-  // maxDuration: 30 in vercel.json which covers Gemini embedding latency.
-  if (response.ok && data?.id && GEMINI_API_KEY) {
-    const entryId = data.id;
-    const entryForEmbed = { title: safeBody.p_title, content: safeBody.p_content, tags: safeBody.p_tags };
-    try {
-      const embedding = await generateEmbedding(buildEntryText(entryForEmbed), GEMINI_API_KEY);
-      await fetch(
-        `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entryId)}`,
-        {
-          method: "PATCH",
-          headers: sbHeaders({ Prefer: "return=minimal" }),
-          body: JSON.stringify({
-            embedding: `[${embedding.join(",")}]`,
-            embedded_at: new Date().toISOString(),
-            embedding_provider: "google",
-            embedding_model: "gemini-embedding-001",
-            embedding_status: "done",
-          }),
-        },
-      );
-    } catch (err: any) {
-      console.error("[embed:failed]", err?.message || String(err));
-      await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entryId)}`, {
-        method: "PATCH",
-        headers: sbHeaders({ Prefer: "return=minimal" }),
-        body: JSON.stringify({ embedding_status: "failed" }),
-      }).catch(() => {});
-    }
   }
 
   updateStreak(user.id).catch((err) => console.error("[capture] streak update failed", err));

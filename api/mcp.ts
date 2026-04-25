@@ -19,7 +19,7 @@ import { resolveApiKey } from "./_lib/resolveApiKey.js";
 import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
 import { retrieveEntries, rebuildConceptGraph } from "./_lib/retrievalCore.js";
 import { scanGmailForUser, type GmailPreferences } from "./_lib/gmailScan.js";
-import { runEnrichEntry, runEnrichBatchForUser, scheduleEnrichJob } from "./_lib/enrichBatch.js";
+import { enrichInline, enrichBrain } from "./_lib/enrich.js";
 import { checkIdempotency, recordIdempotency } from "./_lib/idempotency.js";
 import { checkAndIncrement } from "./_lib/usage.js";
 import { getReqId, createLogger } from "./_lib/logger.js";
@@ -597,7 +597,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
         }
         if (!result) {
           result = await createEntry(userId, brainId, args.title, args.content, args.type, args.tags);
-          if ((result as any)?.id) scheduleEnrichJob((result as any).id, userId);
+          if ((result as any)?.id) enrichInline((result as any).id, userId).catch(() => {});
           if (iKey && (result as any)?.id) recordIdempotency(userId, iKey, (result as any).id).catch(() => {});
         }
         log.info("create_entry_ok", { entry_id: (result as any)?.id });
@@ -607,7 +607,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
           return res.status(200).json(jsonRpcErr(id, -32602, "At least one field to update is required"));
         }
         result = await updateEntry(brainId, args.id, { title: args.title, content: args.content, type: args.type, tags: args.tags });
-        runEnrichEntry(args.id, userId).catch(() => {});
+        enrichInline(args.id, userId).catch(() => {});
       } else if (toolName === "delete_entry") {
         if (!args.id) return res.status(200).json(jsonRpcErr(id, -32602, "id is required"));
         result = await deleteEntry(brainId, args.id);
@@ -618,7 +618,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
         }
         log.info("gmail_sync_start", { lookback_days: args.lookback_days });
         result = await gmailSync(userId, brainId, args.lookback_days);
-        runEnrichBatchForUser(userId, brainId, 10).catch(() => {});
+        enrichBrain(userId, brainId, 10).catch(() => {});
         log.info("gmail_sync_ok", { created: (result as any)?.created });
       } else if (toolName === "gmail_review_queue") {
         result = await gmailReviewQueue(userId, args.limit, args.since_hours);

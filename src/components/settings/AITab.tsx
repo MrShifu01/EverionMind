@@ -68,6 +68,8 @@ export default function AITab({ activeBrain, isAdmin }: Props) {
   const [debugLoading, setDebugLoading] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [clearResult, setClearResult] = useState<{ cleared: number; scanned: number } | null>(null);
+  const [retrying, setRetrying] = useState(false);
+  const [retryResult, setRetryResult] = useState<{ reset: number; processed: number; remaining: number } | null>(null);
 
   const refreshDebug = useCallback(async () => {
     if (!activeBrain?.id || !isAdmin) return;
@@ -123,6 +125,23 @@ export default function AITab({ activeBrain, isAdmin }: Props) {
       if (r.ok) setClearResult(await r.json());
     } finally {
       setClearing(false);
+      refreshDebug();
+    }
+  }
+
+  async function retryFailedEmbeddings() {
+    if (!activeBrain?.id || retrying) return;
+    setRetrying(true);
+    setRetryResult(null);
+    try {
+      const r = await authFetch(`/api/entries?action=enrich-retry-failed`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brain_id: activeBrain.id }),
+      });
+      if (r.ok) setRetryResult(await r.json());
+    } finally {
+      setRetrying(false);
       refreshDebug();
     }
   }
@@ -184,10 +203,21 @@ export default function AITab({ activeBrain, isAdmin }: Props) {
               <SettingsButton onClick={clearBackfill} disabled={clearing || !activeBrain?.id}>
                 {clearing ? "Clearing…" : "Clear backfill flags"}
               </SettingsButton>
+              {(debug?.counts.failed_embedding ?? 0) > 0 && (
+                <SettingsButton onClick={retryFailedEmbeddings} disabled={retrying || !activeBrain?.id}>
+                  {retrying ? "Retrying…" : `Retry ${debug?.counts.failed_embedding ?? 0} failed embedding${(debug?.counts.failed_embedding ?? 0) === 1 ? "" : "s"}`}
+                </SettingsButton>
+              )}
             </div>
             {clearResult && (
               <p className="f-sans" style={{ fontSize: 12, color: "var(--moss)", margin: 0 }}>
                 Cleared {clearResult.cleared} of {clearResult.scanned} backfilled entries — Run now will pick these up.
+              </p>
+            )}
+            {retryResult && (
+              <p className="f-sans" style={{ fontSize: 12, color: "var(--moss)", margin: 0 }}>
+                Reset {retryResult.reset} failed · {retryResult.processed} processed
+                {retryResult.remaining > 0 ? ` · ${retryResult.remaining} remaining` : " · all up to date"}.
               </p>
             )}
             {debugError && (

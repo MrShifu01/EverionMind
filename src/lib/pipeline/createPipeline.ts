@@ -26,7 +26,7 @@ export function createPipeline(hooks: PipelineHooks): EnrichmentPipeline {
 
   return {
     enrich(_entry: Entry, _brainId: string): void {
-      // Server handles enrichment via capture.ts → enrichBatch.runEnrichEntry
+      // Server handles enrichment via capture.ts → enrich.enrichInline
     },
 
     async *enrichBulk(entries: Entry[], brainId: string): AsyncGenerator<BulkEnrichProgress> {

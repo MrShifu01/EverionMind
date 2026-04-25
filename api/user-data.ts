@@ -8,7 +8,7 @@ import type Stripe from "stripe";
 import crypto from "crypto";
 import webpush from "web-push";
 import { runGmailScanAllUsers } from "./_lib/gmailScan.js";
-import { runEnrichBatchAllUsers, drainEnrichmentJobs } from "./_lib/enrichBatch.js";
+import { enrichAllBrains } from "./_lib/enrich.js";
 import { verifyCronBearer } from "./_lib/cronAuth.js";
 
 export const config = { api: { bodyParser: false } };
@@ -594,19 +594,13 @@ async function handleCronDaily(req: ApiRequest, res: ApiResponse): Promise<void>
     return { users: 0, created: 0, errors: 1 };
   });
 
-  // ── Enrich batch (parse + insight) for all brains ──
-  const enrichResults = await runEnrichBatchAllUsers().catch((e) => {
+  // ── Enrich every brain — daily catch-up pass for entries inline didn't cover ──
+  const enrichResults = await enrichAllBrains().catch((e) => {
     console.error("[cron/daily] enrich batch failed:", e);
     return { brains: 0, processed: 0 };
   });
 
-  // ── Drain enrichment retry queue ──
-  const drainResults = await drainEnrichmentJobs(50).catch((e) => {
-    console.error("[cron/daily] drain jobs failed:", e);
-    return { processed: 0, failed: 0 };
-  });
-
-  return void res.status(200).json({ push: pushResults, gmail: gmailResults, enrich: enrichResults, drain: drainResults });
+  return void res.status(200).json({ push: pushResults, gmail: gmailResults, enrich: enrichResults });
 }
 
 // ── /api/notifications (rewritten to /api/user-data?resource=notifications) ──

@@ -2,6 +2,7 @@ import React, { useMemo, useRef, memo, useState, useEffect } from "react";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import type { Entry } from "../types";
 import { resolveIcon } from "../lib/typeIcons";
+import { flagsOf, isPendingEnrichment } from "../lib/enrichFlags";
 
 const ADMIN_EMAIL = (import.meta.env.VITE_ADMIN_EMAIL as string | undefined) ?? "";
 
@@ -51,12 +52,6 @@ const IconVault = (
   </svg>
 );
 
-function isPendingEnrichment(entry: Entry): boolean {
-  if (entry.type === "secret") return false;
-  const enr = (entry.metadata as any)?.enrichment ?? {};
-  return !(enr.parsed === true && enr.has_insight === true && enr.concepts_extracted === true);
-}
-
 function EnrichingDot() {
   return (
     <span className="enriching-dot" aria-label="AI processing" title="AI enriching…">
@@ -65,39 +60,13 @@ function EnrichingDot() {
   );
 }
 
-// Admin-only diagnostic chip cluster — three letters showing which enrichment
-// flags are set on the entry. Hidden for non-admins. Mirrors the server-side
-// isParsed/hasInsight/hasConcepts helpers so the chips agree with what the
-// enrichment pipeline considers "done".
-const ENRICH_SKIP_META = new Set([
-  "enrichment",
-  "source",
-  "full_text",
-  "gmail_from",
-  "gmail_subject",
-  "gmail_thread_id",
-  "gmail_message_id",
-]);
-
+// Admin-only diagnostic chip cluster — four letters (P/I/C/E) showing which
+// enrichment flags are set. Hidden for non-admins. Reads from the shared
+// flagsOf helper so the chips always agree with what the pipeline considers
+// "done."
 function EnrichFlagChips({ entry }: { entry: Entry }) {
-  const meta = (entry.metadata as any) ?? {};
-  const enr = meta.enrichment ?? {};
-  const isParsed =
-    enr.parsed === true ||
-    (enr.parsed !== false &&
-      Object.keys(meta).filter((k) => !ENRICH_SKIP_META.has(k)).length > 0);
-  const embeddingStatus = (entry as any).embedding_status as string | undefined;
-  const embedded = embeddingStatus === "done" || !!(entry as any).embedded_at;
-  const embedFailed = embeddingStatus === "failed";
-  const hasLegacyConcepts =
-    (typeof enr.concepts_count === "number" && enr.concepts_count > 0) ||
-    (Array.isArray(meta.concepts) && meta.concepts.length > 0);
-  const flags = {
-    parsed: isParsed,
-    has_insight: enr.has_insight === true || !!meta.ai_insight,
-    concepts_extracted: enr.concepts_extracted === true || hasLegacyConcepts,
-    backfilled: !!enr.backfilled_at,
-  };
+  const flags = flagsOf(entry);
+  const embedFailed = flags.embedding_status === "failed";
   const chip = (label: string, state: "on" | "off" | "warn", title: string) => {
     const palette = {
       on: { bg: "color-mix(in oklch, var(--moss) 18%, transparent)", fg: "var(--moss)" },
@@ -127,10 +96,10 @@ function EnrichFlagChips({ entry }: { entry: Entry }) {
       </span>
     );
   };
-  const embedState: "on" | "off" | "warn" = embedFailed ? "warn" : embedded ? "on" : "off";
+  const embedState: "on" | "off" | "warn" = embedFailed ? "warn" : flags.embedded ? "on" : "off";
   const embedTitle = embedFailed
     ? "embedding failed — won't appear in semantic search"
-    : embedded
+    : flags.embedded
       ? "embedded"
       : "embedding pending";
   return (

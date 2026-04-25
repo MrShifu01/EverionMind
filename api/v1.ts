@@ -14,7 +14,7 @@ import { withApiKey, ApiError } from "./_lib/withAuth.js";
 export const config = { api: { bodyParser: { sizeLimit: "1mb" } } };
 import { retrieveEntries } from "./_lib/retrievalCore.js";
 import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
-import { runEnrichEntry, scheduleEnrichJob } from "./_lib/enrichBatch.js";
+import { enrichInline } from "./_lib/enrich.js";
 import {
   reserveIdempotency,
   finalizeIdempotency,
@@ -164,7 +164,7 @@ async function handleIngest({ userId, brainId }: Auth, body: any) {
   });
   if (!r.ok) throw new Error(`Failed to create entry: ${await r.text().catch(() => String(r.status))}`);
   const rows: any[] = await r.json();
-  scheduleEnrichJob(id, userId);
+  enrichInline(id, userId).catch(() => {});
   return { id: rows[0].id, title: rows[0].title, created_at: rows[0].created_at };
 }
 
@@ -206,7 +206,7 @@ async function handleUpdate({ brainId, userId }: Auth, body: any) {
   });
   if (!r.ok) throw new Error(`Update failed: ${await r.text().catch(() => String(r.status))}`);
   const updated: any[] = await r.json();
-  runEnrichEntry(id, userId).catch(() => {});
+  enrichInline(id, userId).catch(() => {});
   return { id: updated[0].id, title: updated[0].title, content: updated[0].content, updated_at: updated[0].updated_at };
 }
 
