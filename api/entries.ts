@@ -102,6 +102,16 @@ async function handleDelete({ req, res, user, req_id }: HandlerContext): Promise
 
     console.log(`[audit] HARD_DELETE entry id=${id} user=${user.id} ok=${response.ok}`);
 
+    // FK cascades take care of links / tags / collection rows. concept_graphs
+    // is a brain-level snapshot and isn't a foreign key, so it carries dangling
+    // UUIDs after a hard delete. Strip them now so the graph viewer doesn't
+    // try to navigate to entries that no longer exist.
+    if (response.ok) {
+      stripDeletedFromConceptGraph(entry.brain_id, id).catch((err: any) =>
+        console.error("[delete:concept-graph]", err?.message ?? err),
+      );
+    }
+
     fetch(`${SB_URL}/rest/v1/audit_log`, {
       method: 'POST',
       headers: sbHeaders({ 'Prefer': 'return=minimal' }),
@@ -268,6 +278,63 @@ async function handlePatch({ req, res, user, req_id }: HandlerContext): Promise<
   if (response.ok && (titleChanged || contentChanged)) {
     enrichInline(id, user.id).catch(() => {});
   }
+}
+
+// ── concept-graph cleanup helper ─────────────────────────────────────────────
+// Walks the brain's concept_graph row and strips a deleted entry's UUID from
+// every concept's source_entries and every relationship's evidence_entries.
+// Concepts whose source_entries become empty are dropped; same for
+// relationships whose evidence_entries become empty. Runs as a single
+// PATCH so we don't race a graph rebuild.
+async function stripDeletedFromConceptGraph(brainId: string, entryId: string): Promise<void> {
+  const r = await fetch(
+    `${SB_URL}/rest/v1/concept_graphs?brain_id=eq.${encodeURIComponent(brainId)}&select=graph,updated_at&limit=1`,
+    { headers: sbHeadersNoContent() },
+  );
+  if (!r.ok) return;
+  const [row]: any[] = await r.json();
+  if (!row?.graph) return;
+
+  const concepts: any[] = Array.isArray(row.graph.concepts) ? row.graph.concepts : [];
+  const relationships: any[] = Array.isArray(row.graph.relationships) ? row.graph.relationships : [];
+
+  const cleanedConcepts = concepts
+    .map((c) => {
+      const sources: string[] = Array.isArray(c?.source_entries) ? c.source_entries : [];
+      const next = sources.filter((sid) => sid !== entryId);
+      if (next.length === sources.length) return c; // unchanged
+      return { ...c, source_entries: next, frequency: next.length };
+    })
+    .filter((c) => Array.isArray(c.source_entries) && c.source_entries.length > 0);
+
+  const cleanedRels = relationships
+    .map((rel) => {
+      const ev: string[] = Array.isArray(rel?.evidence_entries) ? rel.evidence_entries : [];
+      const next = ev.filter((sid) => sid !== entryId);
+      if (next.length === ev.length) return rel;
+      return { ...rel, evidence_entries: next };
+    })
+    .filter((rel) => Array.isArray(rel.evidence_entries) && rel.evidence_entries.length > 0);
+
+  // Skip the PATCH if nothing actually changed — avoids touching updated_at
+  // (and triggering re-renders) for entries that were never in the graph.
+  if (cleanedConcepts.length === concepts.length && cleanedRels.length === relationships.length) {
+    const conceptUnchanged = cleanedConcepts.every((c, i) => c === concepts[i]);
+    const relUnchanged = cleanedRels.every((r, i) => r === relationships[i]);
+    if (conceptUnchanged && relUnchanged) return;
+  }
+
+  await fetch(
+    `${SB_URL}/rest/v1/concept_graphs?brain_id=eq.${encodeURIComponent(brainId)}`,
+    {
+      method: "PATCH",
+      headers: sbHeaders({ Prefer: "return=minimal" }),
+      body: JSON.stringify({
+        graph: { concepts: cleanedConcepts, relationships: cleanedRels },
+        updated_at: new Date().toISOString(),
+      }),
+    },
+  );
 }
 
 // ── /api/audit (rewritten to /api/entries?resource=audit) ──
