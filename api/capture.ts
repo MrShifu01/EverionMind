@@ -76,7 +76,7 @@ async function handleCapture({ req, res, user, req_id }: HandlerContext): Promis
 
   const safeBody: Record<string, any> = {
     p_title: p_title.trim().slice(0, 500),
-    p_content: p_content ? String(p_content).slice(0, 10000) : "",
+    p_content: p_content ? String(p_content).slice(0, 200_000) : "",
     p_type: typeof p_type === "string" && p_type.trim() ? p_type.trim().slice(0, 50).toLowerCase() : "note",
     p_metadata: p_metadata && typeof p_metadata === "object" && !Array.isArray(p_metadata) ? p_metadata : {},
     p_tags: Array.isArray(p_tags) ? p_tags.filter((t: any) => typeof t === "string").slice(0, 50) : [],

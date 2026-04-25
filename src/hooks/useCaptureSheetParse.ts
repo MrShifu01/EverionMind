@@ -80,8 +80,12 @@ export function useCaptureSheetParse({
     setUploadedFiles((prev) => prev.filter((f) => f.name !== name));
   }, []);
 
-  // Build combined input: user text + file contents (truncated to avoid overwhelming the model)
-  const FILE_CONTENT_LIMIT = 6000;
+  // Build combined input: user text + file contents.
+  // 150 K chars ≈ 40 K tokens — fits well inside Gemini 2.5 Flash's 1 M
+  // context budget while covering ~75 dense PDF pages (e.g. brand
+  // guidelines, full reports). Older 6 K cap was clipping after 3 pages
+  // and dropping the rest of the document silently.
+  const FILE_CONTENT_LIMIT = 150_000;
   const buildInput = useCallback(
     (text: string) => {
       const parts: string[] = [];
@@ -171,7 +175,7 @@ export function useCaptureSheetParse({
           ...(parsed.metadata || {}),
           ...(parsed.confidence ? { confidence: parsed.confidence } : {}),
           ...(rawContent && rawContent.length > 150
-            ? { raw_content: rawContent.slice(0, 8000) }
+            ? { raw_content: rawContent.slice(0, 200_000) }
             : {}),
         };
         const res = await authFetch("/api/capture", {

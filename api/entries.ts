@@ -203,7 +203,7 @@ async function handlePatch({ req, res, user, req_id }: HandlerContext): Promise<
 
   const patch: Record<string, any> = {};
   if (title !== undefined) patch.title = title;
-  if (content !== undefined) patch.content = String(content).slice(0, 10000);
+  if (content !== undefined) patch.content = String(content).slice(0, 200_000);
   if (type !== undefined) patch.type = type;
   if (Array.isArray(tags)) patch.tags = tags.filter((t: any) => typeof t === "string").slice(0, 50);
   if (metadata !== undefined && typeof metadata === "object" && !Array.isArray(metadata)) patch.metadata = metadata;

@@ -285,7 +285,7 @@ async function createEntry(
   const resolvedBrainId = brainId;
 
   const safeTitle = title.trim().slice(0, 200);
-  const safeContent = content.slice(0, 10000);
+  const safeContent = content.slice(0, 200_000);
   const safeType = type.trim().slice(0, 50).toLowerCase() || "note";
   if (safeType === "secret") {
     throw new Error("Cannot create vault entries via MCP — use the in-app Vault to encrypt secrets");
@@ -340,7 +340,7 @@ async function updateEntry(
 
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (fields.title !== undefined) patch.title = fields.title.trim().slice(0, 200);
-  if (fields.content !== undefined) patch.content = fields.content.slice(0, 10000);
+  if (fields.content !== undefined) patch.content = fields.content.slice(0, 200_000);
   if (fields.type !== undefined) {
     const newType = fields.type.trim().slice(0, 50).toLowerCase();
     if (newType === "secret") {

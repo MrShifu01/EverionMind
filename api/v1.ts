@@ -139,7 +139,7 @@ async function handleIngest({ userId, brainId }: Auth, body: any) {
   if (!quota.allowed) throw { status: 429, message: `Monthly capture limit reached (${plan} plan)` };
 
   const safeTitle = title.trim().slice(0, 200);
-  const safeContent = content.slice(0, 10000);
+  const safeContent = content.slice(0, 200_000);
   const safeType = String(type).trim().slice(0, 50).toLowerCase() || "note";
   const safeTags = Array.isArray(tags) ? tags.slice(0, 20).map((t: any) => String(t).slice(0, 50)) : [];
 
@@ -186,7 +186,7 @@ async function handleUpdate({ brainId, userId }: Auth, body: any) {
 
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (title !== undefined) patch.title = String(title).trim().slice(0, 200);
-  if (content !== undefined) patch.content = String(content).slice(0, 10000);
+  if (content !== undefined) patch.content = String(content).slice(0, 200_000);
   if (type !== undefined) patch.type = String(type).trim().slice(0, 50).toLowerCase();
   if (tags !== undefined) patch.tags = Array.isArray(tags) ? tags.slice(0, 20).map((t: any) => String(t).slice(0, 50)) : [];
 

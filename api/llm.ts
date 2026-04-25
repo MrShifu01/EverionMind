@@ -193,7 +193,7 @@ async function execTool(name: string, args: Record<string, any>, userId: string,
   }
   if (name === "create_entry") {
     const safeTitle = String(args.title || "").trim().slice(0, 200);
-    const safeContent = String(args.content || "").slice(0, 10000);
+    const safeContent = String(args.content || "").slice(0, 200_000);
     const safeType = String(args.type || "note").trim().slice(0, 50).toLowerCase();
     if (safeType === "secret") return { error: "Cannot create vault entries via chat — use the in-app Vault to encrypt secrets" };
     const safeTags = Array.isArray(args.tags) ? args.tags.slice(0, 20).map((t: any) => String(t).slice(0, 50)) : [];
@@ -221,7 +221,7 @@ async function execTool(name: string, args: Record<string, any>, userId: string,
     if (rows[0].type === "secret") return { error: "Entry is locked in Vault — open the app to edit" };
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (args.title !== undefined) patch.title = String(args.title).trim().slice(0, 200);
-    if (args.content !== undefined) patch.content = String(args.content).slice(0, 10000);
+    if (args.content !== undefined) patch.content = String(args.content).slice(0, 200_000);
     if (args.type !== undefined) {
       const newType = String(args.type).trim().slice(0, 50).toLowerCase();
       if (newType === "secret") return { error: "Cannot retype an entry to 'secret' via chat — move it through the in-app Vault flow" };
@@ -408,7 +408,7 @@ function parseServerEntries(raw: string): Array<Record<string, unknown>> {
       .filter((e: any) => typeof e?.title === "string" && e.title.trim())
       .map((e: any) => ({
         title: String(e.title).trim().slice(0, 200),
-        content: String(e.content || "").slice(0, 10000),
+        content: String(e.content || "").slice(0, 200_000),
         type: String(e.type || "note").trim(),
         tags: Array.isArray(e.tags) ? e.tags.filter((t: any) => typeof t === "string").slice(0, 20) : [],
         ...(e.metadata && typeof e.metadata === "object" ? { metadata: e.metadata } : {}),
@@ -428,7 +428,7 @@ async function handleSplit(req: ApiRequest, res: ApiResponse, userId: string): P
 
   const adapter = getAdapter(provider.provider);
   const result = await adapter.completion(
-    { messages: [{ role: "user", content: String(content).slice(0, 8000) }], system: SERVER_PROMPTS.CAPTURE, max_tokens: 2000 },
+    { messages: [{ role: "user", content: String(content).slice(0, 150_000) }], system: SERVER_PROMPTS.CAPTURE, max_tokens: 2000 },
     provider,
   );
   const entries = result.ok && result.text ? parseServerEntries(result.text) : [];
@@ -441,11 +441,61 @@ async function handleSplit(req: ApiRequest, res: ApiResponse, userId: string): P
 // so the JSON envelope (mimeType, quotes, etc.) still fits.
 const MAX_FILE_B64 = 33 * 1024 * 1024;
 
+/**
+ * Try to extract text from a PDF using pdfjs-dist directly (no LLM call).
+ * Returns "" on failure or empty PDFs so the caller can fall back to Gemini.
+ *
+ * Why this exists even though the browser already runs pdfjs:
+ *   API consumers without a browser (the v1 endpoint, future MCP file tools,
+ *   curl uploads) hit /api/llm?action=extract-file directly. Without a
+ *   server-side parse those paths would always burn a Gemini call — even
+ *   for a clean text PDF where pdfjs would do it for free in <200 ms.
+ */
+async function extractPdfTextServerSide(buffer: Buffer): Promise<string> {
+  try {
+    const pdfjs: any = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const loadingTask = pdfjs.getDocument({
+      data: new Uint8Array(buffer),
+      useWorkerFetch: false,
+      isEvalSupported: false,
+      useSystemFonts: true,
+      disableFontFace: true,
+    });
+    const pdf = await loadingTask.promise;
+    const pages: string[] = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const text = (content.items as Array<{ str?: string }>).map((it) => it.str ?? "").join(" ");
+      if (text.trim()) pages.push(text.trim());
+    }
+    return pages.join("\n\n");
+  } catch (e: any) {
+    console.warn("[extract-file:pdfjs]", e?.message || e);
+    return "";
+  }
+}
+
 async function handleExtractFile(req: ApiRequest, res: ApiResponse, geminiKey: string): Promise<void> {
   const { fileData, mimeType } = req.body as { fileData?: string; mimeType?: string };
   if (!fileData || typeof fileData !== "string") { res.status(400).json({ error: "fileData required" }); return; }
   if (!mimeType) { res.status(400).json({ error: "mimeType required" }); return; }
   if (fileData.length > MAX_FILE_B64) { res.status(413).json({ error: "File too large (max ~24 MB)" }); return; }
+
+  // PDFs: try local pdfjs first. Free, fast, no token cap. Falls through to
+  // Gemini only when the PDF has no text layer (scanned / image-only).
+  // 100-char threshold filters out near-empty extractions (PDFs where pdfjs
+  // got just running headers and metadata) so we still escalate those.
+  if (mimeType === "application/pdf") {
+    try {
+      const buffer = Buffer.from(fileData, "base64");
+      const localText = await extractPdfTextServerSide(buffer);
+      if (localText.trim().length > 100) {
+        res.status(200).json({ text: localText, source: "pdfjs" });
+        return;
+      }
+    } catch { /* fall through to Gemini */ }
+  }
 
   try {
     const result = await geminiExtractFile(
@@ -457,7 +507,7 @@ async function handleExtractFile(req: ApiRequest, res: ApiResponse, geminiKey: s
       res.status(result.status).json(result.error);
       return;
     }
-    res.status(200).json({ text: result.text ?? "" });
+    res.status(200).json({ text: result.text ?? "", source: "gemini" });
   } catch (e: any) {
     console.error("[extract-file]", e);
     res.status(502).json({ error: e.message || "Extraction failed" });

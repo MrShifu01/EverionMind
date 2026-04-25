@@ -18,7 +18,7 @@ export interface BackgroundTask {
   entryTitle?: string;
 }
 
-const FILE_CONTENT_LIMIT = 6000;
+const FILE_CONTENT_LIMIT = 150_000;
 
 function extractJSON(text: string): string {
   const cleaned = text.replace(/```json|```/g, "").trim();
