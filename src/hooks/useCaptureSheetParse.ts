@@ -307,7 +307,7 @@ export function useCaptureSheetParse({
                   } catch (err) { console.error("[split:save]", err); splitFailed.push(entry.title || "(untitled)"); }
                 }
                 setUploadedFiles([]);
-                if (splitFailed.length) showToast(`${splitEntries.length - splitFailed.length} of ${splitEntries.length} saved. Failed: ${splitFailed.join(", ")}`, "warning");
+                if (splitFailed.length) showToast(`${splitEntries.length - splitFailed.length} of ${splitEntries.length} saved. Failed: ${splitFailed.join(", ")}`, "error");
                 setStatus("saved");
                 setTimeout(() => { setStatus(null); onClose(); }, 700);
                 return;
@@ -434,7 +434,7 @@ export function useCaptureSheetParse({
           }
           setUploadedFiles([]);
           if (failedTitles.length) {
-            showToast(`${parsedRaw.length - failedTitles.length} of ${parsedRaw.length} saved. Failed: ${failedTitles.join(", ")}`, "warning");
+            showToast(`${parsedRaw.length - failedTitles.length} of ${parsedRaw.length} saved. Failed: ${failedTitles.join(", ")}`, "error");
           }
           setStatus("saved");
           setTimeout(() => {

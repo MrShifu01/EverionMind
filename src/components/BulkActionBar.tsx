@@ -442,20 +442,18 @@ export default function BulkActionBar({
         {/* Destructive actions */}
         {onDelete && (
           <div className="flex gap-2">
-            {onDelete && (
-              <button
-                onClick={bulkDelete}
-                disabled={deleting || !!progress}
-                className="flex-1 rounded-xl py-2 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
-                style={{
-                  background: "color-mix(in oklch, var(--color-error) 12%, transparent)",
-                  color: "var(--color-error)",
-                  border: "1px solid color-mix(in oklch, var(--color-error) 30%, transparent)",
-                }}
-              >
-                {deleting ? "Deleting…" : `Delete ${count}`}
-              </button>
-            )}
+            <button
+              onClick={bulkDelete}
+              disabled={deleting || !!progress}
+              className="flex-1 rounded-xl py-2 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
+              style={{
+                background: "color-mix(in oklch, var(--color-error) 12%, transparent)",
+                color: "var(--color-error)",
+                border: "1px solid color-mix(in oklch, var(--color-error) 30%, transparent)",
+              }}
+            >
+              {deleting ? "Deleting…" : `Delete ${count}`}
+            </button>
           </div>
         )}
       </div>

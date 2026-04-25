@@ -441,7 +441,7 @@ function EverionContent({
                                 });
                               }
                             }}
-                            onDelete={async (ids) => {
+                            onDelete={async (ids: string[]) => {
                               for (const id of ids) {
                                 setEntries((prev) => prev.filter((e) => e.id !== id));
                                 await authFetch("/api/delete-entry", {
@@ -450,24 +450,6 @@ function EverionContent({
                                   body: JSON.stringify({ id }),
                                 }).catch((err) => console.error("[bulkDelete]", err));
                               }
-                            }}
-                            onReenrich={async (ids) => {
-                              await authFetch("/api/entries", {
-                                method: "PATCH",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({
-                                  ids,
-                                  changes: {
-                                    metadata: {
-                                      enrichment: { embedded: false, parsed: false, concepts_count: 0, has_insight: false },
-                                    },
-                                  },
-                                }),
-                              }).catch(() => null);
-                              await authFetch(
-                                `/api/entries?action=enrich-batch&brain_id=${activeBrain?.id}`,
-                                { method: "POST" },
-                              ).catch(() => null);
                             }}
                             onDone={(updated) => {
                               setEntries((prev) =>
