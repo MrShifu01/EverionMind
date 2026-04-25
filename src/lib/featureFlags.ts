@@ -7,7 +7,7 @@ export const FEATURE_FLAGS = {
     icon: "✦",
     prodEnabled: import.meta.env.VITE_FEATURE_GRAPH === "true",
   },
-  todos: { label: "Todos", icon: "✓", prodEnabled: import.meta.env.VITE_FEATURE_TODOS === "true" },
+  todos: { label: "Schedule", icon: "✓", prodEnabled: import.meta.env.VITE_FEATURE_TODOS === "true" },
   timeline: {
     label: "Timeline",
     icon: "◷",

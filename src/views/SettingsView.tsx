@@ -309,7 +309,7 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
     <div
       className="settings-root"
       style={{
-        height: "100%",
+        minHeight: "100dvh",
         background: "var(--bg)",
         fontFamily: "var(--f-sans)",
         display: "flex",

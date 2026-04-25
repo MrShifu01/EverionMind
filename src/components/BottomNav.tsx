@@ -7,7 +7,7 @@ const NAV_ITEMS = [
   { id: "memory", label: "Memory", icon: NavIcon.grid },
   { id: "chat", label: "Chat", icon: NavIcon.chat },
   { id: "_capture_fab", label: "Add", isFAB: true, icon: NavIcon.add },
-  { id: "todos", label: "Todos", icon: NavIcon.todos },
+  { id: "todos", label: "Schedule", icon: NavIcon.todos },
   { id: "settings", label: "Settings", icon: NavIcon.settings },
 ];
 

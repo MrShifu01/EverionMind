@@ -751,106 +751,108 @@ function MonthGrid({
 
 function WeekStrip({
   navDate,
-  selectedKey,
   todayKey,
   eventMap,
-  onSelect,
 }: {
   navDate: Date;
-  selectedKey: string | null;
   todayKey: string;
   eventMap: Record<string, CalEvent[]>;
-  onSelect: (key: string) => void;
 }) {
   const days = useMemo(() => buildWeek(navDate), [navDate]);
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
-        gap: 8,
-      }}
-    >
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {days.map((d) => {
         const key = toDateKey(d);
-        const dayEvents = eventMap[key] || [];
+        const events = eventMap[key] || [];
         const isToday = key === todayKey;
-        const isSel = key === selectedKey;
+        const isPast = key < todayKey;
+        const dayLabel = d.toLocaleDateString("en-ZA", { weekday: "long" });
+        const dateLabel = d.toLocaleDateString("en-ZA", { day: "numeric", month: "short" });
         return (
-          <button
+          <div
             key={key}
-            onClick={() => onSelect(key)}
-            className="cal-day press"
-            data-today={isToday || undefined}
-            data-selected={isSel || undefined}
+            className="cal-week-card"
             style={{
-              borderRadius: 14,
-              padding: 12,
-              background: isSel ? "var(--ember-wash)" : "var(--surface)",
-              border: isToday ? "2px solid var(--ember)" : "2px solid transparent",
+              background: isToday
+                ? "color-mix(in oklch, var(--ember-wash) 70%, var(--surface))"
+                : "var(--surface)",
+              border: isToday
+                ? "1px solid color-mix(in oklch, var(--ember) 32%, var(--line-soft))"
+                : "1px solid var(--line-soft)",
+              borderRadius: 16,
+              padding: 16,
               boxShadow: "var(--lift-1)",
-              textAlign: "left",
-              cursor: "pointer",
-              display: "flex",
-              flexDirection: "column",
-              gap: 6,
-              minHeight: 220,
-              transition: "transform 180ms ease, box-shadow 180ms ease, background 180ms ease",
+              opacity: isPast && !isToday ? 0.55 : 1,
+              transition: "transform 180ms ease, box-shadow 180ms ease",
+              ...(isToday ? { borderLeft: "3px solid var(--ember)" } : {}),
             }}
           >
-            <div className="f-sans" style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+            <div
+              className="f-sans"
+              style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: events.length > 0 ? 12 : 8 }}
+            >
               <span
                 style={{
-                  fontSize: 10,
+                  fontSize: 11,
                   fontWeight: 700,
-                  letterSpacing: "0.14em",
+                  letterSpacing: "0.16em",
                   textTransform: "uppercase",
-                  color: isSel ? "var(--ember)" : "var(--ink-ghost)",
+                  color: isToday ? "var(--ember)" : "var(--ink)",
                 }}
               >
-                {DAY_ABBRS[(d.getDay() + 6) % 7]}
+                {dayLabel}
               </span>
-              <span
-                style={{
-                  fontSize: 18,
-                  fontWeight: 600,
-                  color: isSel ? "var(--ember)" : "var(--ink)",
-                  marginLeft: "auto",
-                }}
-              >
-                {d.getDate()}
-              </span>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {dayEvents.slice(0, 4).map((ev) => (
-                <div
-                  key={ev.id}
-                  className="f-sans"
+              <span style={{ fontSize: 12, color: "var(--ink-faint)" }}>{dateLabel}</span>
+              {isToday && (
+                <span
                   style={{
-                    background: ev.source === "entry"
-                      ? "var(--ember-wash)"
-                      : "color-mix(in oklch, oklch(58% 0.13 248) 12%, var(--surface-high))",
-                    color: ev.source === "entry" ? "var(--ember)" : "oklch(54% 0.13 248)",
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    fontSize: 11,
-                    fontWeight: 500,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
+                    background: "var(--ember)",
+                    color: "var(--ember-ink)",
+                    borderRadius: 999,
+                    padding: "3px 8px 2px",
+                    fontSize: 9,
+                    fontWeight: 700,
+                    letterSpacing: "0.12em",
+                    textTransform: "uppercase",
+                    lineHeight: 1,
                   }}
-                  title={ev.title}
                 >
-                  {ev.title}
-                </div>
-              ))}
-              {dayEvents.length > 4 && (
-                <span className="f-sans" style={{ fontSize: 10, color: "var(--ink-ghost)" }}>
-                  +{dayEvents.length - 4} more
+                  Today
+                </span>
+              )}
+              {events.length > 0 && (
+                <span
+                  style={{
+                    marginLeft: "auto",
+                    fontSize: 11,
+                    color: "var(--ink-ghost)",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {events.length}
                 </span>
               )}
             </div>
-          </button>
+            {events.length > 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {events.map((ev) => (
+                  <EventCard key={ev.id} event={ev} />
+                ))}
+              </div>
+            ) : (
+              <p
+                className="f-serif"
+                style={{
+                  margin: 0,
+                  fontSize: 13,
+                  fontStyle: "italic",
+                  color: "var(--ink-ghost)",
+                }}
+              >
+                Nothing scheduled.
+              </p>
+            )}
+          </div>
         );
       })}
     </div>
@@ -1059,7 +1061,7 @@ export default function TodoCalendarTab({ entries, externalEvents, brainId, onAd
 
   const handleSelect = (key: string) => {
     setSelectedKey(key);
-    if (!isDesktop && view !== "myday") setSheetOpen(true);
+    if (!isDesktop && view === "calendar") setSheetOpen(true);
   };
 
   const handleAddClick = () => {
@@ -1118,10 +1120,8 @@ export default function TodoCalendarTab({ entries, externalEvents, brainId, onAd
           {view === "week" && (
             <WeekStrip
               navDate={navDate}
-              selectedKey={selectedKey}
               todayKey={todayKey}
               eventMap={eventMap}
-              onSelect={handleSelect}
             />
           )}
           {view === "myday" && (
@@ -1129,9 +1129,9 @@ export default function TodoCalendarTab({ entries, externalEvents, brainId, onAd
           )}
         </div>
 
-        {/* Desktop side panel — only for week + calendar views; My Day is its
-            own list and has its own day groupings. */}
-        {isDesktop && view !== "myday" && selectedKey && (
+        {/* Desktop side panel — only for the month grid; week and my-day
+            views render their events inline. */}
+        {isDesktop && view === "calendar" && selectedKey && (
           <SidePanel>
             <DayDetailContent
               date={parseISO(selectedKey + "T00:00:00")}
@@ -1143,7 +1143,7 @@ export default function TodoCalendarTab({ entries, externalEvents, brainId, onAd
       </div>
 
       {/* Mobile bottom sheet — same content, slide-up presentation. */}
-      {!isDesktop && view !== "myday" && (
+      {!isDesktop && view === "calendar" && (
         <BottomSheet open={sheetOpen && !!selectedKey} onClose={() => setSheetOpen(false)}>
           {selectedKey && (
             <DayDetailContent

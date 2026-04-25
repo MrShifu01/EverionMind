@@ -107,11 +107,18 @@ export default function TodoQuickAdd({ brainId, onAdded }: Props) {
   return (
     <form
       onSubmit={submit}
-      className="flex items-center gap-2 rounded-2xl border px-3 py-2"
-      style={{ background: "var(--surface)", borderColor: "var(--line-soft)" }}
+      className="flex items-center gap-2 rounded-2xl border px-3"
+      style={{
+        background: "var(--surface)",
+        borderColor: "var(--line-soft)",
+        minHeight: 48,
+      }}
     >
       <CheckCircleIcon className="h-4 w-4 shrink-0" style={{ color: "var(--ink-ghost)" }} />
-      <div className="min-w-0 flex-1">
+      <div
+        className="min-w-0 flex-1"
+        style={{ display: "flex", flexDirection: "column", justifyContent: "center", paddingTop: 6, paddingBottom: 6 }}
+      >
         <textarea
           ref={inputRef}
           value={title}
@@ -136,6 +143,8 @@ export default function TodoQuickAdd({ brainId, onAdded }: Props) {
             overflow: "hidden",
             lineHeight: "1.5",
             padding: 0,
+            display: "block",
+            margin: 0,
           }}
         />
         {parsed && (parsed.dueDate || parsed.dayOfMonth || parsed.priority || parsed.tags.length > 0 || parsed.energy) && (

@@ -9,7 +9,7 @@ interface MobileMoreMenuProps {
 
 const SIDEBAR_ITEMS = [
   { id: "grid", label: "Memory Grid", icon: NavIcon.grid },
-  { id: "todos", label: "Todos", icon: NavIcon.todos },
+  { id: "todos", label: "Schedule", icon: NavIcon.todos },
   { id: "vault", label: "Vault", icon: NavIcon.vault },
   { id: "settings", label: "Settings", icon: NavIcon.settings },
 ];

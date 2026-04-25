@@ -96,7 +96,7 @@ export default function CaptureWelcomeScreen({
       )
       .slice(0, 5);
     const quickActions: { id: string; label: string; icon: ReactNode }[] = [
-      { id: "todos", label: "Todos", icon: NavIcon.todos },
+      { id: "todos", label: "Schedule", icon: NavIcon.todos },
       { id: "memory", label: "Memory Grid", icon: NavIcon.grid },
     ];
     return (

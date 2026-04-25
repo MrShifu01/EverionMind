@@ -99,29 +99,20 @@ const PLUME_ICON = (
 );
 
 export default function DesktopSidebar({
-  activeBrainName,
+  activeBrainName: _activeBrainName,
   view,
   onNavigate,
   onCapture,
   isDark,
   onToggleTheme,
-  isOnline,
-  pendingCount,
+  isOnline: _isOnline,
+  pendingCount: _pendingCount,
   onShowCreateBrain: _onShowCreateBrain,
   navViews,
   searchInput,
   onSearchChange,
   children,
 }: DesktopSidebarProps) {
-  const isOffline = !isOnline;
-  const isSyncing = isOnline && pendingCount > 0;
-  const statusDotColor = isOffline
-    ? "var(--ink-faint)"
-    : isSyncing
-      ? "var(--ember)"
-      : "var(--moss)";
-  const statusText = isOffline ? "offline" : isSyncing ? `${pendingCount} pending` : null;
-
   return (
     <aside
       className="fixed top-0 left-0 z-40 hidden h-dvh flex-col lg:flex"
@@ -165,52 +156,6 @@ export default function DesktopSidebar({
           Everion
         </span>
       </div>
-
-      {/* Brain plate */}
-      <div
-        style={{
-          marginBottom: 12,
-          padding: "8px 10px",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          background: "var(--surface)",
-          border: "1px solid var(--line-soft)",
-          borderRadius: 8,
-        }}
-      >
-        <span
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: "50%",
-            flexShrink: 0,
-            background: statusDotColor,
-          }}
-        />
-        <span
-          className="f-serif"
-          style={{
-            fontSize: 14,
-            fontStyle: "italic",
-            color: "var(--ink)",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-          title={activeBrainName}
-        >
-          {activeBrainName || "Your brain"}
-        </span>
-      </div>
-      {statusText && (
-        <div
-          className="micro"
-          style={{ padding: "0 10px 10px", color: isOffline ? "var(--ink-faint)" : "var(--ember)" }}
-        >
-          {statusText}
-        </div>
-      )}
 
       {/* Brain switcher slot */}
       {children && <div style={{ marginBottom: 12, padding: "0 2px" }}>{children}</div>}
@@ -259,14 +204,35 @@ export default function DesktopSidebar({
         }}
       >
         {SEARCH_ICON}
+        {/* Honeypot inputs absorb Chrome's eager username/password autofill
+            before it reaches the real search field. Chrome routinely ignores
+            autoComplete="off" on text inputs; offering it a more
+            convincing-looking target stops it from hijacking the search. */}
         <input
-          // type=search + name="memory-search" + autoComplete="off"
-          // disable Safari/Chrome's credential autofill, which was
-          // sometimes prefilling the user's email here and silently
-          // distorting the memory grid. data-* attrs cover password
-          // managers (1Password, Bitwarden, LastPass) too.
+          type="text"
+          name="username"
+          autoComplete="username"
+          tabIndex={-1}
+          aria-hidden="true"
+          style={{ position: "absolute", left: -10000, width: 1, height: 1, opacity: 0 }}
+        />
+        <input
+          type="password"
+          name="password"
+          autoComplete="new-password"
+          tabIndex={-1}
+          aria-hidden="true"
+          style={{ position: "absolute", left: -10000, width: 1, height: 1, opacity: 0 }}
+        />
+        <input
+          // type=search + a non-credential name + autoComplete="off" disable
+          // Safari/Chrome's credential autofill, which was prefilling the
+          // user's email here and silently distorting the memory grid.
+          // The honeypot inputs above catch Chrome's eager fills first.
+          // data-* attrs cover password managers (1Password, Bitwarden,
+          // LastPass) too.
           type="search"
-          name="memory-search"
+          name="everion-memory-q"
           autoComplete="off"
           data-1p-ignore
           data-lpignore="true"

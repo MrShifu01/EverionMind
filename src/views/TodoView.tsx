@@ -348,7 +348,7 @@ type Tab = "today" | "list" | "calendar";
 export default function TodoView({ entries: propEntries, typeIcons = {}, activeBrainId }: TodoViewProps) {
   const ctx = useEntries();
   const entries = propEntries || ctx?.entries || [];
-  const [tab, setTab] = useState<Tab>("today");
+  const [tab, setTab] = useState<Tab>("calendar");
   const [showCompleted, setShowCompleted] = useState(false);
   const [editState, setEditState] = useState<{ entry: Entry; rect: DOMRect } | null>(null);
   const [karma, setKarma] = useState(getKarma());
@@ -504,7 +504,7 @@ export default function TodoView({ entries: propEntries, typeIcons = {}, activeB
             className="f-serif"
             style={{ fontSize: 22, fontWeight: 450, letterSpacing: "-0.01em", margin: 0, color: "var(--ink)" }}
           >
-            Todos
+            Schedule
           </h1>
           <div className="f-serif" style={{ fontSize: 13, color: "var(--ink-faint)", fontStyle: "italic", marginTop: 2 }}>
             {total > 0 ? `${total} active · ${completed.length} done` : "your focused task list"}
@@ -513,23 +513,6 @@ export default function TodoView({ entries: propEntries, typeIcons = {}, activeB
 
         <div className="flex items-center gap-4">
           <KarmaBar points={karma.points} streak={karma.streak} />
-          {/* Tab switcher */}
-          <div className="flex items-center overflow-hidden rounded-xl border" style={{ borderColor: "var(--line-soft)" }}>
-            {TABS.map((t, i) => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className="px-4 py-2 text-sm font-medium transition-colors"
-                style={{
-                  background: tab === t.id ? "var(--ember)" : "var(--surface)",
-                  color: tab === t.id ? "var(--ember-ink)" : "var(--ink-soft)",
-                  borderRight: i < TABS.length - 1 ? "1px solid var(--line-soft)" : "none",
-                }}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
         </div>
       </header>
 

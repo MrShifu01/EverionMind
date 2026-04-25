@@ -78,7 +78,7 @@ const NAV_VIEWS = [
   { id: "memory", l: "Memory", ic: "▦" },
   { id: "chat", l: "Chat", ic: "💬" },
   { id: "graph", l: "Graph", ic: "✦" },
-  { id: "todos", l: "Todos", ic: "✓" },
+  { id: "todos", l: "Schedule", ic: "✓" },
   { id: "vault", l: "Vault", ic: "🔐" },
 ];
 

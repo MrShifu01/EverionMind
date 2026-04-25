@@ -90,7 +90,7 @@ const COMMANDS: { label: string; view: string; kbd: string[] }[] = [
   { label: "Capture something", view: "capture", kbd: ["N"] },
   { label: "Go to chat", view: "chat", kbd: ["J"] },
   { label: "Go to graph", view: "graph", kbd: ["G"] },
-  { label: "Open todos", view: "todos", kbd: ["T"] },
+  { label: "Open schedule", view: "todos", kbd: ["T"] },
 ];
 
 function Kbd({ children }: { children: React.ReactNode }) {
@@ -269,13 +269,43 @@ export default function OmniSearch({
             <circle cx="11" cy="11" r="6.5" />
             <path d="m20 20-3.5-3.5" />
           </svg>
+          {/* Honeypot inputs absorb Chrome's eager username/password autofill
+              before it reaches the real search field. Chrome routinely ignores
+              autoComplete="off" on text inputs; offering it a more
+              convincing-looking target stops it hijacking the search. */}
+          <input
+            type="text"
+            name="username"
+            autoComplete="username"
+            tabIndex={-1}
+            aria-hidden="true"
+            style={{ position: "absolute", left: -10000, width: 1, height: 1, opacity: 0 }}
+          />
+          <input
+            type="password"
+            name="password"
+            autoComplete="new-password"
+            tabIndex={-1}
+            aria-hidden="true"
+            style={{ position: "absolute", left: -10000, width: 1, height: 1, opacity: 0 }}
+          />
           <input
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="search everything…"
+            // type=search + a unique non-credential name + autoComplete="off"
+            // disable Safari/Chrome's credential autofill, which was silently
+            // prefilling the user's email here. The honeypot inputs above
+            // catch Chrome's eager fills first. data-* attrs cover password
+            // managers (1Password, Bitwarden, LastPass) too.
             type="search"
+            name="everion-omni-q"
+            autoComplete="off"
+            data-1p-ignore
+            data-lpignore="true"
+            data-form-type="other"
             enterKeyHint="search"
             autoCapitalize="none"
             autoCorrect="off"
