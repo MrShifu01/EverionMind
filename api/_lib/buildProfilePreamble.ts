@@ -19,9 +19,24 @@ import { sbHeaders } from "./sbHeaders.js";
 
 const SB_URL = (process.env.SUPABASE_URL || "").trim();
 
-const MAX_PREAMBLE_CHARS = 2200;
-const MAX_FACTS = 30;
-const MIN_CONFIDENCE = 0.5;
+// Character budget — bumped from 2200 to 4500 because we now guarantee
+// inclusion of all user-confirmed facts (manual / chat / pinned). Still
+// trivial in token cost: ~1100 tokens, fully cached after the first call
+// in a 5-minute window.
+const MAX_PREAMBLE_CHARS = 4500;
+
+// Hard sanity cap on confirmed facts in case a user types hundreds. The
+// realistic upper bound for an active user is ~30, so 80 is plenty.
+const MAX_CONFIRMED_FACTS = 80;
+
+// Auto-extracted facts compete for these slots. Capped low because they're
+// less trusted (model inferred, not user confirmed) and we'd rather lean on
+// RAG retrieval to surface the long tail when a question makes them relevant.
+const MAX_AUTO_FACTS = 12;
+
+// Confidence floor for AUTO-extracted facts only. Confirmed facts ignore
+// this — you typed/said them, you confirmed them.
+const AUTO_MIN_CONFIDENCE = 0.85;
 
 interface FamilyMember {
   relation?: string;
@@ -103,13 +118,34 @@ export async function buildProfilePreamble(
     }
   }
 
-  facts = facts
+  // Two-pool selection. Confirmed facts (you typed them, said them in chat,
+  // or pinned them) are guaranteed inclusion — they're the user's identity,
+  // not memory. Auto-extracted facts compete for a smaller pool of slots
+  // and have to clear a higher confidence bar; the rest live in the RAG
+  // pool and surface only when retrieval pulls them in.
+  const isConfirmed = (f: PersonaFactRow): boolean => {
+    const m = f.metadata ?? {};
+    if (m.pinned === true) return true;
+    if (m.skip_persona === true) return true;
+    const src = String(m.source || "");
+    return src === "manual" || src === "chat";
+  };
+
+  const confirmed = facts
+    .filter(isConfirmed)
+    .sort((a, b) => rankFact(b) - rankFact(a))
+    .slice(0, MAX_CONFIRMED_FACTS);
+
+  const auto = facts
+    .filter((f) => !isConfirmed(f))
     .filter((f) => {
-      const conf = typeof f.metadata?.confidence === "number" ? f.metadata.confidence : 0.7;
-      return conf >= MIN_CONFIDENCE;
+      const conf = typeof f.metadata?.confidence === "number" ? f.metadata.confidence : 0;
+      return conf >= AUTO_MIN_CONFIDENCE;
     })
     .sort((a, b) => rankFact(b) - rankFact(a))
-    .slice(0, MAX_FACTS);
+    .slice(0, MAX_AUTO_FACTS);
+
+  facts = [...confirmed, ...auto];
 
   // ── Render ────────────────────────────────────────────────────────────────
   const coreLines: string[] = [];
