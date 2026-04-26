@@ -22,6 +22,7 @@ import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import SettingsRow, { SettingsToggle } from "./SettingsRow";
 import { authFetch } from "../../lib/authFetch";
 import { useBrain } from "../../context/BrainContext";
+import { useBackgroundOps } from "../../hooks/useBackgroundOps";
 
 interface ProfileFields {
   full_name: string;
@@ -116,20 +117,13 @@ export default function ProfileTab() {
   const [newFactBucket, setNewFactBucket] = useState<typeof BUCKET_ORDER[number]>("preference");
   const [adding, setAdding] = useState(false);
 
-  // Backfill state — one-time scan of existing entries through the persona
-  // extractor. Loops until the server reports remaining=0 so the user sees
-  // every fact extracted on the spot, not on the next cron tick.
-  const [scanning, setScanning] = useState(false);
-  const [scanProgress, setScanProgress] = useState<{ scanned: number; extracted: number } | null>(null);
-  const [scanResult, setScanResult] = useState<string | null>(null);
-
-  // Reset state — undoes the previous (buggy) scan that flipped entry types.
-  const [resetting, setResetting] = useState(false);
-  const [resetResult, setResetResult] = useState<string | null>(null);
-
-  // Wipe state — hard-deletes auto-extracted facts so a fresh scan can run.
-  const [wiping, setWiping] = useState(false);
-  const [wipeResult, setWipeResult] = useState<string | null>(null);
+  // Long-running operations now live in the global background-ops system —
+  // tab-survivable, app-close-survivable, with a global toast. Local state
+  // here just mirrors "is my kind currently running?" for button disable.
+  const ops = useBackgroundOps();
+  const scanning = brainId ? ops.isRunning("persona-scan", brainId) : false;
+  const wiping = brainId ? ops.isRunning("persona-wipe", brainId) : false;
+  const resetting = brainId ? ops.isRunning("persona-reset", brainId) : false;
 
   // ── Load core ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -313,101 +307,35 @@ export default function ProfileTab() {
     }
   }
 
-  async function runBackfill() {
+  function runBackfill() {
     if (!brainId || scanning) return;
-    setScanning(true);
-    setScanResult(null);
-    setScanProgress({ scanned: 0, extracted: 0 });
-    let totalScanned = 0;
-    let totalExtracted = 0;
-    let safety = 40; // hard ceiling on polling rounds (40 × 50 = 2000 entries)
-    try {
-      while (safety-- > 0) {
-        const r = await authFetch("/api/entries?action=backfill-persona", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ brain_id: brainId, batch_size: 50 }),
-        });
-        if (!r?.ok) throw new Error("backfill_failed");
-        const data = await r.json() as { scanned: number; extracted: number; remaining: number };
-        totalScanned += data.scanned;
-        totalExtracted += data.extracted;
-        setScanProgress({ scanned: totalScanned, extracted: totalExtracted });
-        if (data.scanned === 0 || data.remaining === 0) break;
-      }
-      setScanResult(
-        totalScanned === 0
-          ? "Already scanned — nothing new."
-          : totalExtracted === 0
-            ? `Scanned ${totalScanned} ${totalScanned === 1 ? "entry" : "entries"} · no new persona facts found.`
-            : `Scanned ${totalScanned} ${totalScanned === 1 ? "entry" : "entries"} · extracted ${totalExtracted} ${totalExtracted === 1 ? "fact" : "facts"} to your About You.`,
-      );
-      await reloadFacts();
-    } catch (e: any) {
-      setScanResult(e?.message || "Scan failed — try again.");
-    } finally {
-      setScanning(false);
-    }
+    ops.startTask({ kind: "persona-scan", label: "Scanning entries for persona facts", resumeKey: brainId });
+    // Poll every few seconds to refresh the visible facts as the scan runs.
+    const poll = setInterval(() => { reloadFacts(); }, 3000);
+    setTimeout(() => clearInterval(poll), 5 * 60_000);
   }
 
-  async function runReset() {
+  function runReset() {
     if (!brainId || resetting) return;
     if (!window.confirm(
       "Undo the previous scan?\n\n" +
       "This restores entries that were wrongly converted into persona cards back to their best-guessed original type (todos return to schedule, events to calendar, etc.).\n\n" +
       "Manually-added facts and chat-tool facts are NOT touched.",
     )) return;
-    setResetting(true);
-    setResetResult(null);
-    try {
-      const r = await authFetch("/api/entries?action=revert-persona-backfill", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brain_id: brainId }),
-      });
-      if (!r?.ok) throw new Error("revert_failed");
-      const data = await r.json() as { scanned: number; reverted: number };
-      setResetResult(
-        data.reverted === 0
-          ? "Nothing to revert — your About You is already clean."
-          : `Reverted ${data.reverted} ${data.reverted === 1 ? "entry" : "entries"} back to their original type.`,
-      );
-      await reloadFacts();
-    } catch (e: any) {
-      setResetResult(e?.message || "Reset failed — try again.");
-    } finally {
-      setResetting(false);
-    }
+    ops.startTask({ kind: "persona-reset", label: "Reverting previous persona scan", resumeKey: brainId });
+    // Quick reload after the one-shot completes (server-side is fast).
+    setTimeout(() => { reloadFacts(); }, 1500);
   }
 
-  async function runWipe() {
+  function runWipe() {
     if (!brainId || wiping) return;
     if (!window.confirm(
       "Wipe every auto-extracted fact?\n\n" +
       "This deletes all the facts the scanner produced. Manually-added facts and facts you added via chat are kept.\n\n" +
       "After wiping, click Run scan again to re-extract with the latest prompt.",
     )) return;
-    setWiping(true);
-    setWipeResult(null);
-    try {
-      const r = await authFetch("/api/entries?action=wipe-persona-extracted", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brain_id: brainId }),
-      });
-      if (!r?.ok) throw new Error("wipe_failed");
-      const data = await r.json() as { deleted: number; cleared: number };
-      setWipeResult(
-        data.deleted === 0
-          ? "Nothing to wipe — no auto-extracted facts."
-          : `Deleted ${data.deleted} ${data.deleted === 1 ? "fact" : "facts"} · ready to re-scan ${data.cleared} ${data.cleared === 1 ? "entry" : "entries"}.`,
-      );
-      await reloadFacts();
-    } catch (e: any) {
-      setWipeResult(e?.message || "Wipe failed — try again.");
-    } finally {
-      setWiping(false);
-    }
+    ops.startTask({ kind: "persona-wipe", label: "Wiping auto-extracted persona facts", resumeKey: brainId });
+    setTimeout(() => { reloadFacts(); }, 1500);
   }
 
   async function patchFact(id: string, metaPatch: Record<string, unknown>) {
@@ -635,11 +563,6 @@ export default function ProfileTab() {
             <p className="f-serif" style={{ margin: "2px 0 0", fontSize: 12, fontStyle: "italic", color: "var(--ink-faint)", lineHeight: 1.45 }}>
               An earlier version of the scan converted whole entries into persona cards by mistake. Reset to put them back into Schedule, Calendar, etc., then run the new scan below.
             </p>
-            {resetResult && !resetting && (
-              <p className="f-serif" style={{ margin: "6px 0 0", fontSize: 12, fontStyle: "italic", color: "var(--moss)" }}>
-                {resetResult}
-              </p>
-            )}
           </div>
           <button
             type="button"
@@ -686,11 +609,6 @@ export default function ProfileTab() {
             <p className="f-serif" style={{ margin: "2px 0 0", fontSize: 12, fontStyle: "italic", color: "var(--ink-faint)", lineHeight: 1.45 }}>
               Removes everything the scanner has produced so far. Your manually-added facts and chat-added facts stay. Use this before re-running the scan after a prompt update.
             </p>
-            {wipeResult && !wiping && (
-              <p className="f-serif" style={{ margin: "6px 0 0", fontSize: 12, fontStyle: "italic", color: "var(--moss)" }}>
-                {wipeResult}
-              </p>
-            )}
           </div>
           <button
             type="button"
@@ -734,18 +652,8 @@ export default function ProfileTab() {
             Scan existing entries
           </p>
           <p className="f-serif" style={{ margin: "2px 0 0", fontSize: 12, fontStyle: "italic", color: "var(--ink-faint)", lineHeight: 1.45 }}>
-            Look through every note in this brain and extract <em>short facts</em> about you. Each fact becomes its own small entry; your originals are never changed.
+            Look through every note in this brain and extract <em>short facts</em> about you. Each fact becomes its own small entry; your originals are never changed. Progress shows in the toast — safe to switch tabs or close the app.
           </p>
-          {scanProgress && scanning && (
-            <p className="f-sans" style={{ margin: "6px 0 0", fontSize: 12, color: "var(--ember)" }}>
-              Scanned {scanProgress.scanned} · extracted {scanProgress.extracted}…
-            </p>
-          )}
-          {scanResult && !scanning && (
-            <p className="f-serif" style={{ margin: "6px 0 0", fontSize: 12, fontStyle: "italic", color: "var(--moss)" }}>
-              {scanResult}
-            </p>
-          )}
         </div>
         <button
           type="button"

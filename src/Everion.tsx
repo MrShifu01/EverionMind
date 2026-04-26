@@ -16,6 +16,8 @@ import { ConceptGraphProvider, useConceptGraph } from "./context/ConceptGraphCon
 import { UndoToast } from "./components/UndoToast";
 import { NudgeBanner } from "./components/NudgeBanner";
 import { BackgroundTaskToast } from "./components/BackgroundTaskToast";
+import { BackgroundOpsToast } from "./components/BackgroundOpsToast";
+import { BackgroundOpsProvider } from "./hooks/useBackgroundOps";
 import { useBackgroundCapture } from "./hooks/useBackgroundCapture";
 import { VirtualGrid, VirtualTimeline } from "./components/EntryList";
 import BulkActionBar from "./components/BulkActionBar";
@@ -612,6 +614,7 @@ function EverionContent({
             onDismiss={bgDismissTask}
             onDismissAll={bgDismissAll}
           />
+          <BackgroundOpsToast />
 
           {saveError && (
             <div
@@ -913,6 +916,7 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
     <EntriesContext.Provider value={entriesValue}>
       <BrainContext.Provider value={brainValue}>
         <ConceptGraphProvider activeBrainId={activeBrain?.id}>
+          <BackgroundOpsProvider>
           <EverionContent
             appShell={appShell}
             cryptoKey={dataLayer.cryptoKey}
@@ -944,6 +948,7 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
             vaultEntries={dataLayer.vaultEntries}
             loadError={dataLayer.loadError}
           />
+          </BackgroundOpsProvider>
         </ConceptGraphProvider>
       </BrainContext.Provider>
     </EntriesContext.Provider>

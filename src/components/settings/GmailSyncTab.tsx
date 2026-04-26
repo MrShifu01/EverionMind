@@ -7,10 +7,7 @@ import GmailScanReviewModal, { type ScanResultItem } from "./GmailScanReviewModa
 import GmailStagingInbox from "./GmailStagingInbox";
 import { useEntries } from "../../context/EntriesContext";
 import { useBrain } from "../../context/BrainContext";
-
-// §5: Module-level scan lock — persists across remounts so closing/reopening
-// the settings panel doesn't reset the in-progress guard.
-let _scanInProgress = false;
+import { useBackgroundOps } from "../../hooks/useBackgroundOps";
 
 interface GmailIntegration {
   id: string;
@@ -57,11 +54,14 @@ interface ScanDebug {
 export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
   const { refreshEntries } = useEntries();
   const { activeBrain } = useBrain();
+  const ops = useBackgroundOps();
+  // Gmail scan is global: brain-agnostic at the kind level so we don't double-fire
+  // if the user changes brains mid-scan.
+  const scanning = ops.isRunning("gmail-scan");
   const [integration, setIntegration] = useState<GmailIntegration | null>(null);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [modalMode, setModalMode] = useState<"connect" | "edit" | null>(null);
-  const [scanning, setScanning] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [lastDebug, setLastDebug] = useState<ScanDebug | null>(null);
   const [reviewItems, setReviewItems] = useState<ScanResultItem[]>([]);
@@ -121,55 +121,20 @@ export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
     setMsg({ text: "Preferences saved.", ok: true });
   }
 
-  async function handleScanNow() {
-    if (_scanInProgress) return;
-    _scanInProgress = true;
-    setScanning(true);
+  function handleScanNow() {
+    if (scanning) return;
     setMsg(null);
     setLastDebug(null);
-    try {
-      const r = await authFetch("/api/gmail?action=scan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brain_id: activeBrain?.id ?? null }),
-      });
-      let data: any;
-      try {
-        data = await r?.json();
-      } catch {
-        /* non-JSON error body */
-      }
-      if (data?.debug) setLastDebug(data.debug);
-      // §2.3: Surface token-refresh failure as a distinct, actionable error
-      if (data?.debug?.tokenRefreshFailed) {
-        setMsg({ text: "Gmail token expired — please disconnect and reconnect your account.", ok: false });
-      } else if (!r?.ok) {
-        setMsg({ text: data?.error ?? "Scan failed. Please try again.", ok: false });
-      } else {
-        const created: number = data?.created ?? 0;
-        if (created > 0 && Array.isArray(data?.entries) && data.entries.length > 0) {
-          setReviewItems(data.entries);
-          setMsg({
-            text: `Scan complete — ${created} new item${created !== 1 ? "s" : ""} ready for review.`,
-            ok: true,
-          });
-        } else {
-          setMsg({
-            text: created === 0 ? "Scan complete — no new items found." : `${created} new item${created !== 1 ? "s" : ""} flagged.`,
-            ok: created > 0,
-          });
-        }
-        await fetchIntegration();
-        if (created > 0) await refreshEntries();
-      }
-    } catch (e: any) {
-      setMsg({ text: `Scan failed: ${e?.message ?? "network error"}`, ok: false });
-      await fetchIntegration();
-      await refreshEntries();
-    } finally {
-      _scanInProgress = false;
-      setScanning(false);
-    }
+    ops.startTask({
+      kind: "gmail-scan",
+      label: "Scanning Gmail for new items",
+      resumeKey: activeBrain?.id ?? "",
+    });
+    // Refresh integration + entries shortly after the task likely completes,
+    // and again later as a safety net for slower scans. The runner reports
+    // success/failure in the toast; new staged items show in the inbox below.
+    setTimeout(() => { fetchIntegration(); refreshEntries(); }, 8000);
+    setTimeout(() => { fetchIntegration(); refreshEntries(); }, 30000);
   }
 
   async function handleDisconnect() {

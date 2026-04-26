@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import ProvidersTab from "./ProvidersTab";
 import SettingsRow, { SettingsButton, SettingsExpand } from "./SettingsRow";
 import { authFetch } from "../../lib/authFetch";
+import { useBackgroundOps } from "../../hooks/useBackgroundOps";
 import type { Brain } from "../../types";
 
 interface Props {
@@ -57,8 +58,10 @@ interface DebugPayload {
 }
 
 export default function AITab({ activeBrain, isAdmin }: Props) {
-  const [enriching, setEnriching] = useState(false);
-  const [enrichResult, setEnrichResult] = useState<{ processed: number; remaining: number } | null>(null);
+  const ops = useBackgroundOps();
+  const enriching = activeBrain?.id ? ops.isRunning("enrich-run-now", activeBrain.id) : false;
+  const clearing = activeBrain?.id ? ops.isRunning("enrich-clear-backfill", activeBrain.id) : false;
+  const retrying = activeBrain?.id ? ops.isRunning("enrich-retry-failed", activeBrain.id) : false;
   const [byokOpen, setByokOpen] = useState(false);
 
   // Admin-only diagnostic state
@@ -66,10 +69,6 @@ export default function AITab({ activeBrain, isAdmin }: Props) {
   const [debug, setDebug] = useState<DebugPayload | null>(null);
   const [debugError, setDebugError] = useState<string | null>(null);
   const [debugLoading, setDebugLoading] = useState(false);
-  const [clearing, setClearing] = useState(false);
-  const [clearResult, setClearResult] = useState<{ cleared: number; scanned: number } | null>(null);
-  const [retrying, setRetrying] = useState(false);
-  const [retryResult, setRetryResult] = useState<{ reset: number; processed: number; remaining: number } | null>(null);
 
   const refreshDebug = useCallback(async () => {
     if (!activeBrain?.id || !isAdmin) return;
@@ -95,55 +94,22 @@ export default function AITab({ activeBrain, isAdmin }: Props) {
     if (diagOpen) refreshDebug();
   }, [diagOpen, refreshDebug]);
 
-  async function runEnrichNow() {
+  function runEnrichNow() {
     if (!activeBrain?.id || enriching) return;
-    setEnriching(true);
-    setEnrichResult(null);
-    try {
-      const r = await authFetch(`/api/entries?action=enrich-batch`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brain_id: activeBrain.id, batch_size: 10 }),
-      });
-      if (r.ok) setEnrichResult(await r.json());
-    } finally {
-      setEnriching(false);
-      if (diagOpen) refreshDebug();
-    }
+    ops.startTask({ kind: "enrich-run-now", label: "Enriching pending entries", resumeKey: activeBrain.id });
+    if (diagOpen) setTimeout(refreshDebug, 1500);
   }
 
-  async function clearBackfill() {
+  function clearBackfill() {
     if (!activeBrain?.id || clearing) return;
-    setClearing(true);
-    setClearResult(null);
-    try {
-      const r = await authFetch(`/api/entries?action=enrich-clear-backfill`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brain_id: activeBrain.id }),
-      });
-      if (r.ok) setClearResult(await r.json());
-    } finally {
-      setClearing(false);
-      refreshDebug();
-    }
+    ops.startTask({ kind: "enrich-clear-backfill", label: "Clearing backfill flags", resumeKey: activeBrain.id });
+    setTimeout(refreshDebug, 1500);
   }
 
-  async function retryFailedEmbeddings() {
+  function retryFailedEmbeddings() {
     if (!activeBrain?.id || retrying) return;
-    setRetrying(true);
-    setRetryResult(null);
-    try {
-      const r = await authFetch(`/api/entries?action=enrich-retry-failed`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brain_id: activeBrain.id }),
-      });
-      if (r.ok) setRetryResult(await r.json());
-    } finally {
-      setRetrying(false);
-      refreshDebug();
-    }
+    ops.startTask({ kind: "enrich-retry-failed", label: "Retrying failed embeddings", resumeKey: activeBrain.id });
+    setTimeout(refreshDebug, 1500);
   }
 
   return (
@@ -171,20 +137,6 @@ export default function AITab({ activeBrain, isAdmin }: Props) {
           </SettingsButton>
         </div>
       </SettingsRow>
-      {enrichResult && (
-        <SettingsExpand open>
-          <p
-            className="f-sans"
-            style={{ fontSize: 13, color: "var(--ink-soft)", margin: 0, lineHeight: 1.5 }}
-          >
-            Processed {enrichResult.processed}
-            {enrichResult.remaining > 0
-              ? ` · ${enrichResult.remaining} remaining`
-              : " · all up to date"}
-          </p>
-        </SettingsExpand>
-      )}
-
       {isAdmin && (
         <>
           <SettingsRow
@@ -209,17 +161,6 @@ export default function AITab({ activeBrain, isAdmin }: Props) {
                 </SettingsButton>
               )}
             </div>
-            {clearResult && (
-              <p className="f-sans" style={{ fontSize: 12, color: "var(--moss)", margin: 0 }}>
-                Cleared {clearResult.cleared} of {clearResult.scanned} backfilled entries — Run now will pick these up.
-              </p>
-            )}
-            {retryResult && (
-              <p className="f-sans" style={{ fontSize: 12, color: "var(--moss)", margin: 0 }}>
-                Reset {retryResult.reset} failed · {retryResult.processed} processed
-                {retryResult.remaining > 0 ? ` · ${retryResult.remaining} remaining` : " · all up to date"}.
-              </p>
-            )}
             {debugError && (
               <p className="f-sans" style={{ fontSize: 12, color: "var(--blood)", margin: 0 }}>
                 {debugError}
