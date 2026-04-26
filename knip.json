@@ -1,5 +1,30 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignore": [
+    ".claude/**",
+    ".smashOS/**",
+    ".smash-os/**",
+    ".worktrees/**",
+    "graphify-out/**",
+    "scripts/mock-prompt-audit/**",
+    "supabase/functions/**",
+    "dist/**"
+  ],
+  "entry": [
+    "src/main.tsx",
+    "src/sw.js",
+    "api/*.ts",
+    "vite.config.js",
+    "eslint.config.js",
+    "sheriff.config.ts",
+    "tests/**/*.test.{ts,tsx}",
+    "scripts/**/*.ts"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx}",
+    "api/**/*.ts",
+    "tests/**/*.ts"
+  ],
   "tags": [
     "-lintignore"
   ]
