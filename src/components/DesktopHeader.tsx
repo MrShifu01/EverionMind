@@ -64,13 +64,11 @@ const SEARCH_ICON = (
   </svg>
 );
 
+import { getCachedEmail } from "../lib/userEmailCache";
+
 function readCachedEmail(): string {
   if (typeof window === "undefined") return "";
-  try {
-    return localStorage.getItem("everion_email") || "";
-  } catch {
-    return "";
-  }
+  return getCachedEmail();
 }
 
 export default function DesktopHeader({

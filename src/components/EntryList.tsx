@@ -4,6 +4,7 @@ import type { Entry } from "../types";
 import { resolveIcon } from "../lib/typeIcons";
 import { isPendingEnrichment } from "../lib/enrichFlags";
 import { getAdminPrefs } from "../lib/adminPrefs";
+import { isCachedAdmin } from "../lib/userEmailCache";
 import {
   IconPin,
   IconVaultSmall as IconVault,
@@ -15,16 +16,8 @@ const ADMIN_EMAIL = (import.meta.env.VITE_ADMIN_EMAIL as string | undefined) ?? 
 
 // Cheap sync admin check — used to gate the diagnostic flag chips on entry
 // cards. The async source of truth lives in useAdminDevMode; this just reads
-// the cached email AccountTab/SettingsView already stash in localStorage so
-// we don't pay an async session lookup per rendered card.
-function isAdminSync(): boolean {
-  if (!ADMIN_EMAIL) return false;
-  try {
-    return localStorage.getItem("everion_email") === ADMIN_EMAIL;
-  } catch {
-    return false;
-  }
-}
+// the cached email SettingsView stashes in localStorage on auth load.
+const isAdminSync = (): boolean => isCachedAdmin(ADMIN_EMAIL);
 
 function relTime(iso?: string) {
   if (!iso) return "";

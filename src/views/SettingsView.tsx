@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
+import { getCachedEmail, setCachedEmail } from "../lib/userEmailCache";
 import { useBrain } from "../context/BrainContext";
 import AccountTab from "../components/settings/AccountTab";
 import BrainTab from "../components/settings/BrainTab";
@@ -242,13 +243,7 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
     if (params.has("gmailConnected") || params.has("gmailError")) return "integrations";
     return "appearance";
   });
-  const [email, setEmail] = useState(() => {
-    try {
-      return localStorage.getItem("everion_email") || "";
-    } catch {
-      return "";
-    }
-  });
+  const [email, setEmail] = useState(() => getCachedEmail());
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [gmailOpen, setGmailOpen] = useState(false);
   const [apiOpen, setApiOpen] = useState(false);
@@ -267,11 +262,7 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
     supabase.auth.getUser().then(({ data: { user } }) => {
       const e = user?.email || "";
       setEmail(e);
-      try {
-        if (e) localStorage.setItem("everion_email", e);
-      } catch {
-        /* ignore */
-      }
+      setCachedEmail(e);
     });
   }, []);
 
