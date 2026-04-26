@@ -613,6 +613,34 @@ function BottomSheet({
     };
   }, [open]);
 
+  // Drag-to-dismiss state. Only triggered from the handle area at the top —
+  // otherwise scrolling through the event list would conflict with closing.
+  const [dragY, setDragY] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const startYRef = useRef(0);
+  const CLOSE_THRESHOLD = 90; // px of downward drag to dismiss
+
+  function onHandleTouchStart(e: React.TouchEvent) {
+    startYRef.current = e.touches[0]?.clientY ?? 0;
+    setDragging(true);
+  }
+  function onHandleTouchMove(e: React.TouchEvent) {
+    const y = e.touches[0]?.clientY ?? 0;
+    const delta = y - startYRef.current;
+    setDragY(Math.max(0, delta)); // never drag up
+  }
+  function onHandleTouchEnd() {
+    setDragging(false);
+    if (dragY > CLOSE_THRESHOLD) {
+      onClose();
+      // Reset for next open. The sheet animates closed via animation; the
+      // transform jumps back to 0 once `open=false` unmounts.
+      setTimeout(() => setDragY(0), 200);
+    } else {
+      setDragY(0); // snap back
+    }
+  }
+
   if (!open) return null;
   return (
     <div
@@ -651,19 +679,40 @@ function BottomSheet({
           boxShadow: "var(--lift-3)",
           maxHeight: "85vh",
           overflowY: "auto",
-          animation: "cal-sheet-slide 240ms cubic-bezier(0.22, 1, 0.36, 1)",
+          animation: dragY > 0 ? undefined : "cal-sheet-slide 240ms cubic-bezier(0.22, 1, 0.36, 1)",
+          transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
+          transition: dragging ? "none" : "transform 200ms cubic-bezier(0.22, 1, 0.36, 1)",
+          touchAction: "pan-y",
         }}
       >
+        {/* Handle: enlarged hit area + touch handlers for drag-to-dismiss. */}
         <div
-          aria-hidden="true"
+          onTouchStart={onHandleTouchStart}
+          onTouchMove={onHandleTouchMove}
+          onTouchEnd={onHandleTouchEnd}
+          onTouchCancel={onHandleTouchEnd}
+          role="button"
+          aria-label="Drag down to close"
+          tabIndex={0}
           style={{
-            width: 40,
-            height: 4,
-            background: "var(--line)",
-            borderRadius: 2,
-            margin: "0 auto 12px",
+            // Generous hit area around the visible bar so it's easy to grab.
+            margin: "-14px -20px 4px",
+            padding: "12px 20px 8px",
+            cursor: "grab",
+            touchAction: "none",
           }}
-        />
+        >
+          <div
+            aria-hidden="true"
+            style={{
+              width: 40,
+              height: 4,
+              background: "var(--line)",
+              borderRadius: 2,
+              margin: "0 auto",
+            }}
+          />
+        </div>
         {children}
       </div>
     </div>
