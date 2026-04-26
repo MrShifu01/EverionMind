@@ -1,3 +1,5 @@
+import { useAdminPrefs } from "../../lib/adminPrefs";
+
 interface GapDetail {
   id: string;
   title: string;
@@ -52,6 +54,7 @@ export default function EnrichmentTab({
   isAdmin = false,
   runBulkEnrich,
 }: EnrichmentTabProps) {
+  const adminPrefs = useAdminPrefs();
   const total = unenrichedDetails.length;
   const allDone = total === 0 && !enriching;
 
@@ -246,7 +249,7 @@ export default function EnrichmentTab({
       )}
 
       {/* ── Admin debug panel ───────────────────────────────────────────── */}
-      {isAdmin && (
+      {isAdmin && adminPrefs.showEnrichmentAdminExtras && (
         <div
           style={{
             borderRadius: 10,

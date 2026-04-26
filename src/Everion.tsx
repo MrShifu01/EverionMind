@@ -441,42 +441,6 @@ function EverionContent({
                           viewMode={appShell.gridViewMode}
                           conceptMap={conceptMap}
                         />
-                        {appShell.selectMode && appShell.selectedIds.size > 0 && (
-                          <BulkActionBar
-                            selectedIds={appShell.selectedIds}
-                            entries={entries}
-                            brains={brains}
-                            allSelected={appShell.selectedIds.size === filtered.length}
-                            onSelectAll={() => {
-                              if (appShell.selectedIds.size === filtered.length) {
-                                filtered.forEach((e) => {
-                                  if (appShell.selectedIds.has(e.id)) appShell.toggleSelectId(e.id);
-                                });
-                              } else {
-                                filtered.forEach((e) => {
-                                  if (!appShell.selectedIds.has(e.id)) appShell.toggleSelectId(e.id);
-                                });
-                              }
-                            }}
-                            onDelete={async (ids: string[]) => {
-                              for (const id of ids) {
-                                setEntries((prev) => prev.filter((e) => e.id !== id));
-                                await authFetch("/api/delete-entry", {
-                                  method: "DELETE",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ id }),
-                                }).catch((err) => console.error("[bulkDelete]", err));
-                              }
-                            }}
-                            onDone={(updated) => {
-                              setEntries((prev) =>
-                                prev.map((e) => updated.find((u) => u.id === e.id) ?? e),
-                              );
-                              appShell.toggleSelectMode();
-                            }}
-                            onCancel={appShell.toggleSelectMode}
-                          />
-                        )}
                       </>
                     ) : (
                       <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
@@ -564,6 +528,48 @@ function EverionContent({
               />
             )}
           </div>
+
+          {/* BulkActionBar lives OUTSIDE the animate-view-enter wrapper.
+              That wrapper applies a transform which creates a stacking
+              context and breaks `position: fixed` for descendants —
+              the pill ends up pinned to the wrapper, not the viewport. */}
+          {(appShell.view === "memory" || appShell.view === "timeline") &&
+            appShell.selectMode && appShell.selectedIds.size > 0 && (
+            <BulkActionBar
+              selectedIds={appShell.selectedIds}
+              entries={entries}
+              brains={brains}
+              allSelected={appShell.selectedIds.size === filtered.length}
+              onSelectAll={() => {
+                if (appShell.selectedIds.size === filtered.length) {
+                  filtered.forEach((e) => {
+                    if (appShell.selectedIds.has(e.id)) appShell.toggleSelectId(e.id);
+                  });
+                } else {
+                  filtered.forEach((e) => {
+                    if (!appShell.selectedIds.has(e.id)) appShell.toggleSelectId(e.id);
+                  });
+                }
+              }}
+              onDelete={async (ids: string[]) => {
+                for (const id of ids) {
+                  setEntries((prev) => prev.filter((e) => e.id !== id));
+                  await authFetch("/api/delete-entry", {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ id }),
+                  }).catch((err) => console.error("[bulkDelete]", err));
+                }
+              }}
+              onDone={(updated) => {
+                setEntries((prev) =>
+                  prev.map((e) => updated.find((u) => u.id === e.id) ?? e),
+                );
+                appShell.toggleSelectMode();
+              }}
+              onCancel={appShell.toggleSelectMode}
+            />
+          )}
 
           <Suspense fallback={null}>
             {selectedVaultEntry && (

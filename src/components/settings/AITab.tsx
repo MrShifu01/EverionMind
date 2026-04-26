@@ -3,6 +3,7 @@ import ProvidersTab from "./ProvidersTab";
 import SettingsRow, { SettingsButton, SettingsExpand } from "./SettingsRow";
 import { authFetch } from "../../lib/authFetch";
 import { useBackgroundOps } from "../../hooks/useBackgroundOps";
+import { useAdminPrefs } from "../../lib/adminPrefs";
 import type { Brain } from "../../types";
 
 interface Props {
@@ -59,6 +60,7 @@ interface DebugPayload {
 
 export default function AITab({ activeBrain, isAdmin }: Props) {
   const ops = useBackgroundOps();
+  const adminPrefs = useAdminPrefs();
   const enriching = activeBrain?.id ? ops.isRunning("enrich-run-now", activeBrain.id) : false;
   const clearing = activeBrain?.id ? ops.isRunning("enrich-clear-backfill", activeBrain.id) : false;
   const retrying = activeBrain?.id ? ops.isRunning("enrich-retry-failed", activeBrain.id) : false;
@@ -137,7 +139,7 @@ export default function AITab({ activeBrain, isAdmin }: Props) {
           </SettingsButton>
         </div>
       </SettingsRow>
-      {isAdmin && (
+      {isAdmin && adminPrefs.showAIDiagnostics && (
         <>
           <SettingsRow
             label="Diagnostics"

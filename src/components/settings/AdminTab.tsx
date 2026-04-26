@@ -3,6 +3,12 @@ import { supabase } from "../../lib/supabase";
 import { authFetch } from "../../lib/authFetch";
 import SettingsRow, { SettingsButton } from "./SettingsRow";
 import { FEATURE_FLAGS, getAdminFlags, setAdminFlag } from "../../lib/featureFlags";
+import {
+  ADMIN_PREF_DEFS,
+  getAdminPrefs,
+  setAdminPref,
+  type AdminPrefs,
+} from "../../lib/adminPrefs";
 import GmailScanReviewModal, { type ScanResultItem } from "./GmailScanReviewModal";
 
 const MOCK_REVIEW_ITEMS: ScanResultItem[] = [
@@ -269,6 +275,86 @@ function MockGmailReviewSection() {
       </div>
       {open && <GmailScanReviewModal items={MOCK_REVIEW_ITEMS} onClose={() => setOpen(false)} />}
     </>
+  );
+}
+
+function AdminDisplaySection() {
+  const [prefs, setPrefs] = useState<AdminPrefs>(getAdminPrefs);
+
+  const toggle = (key: keyof AdminPrefs, val: boolean) => {
+    setAdminPref(key, val);
+    setPrefs(getAdminPrefs());
+  };
+
+  return (
+    <div
+      style={{ marginBottom: 28, paddingBottom: 24, borderBottom: "1px solid var(--line-soft)" }}
+    >
+      <div style={{ marginBottom: 14 }}>
+        <div className="f-sans" style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>
+          Admin display
+        </div>
+        <div className="f-sans" style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 2 }}>
+          Toggle the admin-only debug overlays scattered through the app.
+          Off = hidden for you (and only you), On = back where they were.
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gap: 6 }}>
+        {ADMIN_PREF_DEFS.map((def) => {
+          const on = prefs[def.key];
+          return (
+            <div
+              key={def.key}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "10px 14px",
+                background: "var(--surface-low)",
+                border: "1px solid var(--line-soft)",
+                borderRadius: 8,
+              }}
+            >
+              <div style={{ minWidth: 0, paddingRight: 12 }}>
+                <div
+                  className="f-sans"
+                  style={{ fontSize: 13, fontWeight: 500, color: "var(--ink)" }}
+                >
+                  {def.label}
+                </div>
+                <div
+                  className="f-sans"
+                  style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 2 }}
+                >
+                  {def.hint}
+                </div>
+              </div>
+              <button
+                onClick={() => toggle(def.key, !on)}
+                aria-pressed={on}
+                className="press f-sans"
+                style={{
+                  height: 28,
+                  minWidth: 56,
+                  padding: "0 12px",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  borderRadius: 999,
+                  border: `1px solid ${on ? "var(--ember)" : "var(--line-soft)"}`,
+                  background: on ? "var(--ember-wash)" : "transparent",
+                  color: on ? "var(--ember)" : "var(--ink-faint)",
+                  cursor: "pointer",
+                  flexShrink: 0,
+                }}
+              >
+                {on ? "On" : "Off"}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -666,6 +752,7 @@ export default function AdminTab() {
     <div>
       <TierChanger />
       <MockGmailReviewSection />
+      <AdminDisplaySection />
       <FeatureFlagsSection />
 
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>

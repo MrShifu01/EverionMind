@@ -3,6 +3,7 @@ import type { ChatMessage } from "../hooks/useChat";
 import { cn } from "../lib/cn";
 import { TOOL_LABELS, firstPhone, firstEmail, renderMarkdown } from "./chatUtils";
 import AdminDebugPanel from "./ChatDebugPanel";
+import { useAdminPrefs } from "../lib/adminPrefs";
 
 const IconCopy = (
   <svg
@@ -169,6 +170,7 @@ export default function ChatMessageList({
   onCancel,
   onOpenVault,
 }: ChatMessageListProps) {
+  const adminPrefs = useAdminPrefs();
   return (
     <div
       className="scrollbar-hide"
@@ -390,7 +392,7 @@ export default function ChatMessageList({
                       </a>
                     )}
                   </div>
-                  {isAdmin && msg.debug && (
+                  {isAdmin && adminPrefs.showChatDebug && msg.debug && (
                     <AdminDebugPanel debug={msg.debug} toolCalls={msg.tool_calls} />
                   )}
                 </div>

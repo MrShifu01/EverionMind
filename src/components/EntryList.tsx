@@ -3,6 +3,7 @@ import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import type { Entry } from "../types";
 import { resolveIcon } from "../lib/typeIcons";
 import { flagsOf, isPendingEnrichment } from "../lib/enrichFlags";
+import { getAdminPrefs } from "../lib/adminPrefs";
 
 const ADMIN_EMAIL = (import.meta.env.VITE_ADMIN_EMAIL as string | undefined) ?? "";
 
@@ -158,7 +159,7 @@ const EntryCard = memo(function EntryCard({
   const isVault = e.type === "secret";
   const emoji = resolveIcon(e.type, typeIcons);
   const createdAt = (e as any).created_at || (e as any).createdAt;
-  const showAdminFlags = isAdminSync() && !isVault;
+  const showAdminFlags = isAdminSync() && !isVault && getAdminPrefs().showEnrichmentChips;
 
   // Concepts source priority:
   //   1. entry.metadata.concepts — written by stepConcepts as soon as the
@@ -582,7 +583,7 @@ const EntryRow = memo(function EntryRow({
 }) {
   const isPinned = !!(e as any).pinned;
   const emoji = resolveIcon(e.type, typeIcons);
-  const showAdminFlags = isAdminSync() && e.type !== "secret";
+  const showAdminFlags = isAdminSync() && e.type !== "secret" && getAdminPrefs().showEnrichmentChips;
 
   const [swipeX, setSwipeX] = useState(0);
   const [dragging, setDragging] = useState(false);

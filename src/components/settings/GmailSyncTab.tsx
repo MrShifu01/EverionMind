@@ -8,6 +8,7 @@ import GmailStagingInbox from "./GmailStagingInbox";
 import { useEntries } from "../../context/EntriesContext";
 import { useBrain } from "../../context/BrainContext";
 import { useBackgroundOps } from "../../hooks/useBackgroundOps";
+import { useAdminPrefs } from "../../lib/adminPrefs";
 
 interface GmailIntegration {
   id: string;
@@ -55,6 +56,7 @@ export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
   const { refreshEntries } = useEntries();
   const { activeBrain } = useBrain();
   const ops = useBackgroundOps();
+  const adminPrefs = useAdminPrefs();
   // Gmail scan is global: brain-agnostic at the kind level so we don't double-fire
   // if the user changes brains mid-scan.
   const scanning = ops.isRunning("gmail-scan");
@@ -195,7 +197,7 @@ export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
         )}
       </IntegrationRow>
 
-      {isAdmin && lastDebug && (
+      {isAdmin && adminPrefs.showGmailScanDebug && lastDebug && (
         <div
           className="f-sans"
           style={{
