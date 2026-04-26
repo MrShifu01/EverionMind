@@ -14,13 +14,13 @@ import { rateLimit } from "./_lib/rateLimit.js";
 import { verifyAuth } from "./_lib/verifyAuth.js";
 import { resolveApiKey } from "./_lib/resolveApiKey.js";
 import { retrieveEntries } from "./_lib/retrievalCore.js";
+import { getUpcomingEntries } from "./_lib/getUpcoming.js";
 import { checkAndIncrement } from "./_lib/usage.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const SB_HEADERS = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` };
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
-const DATE_FIELDS = ["due_date", "deadline", "expiry_date", "event_date"] as const;
 
 async function resolveUser(req: ApiRequest): Promise<{ userId: string; brainId: string } | null> {
   const authHeader = (req.headers.authorization as string) || "";
@@ -92,43 +92,9 @@ async function handleUpcoming(req: ApiRequest, res: ApiResponse): Promise<void> 
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
 
   const query = req.query as Record<string, string>;
-  const days = Math.min(Math.max(1, parseInt(query.days) || 30), 365);
-  const today = new Date().toISOString().slice(0, 10);
-  const future = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
-
-  const fetches = await Promise.all(
-    DATE_FIELDS.map(async (field) => {
-      const params = new URLSearchParams({
-        brain_id: `eq.${auth.brainId}`,
-        deleted_at: "is.null",
-        [`metadata->>${field}`]: `gte.${today}`,
-        select: "id,title,type,tags,content,metadata,created_at",
-        limit: "100",
-        order: `metadata->>${field}.asc`,
-      });
-      const url = `${SB_URL}/rest/v1/entries?${params.toString()}&metadata->>${field}=lte.${future}`;
-      const r = await fetch(url, { headers: SB_HEADERS });
-      if (!r.ok) return [];
-      const rows: any[] = await r.json();
-      return rows.map((e) => ({ ...e, _date_field: field }));
-    }),
-  );
-
-  const seen = new Set<string>();
-  const merged: any[] = [];
-  for (const rows of fetches) {
-    for (const row of rows) {
-      if (!seen.has(row.id)) { seen.add(row.id); merged.push(row); }
-    }
-  }
-
-  merged.sort((a, b) => {
-    const aDate = DATE_FIELDS.map((f) => a.metadata?.[f]).filter(Boolean).sort()[0] ?? "9999";
-    const bDate = DATE_FIELDS.map((f) => b.metadata?.[f]).filter(Boolean).sort()[0] ?? "9999";
-    return aDate.localeCompare(bDate);
-  });
-
-  return res.status(200).json({ entries: merged, days, from: today, to: future });
+  const days = parseInt(query.days) || 30;
+  const result = await getUpcomingEntries(auth.brainId, days);
+  return res.status(200).json(result);
 }
 
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {

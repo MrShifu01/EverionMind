@@ -18,6 +18,7 @@ import { rateLimit } from "./_lib/rateLimit.js";
 import { resolveApiKey } from "./_lib/resolveApiKey.js";
 import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
 import { retrieveEntries, rebuildConceptGraph } from "./_lib/retrievalCore.js";
+import { getUpcomingEntries } from "./_lib/getUpcoming.js";
 import { scanGmailForUser, type GmailPreferences } from "./_lib/gmailScan.js";
 import { enrichInline, enrichBrain } from "./_lib/enrich.js";
 import { checkIdempotency, recordIdempotency } from "./_lib/idempotency.js";
@@ -186,8 +187,6 @@ async function getUserPlan(userId: string): Promise<{ plan: string; hasByok: boo
 
 // ── Tool implementations ──────────────────────────────────────────────────────
 
-const DATE_FIELDS_MCP = ["due_date", "deadline", "expiry_date", "event_date"] as const;
-
 async function retrieveMemory(brainId: string, query: string, limit = 15): Promise<unknown> {
   const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
   if (!GEMINI_API_KEY) throw new Error("Embedding not configured on server");
@@ -197,42 +196,7 @@ async function retrieveMemory(brainId: string, query: string, limit = 15): Promi
 }
 
 async function getUpcoming(brainId: string, days = 30): Promise<unknown> {
-  const resolvedBrainId = brainId;
-  const safeDays = Math.min(Math.max(1, days), 365);
-  const today = new Date().toISOString().slice(0, 10);
-  const future = new Date(Date.now() + safeDays * 86400000).toISOString().slice(0, 10);
-
-  const fetches = await Promise.all(
-    DATE_FIELDS_MCP.map(async (field) => {
-      const params = new URLSearchParams({
-        "brain_id": `eq.${resolvedBrainId}`,
-        "deleted_at": "is.null",
-        "type": "neq.secret",
-        [`metadata->>${field}`]: `gte.${today}`,
-        "select": "id,title,type,tags,content,metadata,created_at",
-        "limit": "100",
-      });
-      const url = `${SB_URL}/rest/v1/entries?${params.toString()}&metadata->>${field}=lte.${future}`;
-      const r = await fetch(url, { headers: hdrs() });
-      if (!r.ok) return [];
-      const rows: any[] = await r.json();
-      return rows.map((e) => ({ ...e, _date_field: field }));
-    }),
-  );
-
-  const seen = new Set<string>();
-  const merged: any[] = [];
-  for (const rows of fetches) {
-    for (const row of rows) {
-      if (!seen.has(row.id)) { seen.add(row.id); merged.push(row); }
-    }
-  }
-  merged.sort((a, b) => {
-    const aDate = DATE_FIELDS_MCP.map((f) => a.metadata?.[f]).filter(Boolean).sort()[0] ?? "9999";
-    const bDate = DATE_FIELDS_MCP.map((f) => b.metadata?.[f]).filter(Boolean).sort()[0] ?? "9999";
-    return aDate.localeCompare(bDate);
-  });
-  return { entries: merged, days: safeDays, from: today, to: future };
+  return getUpcomingEntries(brainId, days);
 }
 
 async function searchEntries(brainId: string, query: string): Promise<unknown> {

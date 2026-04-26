@@ -3,6 +3,7 @@ import type { ApiRequest, ApiResponse } from "./_lib/types";
 import { SERVER_PROMPTS } from "./_lib/prompts.js";
 import { withAuth, type AuthedUser } from "./_lib/withAuth.js";
 import { retrieveEntries, rebuildConceptGraph, findLockedSecretTitles } from "./_lib/retrievalCore.js";
+import { getUpcomingEntries } from "./_lib/getUpcoming.js";
 import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
 import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
 import { enrichInline } from "./_lib/enrich.js";
@@ -155,7 +156,6 @@ const CHAT_TOOLS: ToolSchema[] = [
   },
 ];
 
-const DATE_FIELDS = ["due_date", "deadline", "expiry_date", "event_date"] as const;
 const DESTRUCTIVE_TOOLS = new Set([
   "update_entry",
   "delete_entry",
@@ -199,26 +199,7 @@ async function execTool(name: string, args: Record<string, any>, userId: string,
     return rows[0];
   }
   if (name === "get_upcoming") {
-    const days = Math.min(Math.max(1, args.days || 30), 365);
-    const today = new Date().toISOString().slice(0, 10);
-    const future = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
-    const fetches = await Promise.all(
-      DATE_FIELDS.map(async (field) => {
-        const params = new URLSearchParams({ brain_id: `eq.${brainId}`, deleted_at: "is.null", type: "neq.secret", [`metadata->>${field}`]: `gte.${today}`, select: "id,title,type,tags,content,metadata,created_at", limit: "100" });
-        const r = await fetch(`${SB_URL}/rest/v1/entries?${params}&metadata->>${field}=lte.${future}`, { headers: sbHeaders() });
-        if (!r.ok) return [];
-        const rows: any[] = await r.json();
-        return rows.map((e) => ({ ...e, _date_field: field }));
-      }),
-    );
-    const seen = new Set<string>(); const merged: any[] = [];
-    for (const rows of fetches) for (const row of rows) if (!seen.has(row.id)) { seen.add(row.id); merged.push(row); }
-    merged.sort((a, b) => {
-      const aD = DATE_FIELDS.map((f) => a.metadata?.[f]).filter(Boolean).sort()[0] ?? "9999";
-      const bD = DATE_FIELDS.map((f) => b.metadata?.[f]).filter(Boolean).sort()[0] ?? "9999";
-      return aD.localeCompare(bD);
-    });
-    return { entries: merged, days, from: today, to: future };
+    return getUpcomingEntries(brainId, args.days || 30);
   }
   if (name === "create_entry") {
     const safeTitle = String(args.title || "").trim().slice(0, 200);
