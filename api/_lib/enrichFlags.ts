@@ -39,10 +39,16 @@ export function flagsOf(entry: EntryShape): EnrichmentFlags {
   const meta = entry.metadata ?? {};
   const enr = meta.enrichment ?? {};
   const embeddingStatus = (entry.embedding_status as EnrichmentFlags["embedding_status"]) ?? null;
+  // Persona entries are tiny single-sentence facts. Parse / insight /
+  // concepts don't apply — the extractor IS the enrichment for them.
+  // Treat the LLM flags as permanently satisfied so the chips render
+  // green and the pipeline doesn't waste Gemini calls trying to "enrich"
+  // a string like "User wakes at 5:30". Embedding stays accurate.
+  const isPersona = entry.type === "persona";
   return {
-    parsed: enr.parsed === true,
-    has_insight: enr.has_insight === true,
-    concepts_extracted: enr.concepts_extracted === true,
+    parsed: isPersona || enr.parsed === true,
+    has_insight: isPersona || enr.has_insight === true,
+    concepts_extracted: isPersona || enr.concepts_extracted === true,
     embedded: embeddingStatus === "done" || !!entry.embedded_at,
     embedding_status: embeddingStatus,
     backfilled: !!enr.backfilled_at,
@@ -52,7 +58,8 @@ export function flagsOf(entry: EntryShape): EnrichmentFlags {
 /**
  * Secrets are excluded from enrichment entirely — we never send them
  * through an LLM, never extract concepts. They're "fully enriched" by
- * definition for UI purposes (no wave-dot, no flag chips).
+ * definition for UI purposes (no wave-dot, no flag chips). Persona
+ * entries inherit the same treatment via flagsOf above.
  */
 export function isFullyEnriched(entry: EntryShape): boolean {
   if (entry.type === "secret") return true;
