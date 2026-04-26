@@ -1,0 +1,25 @@
+-- ============================================================
+-- 048_replica_identity_full.sql — full row in replication payloads
+-- ============================================================
+--
+-- Supabase Realtime broadcasts row changes by reading the WAL. With
+-- REPLICA IDENTITY DEFAULT (the Postgres default), an UPDATE event
+-- contains only the primary key in `old` and the *changed* columns
+-- (plus PK) in `new`. That breaks postgres_changes filters:
+--
+--   filter: 'brain_id=eq.<id>'
+--
+-- The enrichment pipeline only writes `metadata` + `embedding_status`,
+-- never `brain_id`, so `brain_id` is absent from the payload. Realtime
+-- can't evaluate the filter, and the client never receives the event
+-- — which is exactly why the chips don't live-update even after the
+-- WS connects (SUBSCRIBED) with the right JWT.
+--
+-- FULL replicates the entire pre- and post-image of the row, so
+-- `brain_id` (and every other column the client wants to read) is
+-- always present in the broadcast. Cost is small: a few extra bytes
+-- of WAL per UPDATE on the entries table. The publication still
+-- only emits to subscribers; no extra traffic for unrelated readers.
+-- ============================================================
+
+ALTER TABLE public.entries REPLICA IDENTITY FULL;

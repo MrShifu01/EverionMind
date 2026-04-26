@@ -1,13 +1,13 @@
 {
-  "name": "OpenBrain",
-  "short_name": "OpenBrain",
-  "description": "Chris's personal memory & knowledge OS",
+  "name": "Everion",
+  "short_name": "Everion",
+  "description": "Your personal memory & knowledge OS",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "orientation": "portrait-primary",
-  "theme_color": "#0f0f23",
-  "background_color": "#0f0f23",
+  "orientation": "any",
+  "theme_color": "#1A1816",
+  "background_color": "#1A1816",
   "icons": [
     {
       "src": "/icons/icon-192.png",

@@ -1,0 +1,114 @@
+# CLAUDE.md
+
+> **HARD LIMIT — Vercel Hobby plan: max 12 serverless functions.**
+> The project is at exactly 12 `api/*.ts` files — the maximum allowed.
+> **Never create a new top-level file in `api/` without first consolidating an existing endpoint.**
+> Route new actions through an existing handler using `?resource=` or `?action=` query params instead.
+> Current functions (12): calendar, capture, entries, feedback, gmail, llm, mcp, memory-api, search, transfer, user-data, v1
+
+Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+
+## 1. Think Before Coding
+
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
+
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+## 2. Simplicity First
+
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+## 3. Surgical Changes
+
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
+
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+## 4. Goal-Driven Execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+---
+
+**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+## Self-Debugging Access
+
+When the user reports an error or asks to investigate a problem, use these resources directly before asking for more details.
+
+### Supabase (project: `wfvoqpdfzkqnenzjxhui`)
+Use `mcp__claude_ai_Supabase__*` tools:
+- **SQL queries**: `execute_sql` — check schema, row counts, RLS policies, missing columns
+- **API logs** (last 24h): `get_logs` with `service: "api"` — see all HTTP calls including failed PostgREST queries, auth failures, 4xx/5xx errors
+- **Auth logs**: `get_logs` with `service: "auth"`
+- **Postgres logs**: `get_logs` with `service: "postgres"`
+- **Apply migrations**: `apply_migration` for DDL changes
+
+Key facts:
+- Service role key bypasses RLS; Vercel functions use it (node user-agent in logs)
+- Browser SDK calls show as iPhone/Chrome Safari user-agents
+- `entry_brains` and `audit_log` tables do NOT exist — errors from them are expected/silent
+- `user_usage` has no row for new billing periods → 406 on `.single()` (fixed with `.maybeSingle()`)
+
+## AI provider in use
+
+**This project runs on Gemini, not Anthropic.** `GEMINI_API_KEY` is the active provider key (used for embeddings, enrichment, chat, classification). The Anthropic key is not yet valid — do not assume `ANTHROPIC_API_KEY` is configured, do not recommend setting it, and do not gate features on it. If a code path checks `ANTHROPIC_API_KEY` and it's blocking behaviour the user reports as broken, the fix is to switch the gate to Gemini, not to ask the user to add an Anthropic key.
+
+### Vercel
+Use `mcp__plugin_vercel_vercel__authenticate` to start OAuth if not already authenticated.
+- Function logs show errors from serverless functions
+- 12-function hard limit — never add a new `api/*.ts` file
+- Rewrites in `vercel.json` map `/api/brains` → `/api/user-data?resource=brains`, etc.
+
+### GitHub
+Use `Bash` with `gh` CLI:
+- `gh run list` — recent CI runs
+- `gh run view <id>` — check failed steps
+- `gh pr list` / `gh pr view` — PRs
+
+## graphify
+
+This project has a graphify knowledge graph at graphify-out/.
+
+Rules:
+- Before answering architecture or codebase questions, read graphify-out/GRAPH_REPORT.md for god nodes and community structure
+- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
+- After modifying code files in this session, run `python3 -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))"` to keep the graph current

@@ -1,0 +1,360 @@
+/* ═══ EVERION — SHARED PRIMITIVES ═══
+   Theme-specific tokens live in family-dusk.css / family-paper.css / family-bronze.css.
+   Fonts are imported once in index.css.
+*/
+
+/* ── PRIMITIVES ── */
+.f-serif {
+  font-family: var(--f-serif);
+  font-feature-settings: "liga", "dlig";
+}
+.f-sans {
+  font-family: var(--f-sans);
+}
+.f-mono {
+  font-family: var(--f-mono);
+}
+
+.micro {
+  font-family: var(--f-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.press {
+  transition: transform 120ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.press:active {
+  transform: scale(0.97);
+}
+
+html.theme-dusk body,
+html.theme-paper body,
+html.theme-bronze body,
+html.family-dusk body,
+html.family-paper body,
+html.family-bronze body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--f-sans);
+  transition:
+    background 400ms ease,
+    color 400ms ease;
+}
+
+/* reusable component classes from the redesign */
+.design-btn-primary {
+  background: var(--ember);
+  color: var(--ember-ink);
+  padding: 0 18px;
+  height: 40px;
+  min-height: 40px;
+  border-radius: 8px;
+  font-family: var(--f-sans);
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  font-size: 14px;
+  transition:
+    background 180ms,
+    transform 120ms;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  cursor: pointer;
+}
+.design-btn-primary:hover {
+  background: var(--ember-soft);
+}
+.design-btn-primary:active {
+  transform: scale(0.97);
+}
+.design-btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.design-btn-secondary {
+  border: 1px solid var(--line);
+  color: var(--ink);
+  padding: 0 16px;
+  height: 40px;
+  min-height: 40px;
+  border-radius: 8px;
+  font-family: var(--f-sans);
+  font-weight: 500;
+  font-size: 14px;
+  background: transparent;
+  transition:
+    background 180ms,
+    border-color 180ms,
+    transform 120ms;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.design-btn-secondary:hover {
+  background: var(--surface-high);
+  border-color: var(--ink-ghost);
+}
+.design-btn-secondary:active {
+  transform: scale(0.97);
+}
+
+.design-btn-ghost {
+  color: var(--ink-soft);
+  padding: 0 12px;
+  height: 36px;
+  min-height: 36px;
+  border-radius: 6px;
+  font-family: var(--f-sans);
+  font-weight: 500;
+  font-size: 14px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition:
+    background 180ms,
+    color 180ms,
+    transform 120ms;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.design-btn-ghost:hover {
+  background: var(--surface-high);
+  color: var(--ink);
+}
+.design-btn-ghost:active {
+  transform: scale(0.97);
+}
+
+.design-chip {
+  font-family: var(--f-sans);
+  font-size: 13px;
+  font-weight: 500;
+  height: 24px;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 4px;
+  background: var(--surface-high);
+  color: var(--ink-soft);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+}
+.design-chip-active {
+  background: var(--ember-wash);
+  color: var(--ember);
+}
+
+.design-card {
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  transition:
+    background 180ms,
+    border-color 180ms;
+}
+.design-card:hover {
+  background: var(--surface-high);
+  border-color: var(--line);
+}
+
+.design-input {
+  background: var(--surface-low);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 14px;
+  height: 40px;
+  color: var(--ink);
+  font-family: var(--f-sans);
+  font-size: 14px;
+  transition: border-color 180ms;
+  width: 100%;
+  outline: 0;
+}
+.design-input:focus {
+  border-color: var(--line);
+}
+
+/* mobile input guard */
+@media (max-width: 1024px) {
+  .design-input,
+  textarea.design-input {
+    font-size: 16px;
+  }
+}
+
+/* ── FAMILY FLAVOR TWEAKS ── */
+.family-paper .design-card {
+  border-radius: 4px;
+  box-shadow: none;
+}
+.family-paper .design-btn-primary {
+  border-radius: 8px;
+}
+.family-paper .design-btn-secondary {
+  border-radius: 8px;
+}
+.family-paper .design-input {
+  border-radius: 2px;
+}
+.family-paper .design-chip {
+  border-radius: 2px;
+}
+.family-paper .f-serif {
+  font-feature-settings: "liga", "dlig", "onum";
+}
+
+.family-bronze .design-card {
+  border-radius: 2px;
+}
+.family-bronze .design-btn-primary {
+  border-radius: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  font-weight: 600;
+}
+.family-bronze .design-btn-secondary {
+  border-radius: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  font-weight: 500;
+}
+.family-bronze .design-input {
+  border-radius: 2px;
+}
+.family-bronze .design-chip {
+  border-radius: 2px;
+}
+.family-bronze .f-serif {
+  font-feature-settings: "liga";
+}
+
+/* ── MOTION keyframes shared across all themes ── */
+@keyframes design-fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes design-fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes design-scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes design-sheetUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes design-breathe {
+  0%,
+  100% {
+    opacity: var(--b-low, 0.6);
+  }
+  50% {
+    opacity: var(--b-high, 1);
+  }
+}
+@keyframes design-drift {
+  0% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(var(--dx, 20px), var(--dy, -30px));
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+.anim-fade-up {
+  animation: design-fadeUp 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.anim-fade-in-design {
+  animation: design-fadeIn 320ms ease-out both;
+}
+.anim-scale-in-design {
+  animation: design-scaleIn 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.anim-sheet-up {
+  animation: design-sheetUp 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* motes for ambient backgrounds */
+.motes {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.mote {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--ember);
+  filter: blur(0.3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mote,
+  [data-ambient] {
+    animation: none !important;
+  }
+}
+
+/* ── ENRICHING DOT — server enrichment pending ── */
+@keyframes enriching-wave {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.3; }
+  30% { transform: translateY(-2px); opacity: 0.8; }
+}
+.enriching-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.enriching-dot span {
+  display: block;
+  width: 2.5px;
+  height: 2.5px;
+  border-radius: 50%;
+  background: var(--ember);
+  animation: enriching-wave 1.4s ease-in-out infinite;
+}
+.enriching-dot span:nth-child(2) { animation-delay: 0.18s; }
+.enriching-dot span:nth-child(3) { animation-delay: 0.36s; }
+@media (prefers-reduced-motion: reduce) {
+  .enriching-dot span { animation: none; opacity: 0.4; }
+}

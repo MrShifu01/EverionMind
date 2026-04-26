@@ -1,0 +1,74 @@
+/* ═══ EVERION — DUSK / VELLUM ═══
+   warm charcoal at night, ivory paper by day. ember accent. humanist Newsreader serif.
+   Activated by html.family-dusk.
+*/
+
+html.family-dusk {
+  --f-serif: "Newsreader", Georgia, "Times New Roman", serif;
+  --f-sans: "Inter Tight", system-ui, -apple-system, sans-serif;
+  --f-mono: "Geist Mono", ui-monospace, monospace;
+
+  /* DUSK — dark surfaces (default for this family) */
+  --bg: oklch(24% 0.012 62);
+  --surface: oklch(28% 0.014 62);
+  --surface-high: oklch(33% 0.016 64);
+  --surface-low: oklch(21% 0.01 60);
+  --surface-dim: oklch(18% 0.008 60);
+
+  --ink: oklch(94% 0.01 78);
+  --ink-soft: oklch(78% 0.012 72);
+  --ink-faint: oklch(58% 0.01 68);
+  --ink-ghost: oklch(42% 0.008 65);
+
+  --line: oklch(38% 0.014 64);
+  --line-soft: oklch(31% 0.012 62);
+
+  --ember: oklch(72% 0.135 52);
+  --ember-soft: oklch(64% 0.12 52);
+  --ember-wash: oklch(72% 0.135 52 / 0.14);
+  --ember-deep: oklch(30% 0.08 52);
+  --ember-ink: oklch(14% 0.03 50);
+
+  --moss: oklch(62% 0.072 152);
+  --moss-wash: oklch(62% 0.072 152 / 0.12);
+  --blood: oklch(58% 0.16 28);
+  --blood-wash: oklch(58% 0.16 28 / 0.12);
+
+  --scrim: oklch(6% 0.008 60 / 0.72);
+  --lift-1: 0 1px 2px oklch(6% 0.01 60 / 0.35);
+  --lift-2: 0 6px 20px oklch(6% 0.01 60 / 0.45), 0 2px 6px oklch(6% 0.01 60 / 0.3);
+  --lift-3: 0 24px 60px oklch(6% 0.01 60 / 0.55), 0 8px 16px oklch(6% 0.01 60 / 0.35);
+}
+
+/* VELLUM — light variant */
+html.family-dusk.theme-light {
+  --bg: oklch(97.5% 0.014 86);
+  --surface: oklch(99% 0.008 86);
+  --surface-high: oklch(100% 0 0);
+  --surface-low: oklch(95.5% 0.016 84);
+  --surface-dim: oklch(93% 0.018 82);
+
+  --ink: oklch(22% 0.014 62);
+  --ink-soft: oklch(38% 0.014 62);
+  --ink-faint: oklch(52% 0.012 62);
+  --ink-ghost: oklch(70% 0.01 70);
+
+  --line: oklch(86% 0.012 82);
+  --line-soft: oklch(92% 0.01 84);
+
+  --ember: oklch(48% 0.128 48);
+  --ember-soft: oklch(54% 0.122 48);
+  --ember-wash: oklch(48% 0.128 48 / 0.1);
+  --ember-deep: oklch(92% 0.05 50);
+  --ember-ink: oklch(98% 0.01 80);
+
+  --moss: oklch(42% 0.07 150);
+  --moss-wash: oklch(42% 0.07 150 / 0.08);
+  --blood: oklch(46% 0.16 28);
+  --blood-wash: oklch(46% 0.16 28 / 0.08);
+
+  --scrim: oklch(22% 0.014 62 / 0.42);
+  --lift-1: 0 1px 2px oklch(30% 0.02 65 / 0.1);
+  --lift-2: 0 6px 20px oklch(30% 0.02 65 / 0.14), 0 2px 6px oklch(30% 0.02 65 / 0.08);
+  --lift-3: 0 24px 60px oklch(30% 0.02 65 / 0.18), 0 8px 16px oklch(30% 0.02 65 / 0.1);
+}

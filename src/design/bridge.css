@@ -1,0 +1,303 @@
+/* ═══ EVERION — TOKEN BRIDGE ═══
+   Maps legacy --color-* and shadcn names to the new design tokens (--bg, --ember, --ink, etc.).
+   This runs AFTER tokens.css and family-*.css so values win by source order.
+   Any component still using var(--color-surface), var(--primary), etc. is restyled automatically.
+*/
+
+html.family-dusk,
+html.family-paper,
+html.family-bronze {
+  /* Tailwind 4 @theme tokens the existing components consume */
+  --color-background: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-dim: var(--surface-dim);
+  --color-surface-container-lowest: var(--surface-dim);
+  --color-surface-container-low: var(--surface-low);
+  --color-surface-container: var(--surface);
+  --color-surface-container-high: var(--surface-high);
+  --color-surface-container-highest: var(--surface-high);
+  --color-surface-variant: var(--surface-low);
+  --color-surface-bright: var(--surface-high);
+
+  --color-primary: var(--ember);
+  --color-primary-dim: var(--ember-soft);
+  --color-primary-container: var(--ember-deep);
+  --color-on-primary: var(--ember-ink);
+  --color-on-primary-container: var(--ember);
+
+  --color-secondary: var(--ink-soft);
+  --color-secondary-dim: var(--ink-faint);
+  --color-secondary-container: var(--surface-high);
+  --color-on-secondary: var(--ink);
+  --color-on-secondary-container: var(--ink);
+
+  --color-tertiary: var(--moss);
+  --color-tertiary-dim: var(--moss);
+  --color-tertiary-container: var(--moss-wash);
+  --color-on-tertiary: var(--ember-ink);
+  --color-on-tertiary-container: var(--moss);
+
+  --color-error: var(--blood);
+  --color-error-dim: var(--blood);
+  --color-on-error: var(--ember-ink);
+  --color-success: var(--moss);
+  --color-status-medium: var(--ember);
+  --color-status-medium-container: var(--ember-wash);
+
+  --color-type-note: var(--ember);
+  --color-type-link: var(--moss);
+  --color-type-reminder: var(--ember);
+  --color-type-contact: var(--moss);
+  --color-type-file: var(--ink-soft);
+  --color-type-idea: var(--ember);
+
+  --color-on-surface: var(--ink);
+  --color-on-surface-variant: var(--ink-soft);
+  --color-on-surface-muted: var(--ink-faint);
+
+  --color-outline: var(--line);
+  --color-outline-variant: var(--line-soft);
+
+  --color-scrim: var(--scrim);
+
+  /* Fonts — override the @theme defaults */
+  --font-family-headline: var(--f-serif);
+  --font-family-body: var(--f-sans);
+  --font-family-label: var(--f-sans);
+  --font-heading: var(--f-serif);
+  --font-sans: var(--f-sans);
+  --font-mono: var(--f-mono);
+
+  /* Shadows remap to --lift-* */
+  --shadow-sm: var(--lift-1);
+  --shadow-md: var(--lift-2);
+  --shadow-lg: var(--lift-3);
+  --shadow-nav: var(--lift-2);
+
+  /* shadcn / radix token bridge — applies regardless of .dark/.light */
+  --background: var(--bg);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface-high);
+  --popover-foreground: var(--ink);
+  --primary: var(--ember);
+  --primary-foreground: var(--ember-ink);
+  --secondary: var(--surface-high);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface);
+  --muted-foreground: var(--ink-soft);
+  --accent: var(--ember-wash);
+  --accent-foreground: var(--ember);
+  --destructive: var(--blood);
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--ember);
+  --chart-1: var(--ember);
+  --chart-2: var(--moss);
+  --chart-3: var(--blood);
+  --chart-4: var(--ink-soft);
+  --chart-5: var(--ember-soft);
+  --sidebar: var(--surface-low);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--ember);
+  --sidebar-primary-foreground: var(--ember-ink);
+  --sidebar-accent: var(--ember-wash);
+  --sidebar-accent-foreground: var(--ember);
+  --sidebar-border: var(--line-soft);
+  --sidebar-ring: var(--ember);
+}
+
+/* Re-skin the project-specific .nav-item and entry-card to the Dusk/Paper/Bronze idiom.
+   These have highly specific visual language in the existing CSS; override here so
+   every family looks correct without touching the components. */
+html.family-dusk .nav-item,
+html.family-paper .nav-item,
+html.family-bronze .nav-item {
+  font-family: var(--f-sans);
+  border-left: 2px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink-soft);
+  font-weight: 500;
+  padding: 10px 14px;
+  transition:
+    background 180ms ease,
+    color 180ms ease;
+}
+html.family-dusk .nav-item:hover,
+html.family-paper .nav-item:hover,
+html.family-bronze .nav-item:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+html.family-dusk .nav-item.active,
+html.family-paper .nav-item.active,
+html.family-bronze .nav-item.active {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 500;
+  border-left-color: var(--ember);
+  background-image: none;
+}
+
+/* Entry card hue and shadow discipline — no shadows, just --line + --surface */
+html.family-dusk .entry-card,
+html.family-paper .entry-card,
+html.family-bronze .entry-card {
+  background: var(--surface);
+  border-color: var(--line-soft) !important;
+  box-shadow: none !important;
+}
+html.family-dusk .entry-card:hover,
+html.family-paper .entry-card:hover,
+html.family-bronze .entry-card:hover,
+html.family-dusk .entry-card:focus-visible,
+html.family-paper .entry-card:focus-visible,
+html.family-bronze .entry-card:focus-visible {
+  background: var(--surface-high);
+  border-color: var(--line) !important;
+}
+html.family-dusk .entry-card--pinned,
+html.family-paper .entry-card--pinned,
+html.family-bronze .entry-card--pinned {
+  background: var(--surface-high);
+  border-left: 2px solid var(--ember) !important;
+}
+
+/* Kill the synapse-bg and grain — the new design uses ambient motes, not gradients */
+html.family-dusk .synapse-bg,
+html.family-paper .synapse-bg,
+html.family-bronze .synapse-bg,
+html.family-dusk .grain,
+html.family-paper .grain,
+html.family-bronze .grain {
+  display: none !important;
+}
+
+/* Remove heavy glow effects — the new design is quiet */
+html.family-dusk .synapse-glow,
+html.family-paper .synapse-glow,
+html.family-bronze .synapse-glow,
+html.family-dusk .ai-glow,
+html.family-paper .ai-glow,
+html.family-bronze .ai-glow,
+html.family-dusk .nav-glow,
+html.family-paper .nav-glow,
+html.family-bronze .nav-glow,
+html.family-dusk .cta-glow,
+html.family-paper .cta-glow,
+html.family-bronze .cta-glow,
+html.family-dusk .ai-button-glow,
+html.family-paper .ai-button-glow,
+html.family-bronze .ai-button-glow {
+  box-shadow: var(--lift-2) !important;
+}
+html.family-dusk .glow-text,
+html.family-paper .glow-text,
+html.family-bronze .glow-text {
+  text-shadow: none !important;
+}
+
+/* Glass panels → plain surfaces, keep backdrop blur soft */
+html.family-dusk .glass-panel,
+html.family-paper .glass-panel,
+html.family-bronze .glass-panel {
+  background: color-mix(in oklch, var(--surface-high) 85%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+html.family-dusk .glass-panel-dark,
+html.family-paper .glass-panel-dark,
+html.family-bronze .glass-panel-dark {
+  background: color-mix(in oklch, var(--surface-low) 85%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Headline font utility now pulls the active family serif */
+html.family-dusk .font-headline,
+html.family-paper .font-headline,
+html.family-bronze .font-headline {
+  font-family: var(--f-serif);
+  letter-spacing: -0.015em;
+}
+html.family-dusk .font-body,
+html.family-paper .font-body,
+html.family-bronze .font-body {
+  font-family: var(--f-sans);
+}
+
+/* Body inherits the family fonts */
+html.family-dusk body,
+html.family-paper body,
+html.family-bronze body {
+  font-family: var(--f-sans);
+}
+
+/* Bottom nav — mobile only, hidden at lg (1024px+) */
+.bottom-nav-mobile {
+  display: flex;
+}
+@media (min-width: 1024px) {
+  .bottom-nav-mobile {
+    display: none !important;
+  }
+}
+
+/* Chat view — responsive header & padding */
+.chat-topbar {
+  padding: 18px 32px;
+  min-height: 72px;
+}
+.chat-topbar-search {
+  display: flex;
+}
+@media (max-width: 1024px) {
+  .chat-topbar {
+    padding: 14px 20px;
+    min-height: 56px;
+  }
+  .chat-topbar-search {
+    display: none !important;
+  }
+  /* Push composer above fixed bottom nav (68px) on mobile */
+  .chat-composer {
+    padding-bottom: calc(82px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+/* Memory filter row — compact padding on mobile */
+@media (max-width: 1024px) {
+  .memory-filter-row {
+    padding: 10px 16px !important;
+    gap: 8px !important;
+  }
+}
+
+/* Capture sheet — bottom sheet on mobile, centered card on desktop.
+   --capture-y is set inline by the component for enter / drag animation.
+   On mobile the sheet sits above the bottom nav (68px + safe area) so
+   footer buttons are never obscured. */
+.capture-sheet {
+  position: fixed;
+  z-index: 51;
+  left: 0;
+  right: 0;
+  bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+  width: 100%;
+  max-height: 85vh;
+  border-radius: 28px;
+  transform: translateY(var(--capture-y, 100%));
+}
+@media (min-width: 1024px) {
+  .capture-sheet {
+    left: 50%;
+    right: auto;
+    bottom: 48px;
+    width: 720px;
+    max-width: 96vw;
+    border-radius: 28px;
+    transform: translate(-50%, var(--capture-y, 100%));
+  }
+}

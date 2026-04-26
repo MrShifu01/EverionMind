@@ -1,0 +1,81 @@
+{
+  "framework": "vite",
+  "functions": {
+    "api/gmail.ts":     { "maxDuration": 300 },
+    "api/user-data.ts": { "maxDuration": 300 },
+    "api/llm.ts":       { "maxDuration": 300 },
+    "api/capture.ts":   { "maxDuration": 30 }
+  },
+  "crons": [
+    { "path": "/api/cron/daily", "schedule": "0 18 * * *" }
+  ],
+  "devCommand": "vite --port 5174",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/api/profile",            "destination": "/api/user-data?resource=profile" },
+    { "source": "/api/notification-prefs", "destination": "/api/user-data?resource=prefs" },
+    { "source": "/api/push-subscribe",     "destination": "/api/user-data?resource=push" },
+    { "source": "/api/anthropic",        "destination": "/api/llm?provider=anthropic" },
+    { "source": "/api/openai",           "destination": "/api/llm?provider=openai" },
+    { "source": "/api/openrouter",       "destination": "/api/llm?provider=openrouter" },
+    { "source": "/api/google",           "destination": "/api/llm?provider=google" },
+    { "source": "/api/transcribe",       "destination": "/api/llm?action=transcribe" },
+    { "source": "/api/extract-file",     "destination": "/api/llm?action=extract-file" },
+    { "source": "/api/delete-entry",     "destination": "/api/entries" },
+    { "source": "/api/update-entry",     "destination": "/api/entries" },
+    { "source": "/api/save-links",       "destination": "/api/capture?action=links" },
+    { "source": "/api/embed",             "destination": "/api/capture?action=embed" },
+    { "source": "/api/calendar-auth",    "destination": "/api/calendar?action=auth" },
+    { "source": "/api/gmail-auth",      "destination": "/api/gmail?action=auth" },
+    { "source": "/api/memory/retrieve",  "destination": "/api/memory-api?action=retrieve" },
+    { "source": "/api/memory/upcoming",  "destination": "/api/memory-api?action=upcoming" },
+    { "source": "/api/notifications",    "destination": "/api/user-data?resource=notifications" },
+    { "source": "/api/export",           "destination": "/api/transfer" },
+    { "source": "/api/import",           "destination": "/api/transfer" },
+    { "source": "/api/pin",              "destination": "/api/user-data?resource=pin" },
+    { "source": "/api/brains",            "destination": "/api/user-data?resource=brains" },
+    { "source": "/api/cron/daily",       "destination": "/api/user-data?resource=cron-daily" },
+    { "source": "/api/memory",           "destination": "/api/user-data?resource=memory" },
+    { "source": "/api/activity",         "destination": "/api/user-data?resource=activity" },
+    { "source": "/api/health",           "destination": "/api/user-data?resource=health" },
+    { "source": "/api/vault",            "destination": "/api/user-data?resource=vault" },
+    { "source": "/api/audit",            "destination": "/api/entries?resource=audit" },
+    { "source": "/api/graph",            "destination": "/api/entries?resource=graph" },
+    { "source": "/v1/:action",           "destination": "/api/v1?action=:action" },
+    { "source": "/.well-known/:path*", "destination": "/api/mcp?_wk=1" },
+    { "source": "/token", "destination": "/api/mcp?_oauth=token" },
+    { "source": "/register", "destination": "/api/mcp?_oauth=register" },
+    { "source": "/authorize", "destination": "/api/mcp?_oauth=authorize" },
+    { "source": "/api/stripe-checkout", "destination": "/api/user-data?resource=stripe-checkout" },
+    { "source": "/api/stripe-webhook",  "destination": "/api/user-data?resource=stripe-webhook"  },
+    { "source": "/api/stripe-portal",   "destination": "/api/user-data?resource=stripe-portal"   },
+    { "source": "/((?!api/|assets/|v1/).*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://api.openai.com https://openrouter.ai https://api.groq.com https://api.resend.com https://generativelanguage.googleapis.com; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; worker-src 'self' blob:" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-XSS-Protection", "value": "1; mode=block" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains; preload" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(self), geolocation=()" }
+      ]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    }
+  ]
+}
