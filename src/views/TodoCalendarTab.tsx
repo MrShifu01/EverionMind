@@ -292,28 +292,51 @@ function SegmentedControl({
   );
 }
 
+// Two-row "Tetris" stacking — top-heavy. Reads cleaner in a narrow day cell
+// than a long horizontal row when there are 3+ events:
+//   1 → •
+//   2 → • •
+//   3 → • •  /  •
+//   4 → • •  /  • •
+//   5 → • • •  /  • •
+//   6 → • • •  /  • • •
+//   7+ → 6 dots + +N
 function EventDots({ events }: { events: CalEvent[] }) {
   if (events.length === 0) return null;
-  const visible = events.slice(0, 3);
+  const MAX = 6;
+  const visible = events.slice(0, MAX);
   const overflow = events.length - visible.length;
+  // Top row gets the extra dot when count is odd (top-heavy looks like a
+  // proper Tetris piece resting; bottom-heavy reads as off-balance).
+  const topCount = Math.ceil(visible.length / 2);
+  const top = visible.slice(0, topCount);
+  const bottom = visible.slice(topCount);
+
+  const dotStyle = (ev: CalEvent): React.CSSProperties => ({
+    width: 5,
+    height: 5,
+    borderRadius: 999,
+    background: eventSourceColor(ev.source),
+  });
+
   return (
-    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-      {visible.map((ev, i) => (
-        <span
-          key={i}
-          aria-hidden="true"
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: 999,
-            background: eventSourceColor(ev.source),
-          }}
-        />
-      ))}
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+      <div style={{ display: "flex", gap: 3 }}>
+        {top.map((ev, i) => (
+          <span key={`t${i}`} aria-hidden="true" style={dotStyle(ev)} />
+        ))}
+      </div>
+      {bottom.length > 0 && (
+        <div style={{ display: "flex", gap: 3 }}>
+          {bottom.map((ev, i) => (
+            <span key={`b${i}`} aria-hidden="true" style={dotStyle(ev)} />
+          ))}
+        </div>
+      )}
       {overflow > 0 && (
         <span
           aria-hidden="true"
-          style={{ fontSize: 9, color: "var(--ink-ghost)", lineHeight: 1, marginLeft: 2 }}
+          style={{ fontSize: 9, color: "var(--ink-ghost)", lineHeight: 1, marginTop: 1 }}
         >
           +{overflow}
         </span>
@@ -622,7 +645,9 @@ function BottomSheet({
           background: "var(--surface)",
           borderTopLeftRadius: 20,
           borderTopRightRadius: 20,
-          padding: "14px 20px calc(28px + env(safe-area-inset-bottom))",
+          // Bottom padding includes the 56px BottomNav height so the last
+          // event card has clearance instead of disappearing under the nav.
+          padding: "14px 20px calc(84px + env(safe-area-inset-bottom))",
           boxShadow: "var(--lift-3)",
           maxHeight: "85vh",
           overflowY: "auto",
