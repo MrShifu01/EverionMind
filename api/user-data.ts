@@ -52,11 +52,18 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   // Stripe webhook uses raw body for signature verification
   if (resource === "stripe-webhook") return handleStripeWebhook(req, res, rawBody);
 
-  // Parse body for all other handlers
-  try {
-    req.body = rawBody.length > 0 ? JSON.parse(rawBody.toString("utf-8")) : {};
-  } catch {
+  // Parse body for all other handlers. Reject malformed JSON instead of
+  // silently coercing to {}, which used to mask 413/400-class errors and
+  // make handlers see an empty body as if the client sent one.
+  if (rawBody.length === 0) {
     req.body = {};
+  } else {
+    try {
+      req.body = JSON.parse(rawBody.toString("utf-8"));
+    } catch (e: any) {
+      console.error("[user-data:parse]", e?.message ?? e);
+      return void res.status(400).json({ error: "Invalid JSON body" });
+    }
   }
 
   if (resource === "activity") return handleActivity(req, res);

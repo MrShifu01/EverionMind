@@ -398,7 +398,15 @@ export default function BulkImportPanel({
 function ProgressBlock({ progress, sourceLabel }: { progress: Progress; sourceLabel: string }) {
   const { phase, current, total, imported, skipped, failed, enriched, pendingEnrichment } =
     progress;
-  const elapsed = Date.now() - progress.startedAt;
+  // Tick once per second so elapsed/ETA refresh while the parent prop is stable.
+  // Reading Date.now() during render breaks purity; a tick state fixes that.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (phase === "done" || phase === "error" || phase === "cancelled") return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [phase]);
+  const elapsed = now - progress.startedAt;
   const eta =
     phase === "parsing" || phase === "importing" || phase === "enriching"
       ? formatEta(elapsed, current, total)

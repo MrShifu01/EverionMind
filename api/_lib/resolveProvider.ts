@@ -121,11 +121,14 @@ export async function resolveProviderForUser(userId: string): Promise<AICall | n
   const tier = (profile?.tier ?? settings?.plan ?? "free").toLowerCase();
 
   if (tier === "pro" || tier === "max") {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) return null;
-    return { provider: "anthropic", apiKey, model: DEFAULT_MODELS.anthropic };
+    const anthropicKey = process.env.ANTHROPIC_API_KEY;
+    if (anthropicKey) {
+      return { provider: "anthropic", apiKey: anthropicKey, model: DEFAULT_MODELS.anthropic };
+    }
+    // Fall through to managed Gemini so pro/max users still get enrichment
+    // when ANTHROPIC_API_KEY isn't configured (per project policy).
   }
-  if (tier === "starter") {
+  if (tier === "pro" || tier === "max" || tier === "starter") {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return null;
     return { provider: "gemini", apiKey, model: DEFAULT_MODELS.gemini };

@@ -7,7 +7,16 @@ import tsParser from '@typescript-eslint/parser'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', 'api', 'supabase/functions/**', 'scripts/mock-prompt-audit/**']),
+  globalIgnores([
+    'dist',
+    'api',
+    'supabase/functions/**',
+    'scripts/mock-prompt-audit/**',
+    '.claude/**',
+    '.smashOS/**',
+    '.worktrees/**',
+    'graphify-out/**',
+  ]),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -28,15 +37,23 @@ export default defineConfig([
       '@typescript-eslint': tseslint,
     },
     rules: {
+      // TS handles undefined-variable detection; built-in is noise on TS files.
       'no-undef': 'off',
+      // Superseded by @typescript-eslint/no-unused-vars below.
       'no-unused-vars': 'off',
+      // Empty catches are intentional in many places (e.g. fire-and-forget audit_log).
       'no-empty': ['error', { allowEmptyCatch: true }],
+      // Defensive `let x = 0` initializers reassigned inside a try{} aren't bugs;
+      // the rule misfires on a common type-narrowing pattern.
       'no-useless-assignment': 'off',
       '@typescript-eslint/no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]', argsIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'warn',
-      'react-hooks/set-state-in-effect': 'off',
-      'react-hooks/preserve-manual-memoization': 'off',
-      'react-hooks/use-memo': 'off',
+      // The next three are React-Compiler-aware rules. We have known violations
+      // that need a focused refactor; until then keep them as warnings (not off)
+      // so they're visible in lint output but don't block CI.
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/preserve-manual-memoization': 'warn',
+      'react-hooks/use-memo': 'warn',
       'react-refresh/only-export-components': 'off',
     },
   },

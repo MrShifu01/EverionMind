@@ -40,7 +40,10 @@ async function retryFetch(
     }
     // Re-throw with a clearer message so the toast doesn't say cryptic "Load failed".
     const original = err?.message ?? "network error";
-    throw new Error(`Network blip (${original}). Try again — already-saved progress is kept.`);
+    throw new Error(
+      `Network blip (${original}). Try again — already-saved progress is kept.`,
+      { cause: err },
+    );
   }
 }
 
