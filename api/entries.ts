@@ -3,7 +3,7 @@ import { withAuth, requireBrainAccess, ApiError, type HandlerContext } from "./_
 import { sbHeaders, sbHeadersNoContent } from "./_lib/sbHeaders.js";
 import { computeCompletenessScore } from "./_lib/completeness.js";
 import { SERVER_PROMPTS } from "./_lib/prompts.js";
-import { enrichInline, enrichBrain, backfillPersonaForBrain } from "./_lib/enrich.js";
+import { enrichInline, enrichBrain, backfillPersonaForBrain, revertBackfilledPersonaForBrain } from "./_lib/enrich.js";
 import { flagsOf } from "./_lib/enrichFlags.js";
 
 const SB_URL = process.env.SUPABASE_URL;
@@ -31,6 +31,7 @@ export default withAuth(
     if (ctx.req.method === "GET"  && action === "enrich-debug")          return handleEnrichDebug(ctx);
     if (ctx.req.method === "POST" && action === "enrich-batch")          return handleEnrichBatch(ctx);
     if (ctx.req.method === "POST" && action === "backfill-persona")      return handleBackfillPersona(ctx);
+    if (ctx.req.method === "POST" && action === "revert-persona-backfill") return handleRevertPersonaBackfill(ctx);
     if (ctx.req.method === "POST" && action === "enrich-clear-backfill") return handleClearBackfill(ctx);
     if (ctx.req.method === "POST" && action === "enrich-retry-failed")   return handleRetryFailed(ctx);
     if (ctx.req.method === "POST" && action === "empty-trash")           return handleEmptyTrash(ctx);
@@ -488,17 +489,30 @@ async function handleEnrichBatch({ req, res, user }: HandlerContext): Promise<vo
 }
 
 // ── POST /api/entries?action=backfill-persona ──
-// Runs ONLY the persona classifier on every existing entry that hasn't been
-// classified yet. Cheap (one Gemini Flash call per entry, ~50 tokens out)
-// and safe to call repeatedly — already-classified entries skip in O(1).
-// Capped per call so the function stays well under the Vercel timeout; the
-// UI loops on `remaining > 0`.
+// Walks every entry in the brain, asks Gemini to extract 0..N short facts
+// about the user, writes each as a NEW type='persona' entry linked back via
+// metadata.derived_from. Source entries are never modified beyond stamping
+// enrichment.persona_extracted=true. Capped per call so the function stays
+// well under the Vercel timeout; the UI loops on `remaining > 0`.
 async function handleBackfillPersona({ req, res, user }: HandlerContext): Promise<void> {
   const { brain_id, batch_size } = req.body;
   if (!brain_id || typeof brain_id !== "string") throw new ApiError(400, "brain_id required");
   await requireBrainAccess(user.id, brain_id);
   const batchSize = typeof batch_size === "number" && batch_size > 0 ? Math.min(batch_size, 100) : 50;
   const result = await backfillPersonaForBrain(user.id, brain_id, batchSize);
+  res.status(200).json(result);
+}
+
+// ── POST /api/entries?action=revert-persona-backfill ──
+// One-time cleanup: undoes the first-iteration backfill that wrongly flipped
+// whole entries to type='persona'. Targets only entries the backfill itself
+// produced (source != manual/chat, no derived_from) and best-guesses the
+// original type from surviving tag/metadata signals. Idempotent.
+async function handleRevertPersonaBackfill({ req, res, user }: HandlerContext): Promise<void> {
+  const { brain_id } = req.body;
+  if (!brain_id || typeof brain_id !== "string") throw new ApiError(400, "brain_id required");
+  await requireBrainAccess(user.id, brain_id);
+  const result = await revertBackfilledPersonaForBrain(user.id, brain_id);
   res.status(200).json(result);
 }
 

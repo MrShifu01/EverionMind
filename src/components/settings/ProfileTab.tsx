@@ -45,6 +45,8 @@ interface PersonaFact {
     last_referenced_at?: string;
     retired_at?: string;
     retired_reason?: string;
+    derived_from?: string[];
+    skip_persona?: boolean;
   } | null;
   created_at: string;
   updated_at: string;
@@ -115,11 +117,15 @@ export default function ProfileTab() {
   const [adding, setAdding] = useState(false);
 
   // Backfill state — one-time scan of existing entries through the persona
-  // classifier. Loops until the server reports remaining=0 so the user sees
-  // every fact promoted on the spot, not on the next cron tick.
+  // extractor. Loops until the server reports remaining=0 so the user sees
+  // every fact extracted on the spot, not on the next cron tick.
   const [scanning, setScanning] = useState(false);
-  const [scanProgress, setScanProgress] = useState<{ scanned: number; promoted: number } | null>(null);
+  const [scanProgress, setScanProgress] = useState<{ scanned: number; extracted: number } | null>(null);
   const [scanResult, setScanResult] = useState<string | null>(null);
+
+  // Reset state — undoes the previous (buggy) scan that flipped entry types.
+  const [resetting, setResetting] = useState(false);
+  const [resetResult, setResetResult] = useState<string | null>(null);
 
   // ── Load core ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -172,6 +178,20 @@ export default function ProfileTab() {
     }
   }
   useEffect(() => { reloadFacts(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, [brainId]);
+
+  // ── Detect first-iteration backfill damage ────────────────────────────────
+  // Wrongly-promoted entries have NO derived_from and source not in
+  // (manual, chat). If any exist, surface the Reset button.
+  const needsReset = useMemo(
+    () => facts.some((f) => {
+      const m = f.metadata ?? {};
+      if (m.derived_from && m.derived_from.length) return false;
+      if (m.skip_persona === true) return false;
+      const src = String(m.source || "");
+      return src !== "manual" && src !== "chat";
+    }),
+    [facts],
+  );
 
   // ── Bucket grouping ───────────────────────────────────────────────────────
   const grouped = useMemo(() => {
@@ -281,9 +301,9 @@ export default function ProfileTab() {
     if (!brainId || scanning) return;
     setScanning(true);
     setScanResult(null);
-    setScanProgress({ scanned: 0, promoted: 0 });
+    setScanProgress({ scanned: 0, extracted: 0 });
     let totalScanned = 0;
-    let totalPromoted = 0;
+    let totalExtracted = 0;
     let safety = 40; // hard ceiling on polling rounds (40 × 50 = 2000 entries)
     try {
       while (safety-- > 0) {
@@ -293,22 +313,54 @@ export default function ProfileTab() {
           body: JSON.stringify({ brain_id: brainId, batch_size: 50 }),
         });
         if (!r?.ok) throw new Error("backfill_failed");
-        const data = await r.json() as { scanned: number; promoted: number; remaining: number };
+        const data = await r.json() as { scanned: number; extracted: number; remaining: number };
         totalScanned += data.scanned;
-        totalPromoted += data.promoted;
-        setScanProgress({ scanned: totalScanned, promoted: totalPromoted });
+        totalExtracted += data.extracted;
+        setScanProgress({ scanned: totalScanned, extracted: totalExtracted });
         if (data.scanned === 0 || data.remaining === 0) break;
       }
       setScanResult(
         totalScanned === 0
-          ? "Already scanned — nothing new to classify."
-          : `Scanned ${totalScanned} ${totalScanned === 1 ? "entry" : "entries"} · promoted ${totalPromoted} to your About You.`,
+          ? "Already scanned — nothing new."
+          : totalExtracted === 0
+            ? `Scanned ${totalScanned} ${totalScanned === 1 ? "entry" : "entries"} · no new persona facts found.`
+            : `Scanned ${totalScanned} ${totalScanned === 1 ? "entry" : "entries"} · extracted ${totalExtracted} ${totalExtracted === 1 ? "fact" : "facts"} to your About You.`,
       );
       await reloadFacts();
     } catch (e: any) {
       setScanResult(e?.message || "Scan failed — try again.");
     } finally {
       setScanning(false);
+    }
+  }
+
+  async function runReset() {
+    if (!brainId || resetting) return;
+    if (!window.confirm(
+      "Undo the previous scan?\n\n" +
+      "This restores entries that were wrongly converted into persona cards back to their best-guessed original type (todos return to schedule, events to calendar, etc.).\n\n" +
+      "Manually-added facts and chat-tool facts are NOT touched.",
+    )) return;
+    setResetting(true);
+    setResetResult(null);
+    try {
+      const r = await authFetch("/api/entries?action=revert-persona-backfill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brain_id: brainId }),
+      });
+      if (!r?.ok) throw new Error("revert_failed");
+      const data = await r.json() as { scanned: number; reverted: number };
+      setResetResult(
+        data.reverted === 0
+          ? "Nothing to revert — your About You is already clean."
+          : `Reverted ${data.reverted} ${data.reverted === 1 ? "entry" : "entries"} back to their original type.`,
+      );
+      await reloadFacts();
+    } catch (e: any) {
+      setResetResult(e?.message || "Reset failed — try again.");
+    } finally {
+      setResetting(false);
     }
   }
 
@@ -515,7 +567,58 @@ export default function ProfileTab() {
         Facts your second brain has learned about you — from chat, captures, and imports. Each one is a real entry; pinned facts never decay.
       </Hint>
 
-      {/* Backfill — scan existing entries through the persona classifier */}
+      {/* Reset — only shown when the first-iteration backfill left junk behind */}
+      {needsReset && (
+        <div
+          style={{
+            marginTop: 12,
+            padding: "10px 14px",
+            background: "color-mix(in oklch, var(--blood) 8%, var(--surface-low))",
+            border: "1px solid color-mix(in oklch, var(--blood) 30%, var(--line-soft))",
+            borderRadius: 10,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <p className="f-sans" style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>
+              Undo previous scan
+            </p>
+            <p className="f-serif" style={{ margin: "2px 0 0", fontSize: 12, fontStyle: "italic", color: "var(--ink-faint)", lineHeight: 1.45 }}>
+              An earlier version of the scan converted whole entries into persona cards by mistake. Reset to put them back into Schedule, Calendar, etc., then run the new scan below.
+            </p>
+            {resetResult && !resetting && (
+              <p className="f-serif" style={{ margin: "6px 0 0", fontSize: 12, fontStyle: "italic", color: "var(--moss)" }}>
+                {resetResult}
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={runReset}
+            disabled={resetting || !brainId}
+            className="press f-sans"
+            style={{
+              height: 34,
+              padding: "0 14px",
+              fontSize: 12,
+              fontWeight: 600,
+              borderRadius: 8,
+              background: "transparent",
+              color: "var(--blood)",
+              border: "1px solid color-mix(in oklch, var(--blood) 50%, var(--line-soft))",
+              cursor: resetting ? "wait" : "pointer",
+              opacity: resetting ? 0.6 : 1,
+            }}
+          >
+            {resetting ? "Reverting…" : "Reset previous scan"}
+          </button>
+        </div>
+      )}
+
+      {/* Backfill — scan existing entries and extract short persona facts */}
       <div
         style={{
           marginTop: 12,
@@ -534,11 +637,11 @@ export default function ProfileTab() {
             Scan existing entries
           </p>
           <p className="f-serif" style={{ margin: "2px 0 0", fontSize: 12, fontStyle: "italic", color: "var(--ink-faint)", lineHeight: 1.45 }}>
-            Look through every note already in this brain and pull out persona facts. Safe to run any time — won't re-scan entries that have already been checked.
+            Look through every note in this brain and extract <em>short facts</em> about you. Each fact becomes its own small entry; your originals are never changed.
           </p>
           {scanProgress && scanning && (
             <p className="f-sans" style={{ margin: "6px 0 0", fontSize: 12, color: "var(--ember)" }}>
-              Scanned {scanProgress.scanned} · promoted {scanProgress.promoted}…
+              Scanned {scanProgress.scanned} · extracted {scanProgress.extracted}…
             </p>
           )}
           {scanResult && !scanning && (

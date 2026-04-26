@@ -27,7 +27,12 @@ import { SERVER_PROMPTS } from "./prompts.js";
 import { callAI, type AICall } from "./aiProvider.js";
 import { resolveProviderForUser, resolveEmbedProviderForUser } from "./resolveProvider.js";
 import { flagsOf } from "./enrichFlags.js";
-import { classifyPersona } from "./classifyPersona.js";
+import { extractPersonaFacts } from "./extractPersonaFacts.js";
+import {
+  generateEmbedding as personaGenerateEmbedding,
+  buildEntryText as personaBuildEntryText,
+} from "./generateEmbedding.js";
+import { randomUUID } from "crypto";
 
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -334,79 +339,133 @@ async function stepEmbed(entry: Entry, embed: EmbedConfig): Promise<void> {
   }
 }
 
-// ── Step: persona classifier ────────────────────────────────────────────────
+// ── Step: persona extractor ─────────────────────────────────────────────────
 //
-// After parse/insight have run, look at the entry and decide: is this a
-// durable, first-person fact about who the user is? If yes (confidence
-// ≥ 0.85) → flip type to 'persona' and stamp the persona metadata block.
-// Either way, set enrichment.persona_classified=true so the step never
-// runs twice for the same entry. Capture-time `metadata.skip_persona`
-// short-circuits the call (used by chat-tool writes that already know
-// they're persona).
-const PERSONA_PROMOTION_THRESHOLD = 0.85;
+// Reads the entry, asks Gemini to pull out 0..N short third-person facts about
+// the user, and writes each as a brand-new `type='persona'` row that points
+// back to the source via `metadata.derived_from`. The original entry is NEVER
+// modified beyond stamping `enrichment.persona_extracted=true` so the step
+// never runs twice for the same entry. `metadata.skip_persona === true` on
+// the source entry short-circuits the call.
+//
+// Returns the new working metadata for the source entry (so the caller can
+// patch it). The number of new persona rows it created is logged but the
+// caller doesn't need it.
 
-async function stepPersonaClassify(entry: Entry): Promise<{
-  meta: Record<string, any>;
-  newType: string | null;
-  newTags: string[] | null;
-} | null> {
+async function stepPersonaExtract(
+  entry: Entry,
+  userId: string,
+  brainId: string | null,
+): Promise<Record<string, any> | null> {
   const meta = { ...(entry.metadata ?? {}) };
   const enr = (meta.enrichment ?? {}) as Record<string, unknown>;
-  if (enr.persona_classified === true) return null;
+  if (enr.persona_extracted === true) return null;
 
-  // Already a persona entry (chat-tool / manual write) — just stamp the flag.
+  // Persona entries don't extract from themselves.
   if (entry.type === "persona") {
-    return {
-      meta: { ...meta, enrichment: { ...enr, persona_classified: true } },
-      newType: null,
-      newTags: null,
-    };
+    return { ...meta, enrichment: { ...enr, persona_extracted: true } };
   }
-  // Caller asked to skip (e.g. chat tool path that's about to write a persona).
+  // Caller asked to skip (chat tool path that already knows what it's writing).
   if (meta.skip_persona === true) {
     const { skip_persona: _omit, ...rest } = meta;
-    return {
-      meta: { ...rest, enrichment: { ...enr, persona_classified: true } },
-      newType: null,
-      newTags: null,
-    };
+    return { ...rest, enrichment: { ...enr, persona_extracted: true } };
   }
 
-  const result = await classifyPersona({
+  const facts = await extractPersonaFacts({
     title: entry.title,
     content: entry.content || "",
     type: entry.type || "note",
     tags: entry.tags ?? undefined,
   });
-  // Always stamp the flag — even on classifier failure or non-persona — so
-  // we don't churn this entry on every cron pass.
-  if (!result || !result.persona || result.confidence < PERSONA_PROMOTION_THRESHOLD || !result.bucket) {
-    return {
-      meta: { ...meta, enrichment: { ...enr, persona_classified: true } },
-      newType: null,
-      newTags: null,
-    };
+
+  // Stamp the flag regardless of result — empty extraction is a real answer
+  // and we don't want the cron re-asking every night.
+  const stampedMeta = { ...meta, enrichment: { ...enr, persona_extracted: true } };
+
+  if (!facts.length || !brainId) return stampedMeta;
+
+  // Resolve the brain id once. We need it to insert the child entries.
+  for (const f of facts) {
+    try {
+      await insertExtractedFact(f, entry, userId, brainId);
+    } catch (err: any) {
+      console.error("[persona:extract] insert failed", entry.id, err?.message ?? err);
+    }
+  }
+  return stampedMeta;
+}
+
+async function insertExtractedFact(
+  fact: { fact: string; bucket: string; confidence: number; evidence?: string },
+  source: Entry,
+  userId: string,
+  brainId: string,
+): Promise<void> {
+  const id = randomUUID();
+  const title = fact.fact;
+  const content = fact.evidence
+    ? `${fact.fact}\n\nFrom: "${fact.evidence}"`
+    : fact.fact;
+
+  // Embedding (best-effort — null is OK, daily cron will fill it later).
+  let embedding: number[] | null = null;
+  const apiKey = (process.env.GEMINI_API_KEY || "").trim();
+  if (apiKey) {
+    try {
+      embedding = await personaGenerateEmbedding(
+        personaBuildEntryText({ title, content, tags: ["persona", fact.bucket] }),
+        apiKey,
+      );
+    } catch {
+      embedding = null;
+    }
   }
 
-  // Promote.
-  const personaMeta = {
-    ...meta,
-    bucket: result.bucket,
-    status: "active",
-    source: meta.source || "capture",
-    confidence: Math.min(1, Math.max(0, result.confidence)),
+  const metadata = {
+    bucket: fact.bucket,
+    status: "active" as const,
+    source: "capture",
+    confidence: Math.min(1, Math.max(0, fact.confidence)),
     pinned: false,
     evidence_count: 1,
     last_referenced_at: new Date().toISOString(),
-    enrichment: { ...enr, persona_classified: true },
+    derived_from: [source.id],
   };
-  const tags = Array.isArray(entry.tags) ? entry.tags : [];
-  const newTags = [
-    ...tags.filter((t) => t !== "persona" && t !== result.bucket),
-    "persona",
-    result.bucket,
-  ];
-  return { meta: personaMeta, newType: "persona", newTags };
+
+  const r = await fetch(`${SB_URL}/rest/v1/entries`, {
+    method: "POST",
+    headers: { ...SB_HDR, Prefer: "return=minimal" },
+    body: JSON.stringify({
+      id,
+      user_id: userId,
+      brain_id: brainId,
+      title: title.slice(0, 200),
+      content,
+      type: "persona",
+      tags: ["persona", fact.bucket],
+      metadata,
+      embedding: embedding ? `[${embedding.join(",")}]` : null,
+      embedding_status: embedding ? "done" : null,
+      embedded_at: embedding ? new Date().toISOString() : null,
+      embedding_provider: embedding ? "google" : null,
+      embedding_model: embedding ? "gemini-embedding-001" : null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }),
+  });
+  if (!r.ok) {
+    throw new Error(`insert HTTP ${r.status}: ${await r.text().catch(() => "")}`);
+  }
+}
+
+async function fetchBrainIdForEntry(entryId: string): Promise<string | null> {
+  const r = await fetch(
+    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entryId)}&select=brain_id&limit=1`,
+    { headers: SB_HDR },
+  );
+  if (!r.ok) return null;
+  const rows: Array<{ brain_id: string | null }> = await r.json().catch(() => []);
+  return rows[0]?.brain_id ?? null;
 }
 
 // ── Public: enrichInline ────────────────────────────────────────────────────
@@ -448,31 +507,24 @@ export async function enrichInline(entryId: string, userId: string): Promise<boo
     }
   }
 
-  // Persona classifier — runs whether or not the LLM enrichment ran. Skipped
-  // internally if persona_classified is already true. May flip type='persona'
-  // and rewrite tags atomically alongside the metadata patch.
-  let personaTypeChange: { type: string; tags: string[] } | null = null;
-  const personaResult = await stepPersonaClassify({ ...entry, metadata: workingMeta }).catch(() => null);
-  if (personaResult) {
-    workingMeta = personaResult.meta;
-    if (personaResult.newType) {
-      personaTypeChange = { type: personaResult.newType, tags: personaResult.newTags || [] };
-    }
+  // Persona extractor — pulls 0..N short facts from the entry and writes them
+  // as new type='persona' rows linked back via metadata.derived_from. The
+  // source entry's type/tags are NEVER touched; only its metadata is stamped
+  // with persona_extracted=true so the step doesn't re-run.
+  const brainId = await fetchBrainIdForEntry(entry.id);
+  const stamped = await stepPersonaExtract({ ...entry, metadata: workingMeta }, userId, brainId).catch(() => null);
+  if (stamped) {
+    workingMeta = stamped;
     changed = true;
   }
 
-  if (changed) await patchMetadata(entry.id, userId, workingMeta, personaTypeChange);
+  if (changed) await patchMetadata(entry.id, userId, workingMeta, null);
 
-  // Embedding is independent of the LLM provider. Use the post-classifier
-  // type/tags so a freshly-promoted persona entry gets indexed with the
-  // right metadata in its embedding text.
+  // Embedding is independent of the LLM provider.
   if (!flags.embedded && flags.embedding_status !== "failed") {
     const embedCfg = await resolveEmbedProviderForUser(userId);
     if (embedCfg) {
-      const embedEntry = personaTypeChange
-        ? { ...entry, type: personaTypeChange.type, tags: personaTypeChange.tags, metadata: workingMeta }
-        : { ...entry, metadata: workingMeta };
-      await stepEmbed(embedEntry, embedCfg);
+      await stepEmbed({ ...entry, metadata: workingMeta }, embedCfg);
       changed = true;
     }
   }
@@ -535,47 +587,174 @@ export async function backfillPersonaForBrain(
   userId: string,
   brainId: string,
   batchSize = 50,
-): Promise<{ scanned: number; promoted: number; remaining: number }> {
-  // Pull every entry in the brain that hasn't already been classified. We use
-  // a JSON path filter — `metadata->enrichment->>persona_classified` is null
-  // OR not 'true' — to avoid scanning entries that are already done.
+): Promise<{ scanned: number; extracted: number; remaining: number }> {
+  // Pull every entry in the brain that hasn't been through the new extractor
+  // yet. The new flag is `persona_extracted` — separate from the old
+  // `persona_classified` flag (which is harmless going forward).
   const r = await fetch(
     `${SB_URL}/rest/v1/entries?user_id=eq.${encodeURIComponent(userId)}&brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&type=neq.secret&type=neq.persona&select=${encodeURIComponent(ENTRY_FIELDS)}&order=created_at.desc&limit=500`,
     { headers: SB_HDR },
   );
-  if (!r.ok) return { scanned: 0, promoted: 0, remaining: 0 };
+  if (!r.ok) return { scanned: 0, extracted: 0, remaining: 0 };
   const all: Entry[] = await r.json();
 
-  // Client-side filter on the jsonb flag — PostgREST can express it but the
-  // syntax is finicky and the dataset here is bounded by `limit=500` already.
   const pending = all.filter((e) => {
     const enr = (e.metadata as any)?.enrichment ?? {};
-    return enr.persona_classified !== true;
+    return enr.persona_extracted !== true;
   });
   const batch = pending.slice(0, batchSize);
 
-  let promoted = 0;
+  // Count extracted facts by diffing the persona-entry count before and after.
+  // Cheaper and more reliable than threading return values through the step.
+  const beforeCount = await countPersonaEntries(userId, brainId);
+
   for (const entry of batch) {
     try {
-      const result = await stepPersonaClassify(entry);
-      if (!result) continue;
-      await patchMetadata(
-        entry.id,
-        userId,
-        result.meta,
-        result.newType ? { type: result.newType, tags: result.newTags ?? [] } : null,
-      );
-      if (result.newType === "persona") promoted++;
+      const stamped = await stepPersonaExtract(entry, userId, brainId);
+      if (stamped) {
+        await patchMetadata(entry.id, userId, stamped, null);
+      }
     } catch (err: any) {
       console.error("[persona:backfill] entry failed:", entry.id, err?.message ?? err);
     }
   }
 
+  const afterCount = await countPersonaEntries(userId, brainId);
   return {
     scanned: batch.length,
-    promoted,
+    extracted: Math.max(0, afterCount - beforeCount),
     remaining: Math.max(0, pending.length - batch.length),
   };
+}
+
+async function countPersonaEntries(userId: string, brainId: string): Promise<number> {
+  const r = await fetch(
+    `${SB_URL}/rest/v1/entries?user_id=eq.${encodeURIComponent(userId)}&brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&type=eq.persona&select=id`,
+    { headers: { ...SB_HDR, Prefer: "count=exact" } as Record<string, string> },
+  );
+  if (!r.ok) return 0;
+  // PostgREST returns the count via Content-Range when Prefer:count=exact is set.
+  const range = r.headers.get("content-range") || "";
+  const m = /\/(\d+)$/.exec(range);
+  if (m) return parseInt(m[1]!, 10);
+  // Fallback: count the rows we got.
+  const rows: any[] = await r.json().catch(() => []);
+  return rows.length;
+}
+
+// ── Public: revertBackfilledPersonaForBrain ─────────────────────────────────
+//
+// Cleanup for the first-iteration backfill that flipped whole entries to
+// type='persona' instead of extracting short facts. Targets only entries
+// the backfill itself created (source='capture' / 'inference' / 'import',
+// no derived_from, persona_classified=true) and best-guesses the original
+// type from tag and metadata signals so todos go back to schedule, events
+// back to calendar, etc. Strips persona-specific metadata fields too.
+//
+// Idempotent — re-running on an already-cleaned brain finds zero rows.
+
+export async function revertBackfilledPersonaForBrain(
+  userId: string,
+  brainId: string,
+): Promise<{ scanned: number; reverted: number }> {
+  // Pull every type='persona' entry in the brain.
+  const r = await fetch(
+    `${SB_URL}/rest/v1/entries?user_id=eq.${encodeURIComponent(userId)}&brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&type=eq.persona&select=${encodeURIComponent(ENTRY_FIELDS)}&limit=2000`,
+    { headers: SB_HDR },
+  );
+  if (!r.ok) return { scanned: 0, reverted: 0 };
+  const all: Entry[] = await r.json();
+
+  // Filter to ones the backfill produced — never touch chat-tool / manual
+  // adds, never touch already-extracted child facts (those have derived_from).
+  const targets = all.filter((e) => {
+    const meta = (e.metadata as any) ?? {};
+    if (meta.derived_from) return false;       // a properly-extracted child fact
+    if (meta.skip_persona === true) return false;
+    const src = String(meta.source || "");
+    if (src === "manual" || src === "chat") return false;
+    return true;
+  });
+
+  let reverted = 0;
+  for (const entry of targets) {
+    const meta = { ...((entry.metadata as any) ?? {}) };
+    const tags = Array.isArray(entry.tags) ? entry.tags : [];
+
+    // Best-guess original type from surviving signals.
+    const newType = inferOriginalType(tags, meta);
+    // Strip persona tags (the ones we appended).
+    const personaTags = new Set(["persona", "identity", "family", "habit", "preference", "event"]);
+    const newTags = tags.filter((t) => !personaTags.has(t));
+
+    // Strip persona-specific metadata fields. Keep enrichment flags so we
+    // don't re-enrich, but clear persona_classified so the new extractor
+    // (which uses persona_extracted) handles it freshly when we re-scan.
+    delete meta.bucket;
+    delete meta.status;
+    delete meta.source;
+    delete meta.confidence;
+    delete meta.pinned;
+    delete meta.evidence_count;
+    delete meta.last_referenced_at;
+    delete meta.retired_at;
+    delete meta.retired_reason;
+    delete meta.last_decayed_at;
+    if (meta.enrichment) {
+      const enr = { ...meta.enrichment };
+      delete enr.persona_classified;
+      meta.enrichment = enr;
+    }
+
+    const ok = await patchEntryFields(entry.id, userId, {
+      type: newType,
+      tags: newTags,
+      metadata: meta,
+    });
+    if (ok) reverted++;
+  }
+
+  return { scanned: targets.length, reverted };
+}
+
+// Heuristic — original type was lost when stepPersonaClassify ran, so we
+// guess from whatever signals survived. Order matters: the first match wins.
+function inferOriginalType(tags: string[], meta: Record<string, any>): string {
+  const tagSet = new Set(tags.map((t) => String(t).toLowerCase()));
+  if (meta.due_at || meta.due || meta.completed_at !== undefined) return "todo";
+  if (meta.starts_at || meta.start || meta.event_at) return "event";
+  if (meta.url && /^https?:\/\//.test(String(meta.url))) return "document";
+  if (meta.phone || meta.email) return "contact";
+  if (meta.amount !== undefined || meta.currency) return "finance";
+  if (meta.lat !== undefined || meta.address) return "place";
+  if (tagSet.has("todo") || tagSet.has("task")) return "todo";
+  if (tagSet.has("event") || tagSet.has("calendar")) return "event";
+  if (tagSet.has("recipe")) return "recipe";
+  if (tagSet.has("contact") || tagSet.has("person")) return "contact";
+  if (tagSet.has("place") || tagSet.has("location")) return "place";
+  if (tagSet.has("finance") || tagSet.has("money") || tagSet.has("expense")) return "finance";
+  if (tagSet.has("document") || tagSet.has("doc") || tagSet.has("bookmark")) return "document";
+  if (tagSet.has("idea")) return "idea";
+  if (tagSet.has("decision")) return "decision";
+  if (tagSet.has("health")) return "health";
+  if (tagSet.has("recipe")) return "recipe";
+  return "note";
+}
+
+async function patchEntryFields(
+  id: string,
+  userId: string,
+  fields: { type?: string; tags?: string[]; metadata?: Record<string, any> },
+): Promise<boolean> {
+  const r = await fetch(
+    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}`,
+    {
+      method: "PATCH",
+      headers: { ...SB_HDR, Prefer: "return=minimal" },
+      body: JSON.stringify(fields),
+    },
+  );
+  return r.ok;
 }
 
 // ── Public: enrichAllBrains (daily cron) ────────────────────────────────────
