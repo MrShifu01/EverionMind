@@ -19,6 +19,19 @@ const ALL_DATE_KEYS = [
   "expiry",
   "renewal_date",
 ];
+// Bookkeeping timestamps that are NOT calendar dates. The broad
+// Object.values walk in extractDates pulled these in and falsely placed
+// every persona / fading entry on the calendar at its last reference.
+const NON_CALENDAR_DATE_KEYS = new Set([
+  "last_referenced_at",
+  "last_decayed_at",
+  "retired_at",
+  "created_at",
+  "updated_at",
+  "embedded_at",
+  "deleted_at",
+  "backfilled_at",
+]);
 const ACTION_DATE_KEYS = ["due_date", "deadline"];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}/;
 const CONTENT_DATE_RE = /\b(\d{4}-\d{2}-\d{2})\b/g;
@@ -45,7 +58,8 @@ export function extractDates(entry: Entry): string[] {
   ALL_DATE_KEYS.forEach((k) => {
     if (m[k] && DATE_RE.test(String(m[k]))) dates.add(String(m[k]).slice(0, 10));
   });
-  Object.values(m).forEach((v) => {
+  Object.entries(m).forEach(([k, v]) => {
+    if (NON_CALENDAR_DATE_KEYS.has(k)) return;
     if (typeof v === "string" && DATE_RE.test(v)) dates.add(v.slice(0, 10));
   });
   const text = `${entry.title || ""} ${entry.content || ""}`;

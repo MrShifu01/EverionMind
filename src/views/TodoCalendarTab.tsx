@@ -62,6 +62,11 @@ function entriesToCalEvents(entries: Entry[]): CalEvent[] {
   const events: CalEvent[] = [];
   entries.forEach((e) => {
     if (isDone(e)) return;
+    // Persona facts and vault secrets never belong on the calendar — they're
+    // not time-bound. Without this skip, a persona entry's bookkeeping
+    // timestamps (e.g. last_referenced_at) leak into extractDates and make
+    // every fact show up as a "Todo" on the day it was last touched.
+    if (e.type === "persona" || e.type === "secret") return;
     extractDates(e).forEach((d) => {
       const day = parseISO(d);
       events.push({
