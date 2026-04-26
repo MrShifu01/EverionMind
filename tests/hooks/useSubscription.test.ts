@@ -20,6 +20,7 @@ function makeQueryBuilder(data: any, error: any = null) {
   builder.select = vi.fn().mockReturnValue(builder);
   builder.eq = vi.fn().mockReturnValue(builder);
   builder.single = vi.fn().mockResolvedValue({ data, error });
+  builder.maybeSingle = vi.fn().mockResolvedValue({ data, error });
   return builder;
 }
 

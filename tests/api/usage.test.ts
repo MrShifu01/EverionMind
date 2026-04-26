@@ -66,11 +66,13 @@ describe("checkAndIncrement", () => {
     expect(result.pct).toBe(0);
   });
 
-  it("DB failure fails open and logs error", async () => {
+  it("DB failure throws quota_check_failed and logs error (callers return 503)", async () => {
     mockFetch.mockRejectedValueOnce(new Error("network error"));
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const result = await checkAndIncrement("uid", "chats", "starter", false);
-    expect(result.allowed).toBe(true);
+    await expect(checkAndIncrement("uid", "chats", "starter", false)).rejects.toMatchObject({
+      message: "quota_check_failed",
+      status: 503,
+    });
     expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining("[usage]"),
       expect.any(Error),

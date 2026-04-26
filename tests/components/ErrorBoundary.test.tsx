@@ -18,16 +18,17 @@ describe("ErrorBoundary", () => {
     spy.mockRestore();
   });
 
-  it("decorative emoji is hidden from screen readers", () => {
+  it("decorative icon is hidden from screen readers", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const { container } = render(
       <ErrorBoundary>
         <Bomb />
       </ErrorBoundary>
     );
-    const emojiEl = container.querySelector('[aria-hidden="true"]');
-    expect(emojiEl).not.toBeNull();
-    expect(emojiEl?.textContent).toBe("🧠");
+    const iconWrap = container.querySelector('[aria-hidden="true"]');
+    expect(iconWrap).not.toBeNull();
+    // The decorative icon is an inline brain SVG.
+    expect(iconWrap?.querySelector("svg")).not.toBeNull();
     spy.mockRestore();
   });
 });

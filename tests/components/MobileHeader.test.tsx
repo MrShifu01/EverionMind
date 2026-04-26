@@ -34,19 +34,8 @@ describe("MobileHeader", () => {
     expect(screen.getByRole("banner")).toBeInTheDocument();
   });
 
-  it("shows an offline status indicator when offline", () => {
-    renderWithTheme(<MobileHeader {...defaultProps} isOnline={false} />);
-    const dot = screen.getByTitle(/offline/i);
-    expect(dot).toBeInTheDocument();
-  });
-
-  it("shows a pending status indicator when online with pending changes", () => {
-    renderWithTheme(<MobileHeader {...defaultProps} pendingCount={3} />);
-    expect(screen.getByTitle(/pending/i)).toBeInTheDocument();
-  });
-
-  it("shows a synced status indicator when online and nothing pending", () => {
-    renderWithTheme(<MobileHeader {...defaultProps} isOnline={true} pendingCount={0} />);
-    expect(screen.getByTitle(/synced/i)).toBeInTheDocument();
-  });
+  // The redesign moved network status out of MobileHeader (now in
+  // OnlineIndicator on the global app frame). isOnline/pendingCount remain
+  // in the prop contract for API compat but are intentionally unused here,
+  // so the previous status-dot tests no longer apply.
 });

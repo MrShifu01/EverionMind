@@ -4,25 +4,17 @@
  * before deleting user data.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { makeApiReq, makeApiRes } from "../helpers/mockApiReq";
 
-function makeReq(overrides: Record<string, any> = {}) {
-  return {
+const makeReq = (overrides: any = {}) =>
+  makeApiReq({
     method: "DELETE",
     query: { resource: "account" },
     headers: { authorization: "Bearer test-token" },
     body: {},
-    socket: { remoteAddress: "127.0.0.1" },
     ...overrides,
-  };
-}
-
-function makeRes() {
-  const res: any = {};
-  res.status = vi.fn().mockReturnValue(res);
-  res.json = vi.fn().mockReturnValue(res);
-  res.setHeader = vi.fn();
-  return res;
-}
+  });
+const makeRes = () => makeApiRes();
 
 vi.mock("../../api/_lib/verifyAuth.js", () => ({
   verifyAuth: vi.fn().mockResolvedValue({ id: "user-1" }),

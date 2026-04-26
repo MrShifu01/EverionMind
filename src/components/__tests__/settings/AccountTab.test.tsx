@@ -7,6 +7,8 @@ const { mockSignOut, mockFrom } = vi.hoisted(() => {
   queryChain.select = vi.fn().mockReturnValue(queryChain);
   queryChain.eq = vi.fn().mockReturnValue(queryChain);
   queryChain.single = vi.fn().mockResolvedValue(chainEnd);
+  // useSubscription's user_usage lookup ends in .maybeSingle()
+  queryChain.maybeSingle = vi.fn().mockResolvedValue(chainEnd);
   const mockFrom = vi.fn().mockReturnValue(queryChain);
   return { mockSignOut: vi.fn(), mockFrom };
 });
