@@ -54,9 +54,19 @@ export function flagsOf(entry: EntryShape): EnrichmentFlags {
   // green and the pipeline doesn't waste Gemini calls trying to "enrich"
   // a string like "User wakes at 5:30". Embedding stays accurate.
   const isPersona = entry.type === "persona";
+  // Lists need different treatment. The parent row is the "Burgers" list;
+  // items are literal title/description rows in metadata.items. Two of
+  // the four LLM steps add no value here:
+  //   parse   — no dates / phones / amounts to pull out of "- title: desc"
+  //   insight — no "wow" to surface from a flat collection
+  // Concepts and embedding DO add value (chat retrieval, concept graph)
+  // and stay enabled. Skipping parse + insight also keeps capture's 30s
+  // maxDuration comfortable for long imported lists; the previous full
+  // pipeline was timing out on 50+ item PDFs.
+  const isList = entry.type === "list";
   return {
-    parsed: isPersona || enr.parsed === true,
-    has_insight: isPersona || enr.has_insight === true,
+    parsed: isPersona || isList || enr.parsed === true,
+    has_insight: isPersona || isList || enr.has_insight === true,
     concepts_extracted: isPersona || enr.concepts_extracted === true,
     has_concepts: isPersona || conceptsCount > 0,
     concepts_count: conceptsCount,

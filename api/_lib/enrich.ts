@@ -563,6 +563,13 @@ async function stepPersonaExtract(
   if (entry.type === "persona") {
     return { ...meta, enrichment: { ...enr, persona_extracted: true } };
   }
+  // Lists are item collections (recipes, products, checklists). Items are
+  // intentionally not extracted into persona facts — a "Burgers To Try"
+  // list isn't user identity. Stamp the flag so the step doesn't keep
+  // re-running.
+  if (entry.type === "list") {
+    return { ...meta, enrichment: { ...enr, persona_extracted: true } };
+  }
   // Caller asked to skip (chat tool path that already knows what it's writing).
   if (meta.skip_persona === true) {
     const { skip_persona: _omit, ...rest } = meta;
