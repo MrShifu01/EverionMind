@@ -374,18 +374,42 @@ export default function TodoSomedayTab({
   const bulkDrop = async () => {
     const ids = [...selectedIds];
     if (ids.length === 0) return;
-    // Single atomic server call. The previous N-parallel onDelete loop
-    // raced through a single-slot pendingDeleteRef and silently dropped
-    // most of the writes — users saw entries disappear optimistically
-    // and reappear next session. We await the server response, then
-    // refetch so local state reflects the server's truth (no optimistic
-    // delete window where the UI lies about persistence).
+    // Two paths.
+    //
+    // (A) "Select all visible" was active — i.e. the user's intent is
+    //     "every someday item in this view." Send a server-side filter
+    //     delete instead of the id list. Phase-2 background loading can
+    //     leave items.length short of what the DB has; the previous
+    //     id-only path silently dropped rows the client hadn't loaded
+    //     yet, leaving "deleted" entries to reappear after refresh.
+    //     The filter path uses {type:'someday', brain_id, tag?}, scoped
+    //     server-side to the user, so EVERY matching row gets deleted.
+    //
+    // (B) Manual partial selection — send the explicit id list.
+    //
+    // We detect (A) by checking whether everything currently visible
+    // is selected AND the selection isn't smaller than what's visible.
+    // Manual partial selection always falls into (B).
+    const allVisibleSelected =
+      items.length > 0 && items.every((e) => selectedIds.has(e.id)) && ids.length === items.length;
     try {
-      const r = await authFetch("/api/entries?action=bulk-delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids }),
-      });
+      let r: Response;
+      if (allVisibleSelected) {
+        const filter: Record<string, unknown> = { type: "someday" };
+        if (brainId) filter.brain_id = brainId;
+        if (selectedTag !== ALL && selectedTag !== UNTAGGED) filter.tag = selectedTag;
+        r = await authFetch("/api/entries?action=bulk-delete-by-filter", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(filter),
+        });
+      } else {
+        r = await authFetch("/api/entries?action=bulk-delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids }),
+        });
+      }
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       onAdded();
     } catch (err) {

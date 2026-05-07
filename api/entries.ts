@@ -107,6 +107,8 @@ export default withAuth(
     if (ctx.req.method === "POST" && action === "empty-trash") return handleEmptyTrash(ctx);
     if (ctx.req.method === "POST" && action === "bulk-patch") return handleBulkPatch(ctx);
     if (ctx.req.method === "POST" && action === "bulk-delete") return handleBulkDelete(ctx);
+    if (ctx.req.method === "POST" && action === "bulk-delete-by-filter")
+      return handleBulkDeleteByFilter(ctx);
     if (ctx.req.method === "POST" && action === "merge") return handleMerge(ctx);
     if (ctx.req.method === "POST" && action === "merge-undo") return handleMergeUndo(ctx);
     if (ctx.req.method === "POST" && action === "merge_into") return handleMergeInto(ctx);
@@ -555,6 +557,65 @@ async function handleBulkDelete({ req, res, user, req_id }: HandlerContext): Pro
   }).catch(() => {});
 
   res.status(200).json({ ok: true, deleted: deletedIds.length, requested: cleanIds.length, ids: deletedIds });
+}
+
+// ── POST /api/entries?action=bulk-delete-by-filter ──
+// "Delete every someday entry" should not depend on the client having every
+// id loaded in memory. Phase-2 background loading + virtualisation can leave
+// the visible list short — the previous bulk-delete-by-id endpoint then
+// silently dropped the rows the client never sent. This filter-based path
+// asks the server to soft-delete every active row matching {type, brain_id,
+// tag} for the calling user. Optional exclude_ids covers "select all then
+// untick a few".
+async function handleBulkDeleteByFilter({ req, res, user, req_id }: HandlerContext): Promise<void> {
+  const body = bodyObject(req.body) as Record<string, unknown>;
+  const type = typeof body.type === "string" ? body.type.trim() : "";
+  const brainId = typeof body.brain_id === "string" ? body.brain_id.trim() : "";
+  const tag = typeof body.tag === "string" ? body.tag.trim() : "";
+  const excludeIds = Array.isArray(body.exclude_ids)
+    ? (body.exclude_ids as unknown[]).filter((id): id is string => typeof id === "string")
+    : [];
+  if (!type || type.length > 50) {
+    throw new ApiError(400, "type: non-empty string required");
+  }
+  // Mandatory filter: type must be a real entry type the user can scope to.
+  // We deliberately do NOT support "delete every entry the user owns" — the
+  // caller must always specify a type so a runaway bug can't wipe a brain.
+  let qs = `type=eq.${encodeURIComponent(type)}&user_id=eq.${encodeURIComponent(user.id)}&deleted_at=is.null`;
+  if (brainId) qs += `&brain_id=eq.${encodeURIComponent(brainId)}`;
+  if (tag) qs += `&tags=cs.{${encodeURIComponent(tag)}}`;
+  if (excludeIds.length > 0) {
+    const list = excludeIds.map((id) => encodeURIComponent(id)).join(",");
+    qs += `&id=not.in.(${list})`;
+  }
+
+  const now = new Date().toISOString();
+  const r = await fetch(`${SB_URL}/rest/v1/entries?${qs}`, {
+    method: "PATCH",
+    headers: sbHeaders({ Prefer: "return=representation" }),
+    body: JSON.stringify({ deleted_at: now }),
+  });
+  if (!r.ok) {
+    const txt = await r.text().catch(() => "");
+    throw new ApiError(502, `bulk delete failed: ${txt.slice(0, 200)}`);
+  }
+  const rows: Array<{ id: string }> = await r.json().catch(() => []);
+  const ids = rows.map((row) => row.id);
+
+  fetch(`${SB_URL}/rest/v1/audit_log`, {
+    method: "POST",
+    headers: sbHeaders({ Prefer: "return=minimal" }),
+    body: JSON.stringify({
+      user_id: user.id,
+      action: "entry_bulk_delete_by_filter",
+      resource_id: ids[0] ?? null,
+      request_id: req_id,
+      timestamp: now,
+      metadata: { type, brain_id: brainId || null, tag: tag || null, count: ids.length },
+    }),
+  }).catch(() => {});
+
+  res.status(200).json({ ok: true, deleted: ids.length, ids });
 }
 
 // ── concept-graph cleanup helper ─────────────────────────────────────────────
