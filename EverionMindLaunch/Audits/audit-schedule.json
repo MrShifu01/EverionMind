@@ -1,0 +1,428 @@
+[
+  {
+    "title": "Audits 2026-05-08 (Fri) — rate-limiter, dependencies",
+    "type": "task",
+    "content": "Scheduled for 2026-05-08.\n\nAudits today:\n- rate-limiter: per-user keying vs IP, NAT collisions, Upstash health\n- dependencies: npm audit, npm outdated, license-checker\n\nDuration ~45 min total. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "pre-launch"]
+  },
+  {
+    "title": "Audit 2026-05-09 (Sat) — retrieval pipeline",
+    "type": "task",
+    "content": "Scheduled for 2026-05-09.\n\nAudit today:\n- retrieval: vector index health, rerank, BM25 fallback, brain-scope filter, secret exclusion. Run EXPLAIN ANALYZE on 5 sample queries. Verify HNSW index actually used (db-audit F2 carry).\n\nDuration ~90 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "pre-launch"]
+  },
+  {
+    "title": "Audit 2026-05-10 (Sun) — enrichment pipeline",
+    "type": "task",
+    "content": "Scheduled for 2026-05-10.\n\nAudit today:\n- enrichment: parse → insight → concepts → embed; fallback chain; quota gate; idempotency. Sample entries.metadata.enrichment, queue depth, claim-worker, quota counters.\n\nDuration ~90 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "pre-launch"]
+  },
+  {
+    "title": "Audits 2026-05-11 (Mon) — mcp-server, ai-provider-abstraction",
+    "type": "task",
+    "content": "Scheduled for 2026-05-11.\n\nAudits today:\n- mcp-server: tool definitions vs handlers, OAuth signMcpAccessToken, ownership-via-brain_id on every mutating tool, rate-limit suffix\n- ai-provider-abstraction: callAI sites, provider failover, BYOK, quota gate adoption, retry budget\n\nDuration ~75 min total. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "pre-launch"]
+  },
+  {
+    "title": "Audit 2026-05-12 (Tue) — webhook security",
+    "type": "task",
+    "content": "Scheduled for 2026-05-12.\n\nAudit today:\n- webhook: every receiver (LS, RC, Sentry?), signature verify, replay protection, idempotency, dead-letter handling, body-hash fallback IDs (billing audit F3).\n\nVerify before LS+RC live launch (Thu). Duration ~45 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "pre-launch"]
+  },
+  {
+    "title": "Audits 2026-05-13 (Wed) — idempotency, error-boundary",
+    "type": "task",
+    "content": "Scheduled for 2026-05-13.\n\nAudits today:\n- idempotency: every webhook + capture path, namespace prefix collisions, 7-day retention, replay window\n- error-boundary: ErrorBoundary coverage, named ViewError per risky view, fallback copy, retry semantics, Sentry capture path\n\nDuration ~60 min total. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "pre-launch"]
+  },
+  {
+    "title": "Audit 2026-05-14 (Thu) — gmail-sync pipeline",
+    "type": "task",
+    "content": "Scheduled for 2026-05-14.\n\nAudit today:\n- gmail-sync: OAuth bootstrap → scan → classify → distill → stage → promote; pattern rules; decisions log; fan-out concurrency (mapWithConcurrency); AbortController; classifier error rate; prompt-injection guards.\n\nDuration ~90 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "pre-launch"]
+  },
+  {
+    "title": "Audit 2026-05-15 (Fri) — accessibility (full pass)",
+    "type": "task",
+    "content": "Scheduled for 2026-05-15.\n\nAudit today:\n- accessibility: semantic HTML, keyboard nav, focus indicators, aria, contrast (APCA + WCAG AA), screen reader walk, reduced-motion, 200% zoom. axe-core run + manual SR.\n\nDuration ~120 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "pre-launch"]
+  },
+  {
+    "title": "Audits 2026-05-16 (Sat) — brand-assets, copy-tone",
+    "type": "task",
+    "content": "Scheduled for 2026-05-16.\n\nAudits today:\n- brand-assets: every logo / wordmark / colour / font reference is the canonical asset, no silent swaps. grep logoNew.webp, --ember, Newsreader, Inter Tight, Fraunces.\n- copy-tone: UX copy, error messages, microcopy, button labels, helper text, empty states. Caveman skill + brand voice consistency.\n\nDuration ~75 min total. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "pre-launch"]
+  },
+  {
+    "title": "Audit 2026-05-17 (Sun) — landing page",
+    "type": "task",
+    "content": "Scheduled for 2026-05-17.\n\nAudit today:\n- landing: hero, pricing, CTAs, animations, OG card, sitemap row. Lighthouse perf/SEO/a11y, clamp() usage, scroll perf, signup-CTA conversion path.\n\nPre-Play-Store asset day = good time. Duration ~75 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "pre-launch"]
+  },
+  {
+    "title": "Audits 2026-05-18 (Mon) — seo, privacy-legal",
+    "type": "task",
+    "content": "Scheduled for 2026-05-18.\n\nAudits today:\n- seo: meta, OG, sitemap, robots, AI-bot allowlist, JSON-LD, 404 status, canonical\n- privacy-legal: PP/ToS reflect actual data collection, consent banner, GDPR delete, data export, retention, third-party DPAs\n\nPlay Console listing data-safety form day. Duration ~90 min total. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "pre-launch"]
+  },
+  {
+    "title": "Audit 2026-05-19 (Tue) — ci-cd",
+    "type": "task",
+    "content": "Scheduled for 2026-05-19.\n\nAudit today:\n- ci-cd: every workflow under .github/workflows/, branch protection (gh api), secrets coverage, preview deployments, rollback plan tested.\n\nAAB upload day = pipeline must be solid. Duration ~45 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "pre-launch"]
+  },
+  {
+    "title": "Audit 2026-05-20 (Wed) — performance",
+    "type": "task",
+    "content": "Scheduled for 2026-05-20.\n\nAudit today:\n- performance: CWV (LCP/INP/CLS), bundle size (npx vite-bundle-visualizer), SW precache, lazy chunks, font loading, network waterfall on mobile 4G.\n\nRC pre-launch report needs perf green. Duration ~75 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "pre-launch"]
+  },
+  {
+    "title": "Audit 2026-05-21 (Thu) — production-audit (RE-RUN)",
+    "type": "task",
+    "content": "Scheduled for 2026-05-21.\n\nAudit today:\n- production-audit: re-run /production-audit (15 sections). Verify all FAILs from 2026-05-07 cleared. New ones?\n\n**HARD DEADLINE: production review submitted today.**\n\nDuration ~90 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "pre-launch", "deadline"]
+  },
+  {
+    "title": "Audit 2026-05-22 (Fri) — infrastructure",
+    "type": "task",
+    "content": "Scheduled for 2026-05-22.\n\nAudit today:\n- infrastructure: Vercel plan + limits, Supabase plan + backups (verify SUPABASE_DB_URL secret added), DNS, SSL grade A, custom domain, CDN, edge regions.\n\nLighthouse green + E2E pass. Duration ~45 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "pre-launch"]
+  },
+  {
+    "title": "Audits 2026-05-23 (Sat) — resilience, cookie-storage",
+    "type": "task",
+    "content": "Scheduled for 2026-05-23.\n\nAudits today:\n- resilience: rate-limit fail-closed paths, AbortController on every external fetch (Gemini, Anthropic, Resend, OAuth), circuit breaker thresholds, third-party degradation\n- cookie-storage: every document.cookie + localStorage + sessionStorage + IndexedDB + SW caches; secure / sameSite / httpOnly; consent banner gating\n\nReal-device cross-browser QA day. Duration ~75 min total. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "pre-launch"]
+  },
+  {
+    "title": "Audits 2026-05-24 (Sun) — email-deliverability, telemetry-funnel",
+    "type": "task",
+    "content": "Scheduled for 2026-05-24.\n\nAudits today:\n- email-deliverability: Resend transactional templates, magic-link, welcome, password-reset, SPF/DKIM/DMARC. mail-tester.com 10/10 deadline today.\n- telemetry-funnel: PostHog event taxonomy, signup → first-capture → second-capture funnel completeness, retention cohorts\n\nDuration ~75 min total. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "pre-launch"]
+  },
+  {
+    "title": "Audit 2026-05-25 (Mon) — empty-states",
+    "type": "task",
+    "content": "Scheduled for 2026-05-25.\n\nAudit today:\n- empty-states: every list / view first-time render, helpful CTAs, copy tone, no-results vs not-yet-loaded distinction. Walk Vault, Calendar, Chat, Memory empty states.\n\nLS+Android sub-cancel E2E day. Duration ~60 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "pre-launch"]
+  },
+  {
+    "title": "Audits 2026-05-26 (Tue) — audit-log, time-tz",
+    "type": "task",
+    "content": "Scheduled for 2026-05-26.\n\nAudits today:\n- audit-log: every security-relevant mutation has a row, retention, schema gaps. Verify F3 from observability audit (LS/RC webhook + gmail-decisions + vault CRUD coverage)\n- time-tz: every new Date(), UTC vs user TZ, capture timestamps, calendar event TZ, schedule cron times\n\nBackup restore rehearsal day. Duration ~75 min total. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "pre-launch"]
+  },
+  {
+    "title": "Audits 2026-05-27 (Wed) — brain-sharing, account-delete",
+    "type": "task",
+    "content": "Scheduled for 2026-05-27.\n\nAudits today:\n- brain-sharing: brain_invites, brain_members, brain_vault_grants, entry_shares; owner vs member RBAC; invite redemption; FK CASCADE chain\n- account-delete: GDPR cascade list at user-data.ts:1851-1862; verify migration 054 cascade; auth.users delete trigger; leftover rows after staging delete\n\nLegal review day. Duration ~90 min total. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "pre-launch"]
+  },
+  {
+    "title": "Audits 2026-05-28 (Thu) — file-extraction, voice-transcription",
+    "type": "task",
+    "content": "Scheduled for 2026-05-28.\n\nAudits today:\n- file-extraction: PDF (pdfjs), .xlsx (exceljs), images (vision API), file-size guards, malicious file safety, prompt-injection on doc text\n- voice-transcription: recorder, mime types, fallback, length cap, transcription provider, retry\n\nFinal polish day. Duration ~75 min total. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "pre-launch"]
+  },
+  {
+    "title": "Audit 2026-05-29 (Fri) — smash-os-audit (final omnibus)",
+    "type": "task",
+    "content": "Scheduled for 2026-05-29.\n\nAudit today:\n- smash-os-audit: full /smash-os:audit, all 7 dimensions, comprehensive scoring. Cross-reference vs 2026-05-07 baseline (79/100). Goal ≥85.\n\nLAUNCH EVE. Sleep cutoff 22:00. Duration ~120 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "pre-launch", "omnibus"]
+  },
+  {
+    "title": "Audit 2026-05-30 (Sat) — production-audit (LAUNCH GATE)",
+    "type": "task",
+    "content": "Scheduled for 2026-05-30.\n\nAudit today:\n- production-audit: GO/NO-GO verdict. Re-run all 15 sections. **Zero FAILs in Security/Database/Deployment required.**\n\n**CLOSED BETA LAUNCH — first 50-100 invites sent today.**\n\nDuration ~120 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "pre-launch", "launch-gate"]
+  },
+  {
+    "title": "Audit 2026-06-02 (Mon) — observability (real-traffic alerts)",
+    "type": "task",
+    "content": "Scheduled for 2026-06-02.\n\nAudit today:\n- observability: with 48h of real beta traffic, tune Sentry alert thresholds. Review error-rate baselines, slow-transaction p95, new-issue noise. Adjust as needed.\n\nFirst beta-week audit. Duration ~30 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta"]
+  },
+  {
+    "title": "Audit 2026-06-03 (Tue) — capture-pipeline (regression)",
+    "type": "task",
+    "content": "Scheduled for 2026-06-03.\n\nAudit today:\n- capture-pipeline: trace 5 real captures end-to-end. Verify enrichInline awaits, audit_log writes, time-to-enriched p95.\n\nDuration ~45 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta"]
+  },
+  {
+    "title": "Audit 2026-06-04 (Wed) — retrieval (regression)",
+    "type": "task",
+    "content": "Scheduled for 2026-06-04.\n\nAudit today:\n- retrieval: real-user query patterns vs synthetic test set. Vector index scan stats. p95 latency. Verify HNSW index used (db-audit F2 follow-up).\n\nDuration ~45 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta"]
+  },
+  {
+    "title": "Audit 2026-06-05 (Thu) — vault-unlock (verify F2 fix)",
+    "type": "task",
+    "content": "Scheduled for 2026-06-05.\n\nAudit today:\n- vault-unlock: verify sessionStorage → IndexedDB extractable:false migration (F2 from 2026-05-07 vault audit) landed cleanly. Crypto roundtrip tests still passing.\n\nDuration ~30 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta"]
+  },
+  {
+    "title": "Audit 2026-06-06 (Fri) — billing (verify F1 fix)",
+    "type": "task",
+    "content": "Scheduled for 2026-06-06.\n\nAudit today:\n- billing: verify F1 host-header → APP_ORIGIN fix landed in production. End-to-end LS checkout test against staging. Tier reconciliation correct?\n\nDuration ~45 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta"]
+  },
+  {
+    "title": "Audit 2026-06-07 (Sat) — pii-leak (verify F1 fix)",
+    "type": "task",
+    "content": "Scheduled for 2026-06-07.\n\nAudit today:\n- pii-leak: verify F1 user.email log fix. Re-run grep for new PII surfaces introduced since 2026-05-07. Sample Vercel logs for any sensitive payloads.\n\nDuration ~30 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta"]
+  },
+  {
+    "title": "Audit 2026-06-09 (Mon) — enrichment",
+    "type": "task",
+    "content": "Scheduled for 2026-06-09.\n\nAudit today:\n- enrichment: real-user fallback chain behaviour, queue depth, claim-worker stalls, quota counter accuracy.\n\nDuration ~45 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta"]
+  },
+  {
+    "title": "Audit 2026-06-10 (Tue) — gmail-sync",
+    "type": "task",
+    "content": "Scheduled for 2026-06-10.\n\nAudit today:\n- gmail-sync: real-user scan stats, pattern-rule effectiveness, classifier error rate, contact upsert collisions.\n\nDuration ~45 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta"]
+  },
+  {
+    "title": "Audit 2026-06-11 (Wed) — ai-provider-abstraction",
+    "type": "task",
+    "content": "Scheduled for 2026-06-11.\n\nAudit today:\n- ai-provider-abstraction: callAI failover events (any?), BYOK adoption, retry budget exhaustion, cost per call.\n\nDuration ~45 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta"]
+  },
+  {
+    "title": "Audit 2026-06-12 (Thu) — rate-limiter",
+    "type": "task",
+    "content": "Scheduled for 2026-06-12.\n\nAudit today:\n- rate-limiter: real 429 hit-rate, NAT collision incidents, Upstash health, circuit-breaker fires.\n\nDuration ~30 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta"]
+  },
+  {
+    "title": "Audit 2026-06-13 (Fri) — cost-quota",
+    "type": "task",
+    "content": "Scheduled for 2026-06-13.\n\nAudit today:\n- cost-quota: AI provider tokens, Vercel function-secs, Supabase rows + bandwidth, Resend volume. Compare against beta-cohort projections.\n\nDuration ~30 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta"]
+  },
+  {
+    "title": "Audits 2026-06-14 (Sat) — vector-index, embedding-drift",
+    "type": "task",
+    "content": "Scheduled for 2026-06-14.\n\nAudits today:\n- vector-index: HNSW build params, scan stats, rebuild after model change\n- embedding-drift: model swap detection, dim mismatch, partial reindex, drift on entries rows\n\nDuration ~60 min total. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta"]
+  },
+  {
+    "title": "Audit 2026-06-16 (Mon) — persona-facts",
+    "type": "task",
+    "content": "Scheduled for 2026-06-16.\n\nAudit today:\n- persona-facts: extraction, hygiene, dedupe, soft-retire, history timeline. Verify persona dedup heuristic on real data.\n\nDuration ~45 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta"]
+  },
+  {
+    "title": "Audit 2026-06-17 (Tue) — concept-graph",
+    "type": "task",
+    "content": "Scheduled for 2026-06-17.\n\nAudit today:\n- concept-graph: build, prune, growth pattern, similarity edges, JSONB size per brain.\n\nDuration ~45 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta"]
+  },
+  {
+    "title": "Audit 2026-06-18 (Wed) — trash-soft-delete",
+    "type": "task",
+    "content": "Scheduled for 2026-06-18.\n\nAudit today:\n- trash-soft-delete: soft-delete columns, retention, hard-delete flow, undo, audit_log. 30-day purge job.\n\nDuration ~30 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta"]
+  },
+  {
+    "title": "Audit 2026-06-19 (Thu) — audit-log",
+    "type": "task",
+    "content": "Scheduled for 2026-06-19.\n\nAudit today:\n- audit-log: row coverage by action, retention, gaps. Verify F3 fixes from observability audit (LS/RC + gmail-decisions + vault CRUD coverage) landed.\n\nDuration ~45 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta"]
+  },
+  {
+    "title": "Audit 2026-06-20 (Fri) — telemetry-funnel",
+    "type": "task",
+    "content": "Scheduled for 2026-06-20.\n\nAudit today:\n- telemetry-funnel: PostHog signup → first-capture → second-capture conversion. Retention cohorts. Drop-off rates.\n\nDuration ~45 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta"]
+  },
+  {
+    "title": "Audit 2026-06-21 (Sat) — onboarding (real-user)",
+    "type": "task",
+    "content": "Scheduled for 2026-06-21.\n\nAudit today:\n- onboarding: useFirstRunChecklist, first-capture flow, aha-in-60s, empty states. PostHog step-timing telemetry. Real beta-cohort drop-off.\n\nDuration ~60 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta"]
+  },
+  {
+    "title": "Audit 2026-06-23 (Mon) — capture-pipeline (regression 2)",
+    "type": "task",
+    "content": "Scheduled for 2026-06-23.\n\nAudit today:\n- capture-pipeline: regression check 2 — 3 weeks of real data. p95 time-to-enriched. Failed enrichments?\n\nDuration ~30 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta"]
+  },
+  {
+    "title": "Audit 2026-06-24 (Tue) — retrieval (regression 2)",
+    "type": "task",
+    "content": "Scheduled for 2026-06-24.\n\nAudit today:\n- retrieval: regression check 2 — 3 weeks of real query patterns. HNSW scan stats. p95 latency vs baseline.\n\nDuration ~30 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta"]
+  },
+  {
+    "title": "Audit 2026-06-25 (Wed) — tags",
+    "type": "task",
+    "content": "Scheduled for 2026-06-25.\n\nAudit today:\n- tags: orphans (was 33 on 2026-05-07), suggestions, dedupe, normalization. Run garbage-purge SQL.\n\nDuration ~30 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta"]
+  },
+  {
+    "title": "Audit 2026-06-26 (Thu) — important-memories",
+    "type": "task",
+    "content": "Scheduled for 2026-06-26.\n\nAudit today:\n- important-memories: hierarchy, retire flow, deterministic memory_key, churn pattern.\n\nDuration ~30 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta"]
+  },
+  {
+    "title": "Audit 2026-06-27 (Fri) — realtime",
+    "type": "task",
+    "content": "Scheduled for 2026-06-27.\n\nAudit today:\n- realtime: Supabase realtime channels, replica identity, optimistic UI revert, sync conflict resolution. Channel subscription leaks?\n\nDuration ~45 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta"]
+  },
+  {
+    "title": "Audits 2026-06-28 (Sat) — feature-flag, mobile-native",
+    "type": "task",
+    "content": "Scheduled for 2026-06-28.\n\nAudits today:\n- feature-flag: every flag in AdminTab panel, owner, expiry, default. Stale flags?\n- mobile-native: Capacitor wrap, deep-link callback, splash, push, biometric, keychain. iOS+Android parity.\n\nDuration ~60 min total. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta"]
+  },
+  {
+    "title": "Audit 2026-06-30 (Mon) — cost-quota (monthly checkpoint)",
+    "type": "task",
+    "content": "Scheduled for 2026-06-30.\n\nAudit today:\n- cost-quota: end-of-June checkpoint. Compare actual vs projected. Adjust per-user quota limits if needed.\n\nDuration ~30 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta", "monthly"]
+  },
+  {
+    "title": "Audit 2026-07-01 (Tue) — smash-os-audit (month-1 omnibus)",
+    "type": "task",
+    "content": "Scheduled for 2026-07-01.\n\nAudit today:\n- smash-os-audit: full omnibus 30 days into beta. Score against pre-launch baseline. Top regressions?\n\nDuration ~120 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "beta", "monthly", "omnibus"]
+  },
+  {
+    "title": "Audit 2026-07-07 (Mon) — observability (weekly)",
+    "type": "task",
+    "content": "Scheduled for 2026-07-07.\n\nAudit today:\n- observability: weekly Sentry/Vercel/PostHog scan. Top errors. New issues. Alert noise calibration.\n\nDuration ~30 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "recurring", "weekly"]
+  },
+  {
+    "title": "Audit 2026-07-09 (Wed) — capture-pipeline (weekly regression)",
+    "type": "task",
+    "content": "Scheduled for 2026-07-09.\n\nAudit today:\n- capture-pipeline: weekly regression check. Time-to-enriched p95 trend. Failed-enrichment count.\n\nDuration ~30 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "recurring", "weekly"]
+  },
+  {
+    "title": "Audits 2026-07-14 (Mon) — observability, dependencies",
+    "type": "task",
+    "content": "Scheduled for 2026-07-14.\n\nAudits today:\n- observability: weekly\n- dependencies: npm audit, npm outdated, Dependabot PR review\n\nDuration ~45 min total. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "recurring", "weekly"]
+  },
+  {
+    "title": "Audit 2026-07-16 (Wed) — retrieval (weekly regression)",
+    "type": "task",
+    "content": "Scheduled for 2026-07-16.\n\nAudit today:\n- retrieval: weekly regression. p95 latency, vector-index health, real-user query distribution.\n\nDuration ~30 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "recurring", "weekly"]
+  },
+  {
+    "title": "Audit 2026-07-21 (Mon) — observability (weekly)",
+    "type": "task",
+    "content": "Scheduled for 2026-07-21.\n\nAudit today:\n- observability: weekly Sentry/Vercel/PostHog scan.\n\nDuration ~30 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "recurring", "weekly"]
+  },
+  {
+    "title": "Audit 2026-07-23 (Wed) — pii-leak (weekly regression)",
+    "type": "task",
+    "content": "Scheduled for 2026-07-23.\n\nAudit today:\n- pii-leak: weekly regression. Re-run grep for new PII surfaces introduced since last sweep.\n\nDuration ~30 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "recurring", "weekly"]
+  },
+  {
+    "title": "Audits 2026-07-28 (Mon) — observability, cost-quota",
+    "type": "task",
+    "content": "Scheduled for 2026-07-28.\n\nAudits today:\n- observability: weekly\n- cost-quota: end-of-July monthly checkpoint\n\nDuration ~45 min total. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "recurring", "weekly", "monthly"]
+  },
+  {
+    "title": "Audit 2026-07-30 (Wed) — capture-pipeline (weekly regression)",
+    "type": "task",
+    "content": "Scheduled for 2026-07-30.\n\nAudit today:\n- capture-pipeline: weekly regression check.\n\nDuration ~30 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "recurring", "weekly"]
+  },
+  {
+    "title": "Audit 2026-08-01 (Fri) — smash-os-audit (monthly omnibus)",
+    "type": "task",
+    "content": "Scheduled for 2026-08-01.\n\nAudit today:\n- smash-os-audit: month-2 omnibus. Score trend vs pre-launch + month-1.\n\nDuration ~120 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "recurring", "monthly", "omnibus"]
+  },
+  {
+    "title": "Audits 2026-08-04 (Mon) — observability, frontend-architecture",
+    "type": "task",
+    "content": "Scheduled for 2026-08-04.\n\nAudits today:\n- observability: weekly\n- frontend-architecture: monthly /improve-frontend-architecture re-run\n\nDuration ~75 min total. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "recurring", "weekly", "monthly"]
+  },
+  {
+    "title": "Audit 2026-08-06 (Wed) — db (monthly)",
+    "type": "task",
+    "content": "Scheduled for 2026-08-06.\n\nAudit today:\n- db: monthly schema/RLS/index/dead-table review. Re-run advisor lints. Verify migration 083+084+085 (if shipped) holding.\n\nDuration ~60 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "recurring", "monthly"]
+  },
+  {
+    "title": "Audits 2026-08-08 (Fri) — performance, accessibility",
+    "type": "task",
+    "content": "Scheduled for 2026-08-08.\n\nAudits today:\n- performance: monthly Lighthouse + bundle audit\n- accessibility: monthly axe-core + manual SR pass\n\nDuration ~120 min total. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "recurring", "monthly"]
+  },
+  {
+    "title": "Audit 2026-08-11 (Mon) — observability (weekly)",
+    "type": "task",
+    "content": "Scheduled for 2026-08-11.\n\nAudit today:\n- observability: weekly Sentry/Vercel/PostHog scan.\n\nDuration ~30 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "recurring", "weekly"]
+  },
+  {
+    "title": "Audit 2026-08-13 (Wed) — retrieval (weekly regression)",
+    "type": "task",
+    "content": "Scheduled for 2026-08-13.\n\nAudit today:\n- retrieval: weekly regression check.\n\nDuration ~30 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "recurring", "weekly"]
+  },
+  {
+    "title": "Audits 2026-08-15 (Fri) — mcp, ai-provider (monthly)",
+    "type": "task",
+    "content": "Scheduled for 2026-08-15.\n\nAudits today:\n- mcp: monthly tool-definition review, OAuth token rotation cadence\n- ai-provider: monthly fallback chain, cost-per-call, model registry update\n\nDuration ~75 min total. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "recurring", "monthly"]
+  },
+  {
+    "title": "Audits 2026-08-18 (Mon) — observability, persona-facts",
+    "type": "task",
+    "content": "Scheduled for 2026-08-18.\n\nAudits today:\n- observability: weekly\n- persona-facts: monthly extraction + hygiene + dedup review\n\nDuration ~75 min total. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "recurring", "weekly", "monthly"]
+  },
+  {
+    "title": "Audit 2026-08-20 (Wed) — capture-pipeline (weekly regression)",
+    "type": "task",
+    "content": "Scheduled for 2026-08-20.\n\nAudit today:\n- capture-pipeline: weekly regression check.\n\nDuration ~30 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "recurring", "weekly"]
+  },
+  {
+    "title": "Audit 2026-08-22 (Fri) — telemetry-funnel (monthly)",
+    "type": "task",
+    "content": "Scheduled for 2026-08-22.\n\nAudit today:\n- telemetry-funnel: monthly PostHog funnel + cohort review. Drop-off trend.\n\nDuration ~45 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "recurring", "monthly"]
+  },
+  {
+    "title": "Audits 2026-08-25 (Mon) — observability, audit-log",
+    "type": "task",
+    "content": "Scheduled for 2026-08-25.\n\nAudits today:\n- observability: weekly\n- audit-log: monthly coverage check + retention\n\nDuration ~60 min total. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "recurring", "weekly", "monthly"]
+  },
+  {
+    "title": "Audit 2026-08-27 (Wed) — retrieval (weekly regression)",
+    "type": "task",
+    "content": "Scheduled for 2026-08-27.\n\nAudit today:\n- retrieval: weekly regression check.\n\nDuration ~30 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "recurring", "weekly"]
+  },
+  {
+    "title": "Audits 2026-08-29 (Fri) — brain-sharing, copy-tone, brand-assets (quarterly)",
+    "type": "task",
+    "content": "Scheduled for 2026-08-29.\n\nAudits today:\n- brain-sharing: quarterly RBAC + RLS + invite redemption + DEK envelope review\n- copy-tone: quarterly UX-copy + microcopy + tone-of-voice review\n- brand-assets: quarterly logo/colour/font reference verification\n\nDuration ~120 min total. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "recurring", "quarterly"]
+  },
+  {
+    "title": "Audit 2026-08-31 (Sun) — smash-os-audit (month-2 retro)",
+    "type": "task",
+    "content": "Scheduled for 2026-08-31.\n\nAudit today:\n- smash-os-audit: month-2 retro omnibus. Score trend. Plan Q4.\n\nDuration ~120 min. Full specs: EML/Audits/AUDIT-CATALOGUE.md",
+    "tags": ["audit", "recurring", "monthly", "omnibus"]
+  }
+]
