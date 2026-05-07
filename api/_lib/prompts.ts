@@ -21,7 +21,7 @@ INTENT CHECK: input telling the user to do something ("pay", "call", "remember t
 
 Contact: name, cellphone, landline, email, address, id_number, contact_name
 Financial: amount, price, unit, account_number, reference_number, invoice_number
-Dates (YYYY-MM-DD): due_date, renewal_date, expiry_date, event_date, date
+Dates (YYYY-MM-DD): scheduled_for (planned action date — what shows on the user's Schedule view; phrases like "scheduled for", "scheduled on", "do on", "plan to do", "this Friday", "next Monday"), due_date (hard deadline — must be done by), deadline (legal/contract deadline), event_date (calendar event), renewal_date, expiry_date, date
 Recurrence: day_of_week ONLY for "every Friday" / "weekly on X" — NEVER for "this Friday", "next Friday", "Friday 1 May" (those are specific dates → event_date / due_date). day_of_month ONLY for "every 15th" — NEVER for "15 May".
 Other: url, status
 

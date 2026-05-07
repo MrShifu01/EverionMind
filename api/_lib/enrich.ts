@@ -230,12 +230,22 @@ async function stepParse(entry: Entry, cfg: AICall): Promise<Record<string, any>
   if (parsed?.success && (parsed.data.type || parsed.data.title || parsed.data.content)) {
     const { confidence: _c, ...rawAIMeta } = parsed.data.metadata ?? {};
 
+    // First parse vs re-parse. The flag `meta.enrichment.parsed` flips to
+    // true at the end of this step. On the FIRST pass the user has not
+    // touched anything yet, so AI can populate user-owned date fields
+    // (scheduled_for, due_date, deadline, event_date) that it extracted
+    // from the content. On every subsequent re-parse — cron, daily rescan,
+    // settings → Run Now — AI is locked out of those fields entirely so
+    // it cannot overwrite a date the user just typed in the UI.
+    const isFirstParse = !meta.enrichment?.parsed;
+
     // Strip user-owned + already-set keys before merging. AI fills in MISSING
     // fields only — it can never overwrite a user-set value, and it can never
-    // touch the user-controlled set above even on a fresh entry.
+    // touch the user-controlled set above on RE-RUNS. On the first parse it
+    // may fill those fields if (and only if) they're empty.
     const safeAIMeta: Record<string, any> = {};
     for (const [k, v] of Object.entries(rawAIMeta)) {
-      if (USER_OWNED_KEYS.has(k)) continue;
+      if (USER_OWNED_KEYS.has(k) && !isFirstParse) continue;
       if (meta[k] !== undefined && meta[k] !== null && meta[k] !== "") continue;
       safeAIMeta[k] = v;
     }

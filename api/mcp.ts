@@ -154,7 +154,7 @@ const TOOLS = [
   {
     name: "create_entry",
     description:
-      "Save new information to the user's knowledge base. Use this when the user says things like 'add this to Everion', 'save this note', 'remember that', 'store this phone number', or 'add this idea to my memory'. **If the user has multiple brains, call list_brains FIRST and confirm with them which brain to save into** — the default brain is whichever the API key resolves to and is often NOT the user's personal brain. For Someday/Maybe items (no date, GTD-style 'maybe later' list — phrases like 'add to my someday list', 'add to someday', 'put this in someday', 'for someday', 'maybe later', 'no date'), pass type='someday'. To bulk-add a checklist into Someday, call create_entry once per item with type='someday'.",
+      "Save new information to the user's knowledge base. Use this when the user says things like 'add this to Everion', 'save this note', 'remember that', 'store this phone number', or 'add this idea to my memory'. **If the user has multiple brains, call list_brains FIRST and confirm with them which brain to save into** — the default brain is whichever the API key resolves to and is often NOT the user's personal brain. For Someday/Maybe items (no date, GTD-style 'maybe later' list — phrases like 'add to my someday list', 'add to someday', 'put this in someday', 'for someday', 'maybe later', 'no date'), pass type='someday'. To bulk-add a checklist into Someday, call create_entry once per item with type='someday'. **For dated tasks (anything that should appear in the user's Schedule view) you MUST set scheduled_for to YYYY-MM-DD** — putting the date only in content is not enough; the Schedule view filters on metadata. Use due_date for hard deadlines, deadline for legal/contract dates, event_date for calendar events.",
     inputSchema: {
       type: "object",
       properties: {
@@ -169,6 +169,30 @@ const TOOLS = [
           type: "array",
           items: { type: "string" },
           description: "Optional tags for categorisation",
+        },
+        scheduled_for: {
+          type: "string",
+          description:
+            "ISO date YYYY-MM-DD when the task/event should appear in the user's Schedule. Required for any dated task or event — the Schedule view does NOT parse content text. Shortcut for setting metadata.scheduled_for.",
+        },
+        due_date: {
+          type: "string",
+          description: "ISO date YYYY-MM-DD hard deadline. Shortcut for metadata.due_date.",
+        },
+        deadline: {
+          type: "string",
+          description:
+            "ISO date YYYY-MM-DD legal/contract deadline. Shortcut for metadata.deadline.",
+        },
+        event_date: {
+          type: "string",
+          description:
+            "ISO date YYYY-MM-DD calendar event date. Shortcut for metadata.event_date.",
+        },
+        metadata: {
+          type: "object",
+          description:
+            "Free-form metadata merged onto the entry. Use this for less common keys (status, priority, location, url, contact_name, etc.). The four date shortcuts above take precedence if both are passed.",
         },
         brain_id: { type: "string", description: BRAIN_ID_PARAM_DESC },
       },
@@ -191,7 +215,7 @@ const TOOLS = [
   {
     name: "update_entry",
     description:
-      "Update an existing entry's title, content, tags, or type. Use this after the user approves a suggested edit, merge target, or data correction. Regenerates the embedding automatically when content changes.",
+      "Update an existing entry's title, content, tags, type, or metadata. Use this after the user approves a suggested edit, merge target, or data correction. Regenerates the embedding automatically when content changes. Use the date shortcuts (scheduled_for, due_date, deadline, event_date) to put a task on the user's Schedule view, or `metadata` for any other field.",
     inputSchema: {
       type: "object",
       properties: {
@@ -203,6 +227,28 @@ const TOOLS = [
           type: "array",
           items: { type: "string" },
           description: "New tags array (optional, replaces existing)",
+        },
+        scheduled_for: {
+          type: "string",
+          description:
+            "ISO date YYYY-MM-DD when the task should appear on the Schedule. Sets metadata.scheduled_for.",
+        },
+        due_date: {
+          type: "string",
+          description: "ISO date YYYY-MM-DD hard deadline. Sets metadata.due_date.",
+        },
+        deadline: {
+          type: "string",
+          description: "ISO date YYYY-MM-DD legal/contract deadline. Sets metadata.deadline.",
+        },
+        event_date: {
+          type: "string",
+          description: "ISO date YYYY-MM-DD calendar event date. Sets metadata.event_date.",
+        },
+        metadata: {
+          type: "object",
+          description:
+            "Free-form metadata to merge onto the entry. Existing keys are overwritten by supplied keys; keys not supplied are preserved.",
         },
         brain_id: { type: "string", description: BRAIN_ID_PARAM_DESC },
       },
@@ -417,6 +463,43 @@ async function getEntry(brainId: string, id: string): Promise<unknown> {
   return rows[0];
 }
 
+// AI is forbidden from writing these in enrich.ts; the API caller must
+// supply them explicitly or they'll never be set. Mirrored from
+// api/_lib/enrich.ts USER_OWNED_KEYS.
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+function sanitizeUserMetadata(input: unknown): Record<string, unknown> {
+  if (!input || typeof input !== "object") return {};
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
+    if (typeof k !== "string" || k.length > 60) continue;
+    // Normalise stringable scalars and shallow arrays only — no nested objects
+    // beyond one level so we don't accept arbitrary blobs.
+    if (v == null) continue;
+    if (typeof v === "string" && v.length <= 2000) out[k] = v;
+    else if (typeof v === "number" || typeof v === "boolean") out[k] = v;
+    else if (Array.isArray(v) && v.every((x) => typeof x === "string" || typeof x === "number"))
+      out[k] = v.slice(0, 50);
+    else if (typeof v === "object") {
+      // one-level deep — useful for {duration_minutes:75} etc.
+      try {
+        const json = JSON.stringify(v);
+        if (json.length <= 4000) out[k] = JSON.parse(json);
+      } catch {
+        /* skip */
+      }
+    }
+  }
+  return out;
+}
+function buildUserMetadata(args: Record<string, unknown>): Record<string, unknown> {
+  const meta = sanitizeUserMetadata(args.metadata);
+  for (const key of ["scheduled_for", "due_date", "deadline", "event_date"]) {
+    const v = args[key];
+    if (typeof v === "string" && ISO_DATE_RE.test(v)) meta[key] = v;
+  }
+  return meta;
+}
+
 async function createEntry(
   userId: string,
   brainId: string,
@@ -424,6 +507,7 @@ async function createEntry(
   content: string,
   type = "note",
   tags: string[] = [],
+  metadata: Record<string, unknown> = {},
 ): Promise<unknown> {
   const resolvedBrainId = brainId;
 
@@ -436,6 +520,7 @@ async function createEntry(
     );
   }
   const safeTags = Array.isArray(tags) ? tags.slice(0, 20).map((t) => String(t).slice(0, 50)) : [];
+  const safeMeta = metadata && Object.keys(metadata).length ? metadata : null;
 
   // Generate embedding
   let embedding: number[] | null = null;
@@ -458,6 +543,7 @@ async function createEntry(
       content: safeContent,
       type: safeType,
       tags: safeTags,
+      ...(safeMeta ? { metadata: safeMeta } : {}),
       embedding: embedding ? `[${embedding.join(",")}]` : null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -475,10 +561,16 @@ async function createEntry(
 async function updateEntry(
   brainId: string,
   id: string,
-  fields: { title?: string; content?: string; type?: string; tags?: string[] },
+  fields: {
+    title?: string;
+    content?: string;
+    type?: string;
+    tags?: string[];
+    metadata?: Record<string, unknown>;
+  },
 ): Promise<unknown> {
   const entryRes = await fetch(
-    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&select=id,title,content,tags,type&limit=1`,
+    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&select=id,title,content,tags,type,metadata&limit=1`,
     { headers: hdrs() },
   );
   if (!entryRes.ok) throw new Error("Failed to fetch entry");
@@ -500,6 +592,12 @@ async function updateEntry(
   }
   if (fields.tags !== undefined)
     patch.tags = fields.tags.slice(0, 20).map((t) => String(t).slice(0, 50));
+  if (fields.metadata && Object.keys(fields.metadata).length) {
+    // Merge user-supplied metadata onto the existing row. The MCP caller
+    // supplies authoritative values (date pickers, explicit corrections),
+    // so the new keys override existing ones.
+    patch.metadata = { ...(rows[0].metadata ?? {}), ...fields.metadata };
+  }
 
   // Regenerate embedding if searchable fields changed
   if (
@@ -814,6 +912,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
         }
         if (!result) {
           const target = await resolveTargetBrain(args, brainId, userId, ["owner", "member"]);
+          const userMeta = buildUserMetadata(args);
           result = await createEntry(
             userId,
             target,
@@ -821,6 +920,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
             args.content,
             args.type,
             args.tags,
+            userMeta,
           );
           // AWAIT enrichInline so the MCP tool returns a fully-enriched
           // entry. Fire-and-forget on Vercel was getting killed before the
@@ -838,11 +938,14 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
         log.info("create_entry_ok", { entry_id: (result as any)?.id });
       } else if (toolName === "update_entry") {
         if (!args.id) return res.status(200).json(jsonRpcErr(id, -32602, "id is required"));
+        const updateUserMeta = buildUserMetadata(args);
+        const hasMetaUpdate = Object.keys(updateUserMeta).length > 0;
         if (
           args.title === undefined &&
           args.content === undefined &&
           args.type === undefined &&
-          args.tags === undefined
+          args.tags === undefined &&
+          !hasMetaUpdate
         ) {
           return res
             .status(200)
@@ -854,6 +957,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
           content: args.content,
           type: args.type,
           tags: args.tags,
+          metadata: hasMetaUpdate ? updateUserMeta : undefined,
         });
         // AWAIT — see create_entry above for rationale.
         try {
