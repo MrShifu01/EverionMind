@@ -747,6 +747,181 @@ async function handleExtractFile(
   }
 }
 
+// ── List extraction from file ────────────────────────────────────────────────
+//
+// Two-stage: extract verbatim text from the file (local parser → Gemini
+// vision fallback, same as handleExtractFile), then send the text to
+// Gemini with the EXTRACT_LIST prompt to get a structured list of
+// { title, description? } pairs. Lets users build a list directly from
+// a menu PDF, product catalogue, scanned checklist, etc.
+
+// Mime types we'll accept for list extraction. Audio / video / archives /
+// executables are explicitly rejected at the boundary so a malformed
+// upload can't reach the model.
+const LIST_EXTRACT_ALLOWED_MIMES = new Set([
+  "application/pdf",
+  "text/plain",
+  "text/csv",
+  "text/markdown",
+  "text/html",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
+  "application/json",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+]);
+
+const LIST_EXTRACT_TIMEOUT_MS = 30_000;
+
+async function handleExtractListFromFile(
+  req: ApiRequest,
+  res: ApiResponse,
+  geminiKey: string,
+): Promise<void> {
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
+  const { fileData, mimeType, filename } = bodyObject(req.body) as {
+    fileData?: string;
+    mimeType?: string;
+    filename?: string;
+  };
+  if (!fileData || typeof fileData !== "string") {
+    res.status(400).json({ error: "fileData required" });
+    return;
+  }
+  if (!mimeType || typeof mimeType !== "string") {
+    res.status(400).json({ error: "mimeType required" });
+    return;
+  }
+  const normalizedMime = mimeType.split(";")[0]!.trim().toLowerCase();
+  if (!LIST_EXTRACT_ALLOWED_MIMES.has(normalizedMime)) {
+    res.status(415).json({ error: `Unsupported file type: ${normalizedMime}` });
+    return;
+  }
+  if (fileData.length > MAX_FILE_B64) {
+    res.status(413).json({ error: "File too large (max ~24 MB)" });
+    return;
+  }
+  // Validate base64 — rejects anything that isn't actually base64-encoded
+  // before we hand it to the buffer decoder.
+  if (!/^[A-Za-z0-9+/=\r\n]+$/.test(fileData)) {
+    res.status(400).json({ error: "fileData must be base64" });
+    return;
+  }
+
+  // Stage 1: get plain text out of the file. Mirrors handleExtractFile —
+  // local parser first (free, fast), Gemini vision fallback for images
+  // and scanned PDFs.
+  let extractedText = "";
+  try {
+    const buffer = Buffer.from(fileData, "base64");
+    const local = await extractFromBuffer(buffer, normalizedMime, filename ?? "");
+    if (local && local.text.trim().length > 0) {
+      extractedText = local.text;
+    }
+  } catch (e: any) {
+    console.warn("[extract-list:local]", e?.message || e);
+  }
+  if (!extractedText) {
+    try {
+      const result = await geminiExtractFile(
+        { fileData, mimeType: normalizedMime },
+        { model: GEMINI_BULK_MODEL, key: geminiKey, prompt: SERVER_PROMPTS.EXTRACT_FILE },
+      );
+      if (!result.ok) {
+        console.error("[extract-list:vision]", result.status, JSON.stringify(result.error));
+        res.status(result.status).json(result.error);
+        return;
+      }
+      extractedText = (result.text ?? "").trim();
+    } catch (e: any) {
+      console.error("[extract-list:vision]", e);
+      res.status(502).json({ error: e.message || "Extraction failed" });
+      return;
+    }
+  }
+
+  if (!extractedText) {
+    res.status(200).json({ items: [], note: "No readable text in file" });
+    return;
+  }
+
+  // Stage 2: Gemini turns text into structured list. JSON mode forces
+  // the response into our { items: [...] } shape. Timeout-bounded so a
+  // hung connection can't pin a serverless function.
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_BULK_MODEL)}:generateContent`;
+  const body = JSON.stringify({
+    systemInstruction: { parts: [{ text: SERVER_PROMPTS.EXTRACT_LIST }] },
+    contents: [{ role: "user", parts: [{ text: extractedText.slice(0, 80_000) }] }],
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens: 8000,
+      responseMimeType: "application/json",
+    },
+  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), LIST_EXTRACT_TIMEOUT_MS);
+  let llmRes: Response;
+  try {
+    llmRes = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey },
+      body,
+      signal: controller.signal,
+    });
+  } catch (e: any) {
+    clearTimeout(timer);
+    if (e?.name === "AbortError") {
+      console.error("[extract-list:llm] timeout");
+      res.status(504).json({ error: "List extraction timed out" });
+      return;
+    }
+    console.error("[extract-list:llm]", e);
+    res.status(502).json({ error: "List extraction failed" });
+    return;
+  }
+  clearTimeout(timer);
+  if (!llmRes.ok) {
+    const errText = await llmRes.text().catch(() => "");
+    console.error("[extract-list:llm]", llmRes.status, errText.slice(0, 300));
+    res.status(502).json({ error: "List extraction failed" });
+    return;
+  }
+  const data: any = await llmRes.json().catch(() => ({}));
+  const text = (data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
+  let parsed: { items?: Array<{ title?: string; description?: string }> } = {};
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    // Strip markdown fences just in case the model emitted them despite
+    // JSON mode.
+    const stripped = text.replace(/```json|```/g, "").trim();
+    try {
+      parsed = JSON.parse(stripped);
+    } catch (err) {
+      console.error("[extract-list:parse]", err, "raw:", text.slice(0, 300));
+      res.status(502).json({ error: "List parse failed" });
+      return;
+    }
+  }
+  const items = (Array.isArray(parsed.items) ? parsed.items : [])
+    .map((item) => ({
+      title: typeof item?.title === "string" ? item.title.trim().slice(0, 120) : "",
+      description:
+        typeof item?.description === "string" && item.description.trim().length > 0
+          ? item.description.trim().slice(0, 500)
+          : undefined,
+    }))
+    .filter((item) => item.title.length > 0)
+    .slice(0, 200);
+  res.status(200).json({ items });
+}
+
 // ── Transcription (Groq Whisper) ─────────────────────────────────────────────
 
 const MAX_AUDIO_BYTES = 24 * 1024 * 1024;
@@ -923,6 +1098,9 @@ export default withAuth(
       complete: 30,
       transcribe: 10,
       "extract-file": 20,
+      // List extraction is heavier (file extract + LLM call). Lower
+      // limit so a runaway client can't drain quota in one minute.
+      "extract-list-from-file": 6,
     };
     const actionLimit = actionLimits[action];
     if (actionLimit && !(await rateLimit(req, actionLimit, 60_000, action))) {
@@ -937,6 +1115,36 @@ export default withAuth(
       const geminiKey = await resolveGeminiKey(user.id);
       if (!geminiKey) return res.status(500).json({ error: "AI not configured" });
       return handleExtractFile(req, res, geminiKey);
+    }
+
+    if (action === "extract-list-from-file") {
+      const geminiKey = await resolveGeminiKey(user.id);
+      if (!geminiKey) return res.status(500).json({ error: "AI not configured" });
+      // Quota gate — list extraction fires a Gemini call. Free-tier
+      // users with no BYOK key are blocked at provider resolution time
+      // (no key → no extraction). Paid tiers count this against the
+      // captures budget.
+      const { tier, hasKey } = await resolveSettingsRaw(user.id);
+      if (tier === "free" && !hasKey) {
+        return res.status(402).json({
+          error: "no_ai_provider",
+          message: "Add an API key in Settings or upgrade to Pro.",
+        });
+      }
+      try {
+        const check = await checkAndIncrement(user.id, "captures", tier, hasKey);
+        if (!check.allowed) {
+          return res.status(429).json({
+            error: "monthly_limit_reached",
+            action: "captures",
+            remaining: 0,
+            upgrade_url: "/settings?tab=billing",
+          });
+        }
+      } catch {
+        return res.status(503).json({ error: "quota_unavailable", retryAfter: 10 });
+      }
+      return handleExtractListFromFile(req, res, geminiKey);
     }
 
     if (action === "chat") {

@@ -34,7 +34,11 @@ function readItems(entry: Entry): ListItem[] {
 }
 
 function rebuildContent(title: string, items: ListItem[]): string {
-  const titles = items.map((i) => `- ${i.title}`).join("\n");
+  // Title + optional description go into one chat-retrieval line per item
+  // so the list parent's embedding picks up matches against either field.
+  const titles = items
+    .map((i) => (i.description ? `- ${i.title}: ${i.description}` : `- ${i.title}`))
+    .join("\n");
   return items.length ? `${title}\n\n${titles}` : title;
 }
 
@@ -52,6 +56,7 @@ export default function ListDetail({ entry, onBack, onUpdate, onDeleteList }: Li
   const [addText, setAddText] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
+  const [editDescription, setEditDescription] = useState("");
   const [confirmDeleteList, setConfirmDeleteList] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -126,21 +131,31 @@ export default function ListDetail({ entry, onBack, onUpdate, onDeleteList }: Li
   function startEdit(item: ListItem) {
     setEditingId(item.id);
     setEditText(item.title);
+    setEditDescription(item.description ?? "");
   }
 
   function saveEdit() {
     if (!editingId) return;
+    const trimmedDesc = editDescription.trim();
     const next = items.map((i) =>
-      i.id === editingId ? { ...i, title: editText.trim() || i.title } : i,
+      i.id === editingId
+        ? {
+            ...i,
+            title: editText.trim() || i.title,
+            description: trimmedDesc.length > 0 ? trimmedDesc.slice(0, 500) : undefined,
+          }
+        : i,
     );
     commitItems(next);
     setEditingId(null);
     setEditText("");
+    setEditDescription("");
   }
 
   function cancelEdit() {
     setEditingId(null);
     setEditText("");
+    setEditDescription("");
   }
 
   function deleteItem(id: string) {
@@ -433,83 +448,152 @@ export default function ListDetail({ entry, onBack, onUpdate, onDeleteList }: Li
           gap: 2,
         }}
       >
-        {items.map((item, idx) => (
-          <li
-            key={item.id}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "8px 10px",
-              borderRadius: 8,
-              background: "transparent",
-              transition: "background 120ms",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-low)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-          >
-            <input
-              type="checkbox"
-              checked={item.completed}
-              onChange={() => toggleComplete(item.id)}
-              aria-label={`Toggle ${item.title}`}
+        {items.map((item, idx) => {
+          const isEditing = editingId === item.id;
+          return (
+            <li
+              key={item.id}
               style={{
-                width: 18,
-                height: 18,
-                cursor: "pointer",
-                accentColor: "var(--ember)",
-                flexShrink: 0,
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 10,
+                padding: "8px 10px",
+                borderRadius: 8,
+                background: "transparent",
+                transition: "background 120ms",
               }}
-            />
-            {editingId === item.id ? (
+              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-low)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            >
               <input
-                autoFocus
-                value={editText}
-                onChange={(e) => setEditText(e.target.value)}
-                onBlur={saveEdit}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") saveEdit();
-                  else if (e.key === "Escape") cancelEdit();
-                }}
-                className="f-sans"
+                type="checkbox"
+                checked={item.completed}
+                onChange={() => toggleComplete(item.id)}
+                aria-label={`Toggle ${item.title}`}
                 style={{
-                  flex: 1,
-                  fontSize: 14,
-                  padding: "2px 4px",
-                  color: "var(--ink)",
-                  background: "var(--surface)",
-                  border: "1px solid var(--ember)",
-                  borderRadius: 4,
-                  outline: "none",
+                  width: 18,
+                  height: 18,
+                  cursor: "pointer",
+                  accentColor: "var(--ember)",
+                  flexShrink: 0,
+                  marginTop: 4,
                 }}
               />
-            ) : (
-              <span
-                className="f-sans"
-                onClick={() => startEdit(item)}
-                style={{
-                  flex: 1,
-                  fontSize: 14,
-                  color: item.completed ? "var(--ink-faint)" : "var(--ink)",
-                  textDecoration: item.completed ? "line-through" : "none",
-                  cursor: "text",
-                  wordBreak: "break-word",
-                }}
-              >
-                {item.title}
-              </span>
-            )}
-            <ItemBtn label="Move up" onClick={() => moveUp(idx)} disabled={idx === 0} glyph="↑" />
-            <ItemBtn
-              label="Move down"
-              onClick={() => moveDown(idx)}
-              disabled={idx === items.length - 1}
-              glyph="↓"
-            />
-            <ItemBtn label="Edit" onClick={() => startEdit(item)} glyph="✎" />
-            <ItemBtn label="Delete" onClick={() => deleteItem(item.id)} glyph="🗑" />
-          </li>
-        ))}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {isEditing ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <input
+                      autoFocus
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          saveEdit();
+                        } else if (e.key === "Escape") cancelEdit();
+                      }}
+                      className="f-sans"
+                      placeholder="title"
+                      style={{
+                        width: "100%",
+                        fontSize: 14,
+                        padding: "4px 6px",
+                        color: "var(--ink)",
+                        background: "var(--surface)",
+                        border: "1px solid var(--ember)",
+                        borderRadius: 4,
+                        outline: "none",
+                      }}
+                    />
+                    <textarea
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                          e.preventDefault();
+                          saveEdit();
+                        } else if (e.key === "Escape") cancelEdit();
+                      }}
+                      placeholder="description (optional)"
+                      rows={2}
+                      className="f-serif"
+                      style={{
+                        width: "100%",
+                        fontSize: 12,
+                        padding: "4px 6px",
+                        color: "var(--ink-soft)",
+                        background: "var(--surface)",
+                        border: "1px solid var(--line-soft)",
+                        borderRadius: 4,
+                        outline: "none",
+                        resize: "vertical",
+                        fontStyle: "italic",
+                        lineHeight: 1.4,
+                      }}
+                    />
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <ItemBtn label="Save" onClick={saveEdit} glyph="✓" />
+                      <ItemBtn label="Cancel" onClick={cancelEdit} glyph="×" />
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      className="f-sans"
+                      onClick={() => startEdit(item)}
+                      style={{
+                        fontSize: 14,
+                        color: item.completed ? "var(--ink-faint)" : "var(--ink)",
+                        textDecoration: item.completed ? "line-through" : "none",
+                        cursor: "text",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {item.title}
+                    </div>
+                    {item.description && (
+                      <div
+                        className="f-serif"
+                        onClick={() => startEdit(item)}
+                        style={{
+                          fontSize: 12,
+                          color: "var(--ink-soft)",
+                          marginTop: 2,
+                          lineHeight: 1.4,
+                          fontStyle: "italic",
+                          cursor: "text",
+                          wordBreak: "break-word",
+                          textDecoration: item.completed ? "line-through" : "none",
+                          opacity: item.completed ? 0.6 : 1,
+                        }}
+                      >
+                        {item.description}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+              {!isEditing && (
+                <>
+                  <ItemBtn
+                    label="Move up"
+                    onClick={() => moveUp(idx)}
+                    disabled={idx === 0}
+                    glyph="↑"
+                  />
+                  <ItemBtn
+                    label="Move down"
+                    onClick={() => moveDown(idx)}
+                    disabled={idx === items.length - 1}
+                    glyph="↓"
+                  />
+                  <ItemBtn label="Edit" onClick={() => startEdit(item)} glyph="✎" />
+                  <ItemBtn label="Delete" onClick={() => deleteItem(item.id)} glyph="🗑" />
+                </>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

@@ -22,6 +22,11 @@ export interface ListItem {
   title: string;
   completed: boolean;
   order: number;
+  // Optional descriptive text under the title. Populated when items are
+  // imported from a structured source (file extraction returns title +
+  // description pairs). The pasted-text parser leaves this undefined —
+  // free-form text can't be split into "item / description" reliably.
+  description?: string;
 }
 
 export const MAX_ITEMS_PER_PARSE = 500;

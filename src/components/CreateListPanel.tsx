@@ -1,7 +1,9 @@
 /**
  * Create-list panel — modal for creating a new list with optional initial
- * items. Items field runs the deterministic listParser on every keystroke
- * so the user sees a live "N items detected" preview before confirming.
+ * items. Two import paths:
+ *   - Pasted text (deterministic line-based parser, no AI)
+ *   - Uploaded file (PDF / image / docx / xlsx / csv / txt → AI extraction
+ *     into title + optional description pairs)
  *
  * Submission:
  *  1. POST /api/capture with type="list", title, content, metadata.items=[...]
@@ -28,6 +30,49 @@ interface CreateListPanelProps {
   onCreated: (entry: Entry) => void;
 }
 
+// Hard cap mirrored from the server. Server enforces ~24 MB on the
+// base64 payload (~32 MB raw); we clamp at 16 MB raw to leave headroom
+// for the b64 inflation (33%) and JSON envelope.
+const MAX_FILE_BYTES = 16 * 1024 * 1024;
+
+const ALLOWED_FILE_EXTENSIONS =
+  ".pdf,.txt,.csv,.md,.html,.docx,.xlsx,.json,.jpg,.jpeg,.png,.webp,.heic,.heif";
+
+function genItemId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `lst_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+async function readFileAsBase64(
+  file: File,
+): Promise<{ data: string; mimeType: string; filename: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== "string") {
+        reject(new Error("File read returned non-string"));
+        return;
+      }
+      // Strip the data: URL prefix.
+      const commaIdx = result.indexOf(",");
+      if (commaIdx === -1) {
+        reject(new Error("Malformed data URL"));
+        return;
+      }
+      resolve({
+        data: result.slice(commaIdx + 1),
+        mimeType: file.type || "application/octet-stream",
+        filename: file.name,
+      });
+    };
+    reader.onerror = () => reject(reader.error || new Error("File read failed"));
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function CreateListPanel({
   brainId,
   open,
@@ -36,33 +81,117 @@ export default function CreateListPanel({
 }: CreateListPanelProps) {
   const [name, setName] = useState("");
   const [pasted, setPasted] = useState("");
+  // When the user uploads a file, extracted items take precedence over
+  // pasted text. Cleared whenever the textarea is touched, so the user
+  // can always fall back to manual paste.
+  const [extractedItems, setExtractedItems] = useState<ListItem[] | null>(null);
+  const [extracting, setExtracting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Live-parse preview. Cheap — runs in-memory only, no network.
-  const detectedItems = useMemo(() => parseListText(pasted), [pasted]);
+  // Effective items: extracted (from file) wins if present, else parsed
+  // from the textarea live as the user types.
+  const detectedItems = useMemo<ListItem[]>(() => {
+    if (extractedItems && extractedItems.length > 0) return extractedItems;
+    return parseListText(pasted);
+  }, [extractedItems, pasted]);
 
   useEffect(() => {
     if (open) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional reset on open transition; we want a clean panel each time it's shown.
       setName("");
       setPasted("");
+      setExtractedItems(null);
+      setExtracting(false);
       setSubmitting(false);
       // Defer focus until Dialog mounts.
       setTimeout(() => nameRef.current?.focus(), 30);
     }
   }, [open]);
 
+  async function handleFileSelected(file: File | null) {
+    if (!file) return;
+    if (file.size > MAX_FILE_BYTES) {
+      showToast(
+        `File too large — keep it under ${Math.round(MAX_FILE_BYTES / (1024 * 1024))} MB`,
+        "error",
+      );
+      return;
+    }
+    setExtracting(true);
+    try {
+      const { data, mimeType, filename } = await readFileAsBase64(file);
+      const res = await authFetch("/api/llm?action=extract-list-from-file", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileData: data, mimeType, filename }),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        const msg =
+          typeof errBody?.message === "string"
+            ? errBody.message
+            : typeof errBody?.error === "string"
+              ? errBody.error
+              : `Extraction failed (${res.status})`;
+        showToast(msg, "error");
+        return;
+      }
+      const data2: { items?: Array<{ title?: string; description?: string }> } = await res
+        .json()
+        .catch(() => ({}));
+      const incoming = Array.isArray(data2.items) ? data2.items : [];
+      if (incoming.length === 0) {
+        showToast("No list found in that file", "info");
+        return;
+      }
+      const items: ListItem[] = incoming
+        .map((it, idx) => ({
+          id: genItemId(),
+          title: typeof it.title === "string" ? it.title.trim().slice(0, 200) : "",
+          description:
+            typeof it.description === "string" && it.description.trim().length > 0
+              ? it.description.trim().slice(0, 500)
+              : undefined,
+          completed: false,
+          order: idx,
+        }))
+        .filter((it) => it.title.length > 0)
+        .slice(0, MAX_ITEMS_PER_PARSE);
+      setExtractedItems(items);
+      setPasted("");
+      // Auto-fill the name from the filename if the user hasn't typed
+      // anything yet — strip extension and replace separators.
+      if (!name.trim()) {
+        const base = file.name
+          .replace(/\.[^.]+$/, "")
+          .replace(/[_-]+/g, " ")
+          .trim();
+        if (base) setName(base);
+      }
+      showToast(`${items.length} item${items.length === 1 ? "" : "s"} extracted`, "success");
+    } catch (err) {
+      console.error("[lists] file extract failed", err);
+      showToast("Couldn't read that file — try a different format", "error");
+    } finally {
+      setExtracting(false);
+      // Clear the input so re-uploading the same file fires onChange.
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   async function handleCreate() {
     const trimmedName = name.trim();
     if (!trimmedName || submitting) return;
     setSubmitting(true);
 
-    // Items are stamped with order 0..N; embed item titles into the parent's
-    // `content` so chat retrieval finds the list when the user asks about
-    // any of its items (without per-item embedding).
-    const items: ListItem[] = detectedItems;
-    const itemTitlesForChat = items.map((i) => `- ${i.title}`).join("\n");
+    // Items are stamped with order 0..N; embed item titles + descriptions
+    // into the parent's `content` so chat retrieval finds the list when
+    // the user asks about any of its items (without per-item embedding).
+    const items: ListItem[] = detectedItems.map((it, idx) => ({ ...it, order: idx }));
+    const itemTitlesForChat = items
+      .map((i) => (i.description ? `- ${i.title}: ${i.description}` : `- ${i.title}`))
+      .join("\n");
     const content = items.length ? `${trimmedName}\n\n${itemTitlesForChat}` : trimmedName;
 
     try {
@@ -112,6 +241,8 @@ export default function CreateListPanel({
     }
   }
 
+  const usingExtracted = !!(extractedItems && extractedItems.length > 0);
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
@@ -150,7 +281,7 @@ export default function CreateListPanel({
             marginBottom: 24,
           }}
         >
-          give it a name. paste anything below — bullets, numbered lines, plain rows, even CSV.
+          give it a name. paste text or upload a file — pdf, image, doc, sheet, csv.
         </div>
 
         <label
@@ -205,49 +336,137 @@ export default function CreateListPanel({
             marginBottom: 6,
           }}
         >
-          items (optional — paste anything)
+          items (optional)
         </label>
-        <textarea
-          value={pasted}
-          onChange={(e) => setPasted(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-              e.preventDefault();
-              void handleCreate();
-            }
-          }}
-          placeholder={`milk\neggs\nbread`}
-          rows={6}
-          className="f-sans"
-          style={{
-            width: "100%",
-            fontSize: 14,
-            lineHeight: 1.5,
-            resize: "vertical",
-            padding: "10px 12px",
-            color: "var(--ink)",
-            background: "var(--surface-low)",
-            border: "1px solid var(--line-soft)",
-            borderRadius: 8,
-            outline: "none",
-            fontFamily: "var(--f-mono, ui-monospace, monospace)",
-          }}
-        />
+
+        {usingExtracted ? (
+          <div
+            style={{
+              padding: "10px 12px",
+              border: "1px solid var(--line-soft)",
+              borderRadius: 8,
+              background: "var(--surface-low)",
+              maxHeight: 220,
+              overflowY: "auto",
+            }}
+          >
+            {extractedItems!.slice(0, 50).map((it) => (
+              <div key={it.id} style={{ paddingBottom: 8, marginBottom: 8 }}>
+                <div
+                  className="f-sans"
+                  style={{ fontSize: 13, color: "var(--ink)", fontWeight: 500 }}
+                >
+                  {it.title}
+                </div>
+                {it.description && (
+                  <div
+                    className="f-serif"
+                    style={{
+                      fontSize: 12,
+                      color: "var(--ink-soft)",
+                      marginTop: 2,
+                      lineHeight: 1.4,
+                      fontStyle: "italic",
+                    }}
+                  >
+                    {it.description}
+                  </div>
+                )}
+              </div>
+            ))}
+            {extractedItems!.length > 50 && (
+              <div
+                className="f-sans"
+                style={{ fontSize: 11, color: "var(--ink-faint)", fontStyle: "italic" }}
+              >
+                …and {extractedItems!.length - 50} more
+              </div>
+            )}
+          </div>
+        ) : (
+          <textarea
+            value={pasted}
+            onChange={(e) => {
+              setPasted(e.target.value);
+              if (extractedItems) setExtractedItems(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                void handleCreate();
+              }
+            }}
+            placeholder={`milk\neggs\nbread`}
+            rows={6}
+            className="f-sans"
+            style={{
+              width: "100%",
+              fontSize: 14,
+              lineHeight: 1.5,
+              resize: "vertical",
+              padding: "10px 12px",
+              color: "var(--ink)",
+              background: "var(--surface-low)",
+              border: "1px solid var(--line-soft)",
+              borderRadius: 8,
+              outline: "none",
+              fontFamily: "var(--f-mono, ui-monospace, monospace)",
+            }}
+          />
+        )}
 
         <div
-          className="f-sans"
           style={{
-            fontSize: 12,
-            color: detectedItems.length ? "var(--ink-soft)" : "var(--ink-faint)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
             marginTop: 8,
-            fontStyle: "italic",
           }}
         >
-          {detectedItems.length === 0
-            ? "no items yet — that's fine, you can add some after creating"
-            : detectedItems.length === MAX_ITEMS_PER_PARSE
-              ? `${MAX_ITEMS_PER_PARSE} items detected (max — extra lines truncated)`
-              : `${detectedItems.length} item${detectedItems.length === 1 ? "" : "s"} detected`}
+          <div
+            className="f-sans"
+            style={{
+              fontSize: 12,
+              color: detectedItems.length ? "var(--ink-soft)" : "var(--ink-faint)",
+              fontStyle: "italic",
+            }}
+          >
+            {detectedItems.length === 0
+              ? extracting
+                ? "reading file…"
+                : "no items yet — that's fine, you can add some after creating"
+              : detectedItems.length === MAX_ITEMS_PER_PARSE
+                ? `${MAX_ITEMS_PER_PARSE} items detected (max — extra lines truncated)`
+                : `${detectedItems.length} item${detectedItems.length === 1 ? "" : "s"} detected${usingExtracted ? " · from file" : ""}`}
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {usingExtracted && !extracting && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setExtractedItems(null)}
+                disabled={submitting}
+              >
+                clear
+              </Button>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={ALLOWED_FILE_EXTENSIONS}
+              onChange={(e) => void handleFileSelected(e.target.files?.[0] ?? null)}
+              style={{ display: "none" }}
+            />
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={extracting || submitting}
+            >
+              {extracting ? "reading…" : "upload file"}
+            </Button>
+          </div>
         </div>
 
         <div
@@ -262,7 +481,7 @@ export default function CreateListPanel({
           <Button variant="ghost" size="sm" onClick={onClose} disabled={submitting}>
             cancel
           </Button>
-          <Button onClick={handleCreate} disabled={!name.trim() || submitting}>
+          <Button onClick={handleCreate} disabled={!name.trim() || submitting || extracting}>
             {submitting ? "creating…" : "create list"}
           </Button>
         </div>
