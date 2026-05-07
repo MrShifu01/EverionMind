@@ -374,7 +374,23 @@ export default function TodoSomedayTab({
   const bulkDrop = async () => {
     const ids = [...selectedIds];
     if (ids.length === 0) return;
-    await Promise.all(ids.map((id) => onDelete?.(id)));
+    // Single atomic server call. The previous N-parallel onDelete loop
+    // raced through a single-slot pendingDeleteRef and silently dropped
+    // most of the writes — users saw entries disappear optimistically
+    // and reappear next session. We await the server response, then
+    // refetch so local state reflects the server's truth (no optimistic
+    // delete window where the UI lies about persistence).
+    try {
+      const r = await authFetch("/api/entries?action=bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      onAdded();
+    } catch (err) {
+      console.error("[someday-bulk-drop]", err);
+    }
     clearSelection();
   };
 

@@ -106,6 +106,7 @@ export default withAuth(
       return handleRetryFailed(ctx);
     if (ctx.req.method === "POST" && action === "empty-trash") return handleEmptyTrash(ctx);
     if (ctx.req.method === "POST" && action === "bulk-patch") return handleBulkPatch(ctx);
+    if (ctx.req.method === "POST" && action === "bulk-delete") return handleBulkDelete(ctx);
     if (ctx.req.method === "POST" && action === "merge") return handleMerge(ctx);
     if (ctx.req.method === "POST" && action === "merge-undo") return handleMergeUndo(ctx);
     if (ctx.req.method === "POST" && action === "merge_into") return handleMergeInto(ctx);
@@ -492,6 +493,68 @@ async function handleBulkPatch({ req, res, user, req_id }: HandlerContext): Prom
   }).catch(() => {});
 
   res.status(200).json({ ok: true, updated, requested: cleanIds.length });
+}
+
+// ── POST /api/entries?action=bulk-delete ──
+// Atomic soft-delete of N entries in one round-trip. Existed-as-a-loop bug:
+// the client previously fired N parallel handleDelete calls, each scheduling
+// a 5-second optimistic-undo timer with shared single-slot pendingDeleteRef
+// state. Concurrent commits raced; close-the-tab inside the 5s window dropped
+// in-flight DELETEs; users saw entries vanish optimistically, then reappear
+// next session because the server never got the writes. This endpoint sets
+// deleted_at on every requested id in one PATCH, scoped to the user, so the
+// success response means it's persisted — no timer, no lost work.
+async function handleBulkDelete({ req, res, user, req_id }: HandlerContext): Promise<void> {
+  const { ids } = bodyObject(req.body);
+  if (!Array.isArray(ids) || ids.length === 0) {
+    throw new ApiError(400, "ids: non-empty array required");
+  }
+  if (ids.length > 200) {
+    throw new ApiError(400, "ids: max 200 per request");
+  }
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const cleanIds = ids.filter((id): id is string => typeof id === "string" && uuidRe.test(id));
+  if (cleanIds.length === 0) {
+    throw new ApiError(400, "ids: must be UUIDs");
+  }
+
+  const idList = cleanIds.map((id) => encodeURIComponent(id)).join(",");
+  const now = new Date().toISOString();
+
+  // user_id scope blocks cross-account writes even if the caller fabricates
+  // ids — RLS would reject anyway, but the explicit eq.user_id keeps the
+  // server-side write set tight. deleted_at IS NULL prevents double-deletes
+  // from re-stamping a more-recent timestamp on already-trashed rows.
+  const r = await fetch(
+    `${SB_URL}/rest/v1/entries?id=in.(${idList})&user_id=eq.${encodeURIComponent(user.id)}&deleted_at=is.null`,
+    {
+      method: "PATCH",
+      headers: sbHeaders({ Prefer: "return=representation" }),
+      body: JSON.stringify({ deleted_at: now }),
+    },
+  );
+  if (!r.ok) {
+    const txt = await r.text().catch(() => "");
+    throw new ApiError(502, `bulk delete failed: ${txt.slice(0, 200)}`);
+  }
+  const rows: Array<{ id: string }> = await r.json().catch(() => []);
+  const deletedIds = rows.map((row) => row.id);
+
+  // Single audit log row per bulk action — same shape as bulk-patch.
+  fetch(`${SB_URL}/rest/v1/audit_log`, {
+    method: "POST",
+    headers: sbHeaders({ Prefer: "return=minimal" }),
+    body: JSON.stringify({
+      user_id: user.id,
+      action: "entry_bulk_delete",
+      resource_id: cleanIds[0],
+      request_id: req_id,
+      timestamp: now,
+      metadata: { count: deletedIds.length, requested: cleanIds.length },
+    }),
+  }).catch(() => {});
+
+  res.status(200).json({ ok: true, deleted: deletedIds.length, requested: cleanIds.length, ids: deletedIds });
 }
 
 // ── concept-graph cleanup helper ─────────────────────────────────────────────

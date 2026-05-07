@@ -1051,13 +1051,25 @@ function EverionContent({
                   }
                 }}
                 onDelete={async (ids: string[]) => {
-                  for (const id of ids) {
-                    setEntries((prev) => prev.filter((e) => e.id !== id));
-                    await authFetch("/api/delete-entry", {
-                      method: "DELETE",
+                  // One atomic server call. The previous per-id loop did
+                  // optimistic local removal first, then fire-and-forget
+                  // DELETE per row — so a tab close or partial network
+                  // failure left rows missing from the UI but still
+                  // alive in the DB (they reappeared on next session).
+                  // Now: optimistic removal only AFTER the server
+                  // confirms persistence; on failure we roll back.
+                  const snapshot = entries.filter((e) => ids.includes(e.id));
+                  setEntries((prev) => prev.filter((e) => !ids.includes(e.id)));
+                  try {
+                    const r = await authFetch("/api/entries?action=bulk-delete", {
+                      method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ id }),
-                    }).catch((err) => console.error("[bulkDelete]", err));
+                      body: JSON.stringify({ ids }),
+                    });
+                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                  } catch (err) {
+                    console.error("[bulkDelete]", err);
+                    setEntries((prev) => [...snapshot, ...prev]);
                   }
                 }}
                 onMoved={(ids: string[]) => {
