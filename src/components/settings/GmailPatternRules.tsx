@@ -7,6 +7,13 @@ import { useCachedQuery } from "../../lib/useCachedQuery";
 // classifier. Surfaces what the system has learned and lets the user prune,
 // tune, or correct mislearned patterns. Backed by /api/gmail?action=patterns-*.
 
+interface RecentMatch {
+  subject: string | null;
+  from: string | null;
+  decision: "accept" | "reject";
+  ts: string;
+}
+
 interface Pattern {
   id: string;
   summary: string;
@@ -20,6 +27,8 @@ interface Pattern {
   last_reject_at: string | null;
   auto_accept_eligible_at: string | null;
   created_at: string;
+  recent_matches: RecentMatch[] | null;
+  summary_distilled_at: string | null;
 }
 
 function formatRelative(ts: string | null): string {
@@ -34,6 +43,26 @@ function formatRelative(ts: string | null): string {
   const days = Math.floor(hrs / 24);
   if (days < 14) return `${days}d ago`;
   return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
+function classifyState(p: Pattern): { label: string; color: string } {
+  const probationActive =
+    p.auto_accept_eligible_at && new Date(p.auto_accept_eligible_at).getTime() > Date.now();
+  const isAutoAccept = p.accept_score >= 8 && p.reject_score <= 2 && !probationActive;
+  const isHardBlock = p.reject_score >= 8 && p.accept_score <= 2;
+  const isContested = p.accept_score > 3 && p.reject_score > 3;
+  if (isAutoAccept) return { label: "auto-accept", color: "var(--moss)" };
+  if (probationActive)
+    return {
+      label: `probation → ${new Date(p.auto_accept_eligible_at!).toLocaleDateString(undefined, {
+        day: "numeric",
+        month: "short",
+      })}`,
+      color: "var(--moss)",
+    };
+  if (isHardBlock) return { label: "hard-block", color: "var(--danger, var(--blood))" };
+  if (isContested) return { label: "contested", color: "var(--ember)" };
+  return { label: "learning", color: "var(--ink-faint)" };
 }
 
 function ScoreBar({ value, color, label }: { value: number; color: string; label: string }) {
@@ -99,33 +128,14 @@ function PatternCard({
   onChanged: () => void;
   onDelete: (id: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [summary, setSummary] = useState(p.summary);
   const [accept, setAccept] = useState(p.accept_score);
   const [reject, setReject] = useState(p.reject_score);
 
-  const probationActive =
-    p.auto_accept_eligible_at && new Date(p.auto_accept_eligible_at).getTime() > Date.now();
-  const isAutoAccept = p.accept_score >= 8 && p.reject_score <= 2 && !probationActive;
-  const isHardBlock = p.reject_score >= 8 && p.accept_score <= 2;
-  const isContested = p.accept_score > 3 && p.reject_score > 3;
-
-  let stateLabel = "learning";
-  let stateColor = "var(--ink-faint)";
-  if (isAutoAccept) {
-    stateLabel = "auto-accept";
-    stateColor = "var(--moss)";
-  } else if (probationActive) {
-    stateLabel = `probation → ${new Date(p.auto_accept_eligible_at!).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`;
-    stateColor = "var(--moss)";
-  } else if (isHardBlock) {
-    stateLabel = "hard-block";
-    stateColor = "var(--danger, var(--blood))";
-  } else if (isContested) {
-    stateLabel = "contested";
-    stateColor = "var(--ember)";
-  }
+  const state = classifyState(p);
 
   async function saveEdits() {
     setBusy(true);
@@ -160,27 +170,124 @@ function PatternCard({
     }
   }
 
+  const lastFiredTs =
+    p.last_accept_at && p.last_reject_at
+      ? new Date(p.last_accept_at).getTime() > new Date(p.last_reject_at).getTime()
+        ? p.last_accept_at
+        : p.last_reject_at
+      : (p.last_accept_at ?? p.last_reject_at);
+
+  const matches = Array.isArray(p.recent_matches) ? p.recent_matches : [];
+
   return (
     <div
       style={{
-        padding: "14px 14px 12px",
         borderRadius: 10,
         background: "var(--surface)",
         border: "1px solid var(--line-soft)",
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
+        overflow: "hidden",
       }}
     >
-      <div
+      {/* Collapsed header — always visible, clickable */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-label={open ? "Collapse pattern" : "Expand pattern"}
+        className="press"
         style={{
+          width: "100%",
+          padding: "12px 14px",
           display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
+          alignItems: "center",
           gap: 12,
+          background: "transparent",
+          border: "none",
+          color: "inherit",
+          cursor: "pointer",
+          textAlign: "left",
+          minHeight: 56,
         }}
       >
+        <span
+          aria-hidden="true"
+          style={{
+            display: "inline-block",
+            width: 14,
+            flexShrink: 0,
+            color: "var(--ink-faint)",
+            fontSize: 11,
+            transform: open ? "rotate(90deg)" : "rotate(0deg)",
+            transition: "transform 0.15s ease",
+          }}
+        >
+          ▶
+        </span>
         <div style={{ minWidth: 0, flex: 1 }}>
+          <div
+            className="f-sans"
+            style={{
+              fontSize: 13,
+              fontWeight: 500,
+              color: "var(--ink)",
+              lineHeight: 1.4,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {p.summary}
+          </div>
+          <div
+            className="f-sans"
+            style={{
+              fontSize: 11,
+              color: "var(--ink-faint)",
+              marginTop: 2,
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+            }}
+          >
+            <span>
+              ACC {p.accept_score}/10 · REJ {p.reject_score}/10
+            </span>
+            <span>·</span>
+            <span>{p.accept_hits + p.reject_hits} hits</span>
+          </div>
+        </div>
+        <span
+          className="f-sans"
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            color: state.color,
+            border: `1px solid ${state.color}`,
+            padding: "3px 8px",
+            borderRadius: 999,
+            flexShrink: 0,
+            background: "transparent",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {state.label}
+        </span>
+      </button>
+
+      {/* Expanded body */}
+      {open && (
+        <div
+          style={{
+            padding: "0 14px 14px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+            borderTop: "1px solid var(--line-soft)",
+            paddingTop: 12,
+          }}
+        >
           {editing ? (
             <textarea
               className="f-sans"
@@ -199,168 +306,218 @@ function PatternCard({
                 resize: "vertical",
               }}
             />
-          ) : (
-            <div
-              className="f-sans"
-              style={{
-                fontSize: 13,
-                fontWeight: 500,
-                color: "var(--ink)",
-                lineHeight: 1.4,
-                wordBreak: "break-word",
-              }}
-            >
-              {p.summary}
-            </div>
-          )}
-          {p.example_from || p.example_subject ? (
+          ) : null}
+
+          {(p.example_from || p.example_subject) && (
             <div
               className="f-sans"
               style={{
                 fontSize: 11,
                 color: "var(--ink-faint)",
-                marginTop: 4,
                 wordBreak: "break-word",
               }}
             >
+              <span style={{ color: "var(--ink-soft)", fontWeight: 600 }}>Example: </span>
               {p.example_from ? `from ${p.example_from}` : ""}
               {p.example_from && p.example_subject ? " · " : ""}
               {p.example_subject ? `"${p.example_subject}"` : ""}
             </div>
-          ) : null}
-        </div>
-        <span
-          className="f-sans"
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            letterSpacing: "0.06em",
-            textTransform: "uppercase",
-            color: stateColor,
-            border: `1px solid ${stateColor}`,
-            padding: "3px 8px",
-            borderRadius: 999,
-            flexShrink: 0,
-            background: "transparent",
-          }}
-        >
-          {stateLabel}
-        </span>
-      </div>
+          )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {editing ? (
-          <>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {editing ? (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span
+                    className="f-sans"
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: "var(--ink-faint)",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                      width: 38,
+                    }}
+                  >
+                    ACC
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={10}
+                    value={accept}
+                    onChange={(e) => setAccept(Number(e.target.value))}
+                    style={{ flex: 1 }}
+                  />
+                  <span
+                    className="f-sans"
+                    style={{ fontSize: 11, color: "var(--ink)", width: 28, textAlign: "right" }}
+                  >
+                    {accept}/10
+                  </span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span
+                    className="f-sans"
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: "var(--ink-faint)",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                      width: 38,
+                    }}
+                  >
+                    REJ
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={10}
+                    value={reject}
+                    onChange={(e) => setReject(Number(e.target.value))}
+                    style={{ flex: 1 }}
+                  />
+                  <span
+                    className="f-sans"
+                    style={{ fontSize: 11, color: "var(--ink)", width: 28, textAlign: "right" }}
+                  >
+                    {reject}/10
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                <ScoreBar value={p.accept_score} color="var(--moss)" label="ACC" />
+                <ScoreBar value={p.reject_score} color="var(--danger, var(--blood))" label="REJ" />
+              </>
+            )}
+          </div>
+
+          {matches.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <div
                 className="f-sans"
                 style={{
                   fontSize: 10,
                   fontWeight: 700,
-                  color: "var(--ink-faint)",
+                  letterSpacing: "0.08em",
                   textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                  width: 38,
+                  color: "var(--ink-soft)",
                 }}
               >
-                ACC
-              </span>
-              <input
-                type="range"
-                min={0}
-                max={10}
-                value={accept}
-                onChange={(e) => setAccept(Number(e.target.value))}
-                style={{ flex: 1 }}
-              />
-              <span
-                className="f-sans"
-                style={{ fontSize: 11, color: "var(--ink)", width: 28, textAlign: "right" }}
-              >
-                {accept}/10
-              </span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span
-                className="f-sans"
+                Recent matches
+              </div>
+              <ul
                 style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  color: "var(--ink-faint)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                  width: 38,
+                  listStyle: "none",
+                  padding: 0,
+                  margin: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 4,
                 }}
               >
-                REJ
-              </span>
-              <input
-                type="range"
-                min={0}
-                max={10}
-                value={reject}
-                onChange={(e) => setReject(Number(e.target.value))}
-                style={{ flex: 1 }}
-              />
-              <span
-                className="f-sans"
-                style={{ fontSize: 11, color: "var(--ink)", width: 28, textAlign: "right" }}
-              >
-                {reject}/10
-              </span>
+                {matches.slice(0, 5).map((m, i) => (
+                  <li
+                    key={`${m.ts}-${i}`}
+                    className="f-sans"
+                    style={{
+                      fontSize: 11,
+                      color: "var(--ink-soft)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      minWidth: 0,
+                    }}
+                  >
+                    <span
+                      style={{
+                        flexShrink: 0,
+                        fontSize: 9,
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        color:
+                          m.decision === "accept" ? "var(--moss)" : "var(--danger, var(--blood))",
+                        width: 28,
+                      }}
+                    >
+                      {m.decision === "accept" ? "ACC" : "REJ"}
+                    </span>
+                    <span
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        flex: 1,
+                      }}
+                      title={m.subject ?? ""}
+                    >
+                      {m.subject || "(no subject)"}
+                    </span>
+                    <span
+                      style={{
+                        flexShrink: 0,
+                        color: "var(--ink-faint)",
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      {formatRelative(m.ts)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
-          </>
-        ) : (
-          <>
-            <ScoreBar value={p.accept_score} color="var(--moss)" label="ACC" />
-            <ScoreBar value={p.reject_score} color="var(--danger, var(--blood))" label="REJ" />
-          </>
-        )}
-      </div>
+          )}
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-          fontSize: 11,
-          color: "var(--ink-faint)",
-        }}
-      >
-        <div className="f-sans">
-          {p.accept_hits} accept{p.accept_hits === 1 ? "" : "s"} · {p.reject_hits} reject
-          {p.reject_hits === 1 ? "" : "s"} · last fired{" "}
-          {formatRelative(
-            p.last_accept_at && p.last_reject_at
-              ? new Date(p.last_accept_at).getTime() > new Date(p.last_reject_at).getTime()
-                ? p.last_accept_at
-                : p.last_reject_at
-              : (p.last_accept_at ?? p.last_reject_at),
-          )}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              fontSize: 11,
+              color: "var(--ink-faint)",
+            }}
+          >
+            <div className="f-sans">
+              {p.accept_hits} accept{p.accept_hits === 1 ? "" : "s"} · {p.reject_hits} reject
+              {p.reject_hits === 1 ? "" : "s"} · last fired {formatRelative(lastFiredTs)}
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              {editing ? (
+                <>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setEditing(false)}
+                    disabled={busy}
+                  >
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={saveEdits} disabled={busy}>
+                    Save
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setEditing(true)}
+                    disabled={busy}
+                  >
+                    Edit
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={handleDelete} disabled={busy}>
+                    Delete
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
         </div>
-        <div style={{ display: "flex", gap: 6 }}>
-          {editing ? (
-            <>
-              <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={busy}>
-                Cancel
-              </Button>
-              <Button size="sm" onClick={saveEdits} disabled={busy}>
-                Save
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button size="sm" variant="ghost" onClick={() => setEditing(true)} disabled={busy}>
-                Edit
-              </Button>
-              <Button size="sm" variant="ghost" onClick={handleDelete} disabled={busy}>
-                Delete
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -438,7 +595,7 @@ export default function GmailPatternRules() {
           probation) or hard-blocks similar emails before they reach the classifier.
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {(patterns ?? []).map((p) => (
             <PatternCard key={p.id} p={p} onChanged={() => refetch()} onDelete={onPatternDeleted} />
           ))}

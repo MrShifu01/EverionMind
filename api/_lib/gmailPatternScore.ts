@@ -16,6 +16,7 @@
  */
 import { generateEmbedding } from "./generateEmbedding.js";
 import { sbHeaders } from "./sbHeaders.js";
+import { distillPatternSummary, shouldDistillAt } from "./distillPatternSummary.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_HEADERS = sbHeaders();
@@ -124,11 +125,26 @@ export async function recordPatternDecision(params: {
       newAccept >= AUTO_ACCEPT_SCORE &&
       !match.auto_accept_eligible_at;
 
+    // Fetch existing recent_matches (the RPC doesn't return jsonb columns)
+    // and append the new entry. Keep last 5. Fire-and-forget if it fails;
+    // the score update still lands.
+    const existingMatches = await fetchRecentMatches(match.id);
+    const updatedMatches = [
+      {
+        subject: (params.subject ?? "").slice(0, 200) || null,
+        from: (params.from_email ?? params.from_name ?? "").slice(0, 200) || null,
+        decision: params.decision,
+        ts: now,
+      },
+      ...existingMatches,
+    ].slice(0, 5);
+
     const patch: Record<string, unknown> = {
       accept_score: newAccept,
       reject_score: newReject,
       accept_hits: newAcceptHits,
       reject_hits: newRejectHits,
+      recent_matches: updatedMatches,
     };
     if (isAccept) patch.last_accept_at = now;
     else patch.last_reject_at = now;
@@ -150,6 +166,15 @@ export async function recordPatternDecision(params: {
         body: JSON.stringify(patch),
       },
     ).catch((e) => console.error("[gmail-pattern] update failed:", e));
+
+    // Fire-and-forget LLM distill on hit-count milestones so the human-
+    // readable summary catches up to what the pattern actually generalises.
+    const totalHits = newAcceptHits + newRejectHits;
+    if (shouldDistillAt(totalHits)) {
+      distillPatternSummary(match.id).catch((e) =>
+        console.error("[gmail-pattern] distill failed:", e),
+      );
+    }
     return;
   }
 
@@ -171,6 +196,14 @@ export async function recordPatternDecision(params: {
     reject_hits: params.decision === "reject" ? weight : 0,
     last_accept_at: params.decision === "accept" ? now : null,
     last_reject_at: params.decision === "reject" ? now : null,
+    recent_matches: [
+      {
+        subject: (params.subject ?? "").slice(0, 200) || null,
+        from: (params.from_email ?? params.from_name ?? "").slice(0, 200) || null,
+        decision: params.decision,
+        ts: now,
+      },
+    ],
     // Heavy-cluster first-touch (weight ≥ 8) sets immediate probation so
     // auto-accept doesn't fire until the user has had 7d to dispute. The
     // existing crossed-threshold logic only triggers on later +bumps.
@@ -184,6 +217,17 @@ export async function recordPatternDecision(params: {
     headers: { ...SB_HEADERS, Prefer: "return=minimal" },
     body: JSON.stringify(row),
   }).catch((e) => console.error("[gmail-pattern] insert failed:", e));
+}
+
+async function fetchRecentMatches(patternId: string): Promise<unknown[]> {
+  const r = await fetch(
+    `${SB_URL}/rest/v1/gmail_pattern_rules?id=eq.${encodeURIComponent(patternId)}&select=recent_matches&limit=1`,
+    { headers: SB_HEADERS },
+  ).catch(() => null);
+  if (!r || !r.ok) return [];
+  const rows = (await r.json().catch(() => [])) as Array<{ recent_matches?: unknown[] }>;
+  const arr = rows[0]?.recent_matches;
+  return Array.isArray(arr) ? arr : [];
 }
 
 // ── Scan-time pattern enforcement ───────────────────────────────────────────

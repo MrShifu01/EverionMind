@@ -326,7 +326,7 @@ const authedHandler = withAuth(
       // patterns even when rows existed.
       const r = await fetch(
         `${SB_URL}/rest/v1/gmail_pattern_rules?user_id=eq.${user.id}` +
-          `&select=id,summary,example_subject,example_from,accept_score,reject_score,accept_hits,reject_hits,last_accept_at,last_reject_at,auto_accept_eligible_at,created_at` +
+          `&select=id,summary,example_subject,example_from,accept_score,reject_score,accept_hits,reject_hits,last_accept_at,last_reject_at,auto_accept_eligible_at,created_at,recent_matches,summary_distilled_at` +
           `&order=created_at.desc` +
           `&limit=200`,
         { headers: SB_HEADERS },
