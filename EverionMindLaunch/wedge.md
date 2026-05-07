@@ -5,7 +5,58 @@
 > A wedge competes against no one in its niche and reaches a specific community cheaply.
 > Pick one. Dominate it. Expand outward later.
 >
-> This is a **living file**. Wedges are added as they're discovered, promoted to active when chosen, archived once executed. The discipline is **one active wedge at a time** — multiple parallel wedges is the failure mode dressed up as "diversification."
+> This is a **living file**. Wedges are added as they're discovered, promoted as they're chosen, archived once executed.
+
+---
+
+## The 2026 reality (read first)
+
+AI changed code velocity. AI did not change customer-development velocity, trust formation, or decision throughput. Every competitor also has AI. Generic AI-generated content is being printed in oceans. The premium in 2026 is on **authentic, niche, deep** — exactly what a wedge delivers.
+
+**What AI compresses:**
+- Code production
+- Copy production
+- Landing page variants
+- Per-segment content
+- Feature flag plumbing
+
+**What AI does NOT compress:**
+- Talking to 30 lawyers takes 30 hours
+- SEO ranking still takes 6-12 months
+- Trust formation
+- Community presence (showing up in the same Discord daily)
+- Word-of-mouth
+- NPS curves
+- Founder bandwidth to interpret signal
+
+**Hard truth.** Production throughput is no longer the bottleneck. Decision throughput is. Running 6 parallel wedges = 6 funnels, 6 cohort analyses, 6 customer-support backlogs, 6 NPS streams. Six partial signals are noisier than one clear signal — even with AI helping interpret. Solo dev caps out at decision-throughput, not at code.
+
+**Maintenance compounds.** Each active surface adds ~1.5× ongoing load over time, not 1×. Six active wedges = death by 1,000 cuts within 18 months. The thing that kills indie founders isn't the launch — it's month 14 when the support backlog from segment 3 conflicts with the feature request from segment 5 and you no longer remember what segment 1 wanted.
+
+**AI advantage is also democratised.** Your competitors fire-hose just as fast. The moment everyone has AI, no one has AI. The differentiator returns to the slow things: insight, trust, presence.
+
+---
+
+## The three-layer model
+
+Old 2004 rule: one wedge, sequential.
+Updated 2026 rule: **one primary active wedge + up to 2 passive surfaces + inert backstop.**
+
+| Layer | What it is | Time / budget |
+|---|---|---|
+| **Primary active wedge** | Full marketing focus. Customer development. Active outreach. Iteration loops. Weekly metrics. | 80% of marketing time + 100% of paid budget |
+| **Passive surface** (max 2) | Public asset capturing organic intent. No active outreach, no copy iteration, no analytics tuning. Examples: MCP catalogue page, open-source crypto repo, Smash Burger Bar case study. | 5-10% maintenance only |
+| **Inert backstop** | Generic landing for the rare visitor who Googles by name. Zero tuning. | 0% |
+
+**The 2-hour test for passive surfaces.** If you spent more than 2 hours on it this month, it's not passive anymore. Either promote it (becomes the new primary, demote current primary to passive or kill) or kill it. There is no third option.
+
+**Why max 2 passive surfaces.** Each passive surface still costs:
+- Code maintenance (bug fixes, dep updates)
+- Copy freshness (terms, prices, claims must stay accurate)
+- Analytics noise (every public URL generates events you'll glance at)
+- Cognitive load (every public claim is a thing your brain tracks)
+
+Two is the upper bound. Three is "I have three primaries and I'm lying to myself about which is real."
 
 ---
 
@@ -13,33 +64,48 @@
 
 | Section | What it holds | Discipline |
 |---|---|---|
-| **0. Active Wedge** | The single wedge currently being executed. | Exactly one entry. Never zero (after launch), never more than one. |
-| **1. Candidate Wedges** | Fleshed-out options ready to promote when current wedge hits its validation milestone. | Each must have: ICP, pain, code references, 90-day plan, validation milestone, risk + mitigation. |
-| **2. Idea Park** | Wedge sketches not yet fleshed out. Captured to avoid losing them. | One-paragraph max. Promote to Candidate when worth deeper thought. |
-| **3. Archive** | Wedges already executed (succeeded, pivoted, or failed). | Each archived entry includes: outcome metric, what worked, what didn't, what to carry forward. |
+| **0. Active Surfaces** | Primary wedge + up to 2 passive surfaces + inert backstop. | Exactly one primary. Up to 2 passive. One inert. |
+| **1. Candidate Wedges** | Fleshed-out options ready to promote when primary hits its validation milestone. | Each: ICP, pain, code references, 90-day plan, validation milestone, risk + mitigation. |
+| **2. Idea Park** | Wedge sketches not yet fleshed out. | One-paragraph max. Promote to Candidate when worth deeper thought. |
+| **3. Archive** | Wedges already executed (succeeded, pivoted, or failed). | Each: outcome metric, what worked, what didn't, what to carry forward. |
 
-**Promotion path:** Idea Park → Candidate Wedges → Active Wedge → Archive. Movement is one-way and one-at-a-time.
+**Promotion path:** Idea Park → Candidate → Passive surface → Primary → Archive. Or skip passive entirely. Movement is one-way and at-most-one-promotion-per-90-days.
 
-**Why one wedge at a time:**
-- Two messages → diluted
-- Two channels → half-budget each
-- Two onboardings → neither polished
-- Two roadmaps → neither shipped
-- Two feedback loops → neither understood
+**When primary can be replaced:** validation milestone hit AND 90 days of retention data AND explicit decision to expand. Not before. Premature wedge-switching is the #1 indie killer.
 
-**When the active wedge can be replaced:** validation milestone hit + 90 days of retention data + explicit decision to expand. NOT before. Premature wedge-switching is the #1 indie killer.
+**The screaming test.** If you find yourself thinking "but the developer wedge is so easy to also stand up", that scream IS the failure mode. Note it. Do not act. AI made standing it up easy. AI did not make running it sustainable.
 
 ---
 
-## 0. Active Wedge
+## 0. Active Surfaces
 
-> _No active wedge yet. Pre-launch. Decision target: 2026-05-30 (before public launch)._
+### Primary wedge
+
+> _No primary wedge yet. Pre-launch. Decision target: 2026-05-30 (before public launch)._
 >
-> Once chosen, the entry below holds the full wedge spec, weekly progress metrics, and the validation milestone with current % progress. Update weekly.
+> Once chosen, this block holds: full wedge spec, weekly progress metrics, validation milestone with current % progress. Update weekly. If you skip a week of updates, your primary is no longer truly primary — it's coasting.
 
 ```
 [Empty — fill in once chosen from Section 1.]
 ```
+
+### Passive surfaces (max 2, current count: 0)
+
+> Each passive surface gets a one-line entry: name, URL, what organic intent it captures, last-touched date.
+> If last-touched is more than 30 days ago, it's not earning its slot — kill it.
+> If last-touched is less than 7 days ago repeatedly, it's not passive — promote or kill.
+
+```
+[Empty — populate once a wedge is in active execution and a second surface earns its slot.]
+```
+
+### Inert backstop
+
+| URL | What it is | Why it stays |
+|---|---|---|
+| `/` (current generic Landing.tsx) | Pre-wedge generic copy | Catches name searches; gets ZERO active marketing time |
+
+**Inert rule.** When primary wedge is chosen, decide: rewrite `src/views/Landing.tsx` to speak to that wedge OR leave it inert. Do not "tune" it. Do not A/B test it. Do not write blog posts targeting it. The moment you do, it's no longer inert.
 
 ---
 
@@ -450,21 +516,29 @@
 
 ## On generic / general-audience marketing alongside a wedge
 
-**Question that comes up.** "Can we still market the app to general users while spending more time targeting wedges?"
+**Question that comes up.** "Can we still market the app to general users while targeting wedges? AI makes it easy to spin up parallel marketing pipelines."
 
-**Honest answer.** No. Not pre-PMF. Not solo. Not without a marketing team.
+**Brutal answer.** No. Not pre-PMF. Not solo. Not even with AI.
 
-**Why.** Generic marketing pre-PMF is what you do when you have no message, no audience clarity, no channel. It's the default mode every solo founder falls into. Wedges exist BECAUSE generic marketing fails for indie launches. Running both simultaneously means generic eats your time, attention, ad budget, SEO juice, and copy iteration loops — and the wedge gets the leftovers. Both lose.
+**The AI-makes-this-easy fallacy.** Yes — AI lets you generate a generic landing in 10 minutes, run a Google ads campaign in an hour, write 50 generic blog posts in an afternoon. None of that wins. Production is no longer the bottleneck. Decision throughput is. Trust formation is. Customer-development hours are. Generic AI-generated marketing in 2026 sits in an ocean of identical AI-generated marketing — it converts at noise floor.
 
-**The Notion / Stripe pattern people cite.** Notion has a generic landing AND vertical pages ("for engineering teams" / "for marketing teams"). Stripe has generic AND vertical ("for SaaS" / "for marketplaces"). True. But: those companies earned the right to generic by FIRST dominating a wedge with strong PMF. Notion's wedge was Stewart Butterfield's network + YC. Stripe's was YC startups. They expanded outward AFTER PMF. They did not run both pre-PMF.
+**The Notion / Stripe pattern people cite.** Notion has generic landing AND vertical pages. Stripe has generic AND vertical. Yes. They earned generic by FIRST dominating a wedge with strong PMF, then a marketing TEAM, then revenue, then case studies. Notion's wedge was Stewart Butterfield's network + YC. Stripe's was YC startups. They expanded outward AFTER PMF. Solo founders who copy the post-PMF pattern pre-PMF die.
 
-**Pre-PMF rule (where Everion sits today).** Wedge marketing only. Generic landing exists as a placeholder / fallback / SEO catcher, but ZERO active marketing time goes to it. No ads, no content, no copy iteration, no analytics tracking, no funnel tuning. Treat it as an inert backstop.
+**Pre-PMF rule (where Everion sits today).** Generic landing = inert backstop ONLY. Zero active marketing time. No ads, no SEO content, no copy iteration, no funnel tuning. The generic landing exists for the rare visitor who heard your name somewhere and Googled it. That visitor is not your customer. Your customer comes through the wedge channel.
 
-**Post-PMF rule (after wedge 1 hits validation milestone + 90 days retention).** Generic landing becomes one of N parallel surfaces. By that point you have testimonials, case studies, revenue, retention data — the generic page can ride off the wedge's proof.
+**The AI-velocity trap.** Code is fast → "let me also stand up a vertical for therapists" → 30 minutes later there's a `/therapists` route → now there's a second funnel → now there are 2 sets of analytics → now there are 2 sets of feature requests → now you check twitter for both audiences → now you have half a wedge each. AI made you build the trap faster. AI did not save you from it.
 
-**Concrete instruction for now.** `src/views/Landing.tsx` either gets rewritten to speak to the active wedge OR stays as the current generic copy and you do not spend time on it. You don't write blog posts for "everyone." You don't run Google ads on "AI memory app." You don't try to rank for "second brain" on SEO. All marketing dollars + hours go to the wedge.
+**The brutal asymmetry.** If 1 wedge fails in 90 days → clean signal → pivot. If 6 wedges run in parallel and 1 leaks 5 paying customers → unclear if it's signal or noise → keep all 6 alive "just in case" → 6 months later you have 30 paying customers split across 6 segments and zero of them is a business. Six dilutions of a real wedge < one clear wedge result.
 
-**Test.** If someone asks "who is Everion for?" and you can't answer in 8 words pointing at a specific persona, you don't have a wedge. Generic landing tempts you to answer "anyone who wants memory" — that's the failure mode in a sentence.
+**Concrete instruction.**
+- Wedge marketing time: 100% of marketing budget + ~80% of marketing-time hours
+- Passive surfaces (max 2): 5-10% maintenance time, zero budget, zero outreach
+- Inert backstop landing: 0% time, 0% budget. Don't touch it.
+- Total active marketing surfaces: ONE. Wedge.
+
+**The 8-word test.** If someone asks "who is Everion for?" and you can't answer in 8 words pointing at a specific persona, you don't have a wedge. "Anyone who wants AI memory" is the failure mode in a sentence.
+
+**The brutal corollary.** Most solo founders run zero wedges. They tell themselves they're running six. They're producing content for six audiences and converting none. The output looks productive. The signal is silent. Don't be that.
 
 ---
 
@@ -565,22 +639,38 @@ Pick the wedge by answering these in order:
 ## Maintenance
 
 - **Created:** 2026-05-07
-- **Revisit cadence:** weekly while a wedge is active (update Section 0 progress); every 90 days for the full file.
-- **When a wedge is chosen:** move it from Section 1 (Candidates) to Section 0 (Active). Update `EverionMindLaunch/STRATEGY.md` to match. Wedge stays active until validation milestone hit OR 90 days of zero traction triggers an explicit kill decision.
-- **When the active wedge is replaced:** move it from Section 0 to Section 3 (Archive) with the post-execution template filled in. Promote next chosen wedge from Section 1.
+- **Revisit cadence:** weekly while a primary wedge is active (update Section 0 progress); every 90 days for the full file.
+- **When a wedge is chosen as primary:** move it from Section 1 (Candidates) to Section 0 (Primary). Update `EverionMindLaunch/STRATEGY.md` to match. Stays primary until validation milestone hit OR 90 days of zero traction triggers an explicit kill decision.
+- **When the primary is replaced:** move it from Section 0 to Section 3 (Archive) with post-execution template filled in. Promote next chosen wedge from Section 1.
+- **When a passive surface is added:** must EARN its slot — it captures organic intent that's already showing up. Don't add passive surfaces speculatively. Max 2.
 - **New ideas:** add to Section 2 (Idea Park) immediately. Promote to Section 1 only when worth a full spec.
-- **Hard rule:** Section 0 has exactly one entry post-launch. Never zero (you'd be drifting), never two (you'd be diluting).
+
+**Hard rules:**
+- Section 0 primary slot: exactly one entry post-launch. Never zero (drifting), never two (diluting).
+- Section 0 passive slots: 0-2. Never 3+. The 2-hour test applies every month.
+- Section 0 inert backstop: 0% time. The moment you tune it, it stops being inert and starts being a second wedge in disguise.
+- Premature wedge-switching: do not pivot a primary before 90 days unless validation milestone is missed by ≥80%. Most wedges look dead at week 6 and alive at week 12.
+- AI velocity is not a license to add surfaces. AI compresses production, not bandwidth.
 
 ---
 
-## Final note
+## Final note — brutal version
 
-The hardest part of picking a wedge isn't picking — it's saying no to all the others.
+The hardest part of picking a wedge isn't picking. It's saying no to the other five while AI is whispering "but you could ship them all."
 
-Your brain will scream "but the developer wedge is too small, what about doctors?" That scream is the failure mode. Notice it. Note it. Do not act on it.
+Your brain will scream "but the developer wedge is so cheap to also stand up, AI lets me do both." That scream is the failure mode. AI made standing-up cheap. AI did not make sustaining cheap. AI did not make CARING about six audiences possible.
 
-The wedge isn't the final market. It's the first 1,000 users you can dominate, before expanding outward. Facebook didn't launch as "social network for everyone" — it launched as "social network for Harvard students." Then Ivy League. Then US college students. Then everyone.
+**What AI changed:** code velocity. Copy production. Landing variants. Feature flag plumbing.
+**What AI did NOT change:** founder bandwidth, customer trust, decision throughput, community presence, biological pace of word-of-mouth.
 
-Each wedge was small, dominated, and used as launchpad for the next. That's the playbook. Run it.
+The wedge isn't the final market. It's the first 1,000 users you can dominate, before expanding outward. Facebook → Harvard → Ivy → US College → World. Each wedge was the launchpad for the next. Sequential. Not parallel.
 
-Same playbook applies to this file. **Sequential, not parallel.** One wedge active. One wedge dominated. Then the next.
+In 2026, you get **one extra concession**: up to 2 passive surfaces alongside the primary. Passive means zero active marketing — public assets that capture organic intent. The 2-hour test enforces it.
+
+**The discipline in one line.** One primary active wedge. Up to 2 passive surfaces. One inert backstop. Total: ≤4 things on the map. Three of them get zero marketing time. One gets all of it.
+
+**The brutal corollary.** If you find yourself "running marketing pipelines for multiple wedges at once because AI makes it easy," you are not running marketing for any of them. You are producing content into a void. Stop. Pick one. Show up daily for 90 days. Then look at signal.
+
+**Same playbook applies to this file.** Sequential, not parallel. One primary at a time. Earn the next wedge by dominating the current one. AI didn't change that. It just gave you better tools to dominate ONE wedge faster.
+
+Run the playbook.
