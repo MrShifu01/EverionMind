@@ -3,6 +3,13 @@ import * as SwitchPrimitive from "@radix-ui/react-switch";
 
 import { cn } from "@/lib/utils";
 
+// Pill toggle. Tuned dimensions:
+//   default — 44 × 24 track, 20px thumb, 2px gutter (1.83:1 ratio)
+//   sm      — 36 × 20 track, 16px thumb, 2px gutter (1.80:1 ratio)
+// Previous numbers (32 × 18.4 with a 16px thumb that nearly filled the
+// height) rendered as a chunky bean — barely longer than tall, with a
+// near-circle thumb. The new ratios match the iOS-style switches used
+// across the rest of the surface.
 function Switch({
   className,
   size = "default",
@@ -15,14 +22,27 @@ function Switch({
       data-slot="switch"
       data-size={size}
       className={cn(
-        "peer group/switch focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 data-checked:bg-primary data-unchecked:bg-input dark:data-unchecked:bg-input/80 relative inline-flex shrink-0 items-center rounded-full border border-transparent transition-all outline-none after:absolute after:-inset-x-3 after:-inset-y-2 focus-visible:ring-3 aria-invalid:ring-3 data-disabled:cursor-not-allowed data-disabled:opacity-50 data-[size=default]:h-[18.4px] data-[size=default]:w-[32px] data-[size=sm]:h-[14px] data-[size=sm]:w-[24px]",
+        "peer group/switch relative inline-flex shrink-0 items-center rounded-full border border-transparent transition-colors outline-none",
+        "focus-visible:ring-ring/40 focus-visible:ring-2 focus-visible:ring-offset-1",
+        "data-checked:bg-primary data-unchecked:bg-input dark:data-unchecked:bg-input/80",
+        "data-disabled:cursor-not-allowed data-disabled:opacity-50",
+        // Track size
+        "data-[size=default]:h-6 data-[size=default]:w-11",
+        "data-[size=sm]:h-5 data-[size=sm]:w-9",
         className,
       )}
       {...props}
     >
       <SwitchPrimitive.Thumb
         data-slot="switch-thumb"
-        className="bg-background dark:data-checked:bg-primary-foreground dark:data-unchecked:bg-foreground pointer-events-none block rounded-full ring-0 transition-transform group-data-[size=default]/switch:size-4 group-data-[size=sm]/switch:size-3 group-data-[size=default]/switch:data-checked:translate-x-[calc(100%-2px)] group-data-[size=sm]/switch:data-checked:translate-x-[calc(100%-2px)] group-data-[size=default]/switch:data-unchecked:translate-x-0 group-data-[size=sm]/switch:data-unchecked:translate-x-0"
+        className={cn(
+          "bg-background pointer-events-none block rounded-full shadow-sm ring-0 transition-transform",
+          // Thumb size + slide distance (track − thumb − 2*gutter, gutter=2px)
+          "group-data-[size=default]/switch:size-5 group-data-[size=default]/switch:translate-x-0.5",
+          "group-data-[size=default]/switch:data-checked:translate-x-[22px]",
+          "group-data-[size=sm]/switch:size-4 group-data-[size=sm]/switch:translate-x-0.5",
+          "group-data-[size=sm]/switch:data-checked:translate-x-[18px]",
+        )}
       />
     </SwitchPrimitive.Root>
   );
