@@ -144,16 +144,18 @@ const personaAudit: TaskRunner = async (brainId) => {
 
 const enrichRunNow: TaskRunner = async (brainId, h) => {
   if (!brainId) throw new Error("brain_id required");
-  // Loop until remaining=0 or a bounded ceiling. The endpoint processes
-  // up to batch_size per call; small batches keep latency low and let
-  // the UI show incremental progress.
+  // Loop until remaining=0 or a bounded ceiling. The endpoint now drains
+  // up to batch_size entries per round-trip AND loops internally for up
+  // to ~270s, so each request does meaningful bulk work — the client
+  // loop is a thin progress wrapper that keeps the toast counter alive
+  // and re-fires if the server's wall-clock budget timed out mid-drain.
   let totalProcessed = 0;
-  let safety = 60;
+  let safety = 20;
   while (safety-- > 0) {
     const r = await retryFetch("/api/entries?action=enrich-batch", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ brain_id: brainId, batch_size: 10 }),
+      body: JSON.stringify({ brain_id: brainId, batch_size: 100 }),
     });
     if (!r?.ok) throw new Error(`HTTP ${r?.status ?? "?"}`);
     const data = (await r.json()) as { processed: number; remaining: number };

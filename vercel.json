@@ -4,7 +4,8 @@
     "api/gmail.ts": { "maxDuration": 300 },
     "api/user-data.ts": { "maxDuration": 300 },
     "api/llm.ts": { "maxDuration": 300 },
-    "api/capture.ts": { "maxDuration": 30 }
+    "api/capture.ts": { "maxDuration": 30 },
+    "api/entries.ts": { "maxDuration": 300 }
   },
   "devCommand": "vite --port 5174",
   "buildCommand": "npm run build",

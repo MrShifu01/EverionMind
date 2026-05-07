@@ -1138,22 +1138,35 @@ export async function enrichBrain(
   // other steps — Gmail scan, persona decay, admin push — still run.
   const deadline = Date.now() + timeBudgetMs;
 
-  // Pass 1: metadata enrichment, one entry at a time. skipEmbed defers
+  // Pass 1: metadata enrichment, in concurrent chunks. skipEmbed defers
   // the embedding write to the bulk path below — preserves per-step
   // retry semantics for parse/insight/concepts/persona while removing
   // the per-row UPDATE that was burning disk I/O.
+  //
+  // Concurrency: each enrichInline issues 3-4 sequential Gemini calls
+  // (parse → insight → concepts → persona). Gemini Flash Lite handles
+  // small bursts comfortably; concurrency 4 turns a 50-entry serial
+  // walk (≈8 min @ 10s/entry) into ≈2 min wall-clock. The deadline
+  // check between chunks bails cleanly if a batch overruns budget,
+  // and per-entry catches keep one slow row from dragging others.
+  const CONCURRENCY = 4;
   let processed = 0;
   let stoppedEarly = false;
-  for (const entry of batch) {
+  for (let i = 0; i < batch.length; i += CONCURRENCY) {
     if (Date.now() > deadline) {
       stoppedEarly = true;
       break;
     }
-    const changed = await enrichInline(entry.id, userId, { skipEmbed: true }).catch((err: any) => {
-      console.error("[enrich:brain] entry failed:", entry.id, err?.message ?? err);
-      return false;
-    });
-    if (changed) processed++;
+    const chunk = batch.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(
+      chunk.map((entry) =>
+        enrichInline(entry.id, userId, { skipEmbed: true }).catch((err: any) => {
+          console.error("[enrich:brain] entry failed:", entry.id, err?.message ?? err);
+          return false;
+        }),
+      ),
+    );
+    for (const changed of results) if (changed) processed++;
   }
 
   // Pass 2: bulk-embed every entry that still needs an embedding.

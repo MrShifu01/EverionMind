@@ -819,15 +819,57 @@ async function handleAudit({ req, res, user }: HandlerContext): Promise<void> {
 }
 
 // ── POST /api/entries?action=enrich-batch ──
+//
+// Drains pending enrichments. Loops enrichBrain back-to-back until the
+// claim queue is empty OR the function's wall-clock budget is spent.
+// Each call processes batch_size entries with internal concurrency 4
+// (see enrichBrain), so a single round-trip can clear a couple hundred
+// entries instead of the old "fire 5, poll, fire 5 more" loop.
+//
+// Use case: free-tier user with a backlog upgrades to paid. Their
+// pending rows now resolve a managed provider — one click on Run Now
+// drains as many as fit in 300s of wall-clock.
 async function handleEnrichBatch({ req, res, user }: HandlerContext): Promise<void> {
   const { brain_id, batch_size } = bodyObject(req.body);
   if (!brain_id || typeof brain_id !== "string") throw new ApiError(400, "brain_id required");
   await requireBrainAccess(user.id, brain_id);
-  // Cap raised from 10 → 50 so post-import enrichment (Keep / Takeout
-  // bulk imports) drains in a reasonable number of polling rounds.
-  const batchSize = typeof batch_size === "number" && batch_size > 0 ? Math.min(batch_size, 50) : 5;
-  const result = await enrichBrain(user.id, brain_id, batchSize);
-  res.status(200).json(result);
+  // Cap raised from 50 → 100 since enrichBrain now runs entries
+  // concurrently (4 at a time). 100 entries × 10s/4 ≈ 250s — fits in
+  // enrichBrain's per-call 240s budget. Default unchanged at 5 for
+  // legacy poll-style callers.
+  const batchSize =
+    typeof batch_size === "number" && batch_size > 0 ? Math.min(batch_size, 100) : 5;
+
+  // Function-level budget. Vercel default for /api/entries is 300s; we
+  // stop ≈ 30s before that so the response definitely lands. Each loop
+  // hands enrichBrain whatever time remains (less a 10s margin for
+  // PostgREST round-trips) so we don't reserve a full 240s on the last
+  // call when only 60s is actually available.
+  const fnDeadline = Date.now() + 270_000;
+  let totalProcessed = 0;
+  let lastRemaining = 0;
+  let loops = 0;
+  // Hard loop cap belts-and-braces against runaway state. With
+  // batch_size=100 + concurrency=4 each loop is ~60-120s of real work,
+  // so 8 loops ≈ 16 min worst-case — but the wall-clock guard above
+  // exits well before then.
+  while (loops < 8) {
+    const remaining = fnDeadline - Date.now();
+    if (remaining < 30_000) break; // not enough time for a useful batch
+    const result = await enrichBrain(
+      user.id,
+      brain_id,
+      batchSize,
+      Math.min(remaining - 10_000, 240_000),
+    );
+    totalProcessed += result.processed;
+    lastRemaining = result.remaining;
+    loops++;
+    // claim_pending_enrichments returned nothing → no more pending. Exit
+    // cleanly so we don't spend the remaining function budget on no-ops.
+    if (result.processed === 0 && result.remaining === 0) break;
+  }
+  res.status(200).json({ processed: totalProcessed, remaining: lastRemaining, loops });
 }
 
 // ── POST /api/entries?action=backfill-persona ──
