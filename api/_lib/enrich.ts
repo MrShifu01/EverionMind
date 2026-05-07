@@ -873,6 +873,20 @@ export async function enrichInline(
     return false;
   }
 
+  // No-provider gate. Free-tier users without a BYOK key resolve to
+  // null here — no LLM enrichment is possible right now. Leave the row
+  // at enrichment_state='pending' and bail WITHOUT running any step.
+  // Critically: don't bump the attempts counter. recompute_enrichment_state
+  // flips to 'failed' once attempts >= 5, which would lock the row out
+  // of future cron sweeps even after the user upgrades. By doing nothing,
+  // the row sits patient and gets enriched the next sweep after a tier
+  // change or a BYOK key is added.
+  const earlyProvider = await resolveProviderForUser(userId).catch(() => null);
+  if (!earlyProvider) {
+    await setEnrichmentState(entryId, "pending");
+    return false;
+  }
+
   // Quota gate — every entry that's about to run LLM steps consumes one
   // daily credit. Persona-typed entries bail through flagsOf and don't
   // reach the LLM block, so they're exempt. Pro/max tiers are unlimited
@@ -965,20 +979,18 @@ export async function enrichInline(
     }
   };
 
-  const llmCfg = await resolveProviderForUser(userId).catch((err: any) => {
-    stepErrors.push(`provider: ${String(err?.message ?? err).slice(0, 200)}`);
-    return null;
-  });
-  if (llmCfg) {
-    if (!flags.parsed) {
-      await runStep("parse", () => stepParse({ ...entry, metadata: workingMeta }, llmCfg));
-    }
-    if (!flags.has_insight) {
-      await runStep("insight", () => stepInsight({ ...entry, metadata: workingMeta }, llmCfg));
-    }
-    if (!flags.concepts_extracted) {
-      await runStep("concepts", () => stepConcepts({ ...entry, metadata: workingMeta }, llmCfg));
-    }
+  // Reuse the provider resolved at the top of the function — the
+  // no-provider early-bail above guarantees earlyProvider is non-null
+  // here, so we never re-resolve.
+  const llmCfg = earlyProvider;
+  if (!flags.parsed) {
+    await runStep("parse", () => stepParse({ ...entry, metadata: workingMeta }, llmCfg));
+  }
+  if (!flags.has_insight) {
+    await runStep("insight", () => stepInsight({ ...entry, metadata: workingMeta }, llmCfg));
+  }
+  if (!flags.concepts_extracted) {
+    await runStep("concepts", () => stepConcepts({ ...entry, metadata: workingMeta }, llmCfg));
   }
 
   // Persona extractor — pulls 0..N short facts from the entry and writes them

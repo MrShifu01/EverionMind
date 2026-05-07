@@ -144,6 +144,15 @@ async function handleCapture({ req, res, user, req_id }: HandlerContext): Promis
   }
   return;
 
+  // AI eligibility for THIS capture. `aiAllowed=false` means "save the
+  // raw row, skip every LLM step." Free-tier users with no BYOK key
+  // land here — they still get a working memory store, they just don't
+  // consume managed-AI quota and the row is left at
+  // enrichment_state='pending' so the daily cron picks it up after they
+  // upgrade or add a key. The flag is hoisted out of runCapture so the
+  // post-insert enrichment branch can read the same decision.
+  let aiAllowed = true;
+
   async function runCapture(): Promise<void> {
     // Usage gate: only applies to platform AI (managed provider).
     // Tier comes from user_profiles.tier (single source of truth);
@@ -151,19 +160,26 @@ async function handleCapture({ req, res, user, req_id }: HandlerContext): Promis
     if (GEMINI_API_KEY) {
       const { tier, settings } = await loadUserAiContext(user.id);
       const hasKey = !!(settings.anthropic_key || settings.openai_key || settings.gemini_key);
-      let check: Awaited<ReturnType<typeof checkAndIncrement>>;
-      try {
-        check = await checkAndIncrement(user.id, "captures", tier, hasKey);
-      } catch {
-        return void res.status(503).json({ error: "quota_unavailable", retryAfter: 10 });
-      }
-      if (!check.allowed) {
-        return void res.status(429).json({
-          error: "monthly_limit_reached",
-          action: "captures",
-          remaining: 0,
-          upgrade_url: "/settings?tab=billing",
-        });
+      // Free + no BYOK: save the raw entry, no AI. NOT a 429 — the
+      // user's note must persist. Enrichment is deferred to the cron
+      // sweep after they upgrade (enrichment_state='pending' default).
+      if (tier === "free" && !hasKey) {
+        aiAllowed = false;
+      } else {
+        let check: Awaited<ReturnType<typeof checkAndIncrement>>;
+        try {
+          check = await checkAndIncrement(user.id, "captures", tier, hasKey);
+        } catch {
+          return void res.status(503).json({ error: "quota_unavailable", retryAfter: 10 });
+        }
+        if (!check.allowed) {
+          return void res.status(429).json({
+            error: "monthly_limit_reached",
+            action: "captures",
+            remaining: 0,
+            upgrade_url: "/settings?tab=billing",
+          });
+        }
       }
     }
 
@@ -288,7 +304,12 @@ async function handleCapture({ req, res, user, req_id }: HandlerContext): Promis
     // so a fire-and-forget Promise here would never complete. enrichInline runs
     // every step (parse, insight, concepts, embed) end-to-end, awaited.
     // capture has maxDuration: 30 in vercel.json which covers it.
-    if (response.ok && data?.id) {
+    //
+    // Free-tier without a BYOK key skips enrichment entirely. The row stays
+    // at enrichment_state='pending' (the column default) so the daily cron's
+    // claim_pending_enrichments RPC will catch it up after the user upgrades
+    // or adds an API key.
+    if (response.ok && data?.id && aiAllowed) {
       await enrichInline(data.id, user.id).catch((err: any) =>
         console.error("[capture:enrich]", err?.message ?? err),
       );
@@ -298,7 +319,8 @@ async function handleCapture({ req, res, user, req_id }: HandlerContext): Promis
     // (embedding, concepts, parsed metadata) available — the scorer relies on
     // those signals to detect semantic duplicates that share no metadata
     // fingerprint. Fire-and-forget — the user's response shouldn't wait on it.
-    if (response.ok && data?.id) {
+    // Skipped for no-AI captures since there's no fingerprint yet.
+    if (response.ok && data?.id && aiAllowed) {
       detectAndStoreMerge(data.id, user.id).catch((err: any) =>
         console.error("[capture:merge-detect]", err?.message),
       );
