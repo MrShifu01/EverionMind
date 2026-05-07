@@ -13,7 +13,7 @@ import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
 import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
 import { enrichInline } from "./_lib/enrich.js";
 import { sbHeaders } from "./_lib/sbHeaders.js";
-import { selectProvider, getAdapter, type UserAISettings } from "./_lib/providers/select.js";
+import { selectProvider, getAdapter } from "./_lib/providers/select.js";
 import type { ProviderConfig } from "./_lib/providers/types.js";
 import { extractFile as geminiExtractFile } from "./_lib/providers/gemini.js";
 import { extractFromBuffer } from "./_lib/fileExtract.js";
@@ -31,6 +31,7 @@ import { rateLimit } from "./_lib/rateLimit.js";
 import { getReqId, createLogger } from "./_lib/logger.js";
 import { bodyObject, optionalBodyObject } from "./_lib/requestBody.js";
 import { GEMINI_BULK_MODEL, GEMINI_CHAT_MODEL } from "./_lib/geminiModels.js";
+import { loadUserAiContext, type UserTier } from "./_lib/loadUserAiContext.js";
 
 export const config = { api: { bodyParser: { sizeLimit: "25mb" } } };
 
@@ -64,14 +65,8 @@ interface ChatBody {
 }
 
 async function resolveProvider(userId: string, forChat = false): Promise<ProviderConfig | null> {
-  const r = await fetch(
-    `${SB_URL}/rest/v1/user_ai_settings?user_id=eq.${encodeURIComponent(userId)}&select=plan,anthropic_key,openai_key,gemini_key,anthropic_model,openai_model,gemini_byok_model&limit=1`,
-    { headers: sbHeaders() },
-  );
-  if (!r.ok) return null;
-  const rows: UserAISettings[] = await r.json();
-
-  return selectProvider(rows[0], {
+  const { tier, settings } = await loadUserAiContext(userId);
+  return selectProvider(settings, tier, {
     forChat,
     managed: GEMINI_API_KEY
       ? {
@@ -99,16 +94,11 @@ async function resolveGeminiKey(userId: string): Promise<string> {
   return GEMINI_API_KEY;
 }
 
-async function resolveSettingsRaw(userId: string): Promise<{ plan: string; hasKey: boolean }> {
-  const r = await fetch(
-    `${SB_URL}/rest/v1/user_ai_settings?user_id=eq.${encodeURIComponent(userId)}&select=plan,anthropic_key,openai_key,gemini_key&limit=1`,
-    { headers: sbHeaders() },
-  );
-  if (!r.ok) return { plan: "free", hasKey: false };
-  const [row] = await r.json();
+async function resolveSettingsRaw(userId: string): Promise<{ tier: UserTier; hasKey: boolean }> {
+  const { tier, settings } = await loadUserAiContext(userId);
   return {
-    plan: row?.plan ?? "free",
-    hasKey: !!(row?.anthropic_key || row?.openai_key || row?.gemini_key),
+    tier,
+    hasKey: !!(settings.anthropic_key || settings.openai_key || settings.gemini_key),
   };
 }
 
@@ -960,10 +950,10 @@ export default withAuth(
           });
       let quotaCtx: { plan: string; hasKey: boolean } | undefined;
       if (provider.provider === "gemini-managed") {
-        const { plan, hasKey } = await resolveSettingsRaw(user.id);
+        const { tier, hasKey } = await resolveSettingsRaw(user.id);
         let check: Awaited<ReturnType<typeof checkAndIncrement>>;
         try {
-          check = await checkAndIncrement(user.id, "chats", plan, hasKey);
+          check = await checkAndIncrement(user.id, "chats", tier, hasKey);
         } catch {
           return void res.status(503).json({ error: "quota_unavailable", retryAfter: 10 });
         }
@@ -975,7 +965,7 @@ export default withAuth(
             upgrade_url: "/settings?tab=billing",
           });
         }
-        quotaCtx = { plan, hasKey };
+        quotaCtx = { plan: tier, hasKey };
       }
       return handleChat(req, res, user, provider, reqId, quotaCtx);
     }

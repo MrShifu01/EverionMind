@@ -18,6 +18,7 @@ import { getUpcomingEntries } from "./_lib/getUpcoming.js";
 import { checkAndIncrement } from "./_lib/usage.js";
 import { optionalBodyObject } from "./_lib/requestBody.js";
 import { sbHeadersNoContent } from "./_lib/sbHeaders.js";
+import { loadUserAiContext } from "./_lib/loadUserAiContext.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_HEADERS = sbHeadersNoContent();
@@ -58,17 +59,13 @@ async function handleRetrieve(req: ApiRequest, res: ApiResponse): Promise<void> 
     return res.status(400).json({ error: "query required" });
   }
 
-  // Gate embedding cost against user quota
-  const settingsRes = await fetch(
-    `${SB_URL}/rest/v1/user_ai_settings?user_id=eq.${encodeURIComponent(auth.userId)}&select=plan,anthropic_key,openai_key,gemini_key&limit=1`,
-    { headers: SB_HEADERS },
-  );
-  const [settings] = settingsRes.ok ? await settingsRes.json() : [null];
-  const plan = settings?.plan ?? "free";
-  const hasByok = !!(settings?.anthropic_key || settings?.openai_key || settings?.gemini_key);
+  // Gate embedding cost against user quota. Tier from user_profiles.tier
+  // (canonical billing); BYOK presence from user_ai_settings keys.
+  const { tier, settings } = await loadUserAiContext(auth.userId);
+  const hasByok = !!(settings.anthropic_key || settings.openai_key || settings.gemini_key);
   let quota: Awaited<ReturnType<typeof checkAndIncrement>>;
   try {
-    quota = await checkAndIncrement(auth.userId, "chats", plan, hasByok);
+    quota = await checkAndIncrement(auth.userId, "chats", tier, hasByok);
   } catch {
     return res.status(503).json({ error: "Quota service unavailable" });
   }

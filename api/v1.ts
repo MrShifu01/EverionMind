@@ -27,6 +27,7 @@ import {
 import { checkAndIncrement } from "./_lib/usage.js";
 import { getReqId, createLogger } from "./_lib/logger.js";
 import { optionalBodyObject } from "./_lib/requestBody.js";
+import { loadUserAiContext } from "./_lib/loadUserAiContext.js";
 import { sbHeaders } from "./_lib/sbHeaders.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
@@ -165,23 +166,18 @@ async function handleIngest({ userId, brainId }: Auth, body: any) {
     }
   }
 
-  // Quota enforcement for external API ingest
-  const settingsRes = await fetch(
-    `${SB_URL}/rest/v1/user_ai_settings?user_id=eq.${encodeURIComponent(userId)}&select=plan,anthropic_key,gemini_key,openai_key&limit=1`,
-    { headers: hdrs() },
-  );
-  const settingsRows = settingsRes.ok ? await settingsRes.json() : [];
-  const settings = settingsRows[0] ?? {};
-  const plan = settings.plan ?? "starter";
+  // Quota enforcement for external API ingest. Tier from user_profiles.tier
+  // (canonical billing); BYOK presence from user_ai_settings keys.
+  const { tier, settings } = await loadUserAiContext(userId);
   const hasByok = !!(settings.anthropic_key || settings.gemini_key || settings.openai_key);
   let quota: Awaited<ReturnType<typeof checkAndIncrement>>;
   try {
-    quota = await checkAndIncrement(userId, "captures", plan, hasByok);
+    quota = await checkAndIncrement(userId, "captures", tier, hasByok);
   } catch {
     throw { status: 503, message: "Quota service unavailable — try again shortly" };
   }
   if (!quota.allowed)
-    throw { status: 429, message: `Monthly capture limit reached (${plan} plan)` };
+    throw { status: 429, message: `Monthly capture limit reached (${tier} plan)` };
 
   const safeTitle = title.trim().slice(0, 200);
   const safeContent = content.slice(0, 200_000);

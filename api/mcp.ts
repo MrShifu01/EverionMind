@@ -26,6 +26,7 @@ import { reserveIdempotency, finalizeIdempotency } from "./_lib/idempotency.js";
 import { checkAndIncrement } from "./_lib/usage.js";
 import { getReqId, createLogger } from "./_lib/logger.js";
 import { mergeEntriesOneShot } from "./_lib/mergeEntries.js";
+import { loadUserAiContext } from "./_lib/loadUserAiContext.js";
 import { ApiError } from "./_lib/withAuth.js";
 import { optionalBodyObject } from "./_lib/requestBody.js";
 import { sbHeaders, supabaseServiceRoleKey } from "./_lib/sbHeaders.js";
@@ -346,19 +347,17 @@ const TOOLS = [
   },
 ];
 
-// ── Plan / tier lookup ────────────────────────────────────────────────────────
+// ── Tier / BYOK lookup ────────────────────────────────────────────────────────
+//
+// Tier is read from user_profiles.tier (single source of truth). BYOK
+// presence is checked across the legacy user_ai_settings columns so MCP
+// API-key calls inherit the same tier check the web UI uses.
 
-async function getUserPlan(userId: string): Promise<{ plan: string; hasByok: boolean }> {
-  const r = await fetch(
-    `${SB_URL}/rest/v1/user_ai_settings?user_id=eq.${encodeURIComponent(userId)}&select=plan,anthropic_key,gemini_key,openai_key&limit=1`,
-    { headers: hdrs() },
-  );
-  if (!r.ok) return { plan: "starter", hasByok: false };
-  const rows: any[] = await r.json();
-  const row = rows[0] ?? {};
+async function getUserPlan(userId: string): Promise<{ tier: string; hasByok: boolean }> {
+  const { tier, settings } = await loadUserAiContext(userId);
   return {
-    plan: row.plan ?? "starter",
-    hasByok: !!(row.anthropic_key || row.gemini_key || row.openai_key),
+    tier,
+    hasByok: !!(settings.anthropic_key || settings.gemini_key || settings.openai_key),
   };
 }
 
@@ -882,17 +881,17 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
             .json(jsonRpcErr(id, -32000, "Rate limit exceeded for create_entry (10/min)"));
         }
         // Quota check: count against monthly captures budget
-        const { plan, hasByok } = await getUserPlan(userId);
+        const { tier, hasByok } = await getUserPlan(userId);
         let quota: Awaited<ReturnType<typeof checkAndIncrement>>;
         try {
-          quota = await checkAndIncrement(userId, "captures", plan, hasByok);
+          quota = await checkAndIncrement(userId, "captures", tier, hasByok);
         } catch {
           return res
             .status(200)
             .json(jsonRpcErr(id, -32000, "Quota service unavailable — try again"));
         }
         if (!quota.allowed) {
-          log.warn("quota_exceeded", { plan, action: "captures" });
+          log.warn("quota_exceeded", { plan: tier, action: "captures" });
           return res
             .status(200)
             .json(jsonRpcErr(id, -32000, `Monthly capture limit reached (${plan} plan)`));

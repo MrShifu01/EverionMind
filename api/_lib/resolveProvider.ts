@@ -35,8 +35,10 @@ const DEFAULT_MODELS = {
   openrouter: "openai/gpt-4o-mini",
 } as const;
 
+// `plan` is intentionally absent — tier lives on user_profiles.tier
+// (single source of truth). Carrying a duplicate here was the bug that
+// stranded admin-promoted Pro users without an AI provider.
 interface UserAiSettings {
-  plan: string | null;
   anthropic_key: string | null;
   anthropic_model: string | null;
   openai_key: string | null;
@@ -54,7 +56,7 @@ interface UserProfile {
 
 async function fetchSettings(userId: string): Promise<UserAiSettings | null> {
   const r = await fetch(
-    `${SB_URL}/rest/v1/user_ai_settings?user_id=eq.${encodeURIComponent(userId)}&select=plan,anthropic_key,anthropic_model,openai_key,openai_model,gemini_key,gemini_byok_model,openrouter_key,openrouter_model,embed_openai_key&limit=1`,
+    `${SB_URL}/rest/v1/user_ai_settings?user_id=eq.${encodeURIComponent(userId)}&select=anthropic_key,anthropic_model,openai_key,openai_model,gemini_key,gemini_byok_model,openrouter_key,openrouter_model,embed_openai_key&limit=1`,
     { headers: SB_HDR },
   );
   if (!r.ok) return null;
@@ -124,7 +126,7 @@ export async function resolveProviderForUser(userId: string): Promise<AICall | n
   // Restore the Anthropic branch only after verifying the key returns 200
   // on a real /v1/messages call.
   const profile = await fetchProfile(userId);
-  const tier = (profile?.tier ?? settings?.plan ?? "free").toLowerCase();
+  const tier = (profile?.tier ?? "free").toLowerCase();
 
   if (tier === "pro" || tier === "max" || tier === "starter") {
     const apiKey = process.env.GEMINI_API_KEY;

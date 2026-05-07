@@ -6,6 +6,7 @@ import {
   buildEntryText,
 } from "./_lib/generateEmbedding.js";
 import { sbHeaders, sbHeadersNoContent } from "./_lib/sbHeaders.js";
+import { loadUserAiContext } from "./_lib/loadUserAiContext.js";
 import { computeCompletenessScore } from "./_lib/completeness.js";
 import { detectAndStoreMerge } from "./_lib/mergeDetect.js";
 import { checkAndIncrement } from "./_lib/usage.js";
@@ -144,18 +145,15 @@ async function handleCapture({ req, res, user, req_id }: HandlerContext): Promis
   return;
 
   async function runCapture(): Promise<void> {
-    // Usage gate: only applies to platform AI (managed provider)
+    // Usage gate: only applies to platform AI (managed provider).
+    // Tier comes from user_profiles.tier (single source of truth);
+    // BYOK keys live on user_ai_settings and short-circuit the quota.
     if (GEMINI_API_KEY) {
-      const r = await fetch(
-        `${SB_URL}/rest/v1/user_ai_settings?user_id=eq.${encodeURIComponent(user.id)}&select=plan,anthropic_key,openai_key,gemini_key&limit=1`,
-        { headers: sbHeaders() },
-      );
-      const [row] = r.ok ? await r.json() : [null];
-      const plan: string = row?.plan ?? "free";
-      const hasKey = !!(row?.anthropic_key || row?.openai_key || row?.gemini_key);
+      const { tier, settings } = await loadUserAiContext(user.id);
+      const hasKey = !!(settings.anthropic_key || settings.openai_key || settings.gemini_key);
       let check: Awaited<ReturnType<typeof checkAndIncrement>>;
       try {
-        check = await checkAndIncrement(user.id, "captures", plan, hasKey);
+        check = await checkAndIncrement(user.id, "captures", tier, hasKey);
       } catch {
         return void res.status(503).json({ error: "quota_unavailable", retryAfter: 10 });
       }
@@ -433,16 +431,11 @@ async function handleEmbed({ req, res, user }: HandlerContext): Promise<void> {
 
     // Audit #5: gate batch re-embeds against the user's monthly capture quota.
     // BYOK users still pass freely (checkAndIncrement short-circuits on hasByok).
-    const settingsRes = await fetch(
-      `${SB_URL}/rest/v1/user_ai_settings?user_id=eq.${encodeURIComponent(user.id)}&select=plan,anthropic_key,openai_key,gemini_key&limit=1`,
-      { headers: sbHeaders() },
-    );
-    const [settings] = settingsRes.ok ? await settingsRes.json() : [null];
-    const plan: string = settings?.plan ?? "free";
-    const hasKey = !!(settings?.anthropic_key || settings?.openai_key || settings?.gemini_key);
+    const { tier, settings } = await loadUserAiContext(user.id);
+    const hasKey = !!(settings.anthropic_key || settings.openai_key || settings.gemini_key);
     let embedCheck: Awaited<ReturnType<typeof checkAndIncrement>>;
     try {
-      embedCheck = await checkAndIncrement(user.id, "captures", plan, hasKey);
+      embedCheck = await checkAndIncrement(user.id, "captures", tier, hasKey);
     } catch {
       throw new ApiError(503, "quota_unavailable");
     }

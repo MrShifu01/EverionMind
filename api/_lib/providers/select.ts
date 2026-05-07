@@ -3,8 +3,14 @@ import { anthropic } from "./anthropic.js";
 import { openai } from "./openai.js";
 import { gemini } from "./gemini.js";
 
+// `plan` is intentionally absent from this shape. Tier lives on
+// user_profiles.tier and must be passed explicitly into selectProvider
+// (see api/_lib/loadUserAiContext.ts). The previous arrangement —
+// `user_ai_settings.plan` mirroring billing tier — drifted whenever
+// admin grants set user_profiles.tier='pro' without inserting a
+// matching settings row. Result: free-defaulted plan, no managed
+// provider, capture failed silently for new Pro users.
 export interface UserAISettings {
-  plan?: string | null;
   anthropic_key?: string | null;
   openai_key?: string | null;
   gemini_key?: string | null;
@@ -29,11 +35,14 @@ interface SelectOptions {
 
 /**
  * Pure provider-selection logic. BYOK priority order:
- *   anthropic > openai > gemini > managed-gemini (starter & pro)
- * Returns null if free-tier user with no BYOK key.
+ *   anthropic > openai > gemini-byok > managed-gemini (paid tiers)
+ * Returns null if user is on free tier with no BYOK key.
+ *
+ * Tier comes from user_profiles.tier — pass it explicitly.
  */
 export function selectProvider(
   s: UserAISettings | null | undefined,
+  tier: string,
   opts: SelectOptions = {},
 ): ProviderConfig | null {
   const settings = s || {};
@@ -61,9 +70,12 @@ export function selectProvider(
     };
   }
 
-  const plan = settings.plan ?? "free";
-  if ((plan === "pro" || plan === "starter") && opts.managed?.key) {
-    const isPro = plan === "pro";
+  // Managed provider is gated on tier from user_profiles.
+  // pro / max → pro models, starter → starter models, anything else → no provider.
+  const lowered = (tier || "").toLowerCase();
+  const isStarter = lowered === "starter";
+  const isPro = lowered === "pro" || lowered === "max";
+  if ((isPro || isStarter) && opts.managed?.key) {
     return {
       provider: "gemini-managed",
       key: opts.managed.key,
