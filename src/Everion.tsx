@@ -55,6 +55,7 @@ import SkeletonCard from "./components/SkeletonCard";
 import OmniSearch from "./components/OmniSearch";
 import SettingsView from "./views/SettingsView";
 const GraphView = lazy(() => import("./views/GraphView"));
+const GmailStagingInbox = lazy(() => import("./components/settings/GmailStagingInbox"));
 import FloatingCaptureButton from "./components/FloatingCaptureButton";
 import { Button } from "./components/ui/button";
 import { TooltipProvider } from "./components/ui/tooltip";
@@ -343,20 +344,17 @@ function EverionContent({
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  // Toast deep-link: when the gmail-scan toast's "Review" CTA fires, switch
-  // to Settings and tell GmailSyncTab to open its staging inbox. Two-stage
-  // event so the tab has time to mount before being asked to open the inbox.
+  // Gmail staging inbox modal — hoisted to app root so HomeView's
+  // InboxTriageCard, the notification bell, and toasts can all open the
+  // Tinder swipe UI directly without bouncing through Settings.
+  const [stagingInboxOpen, setStagingInboxOpen] = useState(false);
   useEffect(() => {
     function handleOpenGmailInbox() {
-      appShell.setView("settings");
-      // 60ms gives SettingsView time to lazy-mount GmailSyncTab.
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent("everion:open-staging-inbox"));
-      }, 60);
+      setStagingInboxOpen(true);
     }
     window.addEventListener("everion:open-gmail-inbox", handleOpenGmailInbox);
     return () => window.removeEventListener("everion:open-gmail-inbox", handleOpenGmailInbox);
-  }, [appShell]);
+  }, []);
 
   // Index concept names into the search index so grid search finds entries by concept
   useEffect(() => {
@@ -1150,6 +1148,12 @@ function EverionContent({
             onDismissAll={bgDismissAll}
           />
           <BackgroundOpsToast />
+
+          {stagingInboxOpen && (
+            <Suspense fallback={null}>
+              <GmailStagingInbox onClose={() => setStagingInboxOpen(false)} />
+            </Suspense>
+          )}
 
           {appShell.showOnboarding && (
             <OnboardingModal

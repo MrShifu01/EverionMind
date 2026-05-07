@@ -66,7 +66,7 @@ export default function HomeView({
 
       <TodayCard entries={entries} onNavigate={onNavigate} />
 
-      <InboxTriageCard stagedCount={stagedCount} onNavigate={onNavigate} />
+      <InboxTriageCard stagedCount={stagedCount} />
 
       <FirstRunChecklist
         entryCount={entries.length}

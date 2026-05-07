@@ -386,8 +386,7 @@ export default function NotificationBell({
   }
 
   function openGmailInbox(n: AppNotification) {
-    // Two-stage event handled in Everion.tsx: switches to Settings, then
-    // tells GmailSyncTab to open its staging inbox.
+    // Opens the Tinder swipe modal directly — listener lives at app root.
     window.dispatchEvent(new CustomEvent("everion:open-gmail-inbox"));
     setOpen(false);
     onDismiss(n.id);

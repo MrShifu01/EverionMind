@@ -3,7 +3,6 @@ import { authFetch } from "../../lib/authFetch";
 import { SettingsButton } from "./SettingsRow";
 import GmailSetupModal from "./GmailSetupModal";
 import GmailScanReviewModal, { type ScanResultItem } from "./GmailScanReviewModal";
-import GmailStagingInbox from "./GmailStagingInbox";
 import GmailPatternRules from "./GmailPatternRules";
 import { useEntries } from "../../context/EntriesContext";
 import { useBrain } from "../../context/BrainContext";
@@ -65,7 +64,6 @@ export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
   const [disconnecting, setDisconnecting] = useState(false);
   const [lastDebug, setLastDebug] = useState<ScanDebug | null>(null);
   const [reviewItems, setReviewItems] = useState<ScanResultItem[]>([]);
-  const [showStagingInbox, setShowStagingInbox] = useState(false);
 
   const {
     data: integrationData,
@@ -79,11 +77,7 @@ export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
   const integration = integrationData ?? null;
   const loading = isLoading && integrationData === null;
 
-  const {
-    data: stagedData,
-    refetch: refetchStaged,
-    mutate: mutateStaged,
-  } = useCachedQuery<number>(
+  const { data: stagedData, refetch: refetchStaged } = useCachedQuery<number>(
     "gmail:staged-count",
     async () => {
       const r = await authFetch("/api/entries?staged=true");
@@ -116,20 +110,13 @@ export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
     }
   }, []);
 
-  // Cross-component deep-link: the gmail-scan toast's Review CTA dispatches
-  // this event after the app shell switches to Settings. Open the inbox
-  // and refresh the count in case the scan landed extra items between
-  // the original count fetch and this nav.
-  //
   // staged-changed events can fire many times during a Gmail scan (one per
   // batch of inserts). Coalesce them with a 1.5s trailing debounce so we
-  // make at most one /api/entries?staged=true call per burst.
+  // make at most one /api/entries?staged=true call per burst. The modal
+  // open path now lives at the app root (Everion.tsx) — see
+  // everion:open-gmail-inbox listener there.
   const stagedDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    function handleOpenInbox() {
-      void refetchStaged();
-      setShowStagingInbox(true);
-    }
     function handleStagedChanged() {
       if (stagedDebounceRef.current) clearTimeout(stagedDebounceRef.current);
       stagedDebounceRef.current = setTimeout(() => {
@@ -137,10 +124,8 @@ export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
         stagedDebounceRef.current = null;
       }, 1500);
     }
-    window.addEventListener("everion:open-staging-inbox", handleOpenInbox);
     window.addEventListener("everion:staged-changed", handleStagedChanged);
     return () => {
-      window.removeEventListener("everion:open-staging-inbox", handleOpenInbox);
       window.removeEventListener("everion:staged-changed", handleStagedChanged);
       if (stagedDebounceRef.current) clearTimeout(stagedDebounceRef.current);
     };
@@ -248,7 +233,9 @@ export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
             <SettingsButton onClick={handleScanNow} disabled={scanning}>
               {scanning ? "Scanning…" : "Scan now"}
             </SettingsButton>
-            <SettingsButton onClick={() => setShowStagingInbox(true)}>
+            <SettingsButton
+              onClick={() => window.dispatchEvent(new CustomEvent("everion:open-gmail-inbox"))}
+            >
               Inbox{stagedCount > 0 ? ` (${stagedCount})` : ""}
             </SettingsButton>
             <SettingsButton onClick={() => setModalMode("edit")}>Preferences</SettingsButton>
@@ -400,15 +387,8 @@ export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
         />
       )}
 
-      {showStagingInbox && (
-        <GmailStagingInbox
-          onClose={() => {
-            setShowStagingInbox(false);
-            refreshEntries();
-          }}
-          onCountChange={mutateStaged}
-        />
-      )}
+      {/* Staging inbox modal hoisted to Everion.tsx root — opened via the
+          everion:open-gmail-inbox event from anywhere in the app. */}
 
       {/* Admin-only: live Gmail classifier prompt + KEEP/SKIP rule learnings.
           Behind a separate adminPref so it stays out of the way unless

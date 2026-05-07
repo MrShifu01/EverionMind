@@ -1,20 +1,14 @@
 interface InboxTriageCardProps {
   stagedCount: number;
-  onNavigate: (view: string) => void;
 }
 
-export default function InboxTriageCard({ stagedCount, onNavigate }: InboxTriageCardProps) {
+export default function InboxTriageCard({ stagedCount }: InboxTriageCardProps) {
   if (stagedCount === 0) return null;
 
   function openInbox() {
-    try {
-      const url = new URL(window.location.href);
-      url.searchParams.set("tab", "gmail");
-      window.history.replaceState({}, "", url.toString());
-    } catch {
-      /* ignore */
-    }
-    onNavigate("settings");
+    // Open the staging inbox modal directly. Listener lives in Everion.tsx
+    // and renders <GmailStagingInbox> at root — no Settings detour.
+    window.dispatchEvent(new CustomEvent("everion:open-gmail-inbox"));
   }
 
   return (
