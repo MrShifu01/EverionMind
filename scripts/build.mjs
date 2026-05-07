@@ -38,9 +38,8 @@ function pipeFiltered(source, sink) {
   });
 }
 
-const child = spawn("vite", ["build"], {
+const child = spawn(process.execPath, ["node_modules/vite/bin/vite.js", "build"], {
   stdio: ["inherit", "pipe", "pipe"],
-  shell: process.platform === "win32",
 });
 
 pipeFiltered(child.stdout, process.stdout);

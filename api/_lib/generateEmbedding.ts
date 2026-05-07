@@ -3,6 +3,10 @@
  * Uses Google gemini-embedding-001 at 768 dims.
  */
 
+import { googleAiFetch, googleAiModelUrl } from "./googleAi.js";
+
+const EMBED_DIM = 768;
+
 /**
  * Generate an embedding vector for a single text string.
  */
@@ -39,10 +43,10 @@ const GOOGLE_EMBED_MODEL = "gemini-embedding-001";
 // backoff. Without this, a single 429 from Gemini's free tier permanently
 // marks an entry as embedding_status='failed' in enrich.ts, leaving it
 // unsearchable until the user manually retries.
-async function fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+async function fetchWithRetry(url: string, init: RequestInit, apiKey: string): Promise<Response> {
   const delays = [500, 1500, 3500];
   for (let i = 0; i <= delays.length; i++) {
-    const res = await fetch(url, init);
+    const res = await googleAiFetch(apiKey, url, init, 10_000);
     if (res.ok) return res;
     const transient = res.status === 429 || res.status === 503;
     if (!transient || i === delays.length) return res;
@@ -54,16 +58,17 @@ async function fetchWithRetry(url: string, init: RequestInit): Promise<Response>
 
 async function generateGoogleEmbedding(text: string, apiKey: string): Promise<number[]> {
   const res = await fetchWithRetry(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GOOGLE_EMBED_MODEL}:embedContent?key=${encodeURIComponent(apiKey)}`,
+    googleAiModelUrl(GOOGLE_EMBED_MODEL, "embedContent"),
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: `models/${GOOGLE_EMBED_MODEL}`,
         content: { parts: [{ text }] },
-        outputDimensionality: 768,
+        outputDimensionality: EMBED_DIM,
       }),
     },
+    apiKey,
   );
   if (!res.ok) {
     const err = await res.text().catch(() => String(res.status));
@@ -71,10 +76,17 @@ async function generateGoogleEmbedding(text: string, apiKey: string): Promise<nu
   }
   const data: any = await res.json();
   const values: number[] = data.embedding.values;
-  if (values.length !== 768) {
-    throw new Error(`${GOOGLE_EMBED_MODEL} returned ${values.length} dims, expected 768`);
-  }
+  validateEmbedding(values, GOOGLE_EMBED_MODEL);
   return values;
+}
+
+function validateEmbedding(values: unknown, source: string): asserts values is number[] {
+  if (!Array.isArray(values)) {
+    throw new Error(`${source} returned no embedding values`);
+  }
+  if (values.length !== EMBED_DIM) {
+    throw new Error(`${source} returned ${values.length} dims, expected ${EMBED_DIM}`);
+  }
 }
 
 async function generateGoogleEmbeddingBatch(texts: string[], apiKey: string): Promise<number[][]> {
@@ -84,17 +96,28 @@ async function generateGoogleEmbeddingBatch(texts: string[], apiKey: string): Pr
     outputDimensionality: 768,
   }));
   const res = await fetchWithRetry(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GOOGLE_EMBED_MODEL}:batchEmbedContents?key=${encodeURIComponent(apiKey)}`,
+    googleAiModelUrl(GOOGLE_EMBED_MODEL, "batchEmbedContents"),
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ requests }),
     },
+    apiKey,
   );
   if (!res.ok) {
     const err = await res.text().catch(() => String(res.status));
     throw new Error(`Google batch embedding error ${res.status}: ${err}`);
   }
   const data: any = await res.json();
-  return (data.embeddings || []).map((e: any) => e.values as number[]);
+  const embeddings = data.embeddings || [];
+  if (embeddings.length !== texts.length) {
+    throw new Error(
+      `Google batch embedding returned ${embeddings.length} vectors for ${texts.length} texts`,
+    );
+  }
+  return embeddings.map((e: any, index: number) => {
+    const values = e?.values;
+    validateEmbedding(values, `${GOOGLE_EMBED_MODEL} batch[${index}]`);
+    return values;
+  });
 }

@@ -99,7 +99,8 @@ export function VaultPinSetup({
               lineHeight: 1.5,
             }}
           >
-            set a 4-8 digit PIN to skip the passphrase next time.
+            set a 4-8 digit PIN for quick unlock on this device. your passphrase remains the
+            encryption key.
             {bioAvailable && " biometric optional."}
           </p>
 

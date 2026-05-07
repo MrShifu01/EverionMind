@@ -16,10 +16,11 @@ import { resolveApiKey } from "./_lib/resolveApiKey.js";
 import { retrieveEntries } from "./_lib/retrievalCore.js";
 import { getUpcomingEntries } from "./_lib/getUpcoming.js";
 import { checkAndIncrement } from "./_lib/usage.js";
+import { optionalBodyObject } from "./_lib/requestBody.js";
+import { sbHeadersNoContent } from "./_lib/sbHeaders.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
-const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const SB_HEADERS = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` };
+const SB_HEADERS = sbHeadersNoContent();
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
 
 async function resolveUser(req: ApiRequest): Promise<{ userId: string; brainId: string } | null> {
@@ -52,7 +53,7 @@ async function handleRetrieve(req: ApiRequest, res: ApiResponse): Promise<void> 
   const auth = await resolveUser(req);
   if (!auth) return res.status(401).json({ error: "Unauthorized" });
 
-  const { query, limit } = req.body || {};
+  const { query, limit } = optionalBodyObject(req.body);
   if (!query || typeof query !== "string" || !query.trim()) {
     return res.status(400).json({ error: "query required" });
   }
@@ -60,7 +61,7 @@ async function handleRetrieve(req: ApiRequest, res: ApiResponse): Promise<void> 
   // Gate embedding cost against user quota
   const settingsRes = await fetch(
     `${SB_URL}/rest/v1/user_ai_settings?user_id=eq.${encodeURIComponent(auth.userId)}&select=plan,anthropic_key,openai_key,gemini_key&limit=1`,
-    { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } },
+    { headers: SB_HEADERS },
   );
   const [settings] = settingsRes.ok ? await settingsRes.json() : [null];
   const plan = settings?.plan ?? "free";

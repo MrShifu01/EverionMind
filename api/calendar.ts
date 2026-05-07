@@ -19,14 +19,11 @@ import { verifyAuth } from "./_lib/verifyAuth.js";
 import { rateLimit } from "./_lib/rateLimit.js";
 import { encryptToken, decryptToken } from "./_lib/gmailTokenCrypto.js";
 import { signOAuthState, verifyOAuthState } from "./_lib/oauthState.js";
+import { optionalBodyObject } from "./_lib/requestBody.js";
+import { sbHeaders } from "./_lib/sbHeaders.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
-const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const SB_HEADERS = {
-  apikey: SB_KEY,
-  Authorization: `Bearer ${SB_KEY}`,
-  "Content-Type": "application/json",
-};
+const SB_HEADERS = sbHeaders();
 
 const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/calendar.events.readonly",
@@ -326,7 +323,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   if (!user) return res.status(200).json({ events: [], integrations: [] });
 
   if (req.method === "DELETE") {
-    const { provider } = req.body ?? {};
+    const { provider } = optionalBodyObject(req.body);
     if (!provider || !["google", "microsoft"].includes(provider)) {
       return res.status(400).json({ error: "Invalid provider" });
     }

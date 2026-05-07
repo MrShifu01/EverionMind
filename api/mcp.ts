@@ -11,7 +11,7 @@
  *   create_entry      — create a new entry with embedding (use for "save this to Everion")
  *   search_entries    — low-level vector search (use retrieve_memory for best results)
  */
-import { randomUUID } from "crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "crypto";
 import type { ApiRequest, ApiResponse } from "./_lib/types";
 import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 import { rateLimit } from "./_lib/rateLimit.js";
@@ -26,16 +26,73 @@ import { checkAndIncrement } from "./_lib/usage.js";
 import { getReqId, createLogger } from "./_lib/logger.js";
 import { mergeEntriesOneShot } from "./_lib/mergeEntries.js";
 import { ApiError } from "./_lib/withAuth.js";
+import { optionalBodyObject } from "./_lib/requestBody.js";
+import { sbHeaders, supabaseServiceRoleKey } from "./_lib/sbHeaders.js";
 const SB_URL = process.env.SUPABASE_URL!;
-const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
 
-const hdrs = (extra: Record<string, string> = {}): Record<string, string> => ({
-  "Content-Type": "application/json",
-  apikey: SB_KEY,
-  Authorization: `Bearer ${SB_KEY}`,
-  ...extra,
-});
+const hdrs = sbHeaders;
+
+type McpAuth = { userId: string; keyId: string; brainId: string };
+
+function mcpTokenSecret(): string {
+  return process.env.MCP_ACCESS_TOKEN_SECRET || process.env.OAUTH_STATE_SECRET || supabaseServiceRoleKey();
+}
+
+function b64url(input: string): string {
+  return Buffer.from(input, "utf8").toString("base64url");
+}
+
+function signMcpAccessToken(auth: McpAuth): string {
+  const payload = b64url(
+    JSON.stringify({
+      userId: auth.userId,
+      keyId: auth.keyId,
+      brainId: auth.brainId,
+      exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60,
+    }),
+  );
+  const sig = createHmac("sha256", mcpTokenSecret()).update(payload).digest("base64url");
+  return `mcp_${payload}.${sig}`;
+}
+
+function verifyMcpAccessToken(token: string): McpAuth | null {
+  if (!token.startsWith("mcp_")) return null;
+  const rest = token.slice(4);
+  const dot = rest.lastIndexOf(".");
+  if (dot <= 0) return null;
+  const payload = rest.slice(0, dot);
+  const sig = rest.slice(dot + 1);
+  const expected = createHmac("sha256", mcpTokenSecret()).update(payload).digest("base64url");
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
+      userId?: unknown;
+      keyId?: unknown;
+      brainId?: unknown;
+      exp?: unknown;
+    };
+    if (
+      typeof parsed.userId !== "string" ||
+      typeof parsed.keyId !== "string" ||
+      typeof parsed.brainId !== "string" ||
+      typeof parsed.exp !== "number" ||
+      parsed.exp < Math.floor(Date.now() / 1000)
+    ) {
+      return null;
+    }
+    return { userId: parsed.userId, keyId: parsed.keyId, brainId: parsed.brainId };
+  } catch {
+    return null;
+  }
+}
+
+async function resolveMcpBearer(raw: string): Promise<McpAuth | null> {
+  if (raw.startsWith("mcp_")) return verifyMcpAccessToken(raw);
+  return resolveApiKey(raw);
+}
 
 // ── MCP tool definitions ──────────────────────────────────────────────────────
 
@@ -385,11 +442,14 @@ async function updateEntry(
     if (embedding) patch.embedding = `[${embedding.join(",")}]`;
   }
 
-  const r = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`, {
-    method: "PATCH",
-    headers: hdrs({ Prefer: "return=representation" }),
-    body: JSON.stringify(patch),
-  });
+  const r = await fetch(
+    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&brain_id=eq.${encodeURIComponent(brainId)}`,
+    {
+      method: "PATCH",
+      headers: hdrs({ Prefer: "return=representation" }),
+      body: JSON.stringify(patch),
+    },
+  );
   if (!r.ok) throw new Error(`Update failed: ${await r.text().catch(() => r.status)}`);
   const updated: any[] = await r.json();
   if (GEMINI_API_KEY) await rebuildConceptGraph(brainId, GEMINI_API_KEY);
@@ -494,11 +554,14 @@ async function deleteEntry(brainId: string, id: string): Promise<unknown> {
   if (rows[0].type === "secret")
     throw new Error("Entry is locked in Vault — open the app to delete");
 
-  const r = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`, {
-    method: "PATCH",
-    headers: hdrs({ Prefer: "return=minimal" }),
-    body: JSON.stringify({ deleted_at: new Date().toISOString() }),
-  });
+  const r = await fetch(
+    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&brain_id=eq.${encodeURIComponent(brainId)}`,
+    {
+      method: "PATCH",
+      headers: hdrs({ Prefer: "return=minimal" }),
+      body: JSON.stringify({ deleted_at: new Date().toISOString() }),
+    },
+  );
   if (!r.ok) throw new Error(`Delete failed: ${await r.text().catch(() => r.status)}`);
   return { id, deleted: true };
 }
@@ -534,6 +597,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
 
   // OAuth discovery
   if (req.query._wk) {
+    if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
     return res.status(200).json({
       issuer: "https://everion.smashburgerbar.co.za",
       authorization_endpoint: "https://everion.smashburgerbar.co.za/authorize",
@@ -554,7 +618,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
       return res
         .status(401)
         .json({ error: "invalid_client", error_description: "Invalid or missing API key" });
-    return res.status(200).json({ access_token: key, token_type: "Bearer", expires_in: 86400 });
+    return res
+      .status(200)
+      .json({ access_token: signMcpAccessToken(auth), token_type: "Bearer", expires_in: 86400 });
   }
 
   // OAuth dynamic client registration
@@ -583,11 +649,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   if (!rawKey)
     return res.status(401).json(jsonRpcErr(null, -32001, "Missing Authorization header"));
 
-  const auth = await resolveApiKey(rawKey);
+  const auth = await resolveMcpBearer(rawKey);
   if (!auth) return res.status(401).json(jsonRpcErr(null, -32001, "Invalid or revoked API key"));
 
   const { userId, brainId } = auth;
-  const { jsonrpc, id, method, params } = req.body || {};
+  const { jsonrpc, id, method, params } = optionalBodyObject(req.body);
 
   if (jsonrpc !== "2.0")
     return res.status(400).json(jsonRpcErr(id ?? null, -32600, "Invalid JSON-RPC version"));

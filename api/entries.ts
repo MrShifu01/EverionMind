@@ -1,5 +1,11 @@
 import type { ApiRequest } from "./_lib/types";
-import { withAuth, requireBrainAccess, ApiError, type HandlerContext } from "./_lib/withAuth.js";
+import {
+  withAuth,
+  requireBrainAccess,
+  requireBrainRole,
+  ApiError,
+  type HandlerContext,
+} from "./_lib/withAuth.js";
 import { sbHeaders, sbHeadersNoContent } from "./_lib/sbHeaders.js";
 import { computeCompletenessScore } from "./_lib/completeness.js";
 import { SERVER_PROMPTS } from "./_lib/prompts.js";
@@ -27,6 +33,10 @@ import {
   defaultPreferences as defaultGmailPreferences,
   type GmailLearnings,
 } from "./_lib/gmailScan.js";
+import { googleAiFetch, googleAiModelUrl } from "./_lib/googleAi.js";
+import { handleDeleteEntry } from "./_lib/handlers/entryDelete.js";
+import { bodyObject } from "./_lib/requestBody.js";
+import { GEMINI_BULK_MODEL } from "./_lib/geminiModels.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const ENTRY_FIELDS =
@@ -204,89 +214,17 @@ async function handleGet({ req, res, user }: HandlerContext): Promise<void> {
 }
 
 // ── DELETE /api/entries (was /api/delete-entry) — soft delete or hard delete ──
-async function handleDelete({ req, res, user, req_id }: HandlerContext): Promise<void> {
-  const { id } = req.body;
-  if (!id || typeof id !== "string" || id.length > 100) {
-    throw new ApiError(400, "Missing or invalid id");
-  }
-
-  const permanent = req.query.permanent === "true";
-
-  const entryRes = await fetch(
-    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&select=brain_id`,
-    {
-      headers: sbHeadersNoContent(),
-    },
-  );
-  if (!entryRes.ok) throw new ApiError(502, "Database error");
-  const [entry]: any[] = await entryRes.json();
-  if (!entry) throw new ApiError(404, "Not found");
-  await requireBrainAccess(user.id, entry.brain_id);
-
-  if (permanent) {
-    const response = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`, {
-      method: "DELETE",
-      headers: sbHeaders({ Prefer: "return=minimal" }),
-    });
-
-    console.log(`[audit] HARD_DELETE entry id=${id} user=${user.id} ok=${response.ok}`);
-
-    // FK cascades take care of links / tags / collection rows. concept_graphs
-    // is a brain-level snapshot and isn't a foreign key, so it carries dangling
-    // UUIDs after a hard delete. Strip them now so the graph viewer doesn't
-    // try to navigate to entries that no longer exist.
-    if (response.ok) {
-      stripDeletedFromConceptGraph(entry.brain_id, id).catch((err: any) =>
-        console.error("[delete:concept-graph]", err?.message ?? err),
-      );
-    }
-
-    fetch(`${SB_URL}/rest/v1/audit_log`, {
-      method: "POST",
-      headers: sbHeaders({ Prefer: "return=minimal" }),
-      body: JSON.stringify({
-        user_id: user.id,
-        action: "entry_permanent_delete",
-        resource_id: id,
-        request_id: req_id,
-        timestamp: new Date().toISOString(),
-      }),
-    }).catch(() => {});
-
-    res.status(response.ok ? 200 : 502).json({ ok: response.ok });
-    return;
-  }
-
-  // Soft delete
-  const response = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`, {
-    method: "PATCH",
-    headers: sbHeaders({ Prefer: "return=minimal" }),
-    body: JSON.stringify({ deleted_at: new Date().toISOString() }),
-  });
-
-  console.log(`[audit] SOFT_DELETE entry id=${id} user=${user.id} ok=${response.ok}`);
-
-  fetch(`${SB_URL}/rest/v1/audit_log`, {
-    method: "POST",
-    headers: sbHeaders({ Prefer: "return=minimal" }),
-    body: JSON.stringify({
-      user_id: user.id,
-      action: "entry_delete",
-      resource_id: id,
-      request_id: req_id,
-      timestamp: new Date().toISOString(),
-    }),
-  }).catch(() => {});
-
-  res.status(response.ok ? 200 : 502).json({ ok: response.ok });
+async function handleDelete(ctx: HandlerContext): Promise<void> {
+  return handleDeleteEntry(ctx, { stripDeletedFromConceptGraph });
 }
 
 // ── PATCH /api/entries (was /api/update-entry) ──
-async function handlePatch({ req, res, user, req_id }: HandlerContext): Promise<void> {
+async function handlePatch({ req, res, user, req_id, log }: HandlerContext): Promise<void> {
   const action = req.query.action as string | undefined;
+  const body = bodyObject(req.body);
 
   if (action === "restore") {
-    const { id } = req.body;
+    const { id } = body;
     if (!id || typeof id !== "string" || id.length > 100) {
       throw new ApiError(400, "Missing or invalid id");
     }
@@ -299,20 +237,23 @@ async function handlePatch({ req, res, user, req_id }: HandlerContext): Promise<
     if (!entryRes.ok) throw new ApiError(502, "Database error");
     const [entryData]: any[] = await entryRes.json();
     if (!entryData) throw new ApiError(404, "Not found");
-    await requireBrainAccess(user.id, entryData.brain_id);
+    await requireBrainRole(user.id, entryData.brain_id, ["owner", "member"]);
 
-    const response = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      headers: sbHeaders({ Prefer: "return=representation" }),
-      body: JSON.stringify({ deleted_at: null }),
-    });
-    console.log(`[audit] RESTORE entry id=${id} user=${user.id} ok=${response.ok}`);
+    const response = await fetch(
+      `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&brain_id=eq.${encodeURIComponent(entryData.brain_id)}`,
+      {
+        method: "PATCH",
+        headers: sbHeaders({ Prefer: "return=representation" }),
+        body: JSON.stringify({ deleted_at: null }),
+      },
+    );
+    log.info("entry restore", { entry_id: id, ok: response.ok });
     const data: any = await response.json();
     res.status(response.ok ? 200 : 502).json(data);
     return;
   }
 
-  const { id, title, content, type, tags, metadata, brain_id, status } = req.body;
+  const { id, title, content, type, tags, metadata, brain_id, status } = body;
   if (!id || typeof id !== "string" || id.length > 100) {
     throw new ApiError(400, "Missing or invalid id");
   }
@@ -346,10 +287,10 @@ async function handlePatch({ req, res, user, req_id }: HandlerContext): Promise<
   if (!entryRes.ok) throw new ApiError(502, "Database error");
   const [entry]: any[] = await entryRes.json();
   if (!entry) throw new ApiError(404, "Not found");
-  await requireBrainAccess(user.id, entry.brain_id);
+  await requireBrainRole(user.id, entry.brain_id, ["owner", "member"]);
 
   if (patch.brain_id !== undefined && patch.brain_id !== entry.brain_id) {
-    await requireBrainAccess(user.id, patch.brain_id);
+    await requireBrainRole(user.id, patch.brain_id, ["owner", "member"]);
   }
 
   const mergedTitle = patch.title ?? entry.title ?? "";
@@ -390,13 +331,16 @@ async function handlePatch({ req, res, user, req_id }: HandlerContext): Promise<
 
   patch.metadata = finalMeta;
 
-  const response = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`, {
-    method: "PATCH",
-    headers: sbHeaders({ Prefer: "return=representation" }),
-    body: JSON.stringify(patch),
-  });
+  const response = await fetch(
+    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&brain_id=eq.${encodeURIComponent(entry.brain_id)}`,
+    {
+      method: "PATCH",
+      headers: sbHeaders({ Prefer: "return=representation" }),
+      body: JSON.stringify(patch),
+    },
+  );
 
-  console.log(`[audit] PATCH entry id=${id} user=${user.id} ok=${response.ok}`);
+  log.info("entry patch", { entry_id: id, ok: response.ok });
 
   fetch(`${SB_URL}/rest/v1/audit_log`, {
     method: "POST",
@@ -450,7 +394,7 @@ async function handlePatch({ req, res, user, req_id }: HandlerContext): Promise<
 // or content changes are intentionally NOT allowed here — those re-trigger
 // enrichment and shouldn't be batched silently.
 async function handleBulkPatch({ req, res, user, req_id }: HandlerContext): Promise<void> {
-  const { ids, patch } = req.body ?? {};
+  const { ids, patch } = bodyObject(req.body);
   if (!Array.isArray(ids) || ids.length === 0) {
     throw new ApiError(400, "ids: non-empty array required");
   }
@@ -458,29 +402,30 @@ async function handleBulkPatch({ req, res, user, req_id }: HandlerContext): Prom
     throw new ApiError(400, "ids: max 200 per request");
   }
   const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  const cleanIds = ids.filter((id: any) => typeof id === "string" && uuidRe.test(id));
+  const cleanIds = ids.filter((id): id is string => typeof id === "string" && uuidRe.test(id));
   if (cleanIds.length === 0) {
     throw new ApiError(400, "ids: must be UUIDs");
   }
-  if (!patch || typeof patch !== "object") {
+  if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
     throw new ApiError(400, "patch: object required");
   }
+  const patchObj = patch as Record<string, unknown>;
 
   // Whitelist what the bulk path can change. tags + status + pinned cover
   // the real use cases (delete category, mark many done, bulk pin).
   const allowed: Record<string, unknown> = {};
-  if (Array.isArray(patch.tags)) {
-    allowed.tags = (patch.tags as unknown[])
+  if (Array.isArray(patchObj.tags)) {
+    allowed.tags = patchObj.tags
       .filter((t) => typeof t === "string")
       .slice(0, 50);
   }
-  if (typeof patch.pinned === "boolean") {
-    allowed.pinned = patch.pinned;
+  if (typeof patchObj.pinned === "boolean") {
+    allowed.pinned = patchObj.pinned;
   }
   // status is per-entry metadata.status — applied via metadata merge below.
   let metadataStatus: string | null = null;
-  if (typeof patch.status === "string") {
-    metadataStatus = patch.status.slice(0, 50);
+  if (typeof patchObj.status === "string") {
+    metadataStatus = patchObj.status.slice(0, 50);
   }
   if (Object.keys(allowed).length === 0 && metadataStatus === null) {
     throw new ApiError(400, "patch: nothing to update (allowed: tags, pinned, status)");
@@ -619,18 +564,15 @@ async function runGeminiBatch(
   batchNum: number,
 ): Promise<any[]> {
   try {
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: lines }] }],
-          systemInstruction: { parts: [{ text: SERVER_PROMPTS.ENTRY_AUDIT }] },
-          generationConfig: { maxOutputTokens: AUDIT_MAX_TOKENS },
-        }),
-      },
-    );
+    const r = await googleAiFetch(apiKey, googleAiModelUrl(model, "generateContent"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: lines }] }],
+        systemInstruction: { parts: [{ text: SERVER_PROMPTS.ENTRY_AUDIT }] },
+        generationConfig: { maxOutputTokens: AUDIT_MAX_TOKENS },
+      }),
+    });
     if (!r.ok) {
       const err = await r.text().catch(() => "");
       console.log(`[audit] batch ${batchNum} error:`, r.status, err.slice(0, 200));
@@ -642,7 +584,13 @@ async function runGeminiBatch(
     const cleaned = text.replace(/```json|```/g, "").trim();
     const match = cleaned.match(/\[[\s\S]*\]/);
     if (!match) return [];
-    const parsed = JSON.parse(match[0]);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(match[0]);
+    } catch (err: any) {
+      console.log(`[audit] batch ${batchNum} parse error:`, String(err?.message ?? err));
+      return [];
+    }
     if (!Array.isArray(parsed)) return [];
     return parsed.filter((f: any) => f?.entryId && batchSet.has(f.entryId));
   } catch (e) {
@@ -652,7 +600,8 @@ async function runGeminiBatch(
 }
 
 async function handleAudit({ req, res, user }: HandlerContext): Promise<void> {
-  const { brain_id, pace } = req.body;
+  const { brain_id, pace } = bodyObject(req.body);
+  if (typeof brain_id !== "string") throw new ApiError(400, "brain_id required");
   await requireBrainAccess(user.id, brain_id);
 
   const AUDIT_ENTRY_CAP = 500;
@@ -677,7 +626,7 @@ async function handleAudit({ req, res, user }: HandlerContext): Promise<void> {
   }
 
   const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
-  const GEMINI_MODEL = (process.env.GEMINI_MODEL || "gemini-2.5-flash-lite").trim();
+  const GEMINI_MODEL = GEMINI_BULK_MODEL;
   console.log(
     "[audit] model:",
     GEMINI_MODEL,
@@ -747,7 +696,7 @@ async function handleAudit({ req, res, user }: HandlerContext): Promise<void> {
 
 // ── POST /api/entries?action=enrich-batch ──
 async function handleEnrichBatch({ req, res, user }: HandlerContext): Promise<void> {
-  const { brain_id, batch_size } = req.body;
+  const { brain_id, batch_size } = bodyObject(req.body);
   if (!brain_id || typeof brain_id !== "string") throw new ApiError(400, "brain_id required");
   await requireBrainAccess(user.id, brain_id);
   // Cap raised from 10 → 50 so post-import enrichment (Keep / Takeout
@@ -764,7 +713,7 @@ async function handleEnrichBatch({ req, res, user }: HandlerContext): Promise<vo
 // enrichment.persona_extracted=true. Capped per call so the function stays
 // well under the Vercel timeout; the UI loops on `remaining > 0`.
 async function handleBackfillPersona({ req, res, user }: HandlerContext): Promise<void> {
-  const { brain_id, batch_size } = req.body;
+  const { brain_id, batch_size } = bodyObject(req.body);
   if (!brain_id || typeof brain_id !== "string") throw new ApiError(400, "brain_id required");
   await requireBrainAccess(user.id, brain_id);
   const batchSize =
@@ -779,7 +728,7 @@ async function handleBackfillPersona({ req, res, user }: HandlerContext): Promis
 // produced (source != manual/chat, no derived_from) and best-guesses the
 // original type from surviving tag/metadata signals. Idempotent.
 async function handleRevertPersonaBackfill({ req, res, user }: HandlerContext): Promise<void> {
-  const { brain_id } = req.body;
+  const { brain_id } = bodyObject(req.body);
   if (!brain_id || typeof brain_id !== "string") throw new ApiError(400, "brain_id required");
   await requireBrainAccess(user.id, brain_id);
   const result = await revertBackfilledPersonaForBrain(user.id, brain_id);
@@ -792,7 +741,7 @@ async function handleRevertPersonaBackfill({ req, res, user }: HandlerContext): 
 // the persona_extracted flag from source entries so the next scan starts
 // fresh. Manual / chat / pinned facts are preserved.
 async function handleWipePersonaExtracted({ req, res, user }: HandlerContext): Promise<void> {
-  const { brain_id } = req.body;
+  const { brain_id } = bodyObject(req.body);
   if (!brain_id || typeof brain_id !== "string") throw new ApiError(400, "brain_id required");
   await requireBrainAccess(user.id, brain_id);
   const result = await wipeExtractedPersonaForBrain(user.id, brain_id);
@@ -807,7 +756,7 @@ async function handleWipePersonaExtracted({ req, res, user }: HandlerContext): P
 // User-confirmed sources (manual / chat / pinned) are NEVER touched. The
 // rejected-status preserves provenance so the user can un-reject if wrong.
 async function handleAuditPersona({ req, res, user }: HandlerContext): Promise<void> {
-  const { brain_id } = req.body;
+  const { brain_id } = bodyObject(req.body);
   if (!brain_id || typeof brain_id !== "string") throw new ApiError(400, "brain_id required");
   await requireBrainAccess(user.id, brain_id);
   const result = await auditPersonaForBrain(user.id, brain_id);
@@ -855,7 +804,7 @@ async function handleDistillGmail({ res, user }: HandlerContext): Promise<void> 
 // the rules stay current without manual intervention.
 async function handleGmailDecision({ req, res, user }: HandlerContext): Promise<void> {
   const { decision, subject, from_email, from_name, snippet, reason, source_id } =
-    req.body ?? {};
+    bodyObject(req.body);
   if (decision !== "accept" && decision !== "reject") {
     throw new ApiError(400, "decision must be 'accept' or 'reject'");
   }
@@ -1125,7 +1074,8 @@ async function handleEnrichDebug({ req, res, user }: HandlerContext): Promise<vo
     providers: {
       gemini: !!process.env.GEMINI_API_KEY,
       anthropic: !!process.env.ANTHROPIC_API_KEY,
-      gemini_model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
+      gemini_chat_model: process.env.GEMINI_CHAT_MODEL ?? "gemini-2.5-flash",
+      gemini_bulk_model: GEMINI_BULK_MODEL,
     },
     brain_id,
     counts,
@@ -1141,7 +1091,7 @@ async function handleEnrichDebug({ req, res, user }: HandlerContext): Promise<vo
 // rows that were stamped enriched purely to silence the loading dot.
 async function handleClearBackfill({ req, res, user }: HandlerContext): Promise<void> {
   if (!isAdminUser(user)) throw new ApiError(403, "Forbidden");
-  const { brain_id } = req.body;
+  const { brain_id } = bodyObject(req.body);
   if (!brain_id || typeof brain_id !== "string") throw new ApiError(400, "brain_id required");
   await requireBrainAccess(user.id, brain_id);
 
@@ -1185,7 +1135,7 @@ async function handleClearBackfill({ req, res, user }: HandlerContext): Promise<
 // retry actually starts before the user closes the dialog.
 async function handleRetryFailed({ req, res, user }: HandlerContext): Promise<void> {
   if (!isAdminUser(user)) throw new ApiError(403, "Forbidden");
-  const { brain_id } = req.body;
+  const { brain_id } = bodyObject(req.body);
   if (!brain_id || typeof brain_id !== "string") throw new ApiError(400, "brain_id required");
   await requireBrainAccess(user.id, brain_id);
 
@@ -1278,7 +1228,7 @@ async function handleEmptyTrash({ res, user, req_id }: HandlerContext): Promise<
 // We peek upfront so over-quota free users get a clean 429 instead of a
 // half-merged state.
 async function handleMerge({ req, res, user }: HandlerContext): Promise<void> {
-  const body = req.body ?? {};
+  const body = bodyObject(req.body);
   const validation = await validateMergeRequest(user.id, body.ids);
   await checkMergeQuota(user.id);
 
@@ -1315,7 +1265,7 @@ async function handleMerge({ req, res, user }: HandlerContext): Promise<void> {
 // (10-second window). Defends with metadata.merged_from check so a caller
 // can't undo arbitrary entries by guessing IDs.
 async function handleMergeUndo({ req, res, user }: HandlerContext): Promise<void> {
-  const body = req.body ?? {};
+  const body = bodyObject(req.body);
   const mergedId: unknown = body.merged_id;
   const sourceIds: unknown = body.source_ids;
   const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -1388,7 +1338,7 @@ async function handleMergeUndo({ req, res, user }: HandlerContext): Promise<void
 // ── POST /api/entries?action=merge_into — merge source entry into target, then soft-delete source ──
 async function handleMergeInto({ req, res, user }: HandlerContext): Promise<void> {
   const source_id = req.query.id as string | undefined;
-  const { target_id } = req.body;
+  const { target_id } = bodyObject(req.body);
   if (!source_id || typeof source_id !== "string" || source_id.length > 100)
     throw new ApiError(400, "Missing or invalid id");
   if (!target_id || typeof target_id !== "string" || target_id.length > 100)
@@ -1462,7 +1412,7 @@ async function handleMoveEntry({ req, res, user, req_id }: HandlerContext): Prom
 
   // Load the entry to discover the source brain.
   const entryRes = await fetch(
-    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&select=id,brain_id,user_id`,
+    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&select=id,brain_id,user_id,metadata`,
     { headers: sbHeadersNoContent() },
   );
   if (!entryRes.ok) throw new ApiError(502, "Database error");
@@ -1491,6 +1441,7 @@ async function handleMoveEntry({ req, res, user, req_id }: HandlerContext): Prom
       // Force re-enrichment in the new brain context.
       embedding_status: "pending",
       embedded_at: null,
+      metadata: clearContextEnrichmentFlags(entry.metadata),
     }),
   });
   if (!upd.ok) throw new ApiError(502, "Failed to move entry");
@@ -1528,6 +1479,26 @@ async function handleMoveEntry({ req, res, user, req_id }: HandlerContext): Prom
   enrichInline(id, user.id).catch(() => {});
 
   res.status(200).json({ ok: true, brain_id: dest });
+}
+
+function clearContextEnrichmentFlags(metadata: unknown): Record<string, unknown> {
+  const meta =
+    metadata && typeof metadata === "object" && !Array.isArray(metadata)
+      ? { ...(metadata as Record<string, unknown>) }
+      : {};
+  const enrichment =
+    meta.enrichment && typeof meta.enrichment === "object" && !Array.isArray(meta.enrichment)
+      ? { ...(meta.enrichment as Record<string, unknown>) }
+      : {};
+  delete enrichment.has_insight;
+  delete enrichment.insight;
+  delete enrichment.concepts_extracted;
+  delete enrichment.concepts;
+  delete enrichment.parsed;
+  meta.enrichment = enrichment;
+  delete meta.summary;
+  delete meta.concepts;
+  return meta;
 }
 
 // ── /api/entries?action=share — overlay an entry into another brain ──
@@ -1678,13 +1649,18 @@ async function handleGraph({ req, res, user }: HandlerContext): Promise<void> {
   }
 
   // POST — save graph
-  const { brain_id, graph } = req.body || {};
-  if (!graph || typeof graph !== "object") throw new ApiError(400, "graph required");
+  const { brain_id, graph } = bodyObject(req.body);
+  if (typeof brain_id !== "string") throw new ApiError(400, "brain_id required");
+  if (!graph || typeof graph !== "object" || Array.isArray(graph))
+    throw new ApiError(400, "graph required");
+  const graphObj = graph as Record<string, unknown>;
   await requireBrainAccess(user.id, brain_id);
 
   const safeGraph = {
-    concepts: Array.isArray(graph.concepts) ? graph.concepts.slice(0, 500) : [],
-    relationships: Array.isArray(graph.relationships) ? graph.relationships.slice(0, 500) : [],
+    concepts: Array.isArray(graphObj.concepts) ? graphObj.concepts.slice(0, 500) : [],
+    relationships: Array.isArray(graphObj.relationships)
+      ? graphObj.relationships.slice(0, 500)
+      : [],
   };
   const r = await fetch(`${SB_URL}/rest/v1/concept_graphs`, {
     method: "POST",

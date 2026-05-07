@@ -1,6 +1,7 @@
 import type { ApiRequest } from "./types";
 import type { AuthedUser } from "./withAuth.js";
 import crypto from "crypto";
+import { sbHeadersNoContent } from "./sbHeaders.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const VERIFY_TIMEOUT_MS = 5_000;
@@ -49,7 +50,7 @@ export async function verifyAuth(req: ApiRequest): Promise<AuthedUser | null> {
   try {
     const res = await fetch(`${SB_URL}/auth/v1/user`, {
       headers: {
-        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        apikey: sbHeadersNoContent().apikey,
         Authorization: `Bearer ${token}`,
       },
       signal: ctrl.signal,

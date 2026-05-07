@@ -38,15 +38,13 @@ import {
   generateEmbedding as personaGenerateEmbedding,
   buildEntryText as personaBuildEntryText,
 } from "./generateEmbedding.js";
+import { sbHeaders } from "./sbHeaders.js";
+import { googleAiFetch, googleAiModelUrl } from "./googleAi.js";
+import { GEMINI_BULK_MODEL, geminiFallbackChain } from "./geminiModels.js";
 import { randomUUID } from "crypto";
 
 const SB_URL = process.env.SUPABASE_URL!;
-const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const SB_HDR = {
-  apikey: SB_KEY,
-  Authorization: `Bearer ${SB_KEY}`,
-  "Content-Type": "application/json",
-};
+const SB_HDR = sbHeaders();
 
 const CaptureResultSchema = z
   .object({
@@ -361,10 +359,16 @@ const EMBED_DIM = 768;
 // Retry transient failures (rate limit / service unavailable) before giving
 // up — without this, a single 429 from the Gemini free tier permanently
 // stamps the entry as embedding_status='failed' (see stepEmbed below).
-async function fetchEmbedWithRetry(url: string, init: RequestInit): Promise<Response> {
+async function fetchEmbedWithRetry(
+  url: string,
+  init: RequestInit,
+  apiKey?: string,
+): Promise<Response> {
   const delays = [500, 1500, 3500];
   for (let i = 0; i <= delays.length; i++) {
-    const r = await fetch(url, init);
+    const r = apiKey
+      ? await googleAiFetch(apiKey, url, init, 10_000)
+      : await fetch(url, init);
     if (r.ok) return r;
     const transient = r.status === 429 || r.status === 503;
     if (!transient || i === delays.length) return r;
@@ -376,7 +380,7 @@ async function fetchEmbedWithRetry(url: string, init: RequestInit): Promise<Resp
 async function generateEmbedding(text: string, embed: EmbedConfig): Promise<number[]> {
   if (embed.provider === "gemini") {
     const r = await fetchEmbedWithRetry(
-      `https://generativelanguage.googleapis.com/v1beta/models/${embed.model}:embedContent?key=${encodeURIComponent(embed.apiKey)}`,
+      googleAiModelUrl(embed.model, "embedContent"),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -386,6 +390,7 @@ async function generateEmbedding(text: string, embed: EmbedConfig): Promise<numb
           outputDimensionality: EMBED_DIM,
         }),
       },
+      embed.apiKey,
     );
     if (!r.ok) throw new Error(`Gemini embed HTTP ${r.status}: ${await r.text().catch(() => "")}`);
     const d: any = await r.json();
@@ -497,11 +502,16 @@ async function stepPersonaExtract(
     return { ...rest, enrichment: { ...enr, persona_extracted: true } };
   }
 
+  // Persona facts always land in the personal brain. Resolve that boundary
+  // before loading context so shared-brain captures dedup against the user's
+  // real confirmed/rejected profile rather than the source brain's slice.
+  const personalBrainId = (await getPersonalBrainId(userId)) ?? brainId;
+
   // Identity context — either supplied by the caller (batch path) or
   // resolved per-entry (single-entry path). Without this, the extractor
   // can't tell whether a name in the entry refers to the user or someone
   // else, and rephrases everyone's facts as "User…".
-  const ctx = precomputed?.context ?? (await loadExtractorContext(userId, brainId));
+  const ctx = precomputed?.context ?? (await loadExtractorContext(userId, personalBrainId));
 
   const facts = await extractPersonaFacts({
     title: entry.title,
@@ -520,7 +530,6 @@ async function stepPersonaExtract(
   // shared brain fragments the user's identity across brains AND leaks
   // private facts ("user's wife is Sarah") into a brain other people can
   // read. The personal brain is the privacy boundary for identity context.
-  const personalBrainId = (await getPersonalBrainId(userId)) ?? brainId;
   if (!personalBrainId) return stampedMeta; // no personal brain yet — skip silently
 
   // Dedup set for inline duplicate refusal. Scoped to the personal brain
@@ -799,6 +808,13 @@ export async function enrichInline(
     const tier = await fetchUserTier(userId);
     const quota = await checkAndConsumeQuota(userId, tier);
     if (!quota.allowed) {
+      if (quota.errored) {
+        console.warn(
+          `[enrich:quota] ${userId} quota check unavailable — entry ${entryId} left pending`,
+        );
+        await setEnrichmentState(entryId, "pending");
+        return false;
+      }
       console.warn(
         `[enrich:quota] ${userId} blocked at ${quota.used}/${quota.limit} daily — entry ${entryId} marked quota_exceeded`,
       );
@@ -1760,8 +1776,8 @@ async function classifyAgainstRules(
 ): Promise<string[]> {
   if (!candidates.length) return [];
   const model =
-    (process.env.GEMINI_AUDIT_RULES_MODEL || "gemini-2.5-flash-lite").trim() ||
-    "gemini-2.5-flash-lite";
+    (process.env.GEMINI_AUDIT_RULES_MODEL || GEMINI_BULK_MODEL).trim() ||
+    GEMINI_BULK_MODEL;
 
   const block = candidates
     .map((row, i) => {
@@ -1781,44 +1797,31 @@ Be conservative. If a fact is genuinely identity-defining (a relationship, a las
 Return ONLY a JSON array of integer indices to REJECT. Example: [0, 3, 7]. Empty array if all candidates pass.`;
 
   const userPart = `Skip rules:\n${rules.slice(0, 2000)}\n\nCandidates:\n${block}`;
+  const body = JSON.stringify({
+    systemInstruction: { parts: [{ text: systemPrompt }] },
+    contents: [{ role: "user", parts: [{ text: userPart }] }],
+    generationConfig: {
+      temperature: 0,
+      responseMimeType: "application/json",
+      maxOutputTokens: 600,
+    },
+  });
 
-  const FALLBACK = [model, "gemini-2.0-flash"];
+  const FALLBACK = geminiFallbackChain(model);
   for (const m of FALLBACK) {
     try {
-      let r = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${encodeURIComponent(apiKey)}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: systemPrompt }] },
-            contents: [{ role: "user", parts: [{ text: userPart }] }],
-            generationConfig: {
-              temperature: 0,
-              responseMimeType: "application/json",
-              maxOutputTokens: 600,
-            },
-          }),
-        },
-      );
+      let r = await googleAiFetch(apiKey, googleAiModelUrl(m, "generateContent"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+      });
       if (r.status === 429) {
         await new Promise((res) => setTimeout(res, 1500));
-        r = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${encodeURIComponent(apiKey)}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              systemInstruction: { parts: [{ text: systemPrompt }] },
-              contents: [{ role: "user", parts: [{ text: userPart }] }],
-              generationConfig: {
-                temperature: 0,
-                responseMimeType: "application/json",
-                maxOutputTokens: 600,
-              },
-            }),
-          },
-        );
+        r = await googleAiFetch(apiKey, googleAiModelUrl(m, "generateContent"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body,
+        });
       }
       if (!r.ok) continue;
       const data: any = await r.json();
@@ -1852,10 +1855,8 @@ export async function enrichAllBrains(
   opts: EnrichSweepOpts = {},
 ): Promise<{ brains: number; processed: number; mode: "daily" | "hourly" }> {
   const mode = opts.mode ?? "daily";
-  const r = await fetch(`${SB_URL}/rest/v1/brains?select=id,owner_id`, { headers: SB_HDR });
-  if (!r.ok) return { brains: 0, processed: 0, mode };
-  const brains: { id: string; owner_id: string }[] = await r.json();
   let totalProcessed = 0;
+  let scannedBrains = 0;
   // Daily: 240s budget / 60s per brain / 50 batch — chunky catch-up.
   // Hourly: 90s budget / 25s per brain / 30 batch — keeps within the
   // hourly cron's tighter wallclock and drains anything the inline
@@ -1864,18 +1865,35 @@ export async function enrichAllBrains(
   const PER_RUN_BUDGET_MS = mode === "hourly" ? 90_000 : 240_000;
   const PER_BRAIN_BUDGET_MS = mode === "hourly" ? 25_000 : 60_000;
   const BATCH_SIZE = mode === "hourly" ? 30 : 50;
+  const BRAIN_PAGE = 100;
   const startedAt = Date.now();
-  for (const brain of brains) {
-    const remainingBudget = Math.max(0, PER_RUN_BUDGET_MS - (Date.now() - startedAt));
-    if (remainingBudget < 5_000) break; // not enough left to make progress
-    const perBrainBudget = Math.min(remainingBudget, PER_BRAIN_BUDGET_MS);
-    const { processed } = await enrichBrain(
-      brain.owner_id,
-      brain.id,
-      BATCH_SIZE,
-      perBrainBudget,
-    ).catch(() => ({ processed: 0, remaining: 0 }));
-    totalProcessed += processed;
+  for (let offset = 0; ; offset += BRAIN_PAGE) {
+    const remainingBeforeFetch = Math.max(0, PER_RUN_BUDGET_MS - (Date.now() - startedAt));
+    if (remainingBeforeFetch < 5_000) break;
+
+    const r = await fetch(
+      `${SB_URL}/rest/v1/brains?select=id,owner_id&order=created_at.asc&limit=${BRAIN_PAGE}&offset=${offset}`,
+      { headers: SB_HDR },
+    );
+    if (!r.ok) break;
+    const brains: { id: string; owner_id: string }[] = await r.json().catch(() => []);
+    if (!brains.length) break;
+
+    for (const brain of brains) {
+      const remainingBudget = Math.max(0, PER_RUN_BUDGET_MS - (Date.now() - startedAt));
+      if (remainingBudget < 5_000) break;
+      scannedBrains++;
+      const perBrainBudget = Math.min(remainingBudget, PER_BRAIN_BUDGET_MS);
+      const { processed } = await enrichBrain(
+        brain.owner_id,
+        brain.id,
+        BATCH_SIZE,
+        perBrainBudget,
+      ).catch(() => ({ processed: 0, remaining: 0 }));
+      totalProcessed += processed;
+    }
+
+    if (brains.length < BRAIN_PAGE) break;
   }
-  return { brains: brains.length, processed: totalProcessed, mode };
+  return { brains: scannedBrains, processed: totalProcessed, mode };
 }

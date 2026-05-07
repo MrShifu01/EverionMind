@@ -21,11 +21,13 @@
 // is never modified.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { googleAiFetch, googleAiModelUrl } from "./googleAi.js";
+import { GEMINI_BULK_MODEL } from "./geminiModels.js";
 import { sbHeaders } from "./sbHeaders.js";
 
 const SB_URL = (process.env.SUPABASE_URL || "").trim();
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
-const GEMINI_MODEL = (process.env.GEMINI_PERSONA_EXTRACTOR_MODEL || "gemini-2.5-flash-lite").trim();
+const GEMINI_MODEL = (process.env.GEMINI_PERSONA_EXTRACTOR_MODEL || GEMINI_BULK_MODEL).trim();
 
 type PersonaBucket = "identity" | "family" | "habit" | "preference" | "event";
 
@@ -334,8 +336,9 @@ export async function extractPersonaFacts(args: {
     .join("\n");
 
   try {
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
+    const r = await googleAiFetch(
+      GEMINI_API_KEY,
+      googleAiModelUrl(GEMINI_MODEL, "generateContent"),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

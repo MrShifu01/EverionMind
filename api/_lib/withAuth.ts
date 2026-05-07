@@ -2,7 +2,7 @@ import type { ApiRequest, ApiResponse } from "./types";
 import { applySecurityHeaders } from "./securityHeaders.js";
 import { rateLimit } from "./rateLimit.js";
 import { verifyAuth } from "./verifyAuth.js";
-import { checkBrainAccess } from "./checkBrainAccess.js";
+import { checkBrainAccess, type BrainRole } from "./checkBrainAccess.js";
 import { resolveApiKey } from "./resolveApiKey.js";
 import { getReqId, createLogger, type Logger } from "./logger.js";
 
@@ -59,6 +59,61 @@ interface WithAuthOptions {
 
 type Impl = (ctx: HandlerContext) => Promise<void> | void;
 
+interface RouteStart {
+  ok: true;
+  req_id: string;
+  limitSpec: number | ((req: ApiRequest) => number) | false;
+}
+
+interface RouteStop {
+  ok: false;
+}
+
+function startRoute(opts: WithAuthOptions, req: ApiRequest, res: ApiResponse): RouteStart | RouteStop {
+  applySecurityHeaders(res);
+  if (opts.cacheControl) res.setHeader("Cache-Control", opts.cacheControl);
+
+  const req_id = getReqId(req);
+  res.setHeader("x-request-id", req_id);
+
+  const methods = opts.methods ?? ["POST"];
+  if (!methods.includes(req.method || "")) {
+    res.status(405).json({ error: "Method not allowed" });
+    return { ok: false };
+  }
+
+  return { ok: true, req_id, limitSpec: opts.rateLimit ?? 30 };
+}
+
+function routeLimit(
+  limitSpec: number | ((req: ApiRequest) => number) | false,
+  req: ApiRequest,
+): number | false {
+  if (limitSpec === false) return false;
+  return typeof limitSpec === "function" ? limitSpec(req) : limitSpec;
+}
+
+function handleRouteError(
+  err: unknown,
+  res: ApiResponse,
+  req_id: string,
+  label: string,
+): void {
+  if (err instanceof ApiError) {
+    res.status(err.status).json({ error: err.publicMessage });
+    return;
+  }
+  if ((err as any)?.status) {
+    res.status((err as any).status).json({ error: (err as any).message });
+    return;
+  }
+  const log = createLogger(req_id);
+  log.error(`unhandled error in ${label}`, { err: String(err) });
+  if (!(res as any).headersSent) {
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+}
+
 /**
  * Wraps a handler with the standard middleware chain:
  *   apply security headers → check method → rate limit → verify auth → business logic
@@ -70,24 +125,14 @@ export function withAuth(
   opts: WithAuthOptions,
   impl: Impl,
 ): (req: ApiRequest, res: ApiResponse) => Promise<void> {
-  const methods = opts.methods ?? ["POST"];
-  const limitSpec = opts.rateLimit ?? 30;
-
   return async (req, res) => {
-    applySecurityHeaders(res);
-    if (opts.cacheControl) res.setHeader("Cache-Control", opts.cacheControl);
-
-    const req_id = getReqId(req);
-    res.setHeader("x-request-id", req_id);
-
-    if (!methods.includes(req.method || "")) {
-      res.status(405).json({ error: "Method not allowed" });
-      return;
-    }
+    const route = startRoute(opts, req, res);
+    if (!route.ok) return;
+    const { req_id, limitSpec } = route;
 
     try {
-      if (limitSpec !== false) {
-        const limit = typeof limitSpec === "function" ? limitSpec(req) : limitSpec;
+      const limit = routeLimit(limitSpec, req);
+      if (limit !== false) {
         const suffix = opts.rateLimitKey?.(req);
         if (!(await rateLimit(req, limit, 60_000, suffix))) {
           res.status(429).json({ error: "Too many requests" });
@@ -104,15 +149,7 @@ export function withAuth(
       const log = createLogger(req_id, { user_id: user.id });
       await impl({ req, res, user, log, req_id });
     } catch (err) {
-      if (err instanceof ApiError) {
-        res.status(err.status).json({ error: err.publicMessage });
-        return;
-      }
-      const log = createLogger(req_id);
-      log.error("unhandled error in withAuth", { err: String(err) });
-      if (!(res as any).headersSent) {
-        res.status(500).json({ error: "Internal Server Error" });
-      }
+      handleRouteError(err, res, req_id, "withAuth");
     }
   };
 }
@@ -130,6 +167,19 @@ export async function requireBrainAccess(
   }
   const ok = await checkBrainAccess(userId, brainId);
   if (!ok) throw new ApiError(403, "Forbidden");
+}
+
+export async function requireBrainRole(
+  userId: string,
+  brainId: string | undefined | null,
+  allowed: BrainRole[],
+): Promise<BrainRole> {
+  if (!brainId || typeof brainId !== "string" || brainId.length > 100) {
+    throw new ApiError(400, "Invalid brain_id");
+  }
+  const access = await checkBrainAccess(userId, brainId);
+  if (!access || !allowed.includes(access.role)) throw new ApiError(403, "Forbidden");
+  return access.role;
 }
 
 // ── API key auth variant ─────────────────────────────────────────────────────
@@ -154,35 +204,26 @@ export function withApiKey(
   opts: WithAuthOptions,
   impl: ApiKeyImpl,
 ): (req: ApiRequest, res: ApiResponse) => Promise<void> {
-  const methods = opts.methods ?? ["POST"];
-  const limitSpec = opts.rateLimit ?? 30;
-
   return async (req, res) => {
-    applySecurityHeaders(res);
-    if (opts.cacheControl) res.setHeader("Cache-Control", opts.cacheControl);
-
-    const req_id = getReqId(req);
-    res.setHeader("x-request-id", req_id);
-
-    if (!methods.includes(req.method || "")) {
-      res.status(405).json({ error: "Method not allowed" });
-      return;
-    }
+    const route = startRoute(opts, req, res);
+    if (!route.ok) return;
+    const { req_id, limitSpec } = route;
 
     try {
-      if (limitSpec !== false) {
-        const limit = typeof limitSpec === "function" ? limitSpec(req) : limitSpec;
-        if (!(await rateLimit(req, limit))) {
-          res.status(429).json({ error: "Too many requests" });
-          return;
-        }
-      }
-
       const authHeader = (req.headers["authorization"] as string) ?? "";
       const rawKey = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
       if (!rawKey) {
         res.status(401).json({ error: "Missing Authorization header" });
         return;
+      }
+
+      const limit = routeLimit(limitSpec, req);
+      if (limit !== false) {
+        const preAuthLimit = Math.max(limit * 5, 60);
+        if (!(await rateLimit(req, preAuthLimit, 60_000, "api-key-auth"))) {
+          res.status(429).json({ error: "Too many requests" });
+          return;
+        }
       }
 
       const auth = await resolveApiKey(rawKey);
@@ -191,22 +232,21 @@ export function withApiKey(
         return;
       }
 
+      if (limit !== false) {
+        const routeSuffix = opts.rateLimitKey?.(req);
+        const suffix = routeSuffix
+          ? `api-key:${auth.userId}:${auth.keyId}:${routeSuffix}`
+          : `api-key:${auth.userId}:${auth.keyId}`;
+        if (!(await rateLimit(req, limit, 60_000, suffix))) {
+          res.status(429).json({ error: "Too many requests" });
+          return;
+        }
+      }
+
       const log = createLogger(req_id, { user_id: auth.userId, key_id: auth.keyId });
       await impl({ req, res, auth, log, req_id });
     } catch (err) {
-      if (err instanceof ApiError) {
-        res.status(err.status).json({ error: err.publicMessage });
-        return;
-      }
-      if ((err as any)?.status) {
-        res.status((err as any).status).json({ error: (err as any).message });
-        return;
-      }
-      const log = createLogger(req_id);
-      log.error("unhandled error in withApiKey", { err: String(err) });
-      if (!(res as any).headersSent) {
-        res.status(500).json({ error: "Internal Server Error" });
-      }
+      handleRouteError(err, res, req_id, "withApiKey");
     }
   };
 }

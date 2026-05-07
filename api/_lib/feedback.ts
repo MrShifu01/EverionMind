@@ -5,13 +5,10 @@
  * defaults so the hot path in chat.ts is never blocked by a feedback failure.
  */
 
+import { sbHeaders } from "./sbHeaders.js";
+
 const SB_URL = process.env.SUPABASE_URL!;
-const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const SB_HEADERS: Record<string, string> = {
-  "Content-Type": "application/json",
-  apikey: SB_KEY,
-  Authorization: `Bearer ${SB_KEY}`,
-};
+const SB_HEADERS = sbHeaders();
 
 // ── Stop words ────────────────────────────────────────────────────────────────
 // Identical to the stop word sets in chat.ts so ILIKE token extraction is

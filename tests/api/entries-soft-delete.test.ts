@@ -14,7 +14,7 @@ vi.mock("../../api/_lib/rateLimit.js", () => ({
   rateLimit: vi.fn().mockResolvedValue(true),
 }));
 vi.mock("../../api/_lib/checkBrainAccess.js", () => ({
-  checkBrainAccess: vi.fn().mockResolvedValue(true),
+  checkBrainAccess: vi.fn().mockResolvedValue({ role: "owner" }),
 }));
 vi.mock("../../api/_lib/securityHeaders.js", () => ({
   applySecurityHeaders: vi.fn(),
@@ -52,7 +52,7 @@ describe("api/entries — soft delete", () => {
       rateLimit: vi.fn().mockResolvedValue(true),
     }));
     vi.doMock("../../api/_lib/checkBrainAccess.js", () => ({
-      checkBrainAccess: vi.fn().mockResolvedValue(true),
+      checkBrainAccess: vi.fn().mockResolvedValue({ role: "owner" }),
     }));
     vi.doMock("../../api/_lib/securityHeaders.js", () => ({
       applySecurityHeaders: vi.fn(),

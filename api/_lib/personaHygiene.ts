@@ -25,13 +25,10 @@
 // quotas. Failures are non-fatal — the cron returns 200 either way.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { sbHeaders } from "./sbHeaders.js";
+
 const SB_URL = (process.env.SUPABASE_URL || "").trim();
-const SB_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
-const SB_HDR: Record<string, string> = {
-  apikey: SB_KEY,
-  Authorization: `Bearer ${SB_KEY}`,
-  "Content-Type": "application/json",
-};
+const SB_HDR = sbHeaders();
 
 const DAILY_DECAY = 0.012; // ~12% drop in 10 days of zero use
 const DECAY_GRACE_DAYS = 14; // first 14 days no decay

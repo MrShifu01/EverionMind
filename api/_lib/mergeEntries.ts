@@ -276,9 +276,11 @@ export async function generateMergePreview(
     })
     .join("\n\n");
   const prompt = SERVER_PROMPTS.MERGE_ENTRIES.replace("{{SOURCES}}", sourcesBlock);
+  const tier = await fetchUserTier(userId);
   const aiRaw = await callAI(cfg, prompt, "Merge the entries above.", {
     maxTokens: 4000,
     json: true,
+    quota: { userId, tier },
   });
   if (!aiRaw) {
     throw new ApiError(502, "LLM merge call returned empty — try again");

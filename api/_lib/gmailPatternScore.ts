@@ -15,14 +15,10 @@
  *   otherwise                             → normal classifier
  */
 import { generateEmbedding } from "./generateEmbedding.js";
+import { sbHeaders } from "./sbHeaders.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
-const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const SB_HEADERS = {
-  apikey: SB_KEY,
-  Authorization: `Bearer ${SB_KEY}`,
-  "Content-Type": "application/json",
-};
+const SB_HEADERS = sbHeaders();
 
 const MATCH_THRESHOLD = 0.82;
 const PROBATION_DAYS = 7;

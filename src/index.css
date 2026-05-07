@@ -1,6 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
+@import "./design/shadcn-tailwind.css";
 @import "@fontsource-variable/geist";
 /* Launch fonts (Fraunces, Inter Tight, JetBrains Mono) are loaded from index.html so discovery happens during HTML parse rather than after CSSOM. */
 

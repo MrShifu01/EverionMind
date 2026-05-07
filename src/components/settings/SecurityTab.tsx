@@ -117,8 +117,8 @@ export default function SecurityTab() {
         label="Vault PIN"
         hint={
           hasPin
-            ? "A 4-digit PIN protects your vault secrets."
-            : "No PIN set. Add one to protect your vault."
+            ? "A 4-digit PIN is a quick app lock for this device. Your vault encryption still depends on your passphrase."
+            : "No PIN set. Add one for quick app unlock on this device."
         }
       >
         {!hasPin && mode === "idle" && (

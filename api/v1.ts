@@ -26,17 +26,13 @@ import {
 } from "./_lib/idempotency.js";
 import { checkAndIncrement } from "./_lib/usage.js";
 import { getReqId, createLogger } from "./_lib/logger.js";
+import { optionalBodyObject } from "./_lib/requestBody.js";
+import { sbHeaders } from "./_lib/sbHeaders.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
-const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
 
-const hdrs = (extra: Record<string, string> = {}): Record<string, string> => ({
-  "Content-Type": "application/json",
-  apikey: SB_KEY,
-  Authorization: `Bearer ${SB_KEY}`,
-  ...extra,
-});
+const hdrs = sbHeaders;
 
 type Auth = { userId: string; brainId: string };
 
@@ -257,7 +253,16 @@ async function handleUpdate({ brainId, userId }: Auth, body: any) {
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (title !== undefined) patch.title = String(title).trim().slice(0, 200);
   if (content !== undefined) patch.content = String(content).slice(0, 200_000);
-  if (type !== undefined) patch.type = String(type).trim().slice(0, 50).toLowerCase();
+  if (type !== undefined) {
+    const newType = String(type).trim().slice(0, 50).toLowerCase();
+    if (newType === "secret") {
+      throw {
+        status: 400,
+        message: "Cannot retype an entry to 'secret' via API — use the in-app Vault flow",
+      };
+    }
+    patch.type = newType;
+  }
   if (tags !== undefined)
     patch.tags = Array.isArray(tags)
       ? tags.slice(0, 20).map((t: any) => String(t).slice(0, 50))
@@ -275,11 +280,14 @@ async function handleUpdate({ brainId, userId }: Auth, body: any) {
     if (embedding) patch.embedding = `[${embedding.join(",")}]`;
   }
 
-  const r = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`, {
-    method: "PATCH",
-    headers: hdrs({ Prefer: "return=representation" }),
-    body: JSON.stringify(patch),
-  });
+  const r = await fetch(
+    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&brain_id=eq.${encodeURIComponent(brainId)}`,
+    {
+      method: "PATCH",
+      headers: hdrs({ Prefer: "return=representation" }),
+      body: JSON.stringify(patch),
+    },
+  );
   if (!r.ok) throw new Error(`Update failed: ${await r.text().catch(() => String(r.status))}`);
   const updated: any[] = await r.json();
   // AWAIT — see create above.
@@ -309,11 +317,14 @@ async function handleDelete({ brainId }: Auth, body: any) {
   const rows: any[] = await entryRes.json();
   if (!rows.length) throw { status: 404, message: "Entry not found" };
 
-  const r = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}`, {
-    method: "PATCH",
-    headers: hdrs({ Prefer: "return=minimal" }),
-    body: JSON.stringify({ deleted_at: new Date().toISOString() }),
-  });
+  const r = await fetch(
+    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&brain_id=eq.${encodeURIComponent(brainId)}`,
+    {
+      method: "PATCH",
+      headers: hdrs({ Prefer: "return=minimal" }),
+      body: JSON.stringify({ deleted_at: new Date().toISOString() }),
+    },
+  );
   if (!r.ok) throw new Error(`Delete failed: ${await r.text().catch(() => String(r.status))}`);
   return { id, deleted: true };
 }
@@ -370,7 +381,7 @@ export default withApiKey({ methods: ["POST"], rateLimit: 30 }, async ({ req, re
 
   let result: any;
   try {
-    result = await fn({ userId: auth.userId, brainId: auth.brainId }, req.body ?? {});
+    result = await fn({ userId: auth.userId, brainId: auth.brainId }, optionalBodyObject(req.body));
   } catch (err) {
     if (reservationOwned && iKey) releaseIdempotency(auth.userId, iKey).catch(() => {});
     throw err;

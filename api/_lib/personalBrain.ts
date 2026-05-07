@@ -15,13 +15,10 @@
  * import surface (circular-import risk).
  */
 
+import { sbHeaders } from "./sbHeaders.js";
+
 const SB_URL = process.env.SUPABASE_URL!;
-const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const SB_HDR = {
-  apikey: SB_KEY,
-  Authorization: `Bearer ${SB_KEY}`,
-  "Content-Type": "application/json",
-};
+const SB_HDR = sbHeaders();
 
 let _cache: Map<string, { id: string; expires: number }> = new Map();
 const CACHE_TTL_MS = 60_000;

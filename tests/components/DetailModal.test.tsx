@@ -67,8 +67,7 @@ describe("DetailModal — bottom nav clearance", () => {
     // way the visible panel must clear ≥96px from the bottom.
     const content = document.body.querySelector("[role='dialog']") as HTMLElement;
     expect(content).not.toBeNull();
-    const cls = content.className;
-    const match = cls.match(/bottom-\[calc\((\d+)px/);
+    const match = content.style.bottom.match(/calc\((\d+)px/);
     expect(match).not.toBeNull();
     const pixels = parseInt(match![1], 10);
     expect(pixels).toBeGreaterThanOrEqual(96);

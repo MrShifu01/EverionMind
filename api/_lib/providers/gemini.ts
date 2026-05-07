@@ -8,11 +8,13 @@ import type {
   ToolSpec,
 } from "./types.js";
 
-const BASE = "https://generativelanguage.googleapis.com/v1beta/models";
-
-function url(model: string, endpoint: string, key: string): string {
-  return `${BASE}/${model}:${endpoint}?key=${encodeURIComponent(key)}`;
-}
+import { googleAiFetch, googleAiModelUrl } from "../googleAi.js";
+import {
+  buildGeminiGenerateContentBody,
+  geminiCandidateParts,
+  geminiGenerationConfig,
+  pickGeminiAnswerText,
+} from "./geminiHelpers.js";
 
 function toMessages(
   messages: Array<{ role: "user" | "assistant"; content: string }>,
@@ -23,32 +25,18 @@ function toMessages(
   }));
 }
 
-function pickAnswerText(parts: any[]): string {
-  const nonThought = parts.filter((p: any) => !p.thought);
-  const text = nonThought
-    .map((p: any) => p.text || "")
-    .join("")
-    .trim();
-  return (
-    text ||
-    parts
-      .map((p: any) => p.text || "")
-      .join("")
-      .trim()
-  );
-}
-
 export const gemini: ProviderAdapter = {
   async completion(opts: CompletionOptions, config: ProviderConfig): Promise<CompletionResult> {
-    const generationConfig: Record<string, unknown> = { maxOutputTokens: opts.max_tokens || 1000 };
+    let generationConfig: Record<string, unknown> = { maxOutputTokens: opts.max_tokens || 1000 };
     if (opts.json) generationConfig.responseMimeType = "application/json";
-    const body: Record<string, any> = {
+    generationConfig = geminiGenerationConfig(config.model, generationConfig);
+    const body = buildGeminiGenerateContentBody({
       contents: toMessages(opts.messages),
       generationConfig,
-    };
-    if (opts.system) body.systemInstruction = { parts: [{ text: opts.system.slice(0, 10000) }] };
+      system: opts.system ? opts.system.slice(0, 10000) : undefined,
+    });
 
-    const r = await fetch(url(config.model, "generateContent", config.key), {
+    const r = await googleAiFetch(config.key, googleAiModelUrl(config.model, "generateContent"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -56,18 +44,20 @@ export const gemini: ProviderAdapter = {
     const data: any = await r.json();
     if (!r.ok) return { ok: false, status: r.status, error: data };
 
-    const parts: any[] = data.candidates?.[0]?.content?.parts || [];
-    return { ok: true, status: 200, text: pickAnswerText(parts) };
+    const parts = geminiCandidateParts(data);
+    return { ok: true, status: 200, text: pickGeminiAnswerText(parts) };
   },
 
   async chatStep(round: ChatRound, config: ProviderConfig): Promise<ChatStep> {
-    const body = {
+    const body = buildGeminiGenerateContentBody({
       contents: round.messages,
       tools: [{ functionDeclarations: round.tools as unknown as ToolSpec[] }],
-      systemInstruction: { parts: [{ text: round.system }] },
-      generationConfig: { maxOutputTokens: round.max_tokens || 2000 },
-    };
-    const r = await fetch(url(config.model, "generateContent", config.key), {
+      system: round.system,
+      generationConfig: geminiGenerationConfig(config.model, {
+        maxOutputTokens: round.max_tokens || 2000,
+      }),
+    });
+    const r = await googleAiFetch(config.key, googleAiModelUrl(config.model, "generateContent"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -75,11 +65,14 @@ export const gemini: ProviderAdapter = {
     const data: any = await r.json();
     if (!r.ok) return { ok: false, status: r.status, error: data };
 
-    const parts: any[] = data.candidates?.[0]?.content?.parts || [];
-    const funcCall = parts.find((p: any) => p.functionCall);
+    const parts = geminiCandidateParts(data);
+    const funcCall = parts.find(
+      (p): p is { functionCall: { name: string; args: Record<string, any> } } =>
+        typeof p.functionCall === "object" && p.functionCall !== null,
+    );
 
     if (!funcCall) {
-      return { ok: true, status: 200, text: pickAnswerText(parts) };
+      return { ok: true, status: 200, text: pickGeminiAnswerText(parts) };
     }
 
     const leading = parts
@@ -112,7 +105,7 @@ export async function extractFile(
   { model, key, prompt }: { model: string; key: string; prompt: string },
 ): Promise<CompletionResult> {
   const parts: any[] = [{ inlineData: { mimeType, data: fileData } }, { text: prompt }];
-  const r = await fetch(url(model, "generateContent", key), {
+  const r = await googleAiFetch(key, googleAiModelUrl(model, "generateContent"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     // 32k output tokens ≈ ~120K characters ≈ ~80–100 dense PDF pages. Gemini
@@ -128,5 +121,5 @@ export async function extractFile(
   if (!r.ok) return { ok: false, status: r.status, error: data };
 
   const xParts: any[] = data.candidates?.[0]?.content?.parts || [];
-  return { ok: true, status: 200, text: pickAnswerText(xParts) };
+  return { ok: true, status: 200, text: pickGeminiAnswerText(xParts) };
 }

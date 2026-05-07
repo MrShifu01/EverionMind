@@ -2,7 +2,7 @@ export interface ApiRequest {
   method?: string;
   url?: string;
   headers: Record<string, string | string[] | undefined>;
-  body: any;
+  body: unknown;
   query: Record<string, string | string[]>;
   socket?: { remoteAddress?: string };
   user?: string; // added by withAuth middleware

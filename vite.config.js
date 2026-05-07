@@ -34,6 +34,10 @@ export default defineConfig({
     },
   },
   build: {
+    // Heavy import/parsing tools are lazy-route chunks. Keep the warning
+    // threshold aligned with that intentional architecture so build output
+    // still flags truly accidental >1 MB chunks.
+    chunkSizeWarningLimit: 1000,
     modulePreload: {
       resolveDependencies(_filename, deps) {
         return deps.filter((dep) => !dep.includes("sentry-"));
@@ -109,8 +113,8 @@ export default defineConfig({
         name: "Everion",
         short_name: "Everion",
         description: "Chris's personal memory & knowledge OS",
-        theme_color: "#0f0f23",
-        background_color: "#0f0f23",
+        theme_color: "#211a14",
+        background_color: "#211a14",
         display: "standalone",
         orientation: "any",
         scope: "/",

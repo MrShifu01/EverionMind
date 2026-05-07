@@ -5,6 +5,18 @@ import type { Entry } from "../../types";
 
 // Minimal virtual scroller mock — renders all items without windowing
 vi.mock("@tanstack/react-virtual", () => ({
+  useVirtualizer: ({ count }: { count: number }) => ({
+    getVirtualItems: () =>
+      Array.from({ length: count }, (_, i) => ({
+        index: i,
+        start: i * 200,
+        key: i,
+        measureElement: () => {},
+      })),
+    getTotalSize: () => count * 200,
+    options: { scrollMargin: 0 },
+    measureElement: vi.fn(),
+  }),
   useWindowVirtualizer: ({ count }: { count: number }) => ({
     getVirtualItems: () =>
       Array.from({ length: count }, (_, i) => ({

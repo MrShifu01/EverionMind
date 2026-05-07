@@ -12,6 +12,7 @@
 import { withAuth, requireBrainAccess, ApiError, type HandlerContext } from "./_lib/withAuth.js";
 import { sbHeaders, sbHeadersNoContent } from "./_lib/sbHeaders.js";
 import { enrichBrain } from "./_lib/enrich.js";
+import { optionalBodyObject } from "./_lib/requestBody.js";
 
 // 25 MB upload covers ~500 Keep notes per batch even when several have long
 // list content + labels + timestamps. Vercel's default 4.5 MB silently
@@ -21,6 +22,7 @@ export const config = { api: { bodyParser: { sizeLimit: "25mb" } } };
 const SB_URL = process.env.SUPABASE_URL;
 const EXPORT_FIELDS = "id,title,content,type,tags,metadata,importance,pinned,created_at";
 const IMPORT_LIMIT = 2000;
+const MAX_METADATA_BYTES = 16 * 1024;
 
 export default withAuth(
   {
@@ -52,7 +54,7 @@ async function handleExport({ req, res, user }: HandlerContext): Promise<void> {
 
 // ── POST /api/import ──
 async function handleImport({ req, res, user }: HandlerContext): Promise<void> {
-  const { brain_id, entries } = req.body || {};
+  const { brain_id, entries } = optionalBodyObject(req.body);
 
   if (!Array.isArray(entries) || entries.length === 0) {
     throw new ApiError(400, "entries array required");
@@ -82,7 +84,7 @@ async function handleImport({ req, res, user }: HandlerContext): Promise<void> {
         tags: Array.isArray(e.tags)
           ? e.tags.filter((t: any) => typeof t === "string").slice(0, 20)
           : [],
-        metadata: e.metadata && typeof e.metadata === "object" ? e.metadata : {},
+        metadata: normalizeImportMetadata(e.metadata),
         importance: typeof e.importance === "number" ? Math.min(5, Math.max(0, e.importance)) : 0,
         pinned: Boolean(e.pinned),
         ...(created ? { created_at: created } : {}),
@@ -138,6 +140,26 @@ async function handleImport({ req, res, user }: HandlerContext): Promise<void> {
   // also polls /api/entries?action=enrich-batch in waves to drain the
   // remainder. This call just gets the first batch flowing immediately.
   enrichBrain(user.id, brain_id, 30).catch(() => {});
+}
+
+function normalizeImportMetadata(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  const metadata = value as Record<string, unknown>;
+  try {
+    if (Buffer.byteLength(JSON.stringify(metadata), "utf8") <= MAX_METADATA_BYTES) return metadata;
+  } catch {
+    return {};
+  }
+
+  const trimmed: Record<string, unknown> = { import_metadata_truncated: true };
+  if (typeof metadata.import_hash === "string") {
+    trimmed.import_hash = metadata.import_hash.slice(0, 128);
+  }
+  if (typeof metadata.source === "string") {
+    trimmed.source = metadata.source.slice(0, 100);
+  }
+  return trimmed;
 }
 
 /**

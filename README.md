@@ -8,7 +8,7 @@ Personal memory assistant. Capture notes, suppliers, reminders, and ideas. Ask y
 - **Backend**: Vercel Functions (TypeScript)
 - **Database**: Supabase (Postgres + pgvector for semantic search)
 - **Auth**: Supabase Auth
-- **AI**: Anthropic Claude / OpenAI / OpenRouter / Groq (BYO key)
+- **AI**: Gemini for hosted embeddings, enrichment, chat, and classification; BYO keys remain optional where supported
 
 ## Local development
 
@@ -27,7 +27,9 @@ See `.env.example` for all required variables. Key ones:
 | `VITE_SUPABASE_URL`                      | Supabase project URL                                    |
 | `VITE_SUPABASE_ANON_KEY`                 | Supabase anon key (client-side)                         |
 | `SUPABASE_SERVICE_ROLE_KEY`              | Service role key (server-side only)                     |
-| `ANTHROPIC_API_KEY`                      | Default Anthropic key (users can override with BYO)     |
+| `GEMINI_API_KEY`                         | Hosted Gemini key for embeddings, enrichment, chat, and classification |
+| `OAUTH_TOKEN_ENCRYPTION_KEY`             | Server-side encryption key for stored OAuth tokens       |
+| `ANTHROPIC_API_KEY`                      | Optional Anthropic key for BYO/legacy provider paths     |
 | `UPSTASH_REDIS_REST_URL`                 | Distributed rate limiting (in-memory fallback if unset) |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Web push notifications                                  |
 

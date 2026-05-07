@@ -3,16 +3,14 @@
  * embed → vector search → keyword expand → tag siblings → metadata hydrate → graph boost
  */
 import { generateEmbedding } from "./generateEmbedding.js";
+import { googleAiFetch, googleAiModelUrl } from "./googleAi.js";
+import { GEMINI_BULK_MODEL } from "./geminiModels.js";
 import { SERVER_PROMPTS } from "./prompts.js";
+import { sbHeaders } from "./sbHeaders.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
-const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const SB_HEADERS: Record<string, string> = {
-  "Content-Type": "application/json",
-  apikey: SB_KEY,
-  Authorization: `Bearer ${SB_KEY}`,
-};
-const GEMINI_MODEL = (process.env.GEMINI_MODEL || "gemini-2.5-flash-lite").trim();
+const SB_HEADERS = sbHeaders();
+const GEMINI_MODEL = GEMINI_BULK_MODEL;
 const REBUILD_DEBOUNCE_MS = 10 * 60 * 1000; // 10 minutes
 
 interface RetrievedEntry {
@@ -562,8 +560,9 @@ export async function rebuildConceptGraph(brainId: string, geminiApiKey: string)
 
     const prompt = SERVER_PROMPTS.CONCEPT_GRAPH.replace("{{ENTRIES}}", entryLines);
 
-    const gemRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(geminiApiKey)}`,
+    const gemRes = await googleAiFetch(
+      geminiApiKey,
+      googleAiModelUrl(GEMINI_MODEL, "generateContent"),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

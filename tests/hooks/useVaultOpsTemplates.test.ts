@@ -53,7 +53,7 @@ beforeEach(() => {
         { status: 200 },
       );
     }
-    if (url === "/api/vault-entries" && !url.includes("?")) {
+    if (url.startsWith("/api/vault-entries")) {
       return new Response("[]", { status: 200 });
     }
     return new Response("{}", { status: 200 });
@@ -110,6 +110,7 @@ describe("handleAddSecretWithTemplate", () => {
         useVaultOps({
           entries: [],
           cryptoKey: fakeKey,
+          brainId: "brain-1",
           onVaultUnlock: () => {},
         }),
       );
@@ -164,7 +165,7 @@ describe("handleAddSecretWithTemplate", () => {
 
   it("blocks save when vault is locked (cryptoKey null)", async () => {
     const { result } = renderHook(() =>
-      useVaultOps({ entries: [], cryptoKey: null, onVaultUnlock: () => {} }),
+      useVaultOps({ entries: [], cryptoKey: null, brainId: "brain-1", onVaultUnlock: () => {} }),
     );
     await act(async () => {
       await Promise.resolve();
@@ -184,7 +185,7 @@ describe("handleAddSecretWithTemplate", () => {
 
   it("blocks save when title or content is empty", async () => {
     const { result } = renderHook(() =>
-      useVaultOps({ entries: [], cryptoKey: fakeKey, onVaultUnlock: () => {} }),
+      useVaultOps({ entries: [], cryptoKey: fakeKey, brainId: "brain-1", onVaultUnlock: () => {} }),
     );
     await act(async () => {
       await Promise.resolve();

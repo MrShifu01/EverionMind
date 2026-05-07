@@ -30,29 +30,43 @@ import {
   releaseIdempotency,
   reserveActionIdempotency,
 } from "./_lib/idempotency.js";
+import { googleAiFetch, googleAiModelUrl, googleAiModelsUrl } from "./_lib/googleAi.js";
+import { bodyObject } from "./_lib/requestBody.js";
+import { GEMINI_BULK_MODEL, GEMINI_FALLBACK_MODEL } from "./_lib/geminiModels.js";
 
 export const config = { api: { bodyParser: false } };
+
+const MAX_RAW_BODY_BYTES = 2 * 1024 * 1024;
+
+class BodyTooLargeError extends Error {
+  constructor() {
+    super("Request body too large");
+    this.name = "BodyTooLargeError";
+  }
+}
 
 function bufferBody(req: ApiRequest): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
+    let total = 0;
     const stream = req as unknown as IncomingMessage;
-    stream.on("data", (chunk: Buffer | string) =>
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)),
-    );
+    stream.on("data", (chunk: Buffer | string) => {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      total += buf.byteLength;
+      if (total > MAX_RAW_BODY_BYTES) {
+        reject(new BodyTooLargeError());
+        stream.destroy();
+        return;
+      }
+      chunks.push(buf);
+    });
     stream.on("end", () => resolve(Buffer.concat(chunks)));
     stream.on("error", reject);
   });
 }
 
 const SB_URL = process.env.SUPABASE_URL;
-const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const hdrs = (extra: Record<string, string> = {}): Record<string, string> => ({
-  "Content-Type": "application/json",
-  apikey: SB_KEY!,
-  Authorization: `Bearer ${SB_KEY}`,
-  ...extra,
-});
+const hdrs = sbHeaders;
 
 const MAX_CHARS = 8000;
 
@@ -72,7 +86,15 @@ const MAX_CHARS = 8000;
 //   /api/revenuecat-webhook → /api/user-data?resource=revenuecat-webhook
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
   applySecurityHeaders(res);
-  const rawBody = await bufferBody(req);
+  let rawBody: Buffer;
+  try {
+    rawBody = await bufferBody(req);
+  } catch (err) {
+    if (err instanceof BodyTooLargeError) {
+      return void res.status(413).json({ error: "Request body too large" });
+    }
+    throw err;
+  }
   const resource = req.query.resource as string | undefined;
 
   // LemonSqueezy webhook uses raw body for HMAC signature verification.
@@ -333,7 +355,7 @@ const handleBrains = withAuth(
       try {
         const lookupR = await fetch(
           `${SB_URL}/auth/v1/admin/users?email=${encodeURIComponent(email)}`,
-          { headers: { apikey: SB_KEY!, Authorization: `Bearer ${SB_KEY}` } },
+          { headers: hdrs() },
         );
         if (lookupR.ok) {
           const lookupData = (await lookupR.json()) as { users?: Array<{ id: string }> };
@@ -539,7 +561,7 @@ const handleBrains = withAuth(
         Array.from(ids).map(async (id) => {
           try {
             const r = await fetch(`${SB_URL}/auth/v1/admin/users/${encodeURIComponent(id)}`, {
-              headers: { apikey: SB_KEY!, Authorization: `Bearer ${SB_KEY}` },
+              headers: hdrs(),
             });
             if (r.ok) {
               const d = (await r.json()) as { email?: string };
@@ -1085,7 +1107,7 @@ const handleMemory = withAuth(
       return void res.status(200).json(data[0] || { content: "", updated_at: null });
     }
 
-    const { content } = req.body;
+    const { content } = bodyObject(req.body);
     if (typeof content !== "string")
       return void res.status(400).json({ error: "content must be a string" });
     const trimmed = content.slice(0, MAX_CHARS);
@@ -1131,8 +1153,8 @@ const handleActivity = withAuth(
     }
 
     // POST /api/activity — log an activity event
-    const { brain_id, action, entry_id, details } = req.body;
-    if (!brain_id || !action)
+    const { brain_id, action, entry_id, details } = bodyObject(req.body);
+    if (typeof brain_id !== "string" || typeof action !== "string")
       return void res.status(400).json({ error: "brain_id and action required" });
 
     const validActions = ["created", "updated", "deleted", "connected"];
@@ -1154,7 +1176,7 @@ const handleActivity = withAuth(
         brain_id,
         user_id: user.id,
         action,
-        entry_id: entry_id || null,
+      entry_id: typeof entry_id === "string" ? entry_id : null,
         details: details && typeof details === "object" ? details : null,
       }),
     });
@@ -1165,7 +1187,8 @@ const handleActivity = withAuth(
 // ── /api/status (rewritten to /api/user-data?resource=status) — public ──
 //
 // Public, unauthenticated status check for the user-facing /status page.
-// Returns minimal info: API up + DB reachable + AI provider key configured.
+// Returns only coarse availability; component-level details stay behind
+// /api/health so attackers cannot inventory provider readiness anonymously.
 // Does NOT do a real Gemini inference call (would burn quota and could be
 // abused). For deep diagnostics use /api/health (auth-gated).
 //
@@ -1176,7 +1199,7 @@ async function handlePublicStatus(_req: ApiRequest, res: ApiResponse): Promise<v
   let db = false;
   try {
     const r = await fetch(`${SB_URL}/rest/v1/entries?select=id&limit=1`, {
-      headers: { apikey: SB_KEY!, Authorization: `Bearer ${SB_KEY}` },
+      headers: hdrs(),
     });
     db = r.ok;
   } catch {
@@ -1185,7 +1208,7 @@ async function handlePublicStatus(_req: ApiRequest, res: ApiResponse): Promise<v
   const ai = !!(process.env.GEMINI_API_KEY || "").trim();
   const ok = db && ai;
   res.setHeader("Cache-Control", "public, s-maxage=15, stale-while-revalidate=60");
-  res.status(200).json({ ok, db, ai, ts: new Date().toISOString() });
+  res.status(200).json({ ok, ts: new Date().toISOString() });
 }
 
 // ── /api/health (rewritten to /api/user-data?resource=health) ──
@@ -1199,7 +1222,7 @@ const handleHealth = withAuth(
     let db = false;
     try {
       const r = await fetch(`${SB_URL}/rest/v1/entries?select=id&limit=1`, {
-        headers: { apikey: SB_KEY!, Authorization: `Bearer ${SB_KEY}` },
+        headers: hdrs(),
       });
       db = r.ok;
     } catch {
@@ -1213,8 +1236,10 @@ const handleHealth = withAuth(
     if (GEMINI_API_KEY) {
       try {
         // Step 1: find available gemma/gemini models
-        const listR = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(GEMINI_API_KEY)}&pageSize=200`,
+        const listR = await googleAiFetch(
+          GEMINI_API_KEY,
+          googleAiModelsUrl({ pageSize: 200 }),
+          {},
         );
         if (listR.ok) {
           const listData: any = await listR.json();
@@ -1223,16 +1248,17 @@ const handleHealth = withAuth(
           );
           const gemma4 = names.find((n) => n.includes("gemma-4") && n.includes("it"));
           const gemma3 = names.find((n) => n.includes("gemma-3") && n.includes("27b"));
-          const flash = names.find(
-            (n) => n.includes("gemini-2.0-flash-lite") || n.includes("gemini-2.0-flash"),
-          );
-          const candidate = gemma4 || gemma3 || flash || names[0];
+          const configured = names.find((n) => n === GEMINI_BULK_MODEL);
+          const fallback = names.find((n) => n === GEMINI_FALLBACK_MODEL);
+          const flash = names.find((n) => n.includes("gemini-2.5-flash"));
+          const candidate = configured || fallback || gemma4 || gemma3 || flash || names[0];
           geminiModel = candidate || "";
 
           // Step 2: real inference test with the found model
           if (candidate) {
-            const testR = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/${candidate}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
+            const testR = await googleAiFetch(
+              GEMINI_API_KEY,
+              googleAiModelUrl(candidate, "generateContent"),
               {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -1455,7 +1481,7 @@ const handleVault = withAuth(
     // the client generates a keypair, wraps the private with the master
     // KEK, and PATCHes the row in place.
     if (req.method === "PATCH") {
-      const { public_key, wrapped_private_key } = req.body || {};
+      const { public_key, wrapped_private_key } = bodyObject(req.body);
       if (typeof public_key !== "string" || typeof wrapped_private_key !== "string") {
         return void res.status(400).json({ error: "public_key and wrapped_private_key required" });
       }
@@ -1475,7 +1501,7 @@ const handleVault = withAuth(
     }
 
     // POST — vault setup
-    const { salt, verify_token, recovery_blob, public_key, wrapped_private_key } = req.body || {};
+    const { salt, verify_token, recovery_blob, public_key, wrapped_private_key } = bodyObject(req.body);
     if (!salt || typeof salt !== "string" || salt.length !== 32) {
       return void res.status(400).json({ error: "Invalid salt (must be 32-char hex)" });
     }
@@ -1579,6 +1605,8 @@ const handleVaultEntries = withAuth(
       if (typeof brainId !== "string" || !brainId.trim()) {
         return void res.status(400).json({ error: "brain_id query param required" });
       }
+      const access = await checkBrainAccess(user.id, brainId);
+      if (!access) return void res.status(403).json({ error: "Forbidden" });
       const r = await fetch(
         `${SB_URL}/rest/v1/vault_entries?user_id=eq.${encodeURIComponent(user.id)}&brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&select=id,title,content,metadata,tags,brain_id,created_at,updated_at&order=created_at.desc`,
         { headers: hdrs() },
@@ -1606,6 +1634,8 @@ const handleVaultEntries = withAuth(
       if (typeof brain_id !== "string" || !brain_id.trim()) {
         return void res.status(400).json({ error: "brain_id required" });
       }
+      const access = await checkBrainAccess(user.id, brain_id);
+      if (!access) return void res.status(403).json({ error: "Forbidden" });
       const tagArr = Array.isArray(tags) ? tags.filter((t) => typeof t === "string") : [];
       const payload: Record<string, unknown> = {
         user_id: user.id,
@@ -1663,10 +1693,15 @@ const handleBrainVaultGrants = withAuth(
       // Default: caller's own grants. Optional ?brain_id=X scopes to one
       // brain (used by the owner's grant-management UI).
       const brainId = req.query.brain_id as string | undefined;
-      const userScope =
-        typeof brainId === "string" && brainId
-          ? `brain_id=eq.${encodeURIComponent(brainId)}`
-          : `user_id=eq.${encodeURIComponent(user.id)}`;
+      let userScope = `user_id=eq.${encodeURIComponent(user.id)}`;
+      if (typeof brainId === "string" && brainId) {
+        const access = await checkBrainAccess(user.id, brainId);
+        if (!access) return void res.status(403).json({ error: "Forbidden" });
+        userScope =
+          access.role === "owner"
+            ? `brain_id=eq.${encodeURIComponent(brainId)}`
+            : `brain_id=eq.${encodeURIComponent(brainId)}&user_id=eq.${encodeURIComponent(user.id)}`;
+      }
       const r = await fetch(
         `${SB_URL}/rest/v1/brain_vault_grants?${userScope}&select=brain_id,user_id,wrapped_dek,granted_at`,
         { headers: hdrs() },
@@ -1676,7 +1711,7 @@ const handleBrainVaultGrants = withAuth(
     }
 
     if (req.method === "POST") {
-      const { brain_id, user_id, wrapped_dek } = req.body || {};
+      const { brain_id, user_id, wrapped_dek } = bodyObject(req.body);
       if (typeof brain_id !== "string" || !brain_id) {
         return void res.status(400).json({ error: "brain_id required" });
       }
@@ -1720,6 +1755,14 @@ const handleBrainVaultGrants = withAuth(
     if (!brainId || !targetUserId) {
       return void res.status(400).json({ error: "brain_id and user_id required" });
     }
+    const ownerCheck = await fetch(
+      `${SB_URL}/rest/v1/brains?id=eq.${encodeURIComponent(brainId)}&owner_id=eq.${encodeURIComponent(user.id)}&select=id`,
+      { headers: hdrs() },
+    );
+    const ownerRows: any[] = ownerCheck.ok ? await ownerCheck.json() : [];
+    if (ownerRows.length === 0) {
+      return void res.status(403).json({ error: "Only the brain owner can revoke vault access" });
+    }
     const r = await fetch(
       `${SB_URL}/rest/v1/brain_vault_grants?brain_id=eq.${encodeURIComponent(brainId)}&user_id=eq.${encodeURIComponent(targetUserId)}`,
       { method: "DELETE", headers: hdrs({ Prefer: "return=minimal" }) },
@@ -1736,7 +1779,7 @@ const handlePin = withAuth(
     const action = req.query.action as string;
 
     if (req.method === "POST" && action === "setup") {
-      const { hash, salt } = req.body;
+      const { hash, salt } = bodyObject(req.body);
       if (!hash || typeof hash !== "string" || !/^[0-9a-f]{64}$/i.test(hash))
         return void res.status(400).json({ error: "Invalid hash" });
       if (!salt || typeof salt !== "string" || !/^[0-9a-f]{32}$/i.test(salt))
@@ -1761,7 +1804,7 @@ const handlePin = withAuth(
     }
 
     if (req.method === "POST" && action === "verify") {
-      const { hash } = req.body;
+      const { hash } = bodyObject(req.body);
       if (!hash || typeof hash !== "string")
         return void res.status(400).json({ error: "hash required" });
 
@@ -1918,7 +1961,7 @@ const handleApiKeys = withAuth(
 
     // POST — generate a new key
     if (req.method === "POST") {
-      const { name } = req.body || {};
+      const { name } = bodyObject(req.body);
       if (!name || typeof name !== "string" || !name.trim()) {
         return void res.status(400).json({ error: "name required" });
       }
@@ -1991,7 +2034,7 @@ const handleApiKeys = withAuth(
 const handleNotificationPrefs = withAuth(
   { methods: ["GET", "POST"], rateLimit: 30 },
   async ({ req, res, user }) => {
-    const adminHdrs = { apikey: SB_KEY!, Authorization: `Bearer ${SB_KEY}` };
+    const adminHdrs = hdrs();
 
     if (req.method === "GET") {
       const r = await fetch(`${SB_URL}/auth/v1/admin/users/${user.id}`, { headers: adminHdrs });
@@ -2027,7 +2070,7 @@ const handleNotificationPrefs = withAuth(
 const handlePushSubscribe = withAuth(
   { methods: ["POST", "DELETE"], rateLimit: 20 },
   async ({ req, res, user }) => {
-    const adminHdrs = { apikey: SB_KEY!, Authorization: `Bearer ${SB_KEY}` };
+    const adminHdrs = hdrs();
     const getRes = await fetch(`${SB_URL}/auth/v1/admin/users/${user.id}`, { headers: adminHdrs });
     const current: any = getRes.ok ? await getRes.json() : {};
     const meta = current.user_metadata ?? {};
@@ -2176,8 +2219,7 @@ async function insertCronNotification(
     const r = await fetch(`${SB_URL}/rest/v1/notifications`, {
       method: "POST",
       headers: {
-        apikey: SB_KEY!,
-        Authorization: `Bearer ${SB_KEY}`,
+        ...hdrs(),
         "Content-Type": "application/json",
         Prefer: "return=minimal",
       },
@@ -2196,7 +2238,7 @@ async function insertCronNotification(
 // admin endpoint by pulling distinct user_ids from public.entries, then
 // single-fetching each via /admin/users/{id}.
 async function enumerateUsers(tag: string): Promise<any[]> {
-  const adminHdrs = { apikey: SB_KEY!, Authorization: `Bearer ${SB_KEY}` };
+  const adminHdrs = hdrs();
   const userIds = new Set<string>();
   let from = 0;
   const PAGE = 1000;
@@ -2235,7 +2277,7 @@ async function patchUserPrefs(
   meta: any,
   patch: Record<string, any>,
 ): Promise<void> {
-  const adminHdrs = { apikey: SB_KEY!, Authorization: `Bearer ${SB_KEY}` };
+  const adminHdrs = hdrs();
   const prefs = meta.notification_prefs ?? {};
   await fetch(`${SB_URL}/auth/v1/admin/users/${userId}`, {
     method: "PUT",
@@ -2268,7 +2310,7 @@ async function handleCronHourly(req: ApiRequest, res: ApiResponse): Promise<void
   }
   webpush.setVapidDetails(subject, pub, priv);
 
-  const adminHdrs = { apikey: SB_KEY!, Authorization: `Bearer ${SB_KEY}` };
+  const adminHdrs = hdrs();
   const users = await enumerateUsers("cron/hourly");
   const now = new Date();
   const dailyR = { sent: 0, skipped: 0, errors: 0 };
@@ -2658,7 +2700,7 @@ async function handleCronDaily(req: ApiRequest, res: ApiResponse): Promise<void>
     .toLowerCase();
   if (adminEmail) {
     try {
-      const adminHdrs = { apikey: SB_KEY!, Authorization: `Bearer ${SB_KEY}` };
+      const adminHdrs = hdrs();
       const localPart = adminEmail.split("@")[0] || adminEmail;
       const r = await fetch(
         `${SB_URL}/auth/v1/admin/users?filter=${encodeURIComponent(localPart)}`,

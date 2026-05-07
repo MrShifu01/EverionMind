@@ -19,6 +19,9 @@ vi.mock("../../api/_lib/rateLimit.js", () => ({
 vi.mock("../../api/_lib/securityHeaders.js", () => ({
   applySecurityHeaders: vi.fn(),
 }));
+vi.mock("../../api/_lib/checkBrainAccess.js", () => ({
+  checkBrainAccess: vi.fn().mockResolvedValue({ role: "owner" }),
+}));
 
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
@@ -30,7 +33,7 @@ const vaultRows = [
     content: "v1:iv:cipher",
     metadata: "v1:iv:meta",
     tags: ["auth"],
-    brain_id: null,
+    brain_id: "brain-1",
     created_at: "2026-04-01T00:00:00Z",
     updated_at: "2026-04-01T00:00:00Z",
   },
@@ -55,13 +58,17 @@ describe("GET /api/vault-entries", () => {
     mockFetch.mockResolvedValue({ ok: true, json: async () => vaultRows });
     const { default: handler } = await import("../../api/user-data.js");
     const res = makeApiRes();
-    await handler(makeApiReq({ method: "GET", query: { resource: "vault_entries" } }), res);
+    await handler(
+      makeApiReq({ method: "GET", query: { resource: "vault_entries", brain_id: "brain-1" } }),
+      res,
+    );
 
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(vaultRows);
     const url = mockFetch.mock.calls[0][0] as string;
     expect(url).toContain("/rest/v1/vault_entries");
     expect(url).toContain("user_id=eq.user-1");
+    expect(url).toContain("brain_id=eq.brain-1");
     expect(url).toContain("deleted_at=is.null");
   });
 
@@ -69,7 +76,10 @@ describe("GET /api/vault-entries", () => {
     mockFetch.mockResolvedValue({ ok: true, json: async () => [] });
     const { default: handler } = await import("../../api/user-data.js");
     const res = makeApiRes();
-    await handler(makeApiReq({ method: "GET", query: { resource: "vault_entries" } }), res);
+    await handler(
+      makeApiReq({ method: "GET", query: { resource: "vault_entries", brain_id: "brain-1" } }),
+      res,
+    );
 
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith([]);
@@ -79,7 +89,10 @@ describe("GET /api/vault-entries", () => {
     mockFetch.mockResolvedValue({ ok: false, status: 500, json: async () => ({}) });
     const { default: handler } = await import("../../api/user-data.js");
     const res = makeApiRes();
-    await handler(makeApiReq({ method: "GET", query: { resource: "vault_entries" } }), res);
+    await handler(
+      makeApiReq({ method: "GET", query: { resource: "vault_entries", brain_id: "brain-1" } }),
+      res,
+    );
 
     expect(res.status).toHaveBeenCalledWith(502);
   });
@@ -91,10 +104,11 @@ describe("POST /api/vault-entries", () => {
     content: "v1:iv:cipher",
     metadata: "v1:iv:meta",
     tags: ["aws", "prod"],
+    brain_id: "brain-1",
   };
 
   it("creates a vault entry with user_id from auth, returns row", async () => {
-    const created = { id: "ve-new", ...validBody, brain_id: null };
+    const created = { id: "ve-new", ...validBody };
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => [created],
@@ -118,6 +132,7 @@ describe("POST /api/vault-entries", () => {
     expect(init.method).toBe("POST");
     const sentBody = JSON.parse(init.body as string);
     expect(sentBody.user_id).toBe("user-1");
+    expect(sentBody.brain_id).toBe("brain-1");
     expect(sentBody.title).toBe("AWS Access Key");
     expect(sentBody.content).toBe("v1:iv:cipher");
     expect(sentBody.tags).toEqual(["aws", "prod"]);
@@ -320,7 +335,10 @@ describe("/api/vault-entries auth", () => {
 
     const { default: handler } = await import("../../api/user-data.js");
     const res = makeApiRes();
-    await handler(makeApiReq({ method: "GET", query: { resource: "vault_entries" } }), res);
+    await handler(
+      makeApiReq({ method: "GET", query: { resource: "vault_entries", brain_id: "brain-1" } }),
+      res,
+    );
 
     expect(res.status).toHaveBeenCalledWith(401);
     expect(mockFetch).not.toHaveBeenCalled();

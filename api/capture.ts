@@ -17,6 +17,7 @@ import {
   normalizeIdempotencyKey,
   IdempotencyError,
 } from "./_lib/idempotency.js";
+import { bodyObject, optionalBodyObject } from "./_lib/requestBody.js";
 
 export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
 
@@ -42,8 +43,7 @@ export default withAuth(
 );
 
 async function updateStreak(userId: string): Promise<void> {
-  const svcKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  const authHdr = { apikey: svcKey, Authorization: `Bearer ${svcKey}` };
+  const authHdr = sbHeadersNoContent();
   const userRes = await fetch(`${SB_URL}/auth/v1/admin/users/${userId}`, { headers: authHdr });
   if (!userRes.ok) return;
   const userData = await userRes.json();
@@ -69,8 +69,9 @@ async function updateStreak(userId: string): Promise<void> {
 
 // ── POST /api/capture ──
 async function handleCapture({ req, res, user, req_id }: HandlerContext): Promise<void> {
+  const body = bodyObject(req.body);
   const { p_title, p_content, p_type, p_metadata, p_tags, p_brain_id, p_extra_brain_ids } =
-    req.body;
+    body;
 
   if (!p_title || typeof p_title !== "string" || p_title.trim().length === 0) {
     throw new ApiError(400, "Missing or invalid title");
@@ -80,7 +81,7 @@ async function handleCapture({ req, res, user, req_id }: HandlerContext): Promis
       throw new ApiError(400, "p_extra_brain_ids must be an array");
     if (p_extra_brain_ids.length > 5) throw new ApiError(400, "p_extra_brain_ids max 5 items");
     const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!p_extra_brain_ids.every((id: any) => typeof id === "string" && uuidRe.test(id))) {
+    if (!p_extra_brain_ids.every((id) => typeof id === "string" && uuidRe.test(id))) {
       throw new ApiError(400, "p_extra_brain_ids must contain valid UUIDs");
     }
   }
@@ -312,34 +313,47 @@ async function handleCapture({ req, res, user, req_id }: HandlerContext): Promis
 
 // ── POST /api/save-links (rewritten to /api/capture?action=links) ──
 async function handleSaveLinks({ req, res, user }: HandlerContext): Promise<void> {
-  const { links, brain_id } = req.body;
+  const { links, brain_id } = bodyObject(req.body);
   if (!Array.isArray(links)) throw new ApiError(400, "links must be an array");
 
   if (brain_id && typeof brain_id === "string") {
     await requireBrainAccess(user.id, brain_id);
   }
 
-  const valid = links.filter((l: any) => {
-    if (!l.from || !l.to || !l.rel) return false;
-    if (typeof l.from !== "string" || typeof l.to !== "string" || typeof l.rel !== "string")
+  const valid = links.filter((l: unknown) => {
+    if (!l || typeof l !== "object" || Array.isArray(l)) return false;
+    const link = l as Record<string, unknown>;
+    if (!link.from || !link.to || !link.rel) return false;
+    if (
+      typeof link.from !== "string" ||
+      typeof link.to !== "string" ||
+      typeof link.rel !== "string"
+    )
       return false;
-    if (!REL_PATTERN.test(l.rel)) return false;
+    if (!REL_PATTERN.test(link.rel)) return false;
     return true;
   });
 
   if (valid.length === 0) {
-    const hasInvalidRel = links.some((l: any) => l.rel && !REL_PATTERN.test(l.rel));
+    const hasInvalidRel = links.some((l: unknown) => {
+      if (!l || typeof l !== "object" || Array.isArray(l)) return false;
+      const rel = (l as Record<string, unknown>).rel;
+      return typeof rel === "string" && !REL_PATTERN.test(rel);
+    });
     if (hasInvalidRel) throw new ApiError(400, "rel must be 1-50 alphanumeric characters");
     throw new ApiError(400, "No valid links");
   }
 
-  const rows = valid.map((l: any) => ({
-    from: l.from,
-    to: l.to,
-    rel: l.rel,
+  const rows = valid.map((l) => {
+    const link = l as Record<string, string>;
+    return {
+    from: link.from,
+    to: link.to,
+    rel: link.rel,
     ...(brain_id && typeof brain_id === "string" ? { brain_id } : {}),
     user_id: user.id,
-  }));
+    };
+  });
   const response = await fetch(`${SB_URL}/rest/v1/links`, {
     method: "POST",
     headers: sbHeaders({ Prefer: "resolution=ignore-duplicates,return=minimal" }),
@@ -372,7 +386,7 @@ async function handleEmbed({ req, res, user }: HandlerContext): Promise<void> {
   const apiKey = GEMINI_API_KEY;
   if (!apiKey) throw new ApiError(500, "Embeddings not configured (missing GEMINI_API_KEY)");
 
-  const { entry_id, brain_id, batch, force } = req.body || {};
+  const { entry_id, brain_id, batch, force } = optionalBodyObject(req.body);
 
   if (entry_id && !batch) {
     if (typeof entry_id !== "string" || entry_id.length > 100)

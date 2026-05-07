@@ -24,14 +24,11 @@ import {
   scanGmailForUser,
   deepScanBatch,
 } from "./_lib/gmailScan.js";
+import { optionalBodyObject } from "./_lib/requestBody.js";
+import { sbHeaders } from "./_lib/sbHeaders.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
-const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const SB_HEADERS = {
-  apikey: SB_KEY,
-  Authorization: `Bearer ${SB_KEY}`,
-  "Content-Type": "application/json",
-};
+const SB_HEADERS = sbHeaders();
 
 const GMAIL_SCOPE = [
   "https://www.googleapis.com/auth/gmail.readonly",
@@ -194,7 +191,7 @@ async function handleAuth(req: ApiRequest, res: ApiResponse): Promise<void> {
 
   let preferences: GmailPreferences;
   try {
-    const body = (req.body ?? {}) as { preferences?: GmailPreferences };
+    const body = optionalBodyObject(req.body) as { preferences?: GmailPreferences };
     preferences =
       body.preferences && typeof body.preferences === "object"
         ? body.preferences
@@ -241,7 +238,7 @@ const authedHandler = withAuth(
     }
 
     if (req.method === "PUT" && action === "preferences") {
-      const { preferences } = req.body ?? {};
+      const { preferences } = optionalBodyObject(req.body);
       if (!preferences) return void res.status(400).json({ error: "preferences required" });
       await fetch(`${SB_URL}/rest/v1/gmail_integrations?user_id=eq.${user.id}`, {
         method: "PATCH",
@@ -278,14 +275,14 @@ const authedHandler = withAuth(
     }
 
     if (req.method === "POST" && action === "delete-entries") {
-      const { entryIds } = req.body ?? {};
+      const { entryIds } = optionalBodyObject(req.body);
       if (!Array.isArray(entryIds) || entryIds.length === 0)
         return void res.status(400).json({ error: "entryIds required" });
       // Audit #6: validate UUIDs and cap length so a malicious client cannot
       // explode the URL or sneak operators past encodeURIComponent.
       const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       const cleanIds = entryIds
-        .filter((id: any) => typeof id === "string" && uuidRe.test(id))
+        .filter((id): id is string => typeof id === "string" && uuidRe.test(id))
         .slice(0, 200);
       if (!cleanIds.length) return void res.status(400).json({ error: "entryIds must be UUIDs" });
       const ids = cleanIds.map((id: string) => encodeURIComponent(id)).join(",");
@@ -308,7 +305,7 @@ const authedHandler = withAuth(
       });
       const rows: any[] = r.ok ? await r.json() : [];
       if (!rows[0]) return void res.status(404).json({ error: "No Gmail integration found" });
-      const { cursor, sinceMs } = req.body ?? {};
+      const { cursor, sinceMs } = optionalBodyObject(req.body);
       // Deep-scan output also locks to the personal brain — see
       // gmailScan.getUserBrainId. brain_id from body is ignored.
       const result = await deepScanBatch(rows[0], {
@@ -347,7 +344,7 @@ const authedHandler = withAuth(
     }
 
     if (req.method === "PATCH" && action === "patterns-update") {
-      const body = req.body ?? {};
+      const body = optionalBodyObject(req.body);
       const id: unknown = body.id;
       const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (typeof id !== "string" || !uuidRe.test(id))
@@ -381,8 +378,13 @@ const authedHandler = withAuth(
     }
 
     if (req.method === "POST" && action === "ignore") {
-      const { subject, from, email_type, content_preview } = req.body ?? {};
-      const rule = await generateIgnoreRule({ subject, from, email_type, content_preview });
+      const { subject, from, email_type, content_preview } = optionalBodyObject(req.body);
+      const rule = await generateIgnoreRule({
+        subject: typeof subject === "string" ? subject : undefined,
+        from: typeof from === "string" ? from : undefined,
+        email_type: typeof email_type === "string" ? email_type : undefined,
+        content_preview: typeof content_preview === "string" ? content_preview : undefined,
+      });
       const intRes = await fetch(
         `${SB_URL}/rest/v1/gmail_integrations?user_id=eq.${user.id}&select=preferences`,
         { headers: SB_HEADERS },

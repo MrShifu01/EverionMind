@@ -62,14 +62,14 @@ describe("api/llm — transcribe action", () => {
   it("returns 400 when audio field is missing", async () => {
     const req = makeReq({
       query: { action: "transcribe" },
-      headers: {},
-      body: { mimeType: "audio/webm" },
+      headers: { "content-type": "audio/webm" },
+      body: {},
     });
     const res = makeRes();
     await handler(req, res);
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ error: expect.stringContaining("audio") }),
+      expect.objectContaining({ error: expect.stringContaining("Audio body") }),
     );
   });
 
@@ -77,13 +77,13 @@ describe("api/llm — transcribe action", () => {
     const req = makeReq({
       query: { action: "transcribe" },
       headers: {},
-      body: { audio: "dmFsaWQ=" },
+      body: Buffer.from("valid"),
     });
     const res = makeRes();
     await handler(req, res);
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ error: expect.stringContaining("mimeType") }),
+      expect.objectContaining({ error: expect.stringContaining("mime") }),
     );
   });
 
@@ -91,8 +91,8 @@ describe("api/llm — transcribe action", () => {
     const { rateLimit } = await import("../../api/_lib/rateLimit.js");
     const req = makeReq({
       query: { action: "transcribe" },
-      headers: { "x-groq-api-key": "test-key" },
-      body: { audio: "dmFsaWQ=", mimeType: "audio/webm" },
+      headers: { "x-groq-api-key": "test-key", "content-type": "audio/webm" },
+      body: Buffer.from("valid"),
     });
     const res = makeRes();
     // Mock fetch to avoid real network call

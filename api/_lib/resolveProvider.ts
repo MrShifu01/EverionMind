@@ -22,18 +22,15 @@
 //   capabilities.
 
 import type { AICall } from "./aiProvider.js";
+import { GEMINI_BULK_MODEL } from "./geminiModels.js";
+import { sbHeaders } from "./sbHeaders.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
-const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const SB_HDR = {
-  apikey: SB_KEY,
-  Authorization: `Bearer ${SB_KEY}`,
-  "Content-Type": "application/json",
-};
+const SB_HDR = sbHeaders();
 
 const DEFAULT_MODELS = {
   anthropic: process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5-20251001",
-  gemini: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
+  gemini: GEMINI_BULK_MODEL,
   openai: "gpt-4o-mini",
   openrouter: "openai/gpt-4o-mini",
 } as const;

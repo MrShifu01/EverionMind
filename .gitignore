@@ -68,6 +68,7 @@ test-results/
 playwright-report/
 /blob-report/
 /.playwright/
+/.playwright-cli/
 
 # Lighthouse audit reports — large HTML, regenerated on demand
 .lighthouse/

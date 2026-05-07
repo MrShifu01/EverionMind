@@ -20,13 +20,16 @@
 import { withAuth, requireBrainAccess, ApiError, type HandlerContext } from "./_lib/withAuth.js";
 import { sbHeaders, sbHeadersNoContent } from "./_lib/sbHeaders.js";
 import { learnKnowledgeShortcut } from "./_lib/feedback.js";
+import { googleAiFetch, googleAiModelUrl } from "./_lib/googleAi.js";
+import { bodyObject, optionalBodyObject } from "./_lib/requestBody.js";
+import { GEMINI_BULK_MODEL } from "./_lib/geminiModels.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
-const GEMINI_MODEL = (process.env.GEMINI_MODEL || "gemini-2.5-flash-lite").trim();
+const GEMINI_MODEL = GEMINI_BULK_MODEL;
 
 export default withAuth({ methods: ["POST"], rateLimit: 30 }, async (ctx) => {
-  const { type } = ctx.req.body ?? {};
+  const { type } = optionalBodyObject(ctx.req.body);
   if (type === "insight_correction") return handleInsightCorrection(ctx);
   if (type === "merge_feedback") return handleMergeFeedback(ctx);
   return handleChatFeedback(ctx);
@@ -43,7 +46,7 @@ async function handleChatFeedback({ req, res, user }: HandlerContext): Promise<v
     top_entry_ids,
     feedback,
     confidence = "medium",
-  } = req.body ?? {};
+  } = bodyObject(req.body);
 
   if (!query || typeof query !== "string" || query.length > 2000) {
     throw new ApiError(400, "Invalid query");
@@ -96,7 +99,7 @@ async function handleChatFeedback({ req, res, user }: HandlerContext): Promise<v
 // ── Mode 2: Merge feedback ───────────────────────────────────────────────────
 
 async function handleMergeFeedback({ req, res, user }: HandlerContext): Promise<void> {
-  const { brain_id, titles, note } = req.body ?? {};
+  const { brain_id, titles, note } = bodyObject(req.body);
   if (!note || typeof note !== "string" || note.length < 1 || note.length > 1000) {
     throw new ApiError(400, "note required (max 1000 chars)");
   }
@@ -136,7 +139,7 @@ Rules:
 - Return only the JSON array, no explanation`;
 
 async function handleInsightCorrection({ req, res, user }: HandlerContext): Promise<void> {
-  const { brain_id, headline, detail, correction } = req.body ?? {};
+  const { brain_id, headline, detail, correction } = bodyObject(req.body);
 
   if (!headline || typeof headline !== "string" || headline.length > 500) {
     throw new ApiError(400, "Invalid headline");
@@ -180,8 +183,9 @@ ${entriesSummary}`;
 
   let fixes: Array<{ id: string; content: string }> = [];
   try {
-    const llmRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
+    const llmRes = await googleAiFetch(
+      GEMINI_API_KEY,
+      googleAiModelUrl(GEMINI_MODEL, "generateContent"),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

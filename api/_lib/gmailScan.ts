@@ -14,6 +14,9 @@ import {
   renderScoredRulesBlock,
   type PatternVerdict,
 } from "./gmailPatternScore.js";
+import { sbHeaders } from "./sbHeaders.js";
+import { googleAiFetch, googleAiModelUrl } from "./googleAi.js";
+import { GEMINI_BULK_MODEL } from "./geminiModels.js";
 
 // Mask sensitive PII before storing in metadata (POPIA/GDPR compliance).
 // Keeps first/last characters for user context; obscures the middle.
@@ -153,16 +156,36 @@ function listAttachments(payload: any): AttachmentInfo[] {
   return results;
 }
 
-const GEMINI_EXTRACT_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
+const GEMINI_EXTRACT_MODEL = GEMINI_BULK_MODEL;
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const GMAIL_THREAD_FETCH_CONCURRENCY = 4;
+const GMAIL_MATCH_PERSIST_CONCURRENCY = 3;
+const GMAIL_CRON_SCAN_CONCURRENCY = clampInt(
+  process.env.GMAIL_CRON_SCAN_CONCURRENCY,
+  3,
+  1,
+  10,
+);
+
+function clampInt(
+  raw: string | number | undefined,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  const n = typeof raw === "number" ? raw : Number.parseInt(String(raw ?? ""), 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
 
 async function extractViaGemini(
   buffer: Buffer,
   mimeType: string,
   geminiKey: string,
 ): Promise<string> {
-  const r = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_EXTRACT_MODEL}:generateContent?key=${encodeURIComponent(geminiKey)}`,
+  const r = await googleAiFetch(
+    geminiKey,
+    googleAiModelUrl(GEMINI_EXTRACT_MODEL, "generateContent"),
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -304,12 +327,7 @@ export async function loadGmailLearnings(
 }
 
 const SB_URL = process.env.SUPABASE_URL!;
-const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const SB_HEADERS = {
-  apikey: SB_KEY,
-  Authorization: `Bearer ${SB_KEY}`,
-  "Content-Type": "application/json",
-};
+const SB_HEADERS = sbHeaders();
 
 // ── OAuth token refresh ─────────────────────────────────────────────────────
 
@@ -801,19 +819,16 @@ async function classifyWithGemini(
   prompt: string,
   geminiKey: string,
 ): Promise<{ results: any[]; error?: string; model: string }> {
-  const model = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
+  const model = GEMINI_BULK_MODEL;
   try {
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(geminiKey)}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 65536 },
-        }),
-      },
-    );
+    const r = await googleAiFetch(geminiKey, googleAiModelUrl(model, "generateContent"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: 65536 },
+      }),
+    });
     if (!r.ok) {
       const errText = await r.text().catch(() => "");
       const msg = `HTTP ${r.status}: ${errText.slice(0, 300)}`;
@@ -1246,7 +1261,9 @@ async function hydrateThreadBlocks(
   const blocks: ThreadBlock[] = [];
   for (let i = 0; i < threadIds.length; i += 10) {
     const chunk = threadIds.slice(i, i + 10);
-    const results = await Promise.all(chunk.map((tid) => fetchThread(token, tid)));
+    const results = await mapWithConcurrency(chunk, GMAIL_THREAD_FETCH_CONCURRENCY, (tid) =>
+      fetchThread(token, tid),
+    );
     for (const msgs of results) {
       if (!msgs.length) continue;
       const grouped = groupByThread(msgs);
@@ -1278,8 +1295,10 @@ async function persistMatches(
 
   type MatchResult = { scanEntry: ScanResultItem; contactUpserted: boolean } | null;
 
-  const matchResults: MatchResult[] = await Promise.all(
-    classified.map(async (match): Promise<MatchResult> => {
+  const matchResults: MatchResult[] = await mapWithConcurrency(
+    classified,
+    GMAIL_MATCH_PERSIST_CONCURRENCY,
+    async (match): Promise<MatchResult> => {
       const block = blocks[match.index];
       if (!block) return null;
       if (importedThreadIds.has(block.threadId)) {
@@ -1505,7 +1524,7 @@ async function persistMatches(
         },
         contactUpserted: !!contactId,
       };
-    }),
+    },
   );
 
   const valid = matchResults.filter((r): r is NonNullable<MatchResult> => r !== null);
@@ -2306,8 +2325,10 @@ export async function runGmailScanAllUsers(): Promise<{
   const integrations: any[] = await r.json();
   const summary = { users: integrations.length, created: 0, errors: 0 };
 
-  await Promise.all(
-    integrations.map(async (int) => {
+  await mapWithConcurrency(
+    integrations,
+    GMAIL_CRON_SCAN_CONCURRENCY,
+    async (int) => {
       try {
         const { created } = await scanGmailForUser(int);
         summary.created += created;
@@ -2315,10 +2336,34 @@ export async function runGmailScanAllUsers(): Promise<{
         console.error(`[gmail-scan] user ${int.user_id}:`, e);
         summary.errors++;
       }
-    }),
+    },
   );
 
   return summary;
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let cursor = 0;
+  const n = Math.max(1, Math.min(concurrency, items.length));
+  const workers: Promise<void>[] = [];
+  for (let w = 0; w < n; w++) {
+    workers.push(
+      (async () => {
+        while (true) {
+          const idx = cursor++;
+          if (idx >= items.length) return;
+          out[idx] = await fn(items[idx]!);
+        }
+      })(),
+    );
+  }
+  await Promise.all(workers);
+  return out;
 }
 
 // Accept-time attachment extraction. Called from api/entries.ts PATCH

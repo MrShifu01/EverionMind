@@ -29,8 +29,19 @@ function deriveKey(namespace: TokenNamespace = "gmail"): Buffer | null {
   return scryptSync(raw, salt, 32);
 }
 
-export function encryptToken(plaintext: string, namespace: TokenNamespace = "gmail"): string {
+function requireTokenKey(namespace: TokenNamespace): Buffer | null {
   const key = deriveKey(namespace);
+  const productionRuntime = process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
+  if (!key && productionRuntime) {
+    throw new Error(
+      "OAUTH_TOKEN_ENCRYPTION_KEY or GMAIL_TOKEN_ENCRYPTION_KEY must be configured in production",
+    );
+  }
+  return key;
+}
+
+export function encryptToken(plaintext: string, namespace: TokenNamespace = "gmail"): string {
+  const key = requireTokenKey(namespace);
   if (!key || !plaintext) return plaintext;
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key, iv);

@@ -19,11 +19,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { sbHeaders } from "./sbHeaders.js";
+import { googleAiFetch, googleAiModelUrl } from "./googleAi.js";
+import { GEMINI_BULK_MODEL, geminiFallbackChain } from "./geminiModels.js";
 
 const SB_URL = (process.env.SUPABASE_URL || "").trim();
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
 const GEMINI_MODEL = (
-  process.env.GEMINI_REJECTED_DISTILLER_MODEL || "gemini-2.5-flash-lite"
+  process.env.GEMINI_REJECTED_DISTILLER_MODEL || GEMINI_BULK_MODEL
 ).trim();
 
 // Cap the input to keep token cost predictable — most users won't hit this,
@@ -89,7 +91,7 @@ Return ONLY the bullet list. No extra text.`;
   // ceiling. Try the primary model, then back off and retry, then fall back
   // to a heavier-but-less-rate-limited model. Better to spend ~1s on a
   // backup call than surface "Failed: HTTP 429" to the user.
-  const FALLBACK_MODELS = [GEMINI_MODEL, "gemini-2.0-flash", "gemini-2.5-flash"];
+  const FALLBACK_MODELS = geminiFallbackChain(GEMINI_MODEL);
   const requestBody = JSON.stringify({
     systemInstruction: { parts: [{ text: systemPrompt }] },
     contents: [
@@ -105,20 +107,18 @@ Return ONLY the bullet list. No extra text.`;
   for (let attempt = 0; attempt < FALLBACK_MODELS.length; attempt += 1) {
     const model = FALLBACK_MODELS[attempt]!;
     try {
-      const resp = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: requestBody,
-        },
-      );
+      const resp = await googleAiFetch(GEMINI_API_KEY, googleAiModelUrl(model, "generateContent"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: requestBody,
+      });
       if (resp.status === 429) {
         // Tight retry on 429 before falling back to the next model — the
         // per-minute window is short and a 1-second pause usually clears it.
         await new Promise((r) => setTimeout(r, 1500));
-        const retry = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
+        const retry = await googleAiFetch(
+          GEMINI_API_KEY,
+          googleAiModelUrl(model, "generateContent"),
           { method: "POST", headers: { "Content-Type": "application/json" }, body: requestBody },
         );
         if (!retry.ok) {

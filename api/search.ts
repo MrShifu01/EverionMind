@@ -6,6 +6,7 @@
  */
 import { withAuth, requireBrainAccess, ApiError, type HandlerContext } from "./_lib/withAuth.js";
 import { generateEmbedding } from "./_lib/generateEmbedding.js";
+import { optionalBodyObject } from "./_lib/requestBody.js";
 import { sbHeaders } from "./_lib/sbHeaders.js";
 
 const SB_URL = process.env.SUPABASE_URL;
@@ -14,11 +15,26 @@ const THRESHOLD = parseFloat(process.env.SEARCH_THRESHOLD ?? "0.3");
 // 5-minute in-memory cache for semantic search (per brain per query)
 const _cache = new Map<string, { r: unknown; ts: number }>();
 const _TTL = 5 * 60 * 1000;
+const _MAX_CACHE_ENTRIES = 500;
 function _getCached(k: string): unknown | null {
   const e = _cache.get(k);
-  return e && Date.now() - e.ts < _TTL ? e.r : null;
+  if (!e) return null;
+  if (Date.now() - e.ts >= _TTL) {
+    _cache.delete(k);
+    return null;
+  }
+  return e.r;
 }
 function _setCache(k: string, r: unknown): void {
+  const now = Date.now();
+  for (const [key, entry] of _cache) {
+    if (now - entry.ts >= _TTL) _cache.delete(key);
+  }
+  while (_cache.size >= _MAX_CACHE_ENTRIES) {
+    const oldestKey = _cache.keys().next().value;
+    if (!oldestKey) break;
+    _cache.delete(oldestKey);
+  }
   _cache.set(k, { r, ts: Date.now() });
 }
 
@@ -72,7 +88,7 @@ async function handleGraph({ req, res, user }: HandlerContext): Promise<void> {
 
 // ── POST /api/search — semantic search ──
 async function handleSearch({ req, res }: HandlerContext): Promise<void> {
-  const { query, brain_id, limit = 20 } = req.body || {};
+  const { query, brain_id, limit = 20 } = optionalBodyObject(req.body);
 
   if (!query || typeof query !== "string" || !query.trim()) {
     res.status(200).json({ fallback: true });

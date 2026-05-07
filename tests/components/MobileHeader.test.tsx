@@ -4,6 +4,7 @@ import { ThemeProvider } from "../../src/ThemeContext";
 import { DesignThemeProvider } from "../../src/design/DesignThemeContext";
 import { TooltipProvider } from "../../src/components/ui/tooltip";
 import MobileHeader from "../../src/components/MobileHeader";
+import { BrainContext } from "../../src/context/BrainContext";
 
 // Redesigned mobile header — 36px touch targets (min-height: 36px inline),
 // serif brand with a coloured status dot, no text "Offline/Syncing" label.
@@ -13,7 +14,16 @@ function renderWithTheme(ui: React.ReactElement) {
   return render(
     <DesignThemeProvider>
       <ThemeProvider>
-        <TooltipProvider>{ui}</TooltipProvider>
+        <BrainContext.Provider
+          value={{
+            activeBrain: null,
+            brains: [],
+            setActiveBrain: vi.fn(),
+            refresh: vi.fn().mockResolvedValue(undefined),
+          }}
+        >
+          <TooltipProvider>{ui}</TooltipProvider>
+        </BrainContext.Provider>
       </ThemeProvider>
     </DesignThemeProvider>,
   );

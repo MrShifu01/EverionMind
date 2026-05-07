@@ -13,19 +13,49 @@ Project-specific, prioritized for solo dev shipping a public-scale product.
 Traceability source: [`Audits/audit-production-hardening-2026-05-06.md`](Audits/audit-production-hardening-2026-05-06.md).
 
 - [ ] **P0-1** Rotate local/prod secrets if `.env.local` values or this audit transcript ever left the machine.
-- [ ] **P0-4** Add `OAUTH_TOKEN_ENCRYPTION_KEY` to Vercel production/staging and audit existing OAuth token rows for plaintext legacy values.
-- [ ] **P1-3** Harden Gmail/enrichment cron with bounded concurrency, queueing, timeouts, and paginated pending-work scans.
-- [ ] **P1-7** Define and enforce explicit shared-brain roles for member write/delete permissions.
-- [ ] **P1-8** Run bundle visualizer and split heavy chunks on non-capture paths.
-- [ ] **P1-10** Resolve the shadcn transitive `ip-address` advisory without breaking `@import "shadcn/tailwind.css"`.
-- [ ] **P1-11** Extract `api/entries.ts` into internal handler modules without adding Vercel functions.
-- [ ] **P1-12** Centralize service-role Supabase headers through `_lib/sbHeaders.ts` and add lint enforcement.
-- [ ] **P2-2** Regenerate `.env.example` from `Ops/env-vars.md` with required-vs-optional labels.
-- [ ] **P2-6** Move API request bodies from `any` to `unknown` plus endpoint validators.
-- [ ] **P2-7** Review app copy so PIN is described as an app lock, not strong local encryption.
-- [ ] **P2-8** Plan CSP migration away from `style-src 'unsafe-inline'`.
-- [ ] **P3-3** Route audit/security logs through structured logger helpers.
-- [ ] **P3-4** Remove build chunk-warning noise by splitting bundles or documenting an intentional threshold.
+- [ ] **P0-4** Add `OAUTH_TOKEN_ENCRYPTION_KEY` to Vercel production/staging and run `Ops/oauth-token-plaintext-audit.sql`.
+- [x] **P1-3** Harden Gmail/enrichment cron with bounded concurrency, queueing, timeouts, and paginated pending-work scans.
+- [x] **P1-7** Define and enforce explicit shared-brain roles for member write/delete permissions.
+- [x] **P1-8** Run bundle visualizer and split heavy chunks on non-capture paths.
+- [x] **P1-10** Resolve the shadcn transitive `ip-address` advisory without breaking local shadcn component styling.
+- [x] **P1-11** Extract first `api/entries.ts` handler module without adding Vercel functions; continue incremental extraction as quality backlog.
+- [x] **P1-12** Centralize service-role Supabase headers through `_lib/sbHeaders.ts` and add lint enforcement.
+- [x] **P2-2** Regenerate `.env.example` from `Ops/env-vars.md` with required-vs-optional labels.
+- [x] **P2-6** Move API request bodies from `any` to `unknown` plus endpoint validators.
+- [x] **P2-7** Review app copy so PIN is described as an app lock, not strong local encryption.
+- [x] **P2-8** Plan CSP migration away from `style-src 'unsafe-inline'`. Plan: [`Ops/csp-inline-style-migration-plan.md`](Ops/csp-inline-style-migration-plan.md).
+- [x] **P3-3** Route audit/security logs through structured logger helpers.
+- [x] **P3-4** Remove build chunk-warning noise by splitting bundles or documenting an intentional threshold.
+
+---
+
+## Enrichment Audit Deferrals — 2026-05-07
+
+Traceability source: [`Audits/archive/enrichment-audit.md`](Audits/archive/enrichment-audit.md).
+Resolution details are prepended to that audit.
+
+- [x] **S-01 / E2E-01** Remove Gemini API keys from Google AI request URLs and route them through `x-goog-api-key`.
+- [x] **T-02 / E2E-04** Change managed/free enrichment quota checks from fail-open to fail-closed.
+- [x] **T-04** Guard `entries.ts` audit JSON parsing against malformed LLM output.
+- [x] **S-05 / E2E-06** Harden Gmail distillation against prompt-learning poisoning.
+- [x] **E2E-08** Clamp `GMAIL_CRON_SCAN_CONCURRENCY` and default invalid env input to `3`.
+- [x] **E2E-09** Reset context-dependent enrichment flags on cross-brain moves.
+- [x] **E2E-11** Load persona extraction context from the personal brain before writing persona facts there.
+- [x] **E2E-12** Validate batch embedding vector count and 768 dimensions.
+- [ ] **S-02 / A-03** Reduce service-role/RLS bypass on user-scoped entry writes. Minimum viable pass: convert delete/update/transfer paths to user-JWT or RPCs that enforce tenant checks in SQL.
+- [ ] **S-04 / E2E-16** Add DB-backed admin verification and audit-log writes for admin diagnostic endpoints.
+- [ ] **A-02 / S-06** Add audit-log coverage for `/v1/*` and MCP write tools.
+- [ ] **T-01 / E2E-03** Finish hard external timeouts for non-Google Supabase, OAuth, Gmail, OpenAI, Anthropic, OpenRouter, Groq, and webhook fetches.
+- [ ] **A-04 / E2E-02 / E2E-05** Move enrichment to a durable async job path so capture, Gmail scan, v1, MCP, and chat writes return fast and share one queue contract.
+- [ ] **E2E-07** Replace O(all brains) cron enrichment sweeps with pending-work indexing or job-table scanning.
+- [ ] **E2E-10** Decide and implement shared-entry overlay semantics: source-brain metadata by design, or destination-specific enrichment artifacts.
+- [ ] **E2E-14** Make Gmail accept/reject mutation and learning-decision recording a single server action.
+- [ ] **U-02 / U-03** Surface Gmail/Calendar reconnect prompts on repeated token refresh failure.
+- [ ] **E2E-17** Decide whether localStorage prompt learning remains low-trust local UX memory or moves server-side with provenance/reset controls.
+- [ ] **E2E-19** Add named-entity/facts extraction alongside generic concepts for precise personal recall.
+- [ ] **E2E-20** Persist and display Gmail attachment extraction coverage and skipped-file reasons.
+- [ ] **E2E-21** Refresh enrichment, Gmail, and cron architecture docs against current code.
+- [ ] **E2E-22** Add workflow-level tests for capture state, Gmail staged decisions, shared-brain move/share behavior, quota failure, prompt injection, and cron starvation.
 
 ---
 

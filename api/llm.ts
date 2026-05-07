@@ -29,6 +29,8 @@ import {
 import { checkAndIncrement } from "./_lib/usage.js";
 import { rateLimit } from "./_lib/rateLimit.js";
 import { getReqId, createLogger } from "./_lib/logger.js";
+import { bodyObject, optionalBodyObject } from "./_lib/requestBody.js";
+import { GEMINI_BULK_MODEL, GEMINI_CHAT_MODEL } from "./_lib/geminiModels.js";
 
 export const config = { api: { bodyParser: { sizeLimit: "25mb" } } };
 
@@ -36,10 +38,10 @@ export const config = { api: { bodyParser: { sizeLimit: "25mb" } } };
 
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
 const GROQ_API_KEY = (process.env.GROQ_API_KEY || "").trim();
-const GEMINI_DEFAULT_MODEL = (process.env.GEMINI_PRO_MODEL || "gemini-2.5-flash").trim();
+const GEMINI_DEFAULT_MODEL = GEMINI_CHAT_MODEL;
 const VALID_GEMINI_MODELS = new Set([
-  "gemini-2.0-flash-lite",
-  "gemini-2.0-flash",
+  "gemini-3.1-flash-lite-preview",
+  "gemini-3-flash-preview",
   "gemini-2.5-flash-lite",
   "gemini-2.5-flash",
   "gemini-1.5-flash",
@@ -74,10 +76,10 @@ async function resolveProvider(userId: string, forChat = false): Promise<Provide
     managed: GEMINI_API_KEY
       ? {
           key: GEMINI_API_KEY,
-          starterModel: (process.env.GEMINI_STARTER_MODEL || "gemini-2.0-flash-lite").trim(),
-          starterChatModel: (process.env.GEMINI_STARTER_CHAT_MODEL || "gemini-2.5-flash").trim(),
-          proModel: (process.env.GEMINI_PRO_MODEL || "gemini-2.5-flash").trim(),
-          proChatModel: (process.env.GEMINI_PRO_CHAT_MODEL || "gemini-2.5-flash").trim(),
+          starterModel: GEMINI_BULK_MODEL,
+          starterChatModel: GEMINI_CHAT_MODEL,
+          proModel: GEMINI_BULK_MODEL,
+          proChatModel: GEMINI_CHAT_MODEL,
         }
       : undefined,
     sanitizeGeminiModel,
@@ -518,7 +520,7 @@ async function handleChat(
     confirmed = false,
     pending_action,
     learnings,
-  } = req.body as ChatBody;
+  } = bodyObject(req.body) as unknown as ChatBody;
   if (!message || typeof message !== "string") {
     res.status(400).json({ error: "message required" });
     return;
@@ -668,7 +670,7 @@ function parseServerEntries(raw: string): Array<Record<string, unknown>> {
 }
 
 async function handleSplit(req: ApiRequest, res: ApiResponse, userId: string): Promise<void> {
-  const { content } = req.body || {};
+  const { content } = optionalBodyObject(req.body);
   if (!content || typeof content !== "string") {
     res.status(400).json({ error: "content required" });
     return;
@@ -703,7 +705,7 @@ async function handleExtractFile(
   res: ApiResponse,
   geminiKey: string,
 ): Promise<void> {
-  const { fileData, mimeType, filename } = req.body as {
+  const { fileData, mimeType, filename } = bodyObject(req.body) as {
     fileData?: string;
     mimeType?: string;
     filename?: string;
@@ -741,7 +743,7 @@ async function handleExtractFile(
   try {
     const result = await geminiExtractFile(
       { fileData, mimeType },
-      { model: GEMINI_DEFAULT_MODEL, key: geminiKey, prompt: SERVER_PROMPTS.EXTRACT_FILE },
+      { model: GEMINI_BULK_MODEL, key: geminiKey, prompt: SERVER_PROMPTS.EXTRACT_FILE },
     );
     if (!result.ok) {
       console.error("[extract-file]", result.status, JSON.stringify(result.error));
@@ -979,7 +981,7 @@ export default withAuth(
     }
 
     // Default: text completion (enrichment parsing, insight, etc.)
-    const { messages, max_tokens, system, json } = req.body;
+    const { messages, max_tokens, system, json } = bodyObject(req.body);
     if (!Array.isArray(messages) || messages.length === 0)
       return res.status(400).json({ error: "messages must be a non-empty array" });
     if (messages.length > 50) return res.status(400).json({ error: "Too many messages" });
@@ -1006,6 +1008,15 @@ export default withAuth(
           error: "no_ai_provider",
           message: "Add an API key in Settings or upgrade to Pro.",
         });
-    return handleCompletion(res, { messages, max_tokens, system, json }, provider);
+    return handleCompletion(
+      res,
+      {
+        messages,
+        max_tokens,
+        system: typeof system === "string" ? system : undefined,
+        json: typeof json === "boolean" ? json : undefined,
+      },
+      provider,
+    );
   },
 );

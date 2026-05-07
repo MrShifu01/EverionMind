@@ -27,22 +27,46 @@ interface AICallOpts {
    * response formats where supported (OpenAI response_format, Gemini
    * responseMimeType). Callers must still validate the parsed shape — this
    * is a hint, not a guarantee.
-   */
+  */
   json?: boolean;
+  /**
+   * Optional metered-user context. When supplied, callAI consumes quota before
+   * any provider network request. This keeps cost control at the LLM boundary
+   * instead of relying on every feature path to remember a separate gate.
+   */
+  quota?: {
+    userId: string;
+    tier?: string;
+  };
 }
 
+import { googleAiFetch, googleAiModelUrl } from "./googleAi.js";
+import { checkAndConsumeQuota, fetchUserTier } from "./enrichQuota.js";
 import { withDateContext } from "./promptContext.js";
+import {
+  buildGeminiGenerateContentBody,
+  geminiCandidateParts,
+  geminiGenerationConfig,
+  pickGeminiAnswerText,
+} from "./providers/geminiHelpers.js";
 
 // Retry transient failures (5xx + network errors + 429) with exponential
 // backoff: 100ms → 400ms → 1.6s. 4xx other than 429 is a permanent failure
 // (auth, content policy, malformed request) — surface immediately so we
 // don't burn time/credits retrying something that will keep failing.
-async function fetchWithRetry(url: string, init: RequestInit, label: string): Promise<Response> {
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  label: string,
+  googleApiKey?: string,
+): Promise<Response> {
   const delays = [100, 400, 1600];
   let lastErr: unknown;
   for (let attempt = 0; attempt <= delays.length; attempt++) {
     try {
-      const res = await fetch(url, init);
+      const res = googleApiKey
+        ? await googleAiFetch(googleApiKey, url, init, 15_000)
+        : await fetch(url, init);
       const transient = res.status >= 500 || res.status === 429;
       if (!transient || attempt === delays.length) return res;
       console.warn(
@@ -77,6 +101,16 @@ export async function callAI(
   opts: AICallOpts = {},
 ): Promise<string> {
   if (!cfg.apiKey) return "";
+  if (opts.quota) {
+    const tier = opts.quota.tier ?? (await fetchUserTier(opts.quota.userId));
+    const quota = await checkAndConsumeQuota(opts.quota.userId, tier);
+    if (!quota.allowed) {
+      console.warn(
+        `[aiProvider:quota] ${opts.quota.userId} blocked at ${quota.used}/${quota.limit} daily`,
+      );
+      return "";
+    }
+  }
   const system = withDateContext(rawSystem);
   switch (cfg.provider) {
     case "anthropic":
@@ -211,27 +245,29 @@ async function callGemini(
   content: string,
   opts: AICallOpts,
 ): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${cfg.model}:generateContent?key=${encodeURIComponent(cfg.apiKey)}`;
-  const generationConfig: Record<string, unknown> = {
+  const generationConfig = geminiGenerationConfig(cfg.model, {
     maxOutputTokens: opts.maxTokens ?? 1500,
-    thinkingConfig: { thinkingBudget: 0 },
-  };
+    ...(cfg.model.startsWith("gemini-3") ? {} : { thinkingConfig: { thinkingBudget: 0 } }),
+  });
   if (opts.json) generationConfig.responseMimeType = "application/json";
 
   let res: Response;
   try {
     res = await fetchWithRetry(
-      url,
+      googleAiModelUrl(cfg.model, "generateContent"),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: content }] }],
-          systemInstruction: { parts: [{ text: system }] },
-          generationConfig,
-        }),
+        body: JSON.stringify(
+          buildGeminiGenerateContentBody({
+            contents: [{ role: "user", parts: [{ text: content }] }],
+            system,
+            generationConfig,
+          }),
+        ),
       },
       "gemini",
+      cfg.apiKey,
     );
   } catch (err: any) {
     console.error(`[aiProvider:gemini] network failure after retries: ${err?.message ?? err}`);
@@ -242,20 +278,5 @@ async function callGemini(
     return "";
   }
   const d: any = await res.json().catch(() => null);
-  const parts: any[] = d?.candidates?.[0]?.content?.parts ?? [];
-  // Filter out internal `thought` parts (a precaution if thinking ever sneaks
-  // back on); join the rest. If filtering leaves nothing, return whatever
-  // was generated rather than an empty string.
-  const text = parts
-    .filter((p: any) => !p.thought)
-    .map((p: any) => p.text || "")
-    .join("")
-    .trim();
-  return (
-    text ||
-    parts
-      .map((p: any) => p.text || "")
-      .join("")
-      .trim()
-  );
+  return pickGeminiAnswerText(geminiCandidateParts(d));
 }

@@ -6,18 +6,14 @@
  * gets 200/day, pro/max are unlimited. Counters live in user_enrich_quota
  * and are managed via the consume_enrich_quota RPC (atomic upsert+check).
  *
- * Failure mode is fail-OPEN: if the quota check itself errors (Supabase
- * blip), we let enrichment proceed. The cost of one misbilled enrichment
- * is far smaller than freezing the whole pipeline on a transient outage.
+ * Failure mode is fail-CLOSED for metered tiers: if the quota check itself
+ * errors, enrichment waits instead of silently disabling cost controls.
  */
 
+import { sbHeaders } from "./sbHeaders.js";
+
 const SB_URL = process.env.SUPABASE_URL!;
-const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const SB_HDR = {
-  apikey: SB_KEY,
-  Authorization: `Bearer ${SB_KEY}`,
-  "Content-Type": "application/json",
-};
+const SB_HDR = sbHeaders();
 
 export const TIER_DAILY_QUOTA: Record<string, number> = {
   free: 20,
@@ -30,7 +26,7 @@ export interface QuotaResult {
   allowed: boolean;
   used: number;
   limit: number;
-  /** True only when the check itself failed; caller should fail-open. */
+  /** True only when the check itself failed; caller should treat it as retryable. */
   errored: boolean;
 }
 
@@ -88,19 +84,19 @@ export async function checkAndConsumeQuota(
     });
     if (!r.ok) {
       console.error(
-        `[enrich-quota] HTTP ${r.status} on consume_enrich_quota — failing open`,
+        `[enrich-quota] HTTP ${r.status} on consume_enrich_quota — failing closed`,
       );
-      return { allowed: true, used: 0, limit, errored: true };
+      return { allowed: false, used: 0, limit, errored: true };
     }
     const rows: Array<{ allowed: boolean; used: number }> = await r.json().catch(() => []);
     const row = rows[0];
-    if (!row) return { allowed: true, used: 0, limit, errored: true };
+    if (!row) return { allowed: false, used: 0, limit, errored: true };
     return { allowed: row.allowed === true, used: row.used ?? 0, limit, errored: false };
   } catch (err) {
     console.error(
-      `[enrich-quota] consume failed — failing open: ${(err as Error).message}`,
+      `[enrich-quota] consume failed — failing closed: ${(err as Error).message}`,
     );
-    return { allowed: true, used: 0, limit, errored: true };
+    return { allowed: false, used: 0, limit, errored: true };
   }
 }
 
