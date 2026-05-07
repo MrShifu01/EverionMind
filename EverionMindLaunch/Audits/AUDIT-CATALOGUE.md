@@ -44,16 +44,16 @@ Each pipeline is a domain — capture, retrieval, enrichment, etc. Audits trace 
 | `retrieval-audit` | "audit retrieval" | `api/_lib/retrievalCore.ts`, `api/search.ts`, `api/_lib/generateEmbedding.ts`, vector index health, rerank, BM25 fallback, brain-scope filter, secret exclusion | UI / chat layer | `pg_stat_statements`, advisor 0005 (HNSW scan count), 5 sample queries with `EXPLAIN ANALYZE` | 🟡 monthly · **1× · last 2026-05-07** |
 | `enrichment-audit` | "audit enrichment" | `api/_lib/enrich.ts`, `enrichInline`, `enrichmentQueue`, parse → insight → concepts → embed, fallback chain, quota gate, idempotency | retrieval / capture | `entries.metadata.enrichment` row sampling, queue depth, claim-worker, quota counters | 🟡 monthly · **1× · last 2026-05-07** |
 | `capture-pipeline-audit` | "audit capture" | `api/capture.ts` → enrichInline → embed → audit_log; bodyParser limits; idempotency-key namespace | UI capture sheet | inline-await proof on every door, audit log row count, time-to-enriched p95 | 🟡 monthly · **1× · last 2026-05-07** |
-| `gmail-sync-audit` | "audit gmail sync" | `api/_lib/gmailScan.ts`, OAuth → scan → classify → distill → stage → promote, pattern rules, decisions log, contact upsert | calendar | scan concurrency, fan-out, AbortController, classifier error rate, prompt-injection guards | 🟡 monthly |
+| `gmail-sync-audit` | "audit gmail sync" | `api/_lib/gmailScan.ts`, OAuth → scan → classify → distill → stage → promote, pattern rules, decisions log, contact upsert | calendar | scan concurrency, fan-out, AbortController, classifier error rate, prompt-injection guards | 🟡 monthly · **1× · last 2026-05-07** |
 | `calendar-sync-audit` | "audit calendar" | `api/calendar.ts`, OAuth bootstrap, event fetch, upcoming derivation, reconnect flow | gmail | OAuth state HMAC, token refresh, fetch deadlines, unauth 200 fallback | 🟢 quarterly |
 | `vault-unlock-audit` | "audit vault" | `src/lib/crypto.ts`, `vaultPinKey.ts`, `useVaultOps.ts`, PIN → biometric → recovery key, DEK envelope grants, brain_vault_grants | UI vault view | PBKDF2 iterations, AES-GCM IV uniqueness, key never in plaintext, recovery rotation, F1 from prod-audit (native confirm) | 🔴 weekly until launch · **1× · last 2026-05-07** |
-| `brain-sharing-audit` | "audit brain sharing" | `brain_invites`, `brain_members`, `brain_vault_grants`, `entry_shares`, owner vs member RBAC, invite redemption | retrieval | RLS policies for the four tables, FK CASCADE chain, invite expiry | 🟡 monthly |
+| `brain-sharing-audit` | "audit brain sharing" | `brain_invites`, `brain_members`, `brain_vault_grants`, `entry_shares`, owner vs member RBAC, invite redemption | retrieval | RLS policies for the four tables, FK CASCADE chain, invite expiry | 🟡 monthly · **1× · last 2026-05-07** |
 | `account-delete-audit` | "audit account delete" | GDPR cascade list at `api/user-data.ts:1851-1862`, migration 054 cascade, auth.users delete trigger | per-table cleanup | each table on the cascade list, leftover rows after delete in staging | 🟢 quarterly |
 | `auth-flow-audit` | "audit login + signup" | Supabase Auth, Google OAuth, magic-link, password fallback, recovery, session, JWT cache TTL, signOut | vault unlock | every entry point in `src/LoginScreen.tsx`, `src/SignupModal.tsx`; `_lib/verifyAuth.ts` cache; redirect flows; rate limit on /reset | 🔴 weekly until launch · **1× · last 2026-05-07** |
-| `onboarding-audit` | "audit onboarding" | `useFirstRunChecklist.ts`, first-capture flow, aha-in-60s, empty states, step-timing telemetry | landing | PostHog funnel events, drop-off rates, time-to-first-entry, sticky-done table | 🟡 monthly |
+| `onboarding-audit` | "audit onboarding" | `useFirstRunChecklist.ts`, first-capture flow, aha-in-60s, empty states, step-timing telemetry | landing | PostHog funnel events, drop-off rates, time-to-first-entry, sticky-done table | 🟡 monthly · **1× · last 2026-05-07** |
 | `billing-audit` | "audit billing" | LemonSqueezy checkout + webhook, RevenueCat webhook + SDK, `user_profiles` tier columns, `_lock_billing_columns` trigger, idempotency on webhooks, dual-provider reconciliation | UI BillingTab | webhook signature, replay, `markWebhookEventSeen`, `appstore_otx_idx`, tier-mutation audit | 🔴 weekly until launch · **1× · last 2026-05-07** |
-| `webhook-audit` | "audit webhooks" | every webhook receiver (LS, RC, GitHub Sentry, etc.), signature verify, replay, idempotency, dead-letter | billing-audit overlap OK | constant-time compare, `idempotency_keys` table, retry semantics | 🟡 monthly |
-| `cron-audit` | "audit crons" | `.github/workflows/cron-{daily,hourly}.yml`, `?resource=cron-*` handlers, HMAC, fan-out concurrency, runtime budget | enrichment-audit overlap OK | last-run timestamps, run-duration p95, error rate, missed runs | 🟡 monthly |
+| `webhook-audit` | "audit webhooks" | every webhook receiver (LS, RC, GitHub Sentry, etc.), signature verify, replay, idempotency, dead-letter | billing-audit overlap OK | constant-time compare, `idempotency_keys` table, retry semantics | 🟡 monthly · **1× · last 2026-05-07** |
+| `cron-audit` | "audit crons" | `.github/workflows/cron-{daily,hourly}.yml`, `?resource=cron-*` handlers, HMAC, fan-out concurrency, runtime budget | enrichment-audit overlap OK | last-run timestamps, run-duration p95, error rate, missed runs | 🟡 monthly · **1× · last 2026-05-07** |
 | `mcp-server-audit` | "audit mcp" | `api/mcp.ts`, OAuth `/.well-known`, `signMcpAccessToken`, every tool definition vs handler, error shape | chat | tool param validation, ownership-via-`brain_id` on every mutating tool, rate-limit suffix | 🟡 monthly · **1× · last 2026-05-07** |
 
 ---
@@ -74,7 +74,7 @@ These audit one rendered surface — invariants, accessibility, performance, cop
 | `todo-view-audit` | "audit todos" | `TodoView.tsx`, `TodoCalendarTab`, `TodoSomedayTab`, recurring rules, calendar overlay | calendar-sync-audit overlap OK | timezone correctness, completion idempotency, large-list virtualization | 🟢 quarterly |
 | `settings-views-audit` | "audit settings" | every tab in `src/components/settings/` — Profile / Admin / Brain / Connections / Privacy / Billing | dedicated tab audits OK | URL_ALIASES preserve old `?tab=` deep links, sidebar navigation, write-confirmation patterns | 🟡 monthly |
 | `profile-tab-audit` | "audit profile tab" | `ProfileTab.tsx` (2,328 LOC), persona-facts grid, fading-section, history timeline | settings overlap OK | persona dedup, soft-retire flow, scroll perf on big grids | 🟢 quarterly |
-| `admin-tab-audit` | "audit admin" | `AdminTab.tsx`, `AdminCRMSection.tsx`, `isAdminUser` gate, tier-changer, mock-review, debug runners | F4 from prod-audit | server-side admin gate (currently client + endpoint check), audit_log on every mutation | 🔴 weekly until launch |
+| `admin-tab-audit` | "audit admin" | `AdminTab.tsx`, `AdminCRMSection.tsx`, `isAdminUser` gate, tier-changer, mock-review, debug runners | F4 from prod-audit | server-side admin gate (currently client + endpoint check), audit_log on every mutation | 🔴 weekly until launch · **1× · last 2026-05-07** |
 
 ---
 
@@ -85,16 +85,16 @@ These audit one rendered surface — invariants, accessibility, performance, cop
 | `frontend-architecture-audit` | `/improve-frontend-architecture` | 8-px grid, tap targets, fluid type, container queries, contrast, CWV | per-page semantics | Playwright crawl + computed styles | 🟡 monthly · **1× · last 2026-05-07** |
 | `db-audit` | "audit db" | schemas, RLS, FK CASCADE, dead tables, indexes, function security | per-pipeline DB queries | Supabase MCP advisors + 13-invariant probe | 🟡 monthly · **1× · last 2026-05-07** |
 | `security-audit` | "audit security" | auth, RLS, headers, CSP, secrets, input validation, rate limit, crypto, supply chain | per-pipeline auth | grep + advisors + npm audit + RLS scan | 🟡 monthly · **1× · last 2026-05-07** |
-| `performance-audit` | "audit perf" | CWV, bundle, SW precache, lazy chunks, font loading, network waterfall | per-page perf | `npm run lighthouse`, `vite-bundle-visualizer`, Vercel Speed Insights | 🟡 monthly |
-| `accessibility-audit` | "audit a11y" | semantic HTML, keyboard nav, focus, aria, contrast, screen reader, reduced-motion, zoom-200% | a11y inside other audits | axe-core run, manual SR walk, contrast calc on tokens | 🟡 monthly |
+| `performance-audit` | "audit perf" | CWV, bundle, SW precache, lazy chunks, font loading, network waterfall | per-page perf | `npm run lighthouse`, `vite-bundle-visualizer`, Vercel Speed Insights | 🟡 monthly · **1× · last 2026-05-07** |
+| `accessibility-audit` | "audit a11y" | semantic HTML, keyboard nav, focus, aria, contrast, screen reader, reduced-motion, zoom-200% | a11y inside other audits | axe-core run, manual SR walk, contrast calc on tokens | 🟡 monthly · **1× · last 2026-05-07** |
 | `seo-audit` | "audit seo" | meta, OG, sitemap, robots, AI-bot allowlist, JSON-LD, 404 status, canonical | content strategy | every public route, search console, AI-bot fetch logs | 🟢 quarterly |
 | `observability-audit` | "audit observability" | Sentry init + alert rules, source-map upload, structured logs, audit_log coverage, /api/health shape | per-pipeline logs | `createLogger` adoption, audit_log row coverage per action, alert-rule list | 🔴 weekly until launch · **1× · last 2026-05-07** |
 | `privacy-legal-audit` | "audit privacy" | Privacy, ToS, cookie consent, GDPR delete, data export, data retention, AI disclosure, third-party DPAs | content tone | every collection point, third-party allowlist in CSP, retention SQL | 🟢 quarterly |
-| `dependencies-audit` | "audit deps" | `npm audit`, license check, dep age (`npm outdated`), postinstall scripts, lockfile freshness | per-feature deps | `npm audit`, `npm outdated`, `license-checker`, `npm-check-unused` | 🟡 monthly |
+| `dependencies-audit` | "audit deps" | `npm audit`, license check, dep age (`npm outdated`), postinstall scripts, lockfile freshness | per-feature deps | `npm audit`, `npm outdated`, `license-checker`, `npm-check-unused` | 🟡 monthly · **1× · last 2026-05-07** |
 | `ci-cd-audit` | "audit ci" | every workflow under `.github/workflows/`, branch protection, secrets coverage, preview deployments, rollback plan | per-pipeline ci | `gh api repos/.../branches/main/protection`, `gh secret list`, every workflow's runtime + failure rate | 🟡 monthly |
 | `infrastructure-audit` | "audit infra" | Vercel plan + limits, Supabase plan + backups, DNS, SSL, custom domain, CDN, edge regions | per-platform pricing | Vercel dashboard, Supabase dashboard, `dig`, `curl -I` headers | 🟢 quarterly |
-| `resilience-audit` | "audit resilience" | rate-limit fail-closed paths, AbortController coverage, circuit breaker thresholds, third-party degradation, graceful 503 | per-pipeline error paths | `_lib/rateLimit.ts`, every external `fetch` (Gemini, Anthropic, Resend), every `Promise.all` | 🟡 monthly |
-| `pwa-offline-audit` | "audit pwa" | service worker, precache, runtime cache, offline empty-states, BFCache, iOS resume, install prompt | mobile native | DevTools → Application → SW lifecycle, precache size, offline e2e flow | 🟡 monthly |
+| `resilience-audit` | "audit resilience" | rate-limit fail-closed paths, AbortController coverage, circuit breaker thresholds, third-party degradation, graceful 503 | per-pipeline error paths | `_lib/rateLimit.ts`, every external `fetch` (Gemini, Anthropic, Resend), every `Promise.all` | 🟡 monthly · **1× · last 2026-05-07** |
+| `pwa-offline-audit` | "audit pwa" | service worker, precache, runtime cache, offline empty-states, BFCache, iOS resume, install prompt | mobile native | DevTools → Application → SW lifecycle, precache size, offline e2e flow | 🟡 monthly · **1× · last 2026-05-07** |
 | `mobile-native-audit` | "audit native shell" | Capacitor wrap, deep-link callback, splash, native network listener, push, biometric, keychain | per-page UX | iOS Safari + Android Chromium parity, `cap:sync` output, `fix-cap-paths.mjs` | 🟢 quarterly |
 | `realtime-audit` | "audit realtime" | Supabase realtime channels, replica identity, optimistic UI revert, sync conflict resolution | per-table data flow | migration 047/048, channel subscription leaks, `useEntryRealtime` | 🟡 monthly |
 | `cost-quota-audit` | "audit cost" | AI provider token usage, Vercel function-secs, Supabase rows + bandwidth, Resend email volume, RC + LS payouts | per-feature cost | provider dashboards, `enrichQuota` table, Vercel usage tab, Supabase usage tab | 🟡 monthly |
@@ -111,7 +111,7 @@ These are unique to Everion Mind — wouldn't make sense as generic audits.
 
 | Slug | Trigger | Scope (in) | Signals | Cadence |
 |---|---|---|---|---|
-| `ai-provider-abstraction-audit` | "audit ai provider" | `_lib/aiProvider.ts`, `callAI`, provider failover, BYOK, quota gate, model registry, retry budget | every `callAI` site, fallback ordering, `enrichQuota.checkAndConsumeQuota` adoption | 🟡 monthly |
+| `ai-provider-abstraction-audit` | "audit ai provider" | `_lib/aiProvider.ts`, `callAI`, provider failover, BYOK, quota gate, model registry, retry budget | every `callAI` site, fallback ordering, `enrichQuota.checkAndConsumeQuota` adoption | 🟡 monthly · **1× · last 2026-05-07** |
 | `concept-graph-audit` | "audit concept graph" | `concept_graphs` table, build, prune, write-paths, growth, similarity edges | row sampling, JSONB size, recency, write-source distribution | 🟢 quarterly |
 | `persona-facts-audit` | "audit persona facts" | persona extraction, hygiene, dedupe, soft-retire, history timeline | `extractPersonaFacts.ts`, persona dedup heuristic, retire flow tests | 🟡 monthly |
 | `important-memories-audit` | "audit important memories" | `important_memories` table, hierarchy, retire, deterministic memory_key | row sampling, churn pattern, RLS | 🟢 quarterly |
@@ -178,14 +178,26 @@ If the audit overlaps existing ones, the deeper one wins — don't run both. If 
 
 Findings still need triage into `TODO-AUDIT-FIXES.md` or addressed-and-archived.
 
-| File | Verdict |
-|---|---|
-| `security-audit-2026-05-07.md` | PASS w/ conditions — 1 HIGH, 4 MED, 3 LOW |
-| `capture-pipeline-audit-2026-05-07.md` | PASS w/ edge gaps — 2 HIGH, 2 MED, 3 LOW |
-| `retrieval-audit-2026-05-07.md` | architecture sound — 3 HIGH, 3 MED, 2 LOW |
-| `mcp-server-audit-2026-05-07.md` | mostly right — 3 HIGH, 2 MED, 5 LOW, 2 INFO |
-| `email-deliverability-audit-2026-05-07.md` | NOT launch-ready — 2 HIGH, 2 MED, 1 LOW |
-| `rate-limiter-audit-2026-05-07.md` | mechanism right — 3 HIGH, 3 MED, 4 LOW |
+| File | Verdict | Batch |
+|---|---|---|
+| `security-audit-2026-05-07.md` | PASS w/ conditions — 1 HIGH, 4 MED, 3 LOW | 2 |
+| `capture-pipeline-audit-2026-05-07.md` | PASS w/ edge gaps — 2 HIGH, 2 MED, 3 LOW | 2 |
+| `retrieval-audit-2026-05-07.md` | architecture sound — 3 HIGH, 3 MED, 2 LOW | 2 |
+| `mcp-server-audit-2026-05-07.md` | mostly right — 3 HIGH, 2 MED, 5 LOW, 2 INFO | 2 |
+| `email-deliverability-audit-2026-05-07.md` | NOT launch-ready — 2 HIGH, 2 MED, 1 LOW | 2 |
+| `rate-limiter-audit-2026-05-07.md` | mechanism right — 3 HIGH, 3 MED, 4 LOW | 2 |
+| `onboarding-audit-2026-05-07.md` | aha lands < 60s; 2 silent-loss bugs — 2 HIGH, 4 MED, 3 LOW | 3 |
+| `gmail-sync-audit-2026-05-07.md` | architecture right — 2 HIGH, 2 MED, 2 LOW | 3 |
+| `performance-audit-2026-05-07.md` | bundle 188 KB gz, no blockers — 2 MED, 6 LOW | 3 |
+| `resilience-audit-2026-05-07.md` | ~95 unguarded fetches — 3 HIGH, 5 MED, 3 LOW | 3 |
+| `ai-provider-abstraction-audit-2026-05-07.md` | parallel abstractions, neither complete — 2 HIGH, 2 MED, 2 LOW | 3 |
+| `brain-sharing-audit-2026-05-07.md` | architecture right — 1 HIGH, 1 MED, 3 LOW | 3 |
+| `admin-tab-audit-2026-05-07.md` | F4 closed, drift-hazard remains — 1 HIGH, 3 MED, 4 LOW | 3 |
+| `webhook-audit-2026-05-07.md` | LS+RC only, idempotency-burn race — 4 HIGH, 4 MED, 4 LOW | 3 |
+| `accessibility-audit-2026-05-07.md` | 78% WCAG 2.2 AA — 0 HIGH, 3 MED, 5 LOW | 3 |
+| `dependencies-audit-2026-05-07.md` | 0 vulns; RC SDK 2 majors behind — 1 MED, 5 LOW, 1 INFO | 3 |
+| `pwa-offline-audit-2026-05-07.md` | precache 2.64 MB; manifest mismatch — 2 HIGH, 1 MED, 2 LOW | 3 |
+| `cron-audit-2026-05-07.md` | auth right; serial loop blows 300s — 2 HIGH, 3 MED, 2 LOW | 3 |
 
 ### Archived (`EML/Audits/archive/`)
 
