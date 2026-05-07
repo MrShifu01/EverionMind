@@ -25,9 +25,11 @@ export function useStagedCount(): number {
     }
     refresh();
     window.addEventListener("everion:staged-changed", refresh);
+    window.addEventListener("everion:pull-refresh", refresh);
     return () => {
       cancelled = true;
       window.removeEventListener("everion:staged-changed", refresh);
+      window.removeEventListener("everion:pull-refresh", refresh);
     };
   }, []);
 

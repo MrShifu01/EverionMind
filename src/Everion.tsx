@@ -56,6 +56,8 @@ import OmniSearch from "./components/OmniSearch";
 import SettingsView from "./views/SettingsView";
 const GraphView = lazy(() => import("./views/GraphView"));
 const GmailStagingInbox = lazy(() => import("./components/settings/GmailStagingInbox"));
+import { usePullToRefresh } from "./hooks/usePullToRefresh";
+import PullToRefreshIndicator from "./components/PullToRefreshIndicator";
 import FloatingCaptureButton from "./components/FloatingCaptureButton";
 import { Button } from "./components/ui/button";
 import { TooltipProvider } from "./components/ui/tooltip";
@@ -214,8 +216,15 @@ function EverionContent({
   loadError,
 }: EverionContentProps) {
   const { activeBrain, brains, setActiveBrain: _setActiveBrain, refresh: _refresh } = useBrain();
-  const { entries, entriesLoaded, selected, setSelected, handleDelete, handleUpdate } =
-    useEntries();
+  const {
+    entries,
+    entriesLoaded,
+    selected,
+    setSelected,
+    handleDelete,
+    handleUpdate,
+    refreshEntries,
+  } = useEntries();
   const notifs = useNotifications();
   const [selectedVaultEntry, setSelectedVaultEntry] = useState<Entry | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -348,6 +357,21 @@ function EverionContent({
   // InboxTriageCard, the notification bell, and toasts can all open the
   // Tinder swipe UI directly without bouncing through Settings.
   const [stagingInboxOpen, setStagingInboxOpen] = useState(false);
+
+  // Pull-to-refresh on the main scroll container. Callback ref pattern
+  // because <div id="main-content"> remounts on view changes via
+  // key={appShell.view}; the hook re-binds when the element identity
+  // changes. Tight scope per view: refreshEntries always (covers Memory,
+  // Schedule, Someday, derived counts), then a custom event so HomeView
+  // and the Gmail tab can refetch their own caches if mounted.
+  const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
+  const { pullDistance, refreshing } = usePullToRefresh(scrollEl, async () => {
+    void refreshEntries();
+    window.dispatchEvent(new CustomEvent("everion:pull-refresh"));
+    // Hold the indicator briefly so the spin reads as deliberate even
+    // if the underlying refetch returns instantly.
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  });
   useEffect(() => {
     function handleOpenGmailInbox() {
       setStagingInboxOpen(true);
@@ -596,9 +620,11 @@ function EverionContent({
           <div
             id="main-content"
             key={appShell.view}
-            className="animate-view-enter flex-1 overflow-y-auto"
+            ref={setScrollEl}
+            className="animate-view-enter relative flex-1 overflow-y-auto"
             tabIndex={-1}
           >
+            <PullToRefreshIndicator pullDistance={pullDistance} refreshing={refreshing} />
             {(appShell.view === "memory" || appShell.view === "timeline") && (
               <>
                 <MemoryHeader

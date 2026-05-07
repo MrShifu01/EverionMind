@@ -1,7 +1,7 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import type { Entry } from "../../types";
 import { authFetch } from "../../lib/authFetch";
-import { useCachedQuery } from "../../lib/useCachedQuery";
+import { useCachedQuery, invalidateCachedQuery } from "../../lib/useCachedQuery";
 import {
   toDateKey,
   getActionPlacements,
@@ -27,7 +27,7 @@ function formatTimeOfDay(iso: string): string | null {
 
 export default function TodayCard({ entries, onNavigate }: TodayCardProps) {
   const todayKey = useMemo(() => toDateKey(new Date()), []);
-  const { data: cachedEvents } = useCachedQuery<ExternalCalEvent[]>(
+  const { data: cachedEvents, refetch: refetchEvents } = useCachedQuery<ExternalCalEvent[]>(
     "calendar:events:today",
     async () => {
       const r = await authFetch("/api/calendar?action=events");
@@ -36,6 +36,15 @@ export default function TodayCard({ entries, onNavigate }: TodayCardProps) {
     },
     { ttlMs: 5 * 60_000 },
   );
+  // Pull-to-refresh subscriber — drop the TTL'd cache and refetch.
+  useEffect(() => {
+    function handle() {
+      invalidateCachedQuery("calendar:events:today");
+      void refetchEvents();
+    }
+    window.addEventListener("everion:pull-refresh", handle);
+    return () => window.removeEventListener("everion:pull-refresh", handle);
+  }, [refetchEvents]);
   // Stable reference — keep the same `[]` across renders when null so the
   // downstream useMemo dependency doesn't churn.
   const events = useMemo(() => cachedEvents ?? [], [cachedEvents]);

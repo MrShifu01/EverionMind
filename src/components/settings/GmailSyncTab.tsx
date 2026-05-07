@@ -124,9 +124,18 @@ export default function GmailSyncTab({ isAdmin }: { isAdmin?: boolean }) {
         stagedDebounceRef.current = null;
       }, 1500);
     }
+    function handlePullRefresh() {
+      // Pull-to-refresh — drop the integration + staged-count caches and
+      // refetch immediately, no debounce.
+      invalidateCachedQuery("gmail:integration");
+      invalidateCachedQuery("gmail:patterns");
+      void refetchStaged();
+    }
     window.addEventListener("everion:staged-changed", handleStagedChanged);
+    window.addEventListener("everion:pull-refresh", handlePullRefresh);
     return () => {
       window.removeEventListener("everion:staged-changed", handleStagedChanged);
+      window.removeEventListener("everion:pull-refresh", handlePullRefresh);
       if (stagedDebounceRef.current) clearTimeout(stagedDebounceRef.current);
     };
   }, [refetchStaged]);
