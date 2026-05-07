@@ -250,6 +250,30 @@ async function stepParse(entry: Entry, cfg: AICall): Promise<Record<string, any>
       safeAIMeta[k] = v;
     }
 
+    // Date sanity guard. The LLM occasionally resolves "today / this week /
+    // tomorrow" against the capture date even when the entry has an explicit
+    // future scheduled_for, producing rows like:
+    //   scheduled_for: 2026-05-24, due_date: 2026-05-07
+    // which then surface on the Home view's Today card. due_date / deadline /
+    // event_date can never be earlier than scheduled_for — drop the offending
+    // field rather than ship a wrong date to the UI. We compare YYYY-MM-DD
+    // strings directly; both sides are ISO-prefixed by the schema validator.
+    const candidateScheduled =
+      typeof safeAIMeta.scheduled_for === "string"
+        ? safeAIMeta.scheduled_for
+        : typeof meta.scheduled_for === "string"
+          ? meta.scheduled_for
+          : null;
+    if (candidateScheduled && /^\d{4}-\d{2}-\d{2}/.test(candidateScheduled)) {
+      const sched = candidateScheduled.slice(0, 10);
+      for (const k of ["due_date", "deadline", "event_date"] as const) {
+        const v = safeAIMeta[k];
+        if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) && v.slice(0, 10) < sched) {
+          delete safeAIMeta[k];
+        }
+      }
+    }
+
     // For Gmail-sourced entries the original content is auto-generated at
     // scan time (cluster-mode: first 400 chars of email body; classifier-
     // mode: one-sentence summary). It's never user-edited, so when the
