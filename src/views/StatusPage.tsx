@@ -21,7 +21,7 @@ export default function StatusPage(): JSX.Element {
     title: "Status — Everion",
     description:
       "Live system status — see whether Everion's API, database, and AI services are up.",
-    canonical: "https://everionmind.com/status",
+    canonical: "https://everion.smashburgerbar.co.za/status",
   });
   const [status, setStatus] = useState<Status | null>(null);
   const [error, setError] = useState<string | null>(null);

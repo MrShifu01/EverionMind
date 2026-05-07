@@ -33,6 +33,7 @@ import {
 import { googleAiFetch, googleAiModelUrl, googleAiModelsUrl } from "./_lib/googleAi.js";
 import { bodyObject } from "./_lib/requestBody.js";
 import { GEMINI_BULK_MODEL, GEMINI_FALLBACK_MODEL } from "./_lib/geminiModels.js";
+import { isAdminUser } from "./_lib/adminAuth.js";
 
 export const config = { api: { bodyParser: false } };
 
@@ -2203,6 +2204,11 @@ function localWeekday(tz: string, d: Date = new Date()): string {
   }
 }
 
+function envFlagEnabled(name: string): boolean {
+  const value = String(process.env[name] ?? "").trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes";
+}
+
 // Mirror a cron-driven push into the in-app notifications table so the
 // header bell lights up alongside the device push. Best-effort — a
 // failed insert is logged but does not affect the cron's primary work.
@@ -2330,7 +2336,7 @@ async function handleCronHourly(req: ApiRequest, res: ApiResponse): Promise<void
     const prefs = meta.notification_prefs ?? {};
     const sub = meta.push_subscription;
     if (!sub?.endpoint || !sub?.keys) {
-      console.log(`[cron/hourly] ${user.email ?? user.id} skip: no push subscription`);
+      console.log(`[cron/hourly] user=${user.id} skip: no push subscription`);
       dailyR.skipped++;
       nudgeR.skipped++;
       continue;
@@ -2344,7 +2350,7 @@ async function handleCronHourly(req: ApiRequest, res: ApiResponse): Promise<void
       const hoursSince = (now.getTime() - lastSent) / 3_600_000;
       const lh = localHour(tz, now);
       console.log(
-        `[cron/hourly] ${user.email ?? user.id} daily: tz=${tz} target=${targetHour} local=${lh} hoursSince=${hoursSince.toFixed(1)} match=${lh === targetHour && hoursSince >= 23}`,
+        `[cron/hourly] user=${user.id} daily: tz=${tz} target=${targetHour} local=${lh} hoursSince=${hoursSince.toFixed(1)} match=${lh === targetHour && hoursSince >= 23}`,
       );
       if (lh === targetHour && hoursSince >= 23) {
         try {
@@ -2381,7 +2387,7 @@ async function handleCronHourly(req: ApiRequest, res: ApiResponse): Promise<void
         dailyR.skipped++;
       }
     } else {
-      console.log(`[cron/hourly] ${user.email ?? user.id} daily: disabled`);
+      console.log(`[cron/hourly] user=${user.id} daily: disabled`);
       dailyR.skipped++;
     }
 
@@ -2628,10 +2634,12 @@ async function handleCronHourly(req: ApiRequest, res: ApiResponse): Promise<void
   // layer that guarantees no entry stays unenriched longer than ~1 hour.
   // Tighter budget than daily (90s total) so we stay inside the function
   // timeout shared with push notifications above.
-  const enrichR = await enrichAllBrains({ mode: "hourly" }).catch((e) => {
-    console.error("[cron/hourly] enrich sweep failed:", e);
-    return { brains: 0, processed: 0, mode: "hourly" as const };
-  });
+  const enrichR = envFlagEnabled("ENRICH_CRON_DISABLE")
+    ? { brains: 0, processed: 0, mode: "hourly" as const, disabled: true }
+    : await enrichAllBrains({ mode: "hourly" }).catch((e) => {
+        console.error("[cron/hourly] enrich sweep failed:", e);
+        return { brains: 0, processed: 0, mode: "hourly" as const };
+      });
 
   console.log(
     `[cron/hourly] done daily=${JSON.stringify(dailyR)} nudge=${JSON.stringify(nudgeR)} expiry=${JSON.stringify(expiryR)} enrich=${JSON.stringify(enrichR)}`,
@@ -2662,16 +2670,20 @@ async function handleCronDaily(req: ApiRequest, res: ApiResponse): Promise<void>
   if (subject && pub && priv) webpush.setVapidDetails(subject, pub, priv);
 
   // ── Gmail inbox scan ──
-  const gmailResults = await runGmailScanAllUsers().catch((e) => {
-    console.error("[cron/daily] gmail scan failed:", e);
-    return { users: 0, created: 0, errors: 1 };
-  });
+  const gmailResults = envFlagEnabled("GMAIL_CRON_DISABLE")
+    ? { users: 0, created: 0, errors: 0, disabled: true }
+    : await runGmailScanAllUsers().catch((e) => {
+        console.error("[cron/daily] gmail scan failed:", e);
+        return { users: 0, created: 0, errors: 1 };
+      });
 
   // ── Enrich every brain — daily catch-up pass for entries inline didn't cover ──
-  const enrichResults = await enrichAllBrains().catch((e) => {
-    console.error("[cron/daily] enrich batch failed:", e);
-    return { brains: 0, processed: 0 };
-  });
+  const enrichResults = envFlagEnabled("ENRICH_CRON_DISABLE")
+    ? { brains: 0, processed: 0, disabled: true }
+    : await enrichAllBrains().catch((e) => {
+        console.error("[cron/daily] enrich batch failed:", e);
+        return { brains: 0, processed: 0 };
+      });
 
   // ── Persona hygiene ──
   // Decay every day; dedup + digest only on Sundays so users get one summary
@@ -2978,8 +2990,9 @@ const handleLemonCheckout = withAuth(
     const variantId = process.env[variantEnvKey];
     if (!variantId) return void res.status(500).json({ error: "Plan not configured" });
 
-    const host = (req.headers["host"] as string) || "everion.app";
-    const successUrl = `https://${host}/settings?tab=billing&billing=success`;
+    const appOrigin = (process.env.APP_ORIGIN || process.env.APP_URL || "").trim();
+    if (!appOrigin) return void res.status(500).json({ error: "App origin not configured" });
+    const successUrl = `${appOrigin.replace(/\/$/, "")}/settings?tab=billing&billing=success`;
 
     let url: string;
     try {
@@ -3263,10 +3276,6 @@ const handleLemonPortal = withAuth(
 // the entries.ts admin endpoints so support knows one mechanism. All mutations
 // land in audit_log so we can reconstruct who changed what when.
 // ─────────────────────────────────────────────────────────────────────────────
-
-function isAdminUser(user: { app_metadata?: Record<string, unknown> }): boolean {
-  return user.app_metadata?.is_admin === true;
-}
 
 interface AdminUserRow {
   id: string;

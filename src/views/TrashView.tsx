@@ -3,6 +3,7 @@ import { entryRepo } from "../lib/entryRepo";
 import { getTypeConfig } from "../data/constants";
 import type { Entry } from "../types";
 import { Button } from "../components/ui/button";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 function daysAgo(isoDate: string): number {
   const ms = Date.now() - new Date(isoDate).getTime();
@@ -18,6 +19,9 @@ export default function TrashView({ brainId, onRestore }: TrashViewProps) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<
+    { type: "entry"; entry: Entry } | { type: "all" } | null
+  >(null);
 
   const load = async () => {
     setLoading(true);
@@ -40,8 +44,7 @@ export default function TrashView({ brainId, onRestore }: TrashViewProps) {
     setBusy(null);
   };
 
-  const deletePermanently = async (entry: Entry) => {
-    if (!confirm(`Permanently delete "${entry.title}"? This cannot be undone.`)) return;
+  const performDelete = async (entry: Entry) => {
     setBusy(entry.id);
     if (await entryRepo.deletePermanent(entry.id)) {
       setEntries((prev) => prev.filter((e) => e.id !== entry.id));
@@ -53,9 +56,11 @@ export default function TrashView({ brainId, onRestore }: TrashViewProps) {
     await Promise.all(entries.map(restore));
   };
 
-  const emptyTrash = async () => {
-    if (!confirm("Permanently delete all trashed entries? This cannot be undone.")) return;
-    await Promise.all(entries.map(deletePermanently));
+  const performEmptyTrash = async () => {
+    const targets = [...entries];
+    for (const entry of targets) {
+      await performDelete(entry);
+    }
   };
 
   if (loading)
@@ -79,7 +84,7 @@ export default function TrashView({ brainId, onRestore }: TrashViewProps) {
             <Button variant="outline" size="xs" onClick={restoreAll}>
               Restore all
             </Button>
-            <Button variant="destructive" size="xs" onClick={emptyTrash}>
+            <Button variant="destructive" size="xs" onClick={() => setConfirming({ type: "all" })}>
               Empty trash
             </Button>
           </div>
@@ -124,7 +129,7 @@ export default function TrashView({ brainId, onRestore }: TrashViewProps) {
                 <Button
                   variant="destructive"
                   size="xs"
-                  onClick={() => deletePermanently(entry)}
+                  onClick={() => setConfirming({ type: "entry", entry })}
                   disabled={busy === entry.id}
                 >
                   Delete
@@ -134,6 +139,26 @@ export default function TrashView({ brainId, onRestore }: TrashViewProps) {
           );
         })}
       </div>
+      {confirming?.type === "entry" && (
+        <ConfirmDialog
+          title="Delete forever?"
+          body={`Permanently delete "${confirming.entry.title}"? This cannot be undone.`}
+          confirmLabel="Delete"
+          danger
+          onCancel={() => setConfirming(null)}
+          onConfirm={() => performDelete(confirming.entry)}
+        />
+      )}
+      {confirming?.type === "all" && (
+        <ConfirmDialog
+          title="Empty trash?"
+          body="Permanently delete all trashed entries? This cannot be undone."
+          confirmLabel="Empty trash"
+          danger
+          onCancel={() => setConfirming(null)}
+          onConfirm={performEmptyTrash}
+        />
+      )}
     </div>
   );
 }

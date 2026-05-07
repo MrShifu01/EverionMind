@@ -45,8 +45,7 @@ html[class*="family-"] body {
   background: var(--ember);
   color: var(--ember-ink);
   padding: 0 18px;
-  height: 40px;
-  min-height: 40px;
+  min-height: 48px;
   border-radius: 8px;
   font-family: var(--f-sans);
   font-weight: 500;
@@ -77,8 +76,7 @@ html[class*="family-"] body {
   border: 1px solid var(--line);
   color: var(--ink);
   padding: 0 16px;
-  height: 40px;
-  min-height: 40px;
+  min-height: 48px;
   border-radius: 8px;
   font-family: var(--f-sans);
   font-weight: 500;
@@ -105,8 +103,7 @@ html[class*="family-"] body {
 .design-btn-ghost {
   color: var(--ink-soft);
   padding: 0 12px;
-  height: 36px;
-  min-height: 36px;
+  min-height: 44px;
   border-radius: 6px;
   font-family: var(--f-sans);
   font-weight: 500;
@@ -172,7 +169,7 @@ html[class*="family-"] body {
   height: 40px;
   color: var(--ink);
   font-family: var(--f-sans);
-  font-size: 14px;
+  font-size: 16px;
   transition: border-color 180ms;
   width: 100%;
   outline: 0;

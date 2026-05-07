@@ -37,16 +37,7 @@ import {
   Loading,
 } from "./ProfileTab.bits";
 import { Button } from "../ui/button";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "../ui/alert-dialog";
+import { ConfirmDialog } from "../ConfirmDialog";
 import {
   Dialog,
   DialogContent,
@@ -1580,107 +1571,6 @@ function RejectDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ConfirmDialog — branded replacement for window.confirm(). Same portal +
-// body-lock pattern as RejectDialog so iOS Safari doesn't anchor the modal
-// below the fold and the user lands back on their original scroll position.
-// Accepts a single body string OR an array of paragraphs so multi-part
-// confirmations read cleanly without inline \n\n hacks.
-// ─────────────────────────────────────────────────────────────────────────────
-
-function ConfirmDialog({
-  title,
-  body,
-  confirmLabel,
-  danger,
-  onCancel,
-  onConfirm,
-}: {
-  title: string;
-  body: string | string[];
-  confirmLabel: string;
-  danger?: boolean;
-  onCancel: () => void;
-  onConfirm: () => void | Promise<void>;
-}) {
-  const [submitting, setSubmitting] = useState(false);
-
-  async function handleConfirm() {
-    setSubmitting(true);
-    try {
-      await onConfirm();
-      onCancel();
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  const paragraphs = Array.isArray(body) ? body : [body];
-
-  return (
-    <AlertDialog open onOpenChange={(o) => !o && !submitting && onCancel()}>
-      <AlertDialogContent
-        className="sm:max-w-md"
-        style={{
-          background: "var(--surface-high)",
-          borderColor: "var(--line)",
-          boxShadow: "var(--lift-3)",
-        }}
-      >
-        <AlertDialogHeader>
-          <AlertDialogTitle
-            className="f-serif"
-            style={{ fontSize: 18, fontWeight: 500, color: "var(--ink)" }}
-          >
-            {title}
-          </AlertDialogTitle>
-          <AlertDialogDescription asChild>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {paragraphs.map((p, i) => (
-                <p
-                  key={i}
-                  className="f-serif"
-                  style={{
-                    margin: 0,
-                    fontSize: 13,
-                    fontStyle: "italic",
-                    color: "var(--ink-soft)",
-                    lineHeight: 1.55,
-                  }}
-                >
-                  {p}
-                </p>
-              ))}
-            </div>
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel asChild>
-            <Button type="button" disabled={submitting} variant="outline" size="sm">
-              Cancel
-            </Button>
-          </AlertDialogCancel>
-          <AlertDialogAction asChild>
-            <Button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                handleConfirm();
-              }}
-              disabled={submitting}
-              autoFocus
-              variant={danger ? "destructive" : "default"}
-              size="sm"
-            >
-              {submitting ? "Working…" : confirmLabel}
-            </Button>
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
   );
 }
 

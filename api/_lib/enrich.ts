@@ -1964,14 +1964,14 @@ export async function enrichAllBrains(
   const PER_RUN_BUDGET_MS = mode === "hourly" ? 90_000 : 240_000;
   const PER_BRAIN_BUDGET_MS = mode === "hourly" ? 25_000 : 60_000;
   const BATCH_SIZE = mode === "hourly" ? 30 : 50;
-  const BRAIN_PAGE = 100;
+  const BRAIN_PAGE = 1000;
   const startedAt = Date.now();
   for (let offset = 0; ; offset += BRAIN_PAGE) {
     const remainingBeforeFetch = Math.max(0, PER_RUN_BUDGET_MS - (Date.now() - startedAt));
     if (remainingBeforeFetch < 5_000) break;
 
     const r = await fetch(
-      `${SB_URL}/rest/v1/brains?select=id,owner_id&order=created_at.asc&limit=${BRAIN_PAGE}&offset=${offset}`,
+      `${SB_URL}/rest/v1/brains?select=id,owner_id&order=id.asc&limit=${BRAIN_PAGE}&offset=${offset}`,
       { headers: SB_HDR },
     );
     if (!r.ok) break;

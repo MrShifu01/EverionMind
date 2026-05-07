@@ -12,13 +12,13 @@
 
 | # | Severity | Fix | File / Line | Source |
 |---|---|---|---|---|
-| 0.1 | HIGH | Replace `window.confirm()` with branded `ConfirmDialog` (extract from `ProfileTab.tsx:1587` to shared) | `src/views/TrashView.tsx:44,57` · `src/hooks/useVaultOps.ts:836` | smash-os, vault-unlock F1, production F1 |
-| 0.2 | HIGH | `redirectUrl()` fail closed when `VITE_APP_URL` unset — never trust `window.location.origin` for OAuth | `src/hooks/useAuthFlow.ts:5-19` | auth-flow F1 |
-| 0.3 | HIGH | Kill `host`-header trust in LS `successUrl` — read `APP_ORIGIN` env var | `api/user-data.ts:2981-2982` | billing F1 |
-| 0.4 | MEDIUM | Drop JWT cache TTL `30_000 → 5_000` ms (revoke window) | `api/_lib/verifyAuth.ts:8` | smash-os, auth F2, production W1 |
-| 0.5 | MEDIUM | Lift `.design-input` font-size 14 → 16 px globally (kills iPad-Safari auto-zoom) | `src/index.css:185-190` | frontend MOB-1, production W11 |
-| 0.6 | MEDIUM | Drop `user.email ??` from cron logs (PII leak) | `api/user-data.ts:2333,2384` | pii F1 |
-| 0.7 | LOW | Auto-trim OTP input on paste | `src/hooks/useAuthFlow.ts` (input handler) | auth F4 |
+| 0.1 | HIGH | [x] Replace `window.confirm()` with branded `ConfirmDialog` (extracted to shared `src/components/ConfirmDialog.tsx`) | `src/views/TrashView.tsx` · `src/hooks/useVaultOps.ts` · `src/views/VaultUnlocked.tsx` | smash-os, vault-unlock F1, production F1 |
+| 0.2 | HIGH | [x] `redirectUrl()` fail closed when `VITE_APP_URL` unset — never trust `window.location.origin` for OAuth | `src/hooks/useAuthFlow.ts` | auth-flow F1 |
+| 0.3 | HIGH | [x] Kill `host`-header trust in LS `successUrl` — read `APP_ORIGIN` / `APP_URL` env var | `api/user-data.ts` | billing F1 |
+| 0.4 | MEDIUM | [x] Drop JWT cache TTL `30_000 → 5_000` ms (revoke window) | `api/_lib/verifyAuth.ts:8` | smash-os, auth F2, production W1 |
+| 0.5 | MEDIUM | [x] Lift `.design-input` font-size 14 → 16 px globally (kills iPad-Safari auto-zoom) | `src/design/tokens.css` | frontend MOB-1, production W11 |
+| 0.6 | MEDIUM | [x] Drop `user.email ??` from cron logs (PII leak) | `api/user-data.ts` | pii F1 |
+| 0.7 | LOW | [x] Auto-trim OTP input on paste | `src/hooks/useAuthFlow.ts` (input handler) | auth F4 |
 
 ---
 
@@ -42,16 +42,16 @@
 | # | Severity | Fix | Source |
 |---|---|---|---|
 | 1B.1 | HIGH | Configure 3 Sentry alert rules: error-rate > 50/10m · new-issue first-fire · p95(`/api/llm`,`/api/capture`) > 5s. Route to `stander.christian@gmail.com`. | smash-os, observability F1, production F2 |
-| 1B.2 | MEDIUM | External uptime monitor (UptimeRobot free / BetterStack / Sentry uptime) → poll `https://everionmind.com/api/status` every 1m, alert on 2 consecutive 503/timeout | smash-os, observability F6, production W15 |
-| 1B.3 | MEDIUM | `/api/health` returns **503** when `db === false`; `200 + degraded:[…]` for non-critical (gemini/groq) | observability F4, production W12 |
+| 1B.2 | MEDIUM | External uptime monitor (UptimeRobot free / BetterStack / Sentry uptime) -> poll `https://everion.smashburgerbar.co.za/api/status` every 1m, alert on 2 consecutive 503/timeout | smash-os, observability F6, production W15 |
+| 1B.3 | MEDIUM | [x] `/api/health` returns **503** when critical deps fail; DB failure is included in the critical failure set | observability F4, production W12 |
 | 1B.4 | LOW | External status page (Statuspage.io / Instatus) — in-app `StatusPage.tsx` is invisible when the app itself is down | production W18 |
 
 ### 1C — Auth-surface drift (~30 min)
 
 | # | Severity | Fix | Source |
 |---|---|---|---|
-| 1C.1 | HIGH | Extract `isAdminUser()` to `api/_lib/adminAuth.ts`, import from `entries.ts:987` + `user-data.ts:3267`. Stops silent admin-surface drift. | smash-os, production W2 |
-| 1C.2 | MEDIUM | `handlePatch` and `entryDelete` pre-fetch by `id` only — add `&user_id=eq.${user.id}` (or compound brain scope) so RLS is a backstop, not the gate | `api/entries.ts:281,313` · `api/_lib/handlers/entryDelete.ts:21` · smash-os, service-role F1 |
+| 1C.1 | HIGH | [x] Extract `isAdminUser()` to `api/_lib/adminAuth.ts`, import from `entries.ts` + `user-data.ts`. Stops silent admin-surface drift. | smash-os, production W2 |
+| 1C.2 | MEDIUM | [x] `handlePatch` and `entryDelete` now authorize by brain role and write with `brain_id` scope, preserving shared-brain collaborative editing while blocking outsiders | `api/entries.ts` · `api/_lib/handlers/entryDelete.ts` · smash-os, service-role F1 |
 | 1C.3 | LOW | Surface Supabase rate-limit errors with countdown (status 429 / "rate limit" detection) | auth F3 |
 
 ---
@@ -103,8 +103,8 @@
 | 3.4 | MEDIUM | RC webhook: reject events older than 5 min via `event.event_timestamp_ms` (defence-in-depth) | billing F2 |
 | 3.5 | LOW | RC fallback `eventId`: include body hash, OR refuse events without `event.id` (collision-prone today) | billing F3 |
 | 3.6 | LOW | Accept `Idempotency-Key` header on `handleLemonCheckout` (double-tap subscribe → 2 LS records today) | billing F7 |
-| 3.7 | LOW | Add `GMAIL_CRON_DISABLE=1` and `ENRICH_CRON_DISABLE=1` env-var kill switches | service-role F2 |
-| 3.8 | HIGH | **Paginate `enrichAllBrains` with `?limit=1000&order=id`** — past 1000 brains additional brains never enrich (PostgREST silently truncates) | service-role F3 |
+| 3.7 | LOW | [x] Add `GMAIL_CRON_DISABLE=1` and `ENRICH_CRON_DISABLE=1` env-var kill switches | service-role F2 |
+| 3.8 | HIGH | [x] Paginate `enrichAllBrains` with `limit=1000` and stable `order=id.asc` so brain sweeps do not truncate at PostgREST's default cap | service-role F3 |
 
 ---
 
@@ -114,7 +114,7 @@
 
 | # | Severity | Fix | Source |
 |---|---|---|---|
-| 4A.1 | HIGH | Bump `.design-btn-primary` + `.design-btn-secondary` `min-height: 40 → 48 px`, `.design-btn-ghost: 36 → 44 px`. Walk all 9 family themes in Playwright | `src/design/tokens.css:49,81,109` · frontend A11Y-1, production W10 |
+| 4A.1 | HIGH | [~] Bump `.design-btn-primary` + `.design-btn-secondary` `min-height: 40 → 48 px`, `.design-btn-ghost: 36 → 44 px`. Code change done; all-family Playwright theme walk still pending. | `src/design/tokens.css` · frontend A11Y-1, production W10 |
 | 4A.2 | HIGH | Landing mobile tap-target sweep — 22/30 elements < 44 px. Bump nav links, footer links, scroll-cue button via `padding-block` (visible text doesn't shift) | `src/views/Landing.tsx` · frontend A11Y-2 |
 | 4A.3 | MEDIUM | Author `--space-{1..10}` token scale on 4-px steps (4/8/12/16/20/24/32/40/48/64). Migrate `src/index.css` + family CSS in single sweep — 164 off-grid instances on Landing alone | `tokens.css` · frontend SPC-1 |
 | 4A.4 | LOW | `clamp()` fluid display + h2 tokens (e.g., `clamp(2rem, 4vw + 1rem, 3.5rem)`) — fixed type scale today | `tokens.css` · frontend TYPO-1, CWV-2 |

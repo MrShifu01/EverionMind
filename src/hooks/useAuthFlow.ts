@@ -3,7 +3,8 @@ import { supabase } from "../lib/supabase";
 import { friendlyError as toFriendlyError } from "../lib/friendlyError";
 
 function redirectUrl(): string {
-  const raw = import.meta.env.VITE_APP_URL || window.location.origin;
+  const raw = import.meta.env.VITE_APP_URL;
+  if (!raw) throw new Error("VITE_APP_URL is required for auth redirects");
   const base = raw.startsWith("http") ? raw : `https://${raw}`;
   // Preserve ?invite=<token> through the magic-link / email-confirm round-trip
   // so the App.tsx accept flow still fires after sign-up.
@@ -45,13 +46,29 @@ export function useAuthFlow() {
   const [isSigningUp, setIsSigningUp] = useState(true);
   const [signupSuccess, setSignupSuccess] = useState(false);
 
+  const getEmailRedirectUrl = (): string | null => {
+    try {
+      return redirectUrl();
+    } catch (err) {
+      setError(
+        toFriendlyError(err instanceof Error ? err.message : "Auth redirect is not configured."),
+      );
+      return null;
+    }
+  };
+
   const handleSend = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    const emailRedirectTo = getEmailRedirectUrl();
+    if (!emailRedirectTo) {
+      setLoading(false);
+      return;
+    }
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: redirectUrl() },
+      options: { emailRedirectTo },
     });
     if (error) setError(toFriendlyError(error.message));
     else setSent(true);
@@ -76,9 +93,14 @@ export function useAuthFlow() {
     setLoading(true);
     setError(null);
     setOtpCode("");
+    const emailRedirectTo = getEmailRedirectUrl();
+    if (!emailRedirectTo) {
+      setLoading(false);
+      return;
+    }
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: redirectUrl() },
+      options: { emailRedirectTo },
     });
     if (error) setError(toFriendlyError(error.message));
     setLoading(false);
@@ -89,10 +111,12 @@ export function useAuthFlow() {
     setLoading(true);
     setError(null);
     try {
+      const emailRedirectTo = getEmailRedirectUrl();
+      if (!emailRedirectTo) return;
       const { error, data } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: redirectUrl() },
+        options: { emailRedirectTo },
       });
       if (error) setError(toFriendlyError(error.message));
       else if (data?.user) setSignupSuccess(true);
@@ -128,9 +152,14 @@ export function useAuthFlow() {
   const handleGoogleSignIn = async () => {
     setLoading(true);
     setError(null);
+    const redirectTo = getEmailRedirectUrl();
+    if (!redirectTo) {
+      setLoading(false);
+      return;
+    }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: redirectUrl() },
+      options: { redirectTo },
     });
     if (error) {
       setError(toFriendlyError(error.message));
@@ -193,7 +222,7 @@ export function useAuthFlow() {
     error,
     showForm,
     otpCode,
-    setOtpCode,
+    setOtpCode: (value: string) => setOtpCode(value.trim()),
     verifying,
     usePassword,
     password,

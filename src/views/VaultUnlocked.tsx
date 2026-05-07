@@ -16,6 +16,7 @@ import { getTemplateOrFreeform, type TemplateId, type VaultTemplate } from "../l
 import { VaultTemplatePicker } from "../components/vault/VaultTemplatePicker";
 import { VaultTemplateForm } from "../components/vault/VaultTemplateForm";
 import { buildVaultBackup, downloadVaultBackup } from "../lib/vaultBackup";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 type VaultOps = ReturnType<typeof useVaultOps>;
 
@@ -78,6 +79,7 @@ export function VaultUnlocked({
   const [backupNotice, setBackupNotice] = useState<{ kind: "ok" | "err"; text: string } | null>(
     null,
   );
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const downloadBackup = async () => {
     if (backupBusy) return;
     setBackupBusy(true);
@@ -359,11 +361,22 @@ export function VaultUnlocked({
         >
           <span className="text-on-surface text-sm">{selectedIds.size} selected</span>
           <div className="flex gap-2">
-            <Button variant="destructive" size="sm" onClick={bulkDelete}>
+            <Button variant="destructive" size="sm" onClick={() => setConfirmBulkDelete(true)}>
               Delete
             </Button>
           </div>
         </div>
+      )}
+
+      {confirmBulkDelete && (
+        <ConfirmDialog
+          title="Delete selected secrets?"
+          body={`Permanently delete ${selectedIds.size} selected secret${selectedIds.size !== 1 ? "s" : ""}? This cannot be undone.`}
+          confirmLabel="Delete"
+          danger
+          onCancel={() => setConfirmBulkDelete(false)}
+          onConfirm={bulkDelete}
+        />
       )}
 
       {showAddSecret && (

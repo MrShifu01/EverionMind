@@ -832,12 +832,6 @@ export function useVaultOps({
   );
 
   const bulkDelete = useCallback(async () => {
-    if (
-      !confirm(
-        `Permanently delete ${selectedIds.size} selected secret${selectedIds.size !== 1 ? "s" : ""}? This cannot be undone.`,
-      )
-    )
-      return;
     const ids = Array.from(selectedIds);
     const legacyIds = new Set(legacySecrets.map((e) => e.id));
     for (const id of ids) {

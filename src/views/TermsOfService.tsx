@@ -6,7 +6,7 @@ export default function TermsOfService() {
     title: "Terms of Service — Everion",
     description:
       "Everion terms of service: how the product works, what you can expect, and your rights as a user.",
-    canonical: "https://everionmind.com/terms",
+    canonical: "https://everion.smashburgerbar.co.za/terms",
   });
   return (
     <div

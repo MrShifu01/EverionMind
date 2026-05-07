@@ -620,7 +620,7 @@ export default function Landing({ onAuth }: LandingProps) {
     title: "Everion — your second memory, quietly kept.",
     description:
       "One private place for everything worth remembering — meeting notes, decisions, half-formed ideas, the customer insight from last quarter. Capture in one tap, recall by asking. Encrypted vault for the few real secrets — passwords, cards, recovery codes.",
-    canonical: "https://everionmind.com/",
+    canonical: "https://everion.smashburgerbar.co.za/",
   });
 
   // Cmd/Ctrl+K on the landing page = the same thing the kbd hint promises:

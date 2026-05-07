@@ -37,6 +37,7 @@ import { googleAiFetch, googleAiModelUrl } from "./_lib/googleAi.js";
 import { handleDeleteEntry } from "./_lib/handlers/entryDelete.js";
 import { bodyObject } from "./_lib/requestBody.js";
 import { GEMINI_BULK_MODEL } from "./_lib/geminiModels.js";
+import { isAdminUser } from "./_lib/adminAuth.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const ENTRY_FIELDS =
@@ -1156,14 +1157,6 @@ async function handleGmailPrompt({ res, user }: HandlerContext): Promise<void> {
     prompt,
     pending_distill,
   });
-}
-
-function isAdminUser(user: { app_metadata?: Record<string, unknown> }): boolean {
-  // Multi-admin via auth.users.raw_app_meta_data.is_admin (set in Supabase
-  // dashboard / SQL). Replaces the older single-email env-var gate. The flag
-  // rides in the JWT — server reads it from the verified token, no extra
-  // DB hit needed. To grant admin: see Docs/Components/auth.md.
-  return user.app_metadata?.is_admin === true;
 }
 
 // ── GET /api/entries?action=enrich-debug — admin only ──

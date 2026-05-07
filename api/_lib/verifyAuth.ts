@@ -5,20 +5,19 @@ import { sbHeadersNoContent } from "./sbHeaders.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const VERIFY_TIMEOUT_MS = 5_000;
-const CACHE_TTL_MS = 30_000;
+const CACHE_TTL_MS = 5_000;
 const CACHE_MAX_ENTRIES = 500;
 
 // Per-process cache of verified JWTs. A typical page issues 4–8 authed
 // requests in parallel (HomeView fetches profile / gmail / calendar / vault /
 // checklist_done; Settings tabs do their own GETs); each formerly hit
-// /auth/v1/user separately. With a 30s TTL keyed by token-hash, a page load
+// /auth/v1/user separately. With a short TTL keyed by token-hash, a page load
 // pays one round-trip and the rest are local — turns 8×~100ms into
 // 1×~100ms when Supabase is healthy, and protects against the upstream
 // 504/522 storm we're seeing today.
 //
-// The 30s TTL is a deliberate trade-off: a token revoked in the last 30s
-// could still be honored on this instance, which is fine for this app's
-// threat model (no revocation flow today; tokens auto-expire ~1h).
+// Keep the TTL tight so revoked tokens age out quickly while still collapsing
+// request bursts from one app render.
 //
 // Map preserves insertion order so we can cheaply trim the oldest entry
 // when we exceed CACHE_MAX_ENTRIES — bounds memory on a hot instance.

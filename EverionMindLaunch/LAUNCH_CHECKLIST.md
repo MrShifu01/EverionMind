@@ -29,6 +29,28 @@ Traceability source: [`Audits/audit-production-hardening-2026-05-06.md`](Audits/
 
 ---
 
+## Manual Operator Tasks From 2026-05-07 Audits
+
+Traceability source: [`Audits/TODO-AUDIT-FIXES.md`](Audits/TODO-AUDIT-FIXES.md) and archived Smash OS audit.
+
+- [ ] **MANUAL-2026-05-07-01** Upgrade Vercel to Pro before public launch so `maxDuration:300` functions are not silently capped at 60s.
+- [ ] **MANUAL-2026-05-07-02** Configure GitHub `main` branch protection: PR required, passing CI required, no force pushes.
+- [ ] **MANUAL-2026-05-07-03** Add `SUPABASE_DB_URL` to GitHub Actions secrets and trigger the backup workflow once.
+- [ ] **MANUAL-2026-05-07-04** Add `OAUTH_TOKEN_ENCRYPTION_KEY` to Vercel production, then run `Ops/oauth-token-plaintext-audit.sql`.
+- [ ] **MANUAL-2026-05-07-05** Set `APP_ORIGIN=https://everion.smashburgerbar.co.za` in Vercel production.
+- [ ] **MANUAL-2026-05-07-06** Confirm LemonSqueezy and RevenueCat live env vars are all present in Vercel production.
+- [ ] **MANUAL-2026-05-07-07** Enable Supabase breached-password protection and confirm email confirmation is required.
+- [ ] **MANUAL-2026-05-07-08** Configure Sentry alerts: error-rate spike, first-fire new issue, and slow p95 on `/api/llm` + `/api/capture`.
+- [ ] **MANUAL-2026-05-07-09** Add an external uptime monitor for `https://everion.smashburgerbar.co.za/api/status`.
+- [ ] **MANUAL-2026-05-07-10** Create an external status page so users can check incidents when the app itself is down.
+- [ ] **MANUAL-2026-05-07-11** Run DB hardening migrations / SQL checks from TODO Phase 2 with `EXPLAIN ANALYZE` evidence where requested.
+- [ ] **MANUAL-2026-05-07-12** Schedule quarterly `REVENUECAT_WEBHOOK_SECRET` rotation and document it in `EML/Ops/vendors.md`.
+- [ ] **MANUAL-2026-05-07-13** Run Lighthouse against deployed preview/prod and save the report.
+- [ ] **MANUAL-2026-05-07-14** Get Privacy + ToS reviewed for POPIA/GDPR before broad public launch.
+- [ ] **MANUAL-2026-05-07-15** Verify SPF/DKIM/DMARC for the sender domain and target `mail-tester.com` 10/10.
+
+---
+
 ## Enrichment Audit Deferrals — 2026-05-07
 
 Traceability source: [`Audits/archive/enrichment-audit.md`](Audits/archive/enrichment-audit.md).

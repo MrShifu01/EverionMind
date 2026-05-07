@@ -3,7 +3,7 @@
  * - Error handling: "Database error saving new user" shows friendly message
  * - Generic errors pass through unchanged
  * - Sent state shown on success
- * - emailRedirectTo uses VITE_APP_URL when set, falls back to window.location.origin
+ * - emailRedirectTo uses VITE_APP_URL and fails closed when it is missing
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -29,6 +29,11 @@ describe("LoginScreen — layout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    vi.stubEnv("VITE_APP_URL", "https://everion.smashburgerbar.co.za");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("renders a centered wrapper to constrain width on desktop", async () => {
@@ -42,6 +47,11 @@ describe("LoginScreen — error handling", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    vi.stubEnv("VITE_APP_URL", "https://everion.smashburgerbar.co.za");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("maps 'Database error saving new user' to a user-friendly message", async () => {
@@ -133,7 +143,7 @@ describe("LoginScreen — emailRedirectTo", () => {
   });
 
   it("uses VITE_APP_URL as emailRedirectTo when the env var is set", async () => {
-    vi.stubEnv("VITE_APP_URL", "https://everionmind.com");
+    vi.stubEnv("VITE_APP_URL", "https://everion.smashburgerbar.co.za");
 
     const { default: LoginScreen } = await import("../../src/LoginScreen");
     render(<LoginScreen />);
@@ -145,12 +155,12 @@ describe("LoginScreen — emailRedirectTo", () => {
     await waitFor(() => {
       expect(mockSignInWithOtp).toHaveBeenCalledWith({
         email: "user@example.com",
-        options: { emailRedirectTo: "https://everionmind.com" },
+        options: { emailRedirectTo: "https://everion.smashburgerbar.co.za" },
       });
     });
   });
 
-  it("falls back to window.location.origin when VITE_APP_URL is not set", async () => {
+  it("fails closed when VITE_APP_URL is not set", async () => {
     vi.stubEnv("VITE_APP_URL", "");
 
     const { default: LoginScreen } = await import("../../src/LoginScreen");
@@ -161,10 +171,8 @@ describe("LoginScreen — emailRedirectTo", () => {
     await userEvent.click(screen.getByText("Send my code"));
 
     await waitFor(() => {
-      expect(mockSignInWithOtp).toHaveBeenCalledWith({
-        email: "user@example.com",
-        options: { emailRedirectTo: window.location.origin },
-      });
+      expect(mockSignInWithOtp).not.toHaveBeenCalled();
+      expect(screen.getByText(/auth redirects/i)).toBeInTheDocument();
     });
   });
 });

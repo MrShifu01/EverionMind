@@ -102,6 +102,52 @@ describe("api/entries — soft delete", () => {
     expect(typeof patchBody.deleted_at).toBe("string");
     // Verify it's a valid ISO date
     expect(new Date(patchBody.deleted_at).toISOString()).toBe(patchBody.deleted_at);
+    expect(String(patchCall![0])).not.toContain("user_id=eq.");
+    expect(String(patchCall![0])).toContain("brain_id=eq.");
+  });
+
+  it("PATCH allows collaborative edits for entries owned by another user in an accessible brain", async () => {
+    fetchSpy
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue([
+          {
+            brain_id: BRAIN_ID,
+            title: "Original",
+            content: "Body",
+            type: "note",
+            tags: [],
+            metadata: {},
+          },
+        ]),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue([{ id: ENTRY_ID, title: "Shared edit" }]),
+      })
+      .mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue({}) });
+
+    const req = {
+      method: "PATCH",
+      query: {},
+      headers: {},
+      body: { id: ENTRY_ID, title: "Shared edit" },
+    };
+    const res = makeRes();
+    await handler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+
+    const entryLookup = fetchSpy.mock.calls[0];
+    expect(String(entryLookup[0])).not.toContain("user_id=eq.");
+
+    const patchCall = fetchSpy.mock.calls.find(
+      ([url, opts]) =>
+        opts?.method === "PATCH" && url.includes("entries") && url.includes(ENTRY_ID),
+    );
+    expect(patchCall).toBeDefined();
+    expect(String(patchCall![0])).not.toContain("user_id=eq.");
+    expect(String(patchCall![0])).toContain("brain_id=eq.");
   });
 
   it("GET excludes soft-deleted entries (deleted_at=is.null in fallback path or RPC used)", async () => {
@@ -232,5 +278,7 @@ describe("api/entries — soft delete", () => {
         opts?.method === "DELETE" && url.includes("entries") && url.includes(ENTRY_ID),
     );
     expect(deleteCall).toBeDefined();
+    expect(String(deleteCall![0])).not.toContain("user_id=eq.");
+    expect(String(deleteCall![0])).toContain("brain_id=eq.");
   });
 });

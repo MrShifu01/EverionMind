@@ -6,7 +6,7 @@ export default function PrivacyPolicy() {
     title: "Privacy — Everion",
     description:
       "How Everion handles your data. End-to-end encrypted vault for true secrets (AES-GCM 256, PBKDF2 310k), BYO AI key, full export anytime. POPIA + GDPR compliant.",
-    canonical: "https://everionmind.com/privacy",
+    canonical: "https://everion.smashburgerbar.co.za/privacy",
   });
   return (
     <div
