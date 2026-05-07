@@ -219,8 +219,19 @@ async function stepParse(entry: Entry, cfg: AICall): Promise<Record<string, any>
   // Reads the union of title + content + metadata.full_text + attachment_text
   // so emails where the meat lives in the PDF still get useful structured
   // extraction and aren't classified by their "see attached" body alone.
-  const raw = buildEnrichText({ ...entry, metadata: meta }, 10000);
-  if (!raw) return { ...meta, enrichment: { ...(meta.enrichment ?? {}), parsed: true } };
+  const body = buildEnrichText({ ...entry, metadata: meta }, 10000);
+  if (!body) return { ...meta, enrichment: { ...(meta.enrichment ?? {}), parsed: true } };
+
+  // Anchor relative dates. Without this header the LLM guesses what "today"
+  // means and silently mis-stamps due_date / deadline / event_date. The
+  // anchor uses the entry's created_at when present (re-parses pin to the
+  // original capture day) and falls back to now for first-time captures.
+  const captureDateISO = (() => {
+    const c = (entry as { created_at?: string }).created_at;
+    if (typeof c === "string" && /^\d{4}-\d{2}-\d{2}/.test(c)) return c.slice(0, 10);
+    return new Date().toISOString().slice(0, 10);
+  })();
+  const raw = `Today's date is ${captureDateISO} (the date this entry was captured). Use it ONLY when the entry text uses absolute relative phrases like "today" with no other date context. If the entry has a specific scheduled_for / event_date in its content, words like "today" inside that entry refer to THAT date, not the capture date.\n\n${body}`;
 
   const aiRaw = await callAI(cfg, SERVER_PROMPTS.CAPTURE, raw, { maxTokens: 1500, json: true });
   if (!aiRaw) return null; // LLM failure — leave the flag unset
@@ -250,29 +261,51 @@ async function stepParse(entry: Entry, cfg: AICall): Promise<Record<string, any>
       safeAIMeta[k] = v;
     }
 
-    // Date sanity guard. The LLM occasionally resolves "today / this week /
-    // tomorrow" against the capture date even when the entry has an explicit
-    // future scheduled_for, producing rows like:
-    //   scheduled_for: 2026-05-24, due_date: 2026-05-07
-    // which then surface on the Home view's Today card. due_date / deadline /
-    // event_date can never be earlier than scheduled_for — drop the offending
-    // field rather than ship a wrong date to the UI. We compare YYYY-MM-DD
-    // strings directly; both sides are ISO-prefixed by the schema validator.
-    const candidateScheduled =
-      typeof safeAIMeta.scheduled_for === "string"
-        ? safeAIMeta.scheduled_for
-        : typeof meta.scheduled_for === "string"
-          ? meta.scheduled_for
-          : null;
-    if (candidateScheduled && /^\d{4}-\d{2}-\d{2}/.test(candidateScheduled)) {
-      const sched = candidateScheduled.slice(0, 10);
-      for (const k of ["due_date", "deadline", "event_date"] as const) {
-        const v = safeAIMeta[k];
-        if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) && v.slice(0, 10) < sched) {
-          delete safeAIMeta[k];
-        }
+    // Date sanity guard — pairwise consistency between extracted fields.
+    //
+    // The LLM occasionally resolves "today / this week / tomorrow" against
+    // the capture date even when the entry has explicit dates in its
+    // content, producing internally inconsistent rows like:
+    //   scheduled_for=2026-05-24, due_date=2026-05-07
+    // We do NOT enforce "all dates must be in the future" — that would
+    // strip legitimate past references (missed renewals, anniversaries,
+    // historical events). Instead we drop fields that violate ordering
+    // rules that are impossible by definition.
+    //
+    // Picks the candidate value for each field — the AI's value if it
+    // landed in safeAIMeta, otherwise the existing meta value. Drops only
+    // from safeAIMeta (never blow away user-set data already on meta).
+    const dateValue = (k: string): string | null => {
+      const fromAI = safeAIMeta[k];
+      if (typeof fromAI === "string" && /^\d{4}-\d{2}-\d{2}/.test(fromAI)) return fromAI.slice(0, 10);
+      const fromMeta = meta[k];
+      if (typeof fromMeta === "string" && /^\d{4}-\d{2}-\d{2}/.test(fromMeta))
+        return fromMeta.slice(0, 10);
+      return null;
+    };
+    // Returns true if `field` came from the AI (safe to drop) and is < ref.
+    const dropIfBefore = (field: string, refKey: string): boolean => {
+      const ref = dateValue(refKey);
+      if (!ref) return false;
+      const v = safeAIMeta[field];
+      if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}/.test(v)) return false;
+      if (v.slice(0, 10) < ref) {
+        delete safeAIMeta[field];
+        return true;
       }
-    }
+      return false;
+    };
+    // Pairwise rules (impossible-by-definition orderings):
+    //   due_date     >= scheduled_for   (can't be due before you start)
+    //   deadline     >= scheduled_for   (deadline can't precede the plan)
+    //   event_date   >= scheduled_for   (event can't precede its own plan)
+    //   deadline     >= due_date        (deadline is the latest commitment)
+    //   expiry_date  >= renewal_date    (expiry is when renewal lapses)
+    dropIfBefore("due_date", "scheduled_for");
+    dropIfBefore("deadline", "scheduled_for");
+    dropIfBefore("event_date", "scheduled_for");
+    dropIfBefore("deadline", "due_date");
+    dropIfBefore("expiry_date", "renewal_date");
 
     // For Gmail-sourced entries the original content is auto-generated at
     // scan time (cluster-mode: first 400 chars of email body; classifier-
