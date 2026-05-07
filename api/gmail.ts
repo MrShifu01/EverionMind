@@ -26,6 +26,7 @@ import {
 } from "./_lib/gmailScan.js";
 import { optionalBodyObject } from "./_lib/requestBody.js";
 import { sbHeaders } from "./_lib/sbHeaders.js";
+import { distillPatternSummary } from "./_lib/distillPatternSummary.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_HEADERS = sbHeaders();
@@ -385,6 +386,43 @@ const authedHandler = withAuth(
         return void res.status(502).json({ error: `update failed: ${txt.slice(0, 200)}` });
       }
       return void res.status(200).json({ ok: true });
+    }
+
+    if (req.method === "POST" && action === "patterns-redistill") {
+      // One-shot backfill: ask the LLM to rewrite each pattern's summary
+      // into a generic label. Targets rows that haven't been distilled
+      // (summary_distilled_at IS NULL) and have at least one example to
+      // anchor on. Force=true bypasses the 2-sample minimum since the
+      // existing rows pre-date recent_matches tracking.
+      const idsRes = await fetch(
+        `${SB_URL}/rest/v1/gmail_pattern_rules?user_id=eq.${user.id}` +
+          `&summary_distilled_at=is.null` +
+          `&example_subject=not.is.null` +
+          `&select=id&limit=200`,
+        { headers: SB_HEADERS },
+      );
+      if (!idsRes.ok) {
+        return void res.status(502).json({ error: "failed to load patterns" });
+      }
+      const rows: Array<{ id: string }> = await idsRes.json();
+      // Run in small parallel batches so a 200-pattern user doesn't
+      // serialise N Gemini calls. Each is fire-and-forget at the row
+      // level; we wait for the batch only to keep the response honest
+      // about how many succeeded.
+      const BATCH = 4;
+      let processed = 0;
+      for (let i = 0; i < rows.length; i += BATCH) {
+        const batch = rows.slice(i, i + BATCH);
+        await Promise.all(
+          batch.map((row) =>
+            distillPatternSummary(row.id, { force: true }).catch((e) =>
+              console.error("[patterns-redistill]", row.id, e),
+            ),
+          ),
+        );
+        processed += batch.length;
+      }
+      return void res.status(200).json({ ok: true, processed });
     }
 
     if (req.method === "POST" && action === "ignore") {

@@ -34,7 +34,10 @@ interface PatternRow {
   recent_matches: RecentMatch[] | null;
 }
 
-export async function distillPatternSummary(patternId: string): Promise<void> {
+export async function distillPatternSummary(
+  patternId: string,
+  options: { force?: boolean } = {},
+): Promise<void> {
   if (!GEMINI_API_KEY) return;
 
   const r = await fetch(
@@ -55,7 +58,12 @@ export async function distillPatternSummary(patternId: string): Promise<void> {
   const samples = [row.example_subject, ...memberSubjects].filter(
     (s): s is string => typeof s === "string" && s.trim().length > 0,
   );
-  if (samples.length < 2) return; // not enough signal yet
+  // Need at least 2 samples for a confident generalisation. force=true is
+  // the one-shot backfill path: existing patterns have no recent_matches
+  // yet, so we accept 1 sample and let the LLM produce a coarse label
+  // anchored on the single example subject + sender.
+  const minSamples = options.force ? 1 : 2;
+  if (samples.length < minSamples) return;
 
   const senders = Array.from(
     new Set(

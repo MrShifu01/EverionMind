@@ -535,8 +535,24 @@ export default function GmailPatternRules() {
     return Array.isArray(d?.patterns) ? (d.patterns as Pattern[]) : [];
   });
 
+  const [redistilling, setRedistilling] = useState(false);
+  const undistilledCount = (patterns ?? []).filter(
+    (p) => !p.summary_distilled_at && p.example_subject,
+  ).length;
+
   function onPatternDeleted(id: string) {
     mutate((patterns ?? []).filter((p) => p.id !== id));
+  }
+
+  async function handleRedistill() {
+    if (redistilling || undistilledCount === 0) return;
+    setRedistilling(true);
+    try {
+      await authFetch("/api/gmail?action=patterns-redistill", { method: "POST" });
+      await refetch();
+    } finally {
+      setRedistilling(false);
+    }
   }
 
   if (isLoading && !patterns) {
@@ -550,17 +566,31 @@ export default function GmailPatternRules() {
   return (
     <div style={{ marginTop: 24 }}>
       <div
-        className="f-sans"
         style={{
-          fontSize: 11,
-          fontWeight: 700,
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-          color: "var(--ink-soft)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
           marginBottom: 10,
         }}
       >
-        Learned patterns ({patterns?.length ?? 0})
+        <div
+          className="f-sans"
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            color: "var(--ink-soft)",
+          }}
+        >
+          Learned patterns ({patterns?.length ?? 0})
+        </div>
+        {undistilledCount > 0 && (
+          <Button size="sm" variant="ghost" onClick={handleRedistill} disabled={redistilling}>
+            {redistilling ? "Re-labeling…" : `Re-label ${undistilledCount}`}
+          </Button>
+        )}
       </div>
       {error && (
         <div
