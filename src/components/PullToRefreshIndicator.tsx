@@ -33,7 +33,11 @@ export default function PullToRefreshIndicator({
         pointerEvents: "none",
         transform: `translateY(${translate - 32}px)`,
         transition: refreshing ? "transform 200ms ease" : "none",
-        zIndex: 5,
+        // Above MemoryHeader's sticky filter row (z-20) and any other
+        // sticky bars inside main-content. main-content's `relative`
+        // creates a stacking context, so this stays below the global
+        // header / nav (which live outside it).
+        zIndex: 30,
       }}
     >
       <div
