@@ -16,6 +16,7 @@ import type { ApiRequest, ApiResponse } from "./_lib/types";
 import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 import { rateLimit } from "./_lib/rateLimit.js";
 import { resolveApiKey } from "./_lib/resolveApiKey.js";
+import { checkBrainAccess, type BrainRole } from "./_lib/checkBrainAccess.js";
 import { generateEmbedding, buildEntryText } from "./_lib/generateEmbedding.js";
 import { retrieveEntries, rebuildConceptGraph } from "./_lib/retrievalCore.js";
 import { getUpcomingEntries } from "./_lib/getUpcoming.js";
@@ -96,7 +97,21 @@ async function resolveMcpBearer(raw: string): Promise<McpAuth | null> {
 
 // ── MCP tool definitions ──────────────────────────────────────────────────────
 
+// brain_id parameter description, reused across tools that accept it
+const BRAIN_ID_PARAM_DESC =
+  "Optional brain UUID to target. If omitted, falls back to the API key's default brain — which may not be the user's personal brain. Call list_brains and confirm with the user before write tools when they have multiple brains.";
+
 const TOOLS = [
+  {
+    name: "list_brains",
+    description:
+      "List every brain the API-key user can access (owned + member). Returns each brain's id, name, and role. **Call this first** any time you're about to create/update/delete an entry and the user has more than one brain — the default brain is whichever the API key resolves to and is often NOT the user's personal brain. Pass the chosen brain's id back via the brain_id parameter on the next tool call.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      required: [],
+    },
+  },
   {
     name: "retrieve_memory",
     description:
@@ -106,6 +121,7 @@ const TOOLS = [
       properties: {
         query: { type: "string", description: "Natural language question or topic to search for" },
         limit: { type: "number", description: "Max entries to return (1–50, default 15)" },
+        brain_id: { type: "string", description: BRAIN_ID_PARAM_DESC },
       },
       required: ["query"],
     },
@@ -118,6 +134,7 @@ const TOOLS = [
       type: "object",
       properties: {
         days: { type: "number", description: "Look-ahead window in days (1–365, default 30)" },
+        brain_id: { type: "string", description: BRAIN_ID_PARAM_DESC },
       },
       required: [],
     },
@@ -127,14 +144,17 @@ const TOOLS = [
     description: "Fetch a single entry by its UUID.",
     inputSchema: {
       type: "object",
-      properties: { id: { type: "string", description: "Entry UUID" } },
+      properties: {
+        id: { type: "string", description: "Entry UUID" },
+        brain_id: { type: "string", description: BRAIN_ID_PARAM_DESC },
+      },
       required: ["id"],
     },
   },
   {
     name: "create_entry",
     description:
-      "Save new information to the user's knowledge base. Use this when the user says things like 'add this to Everion', 'save this note', 'remember that', 'store this phone number', or 'add this idea to my memory'. For Someday/Maybe items (no date, GTD-style 'maybe later' list — phrases like 'add to my someday list', 'add to someday', 'put this in someday', 'for someday', 'maybe later', 'no date'), pass type='someday'. To bulk-add a checklist into Someday, call create_entry once per item with type='someday'.",
+      "Save new information to the user's knowledge base. Use this when the user says things like 'add this to Everion', 'save this note', 'remember that', 'store this phone number', or 'add this idea to my memory'. **If the user has multiple brains, call list_brains FIRST and confirm with them which brain to save into** — the default brain is whichever the API key resolves to and is often NOT the user's personal brain. For Someday/Maybe items (no date, GTD-style 'maybe later' list — phrases like 'add to my someday list', 'add to someday', 'put this in someday', 'for someday', 'maybe later', 'no date'), pass type='someday'. To bulk-add a checklist into Someday, call create_entry once per item with type='someday'.",
     inputSchema: {
       type: "object",
       properties: {
@@ -150,6 +170,7 @@ const TOOLS = [
           items: { type: "string" },
           description: "Optional tags for categorisation",
         },
+        brain_id: { type: "string", description: BRAIN_ID_PARAM_DESC },
       },
       required: ["title", "content"],
     },
@@ -162,6 +183,7 @@ const TOOLS = [
       type: "object",
       properties: {
         query: { type: "string", description: "Natural language search query" },
+        brain_id: { type: "string", description: BRAIN_ID_PARAM_DESC },
       },
       required: ["query"],
     },
@@ -182,6 +204,7 @@ const TOOLS = [
           items: { type: "string" },
           description: "New tags array (optional, replaces existing)",
         },
+        brain_id: { type: "string", description: BRAIN_ID_PARAM_DESC },
       },
       required: ["id"],
     },
@@ -194,6 +217,7 @@ const TOOLS = [
       type: "object",
       properties: {
         id: { type: "string", description: "Entry UUID to delete" },
+        brain_id: { type: "string", description: BRAIN_ID_PARAM_DESC },
       },
       required: ["id"],
     },
@@ -293,6 +317,55 @@ async function getUserPlan(userId: string): Promise<{ plan: string; hasByok: boo
 }
 
 // ── Tool implementations ──────────────────────────────────────────────────────
+
+// Resolve which brain a tool call should target. If args.brain_id is set,
+// validate the user has the required role and return it. Otherwise fall
+// back to the API-key default brain. Throws ApiError on access denial so
+// callers get a clean JSON-RPC error frame instead of a 500.
+async function resolveTargetBrain(
+  args: { brain_id?: unknown },
+  defaultBrainId: string,
+  userId: string,
+  requiredRoles: BrainRole[] = ["owner", "member"],
+): Promise<string> {
+  const requested = typeof args.brain_id === "string" && args.brain_id ? args.brain_id : null;
+  if (!requested) return defaultBrainId;
+  const access = await checkBrainAccess(userId, requested);
+  if (!access) {
+    throw new ApiError(
+      403,
+      `No access to brain ${requested}. Call list_brains to see your brains.`,
+    );
+  }
+  if (requiredRoles.length && !requiredRoles.includes(access.role)) {
+    throw new ApiError(
+      403,
+      `This action requires ${requiredRoles.join(" or ")} role on the brain (you have ${access.role}).`,
+    );
+  }
+  return requested;
+}
+
+async function listBrains(userId: string): Promise<unknown> {
+  const ownedR = await fetch(
+    `${SB_URL}/rest/v1/brains?owner_id=eq.${encodeURIComponent(userId)}&select=id,name&order=created_at.asc`,
+    { headers: hdrs() },
+  );
+  const owned: any[] = ownedR.ok ? await ownedR.json() : [];
+  const memberR = await fetch(
+    `${SB_URL}/rest/v1/brain_members?user_id=eq.${encodeURIComponent(userId)}&select=role,brains(id,name)`,
+    { headers: hdrs() },
+  );
+  const memberRows: any[] = memberR.ok ? await memberR.json() : [];
+  const memberBrains = memberRows
+    .filter((m) => m.brains && m.brains.id)
+    .map((m) => ({ id: m.brains.id, name: m.brains.name, role: m.role as BrainRole }));
+  const brains = [
+    ...owned.map((b) => ({ id: b.id, name: b.name, role: "owner" as const })),
+    ...memberBrains,
+  ];
+  return { brains, count: brains.length };
+}
 
 async function retrieveMemory(brainId: string, query: string, limit = 15): Promise<unknown> {
   const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
@@ -683,17 +756,23 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     try {
       let result: unknown;
 
-      if (toolName === "retrieve_memory") {
+      if (toolName === "list_brains") {
+        result = await listBrains(userId);
+      } else if (toolName === "retrieve_memory") {
         if (!args.query) return res.status(200).json(jsonRpcErr(id, -32602, "query is required"));
-        result = await retrieveMemory(brainId, args.query, args.limit);
+        const target = await resolveTargetBrain(args, brainId, userId, ["owner", "member", "viewer"]);
+        result = await retrieveMemory(target, args.query, args.limit);
       } else if (toolName === "get_upcoming") {
-        result = await getUpcoming(brainId, args.days);
+        const target = await resolveTargetBrain(args, brainId, userId, ["owner", "member", "viewer"]);
+        result = await getUpcoming(target, args.days);
       } else if (toolName === "search_entries") {
         if (!args.query) return res.status(200).json(jsonRpcErr(id, -32602, "query is required"));
-        result = await searchEntries(brainId, args.query);
+        const target = await resolveTargetBrain(args, brainId, userId, ["owner", "member", "viewer"]);
+        result = await searchEntries(target, args.query);
       } else if (toolName === "get_entry") {
         if (!args.id) return res.status(200).json(jsonRpcErr(id, -32602, "id is required"));
-        result = await getEntry(brainId, args.id);
+        const target = await resolveTargetBrain(args, brainId, userId, ["owner", "member", "viewer"]);
+        result = await getEntry(target, args.id);
       } else if (toolName === "create_entry") {
         if (!args.title || !args.content) {
           return res.status(200).json(jsonRpcErr(id, -32602, "title and content are required"));
@@ -734,9 +813,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
           }
         }
         if (!result) {
+          const target = await resolveTargetBrain(args, brainId, userId, ["owner", "member"]);
           result = await createEntry(
             userId,
-            brainId,
+            target,
             args.title,
             args.content,
             args.type,
@@ -768,7 +848,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
             .status(200)
             .json(jsonRpcErr(id, -32602, "At least one field to update is required"));
         }
-        result = await updateEntry(brainId, args.id, {
+        const updateTarget = await resolveTargetBrain(args, brainId, userId, ["owner", "member"]);
+        result = await updateEntry(updateTarget, args.id, {
           title: args.title,
           content: args.content,
           type: args.type,
@@ -782,7 +863,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
         }
       } else if (toolName === "delete_entry") {
         if (!args.id) return res.status(200).json(jsonRpcErr(id, -32602, "id is required"));
-        result = await deleteEntry(brainId, args.id);
+        const deleteTarget = await resolveTargetBrain(args, brainId, userId, ["owner", "member"]);
+        result = await deleteEntry(deleteTarget, args.id);
       } else if (toolName === "merge_entries") {
         if (!Array.isArray(args.ids) || args.ids.length < 2 || args.ids.length > 8) {
           return res
