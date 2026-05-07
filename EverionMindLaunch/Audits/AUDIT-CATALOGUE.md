@@ -64,16 +64,16 @@ These audit one rendered surface — invariants, accessibility, performance, cop
 
 | Slug | Trigger | Scope (in) | Scope (out) | Signals | Cadence |
 |---|---|---|---|---|---|
-| `landing-audit` | "audit landing" | `src/views/Landing.tsx`, hero, pricing, CTAs, animations, OG card, sitemap row | login / app | Lighthouse (perf/SEO/a11y), `clamp()` usage, scroll perf, signup-CTA conversion | 🟡 monthly |
-| `login-signup-audit` | "audit login screen" | `src/LoginScreen.tsx`, `SignupModal`, OAuth + magic-link + password forms, error messaging, rate-limit feedback | auth-flow-audit overlap OK | iOS auto-zoom (≥16 px input), aria-label coverage, focus order, redirect target validation | 🔴 weekly until launch |
-| `memory-grid-audit` | "audit memory grid" | `src/Everion.tsx`, `MemoryHeader.tsx`, EntryList, virtualizer, filters, sort, infinite scroll | detail modal | virtualizer scroll-container binding, filter perf, empty-state CTAs, time-to-first-paint with cached entries | 🟡 monthly |
-| `detail-modal-audit` | "audit entry detail" | `src/views/DetailModal.tsx` (1,590 LOC god component), edit flow, share flow, vault gate, audit-log writes | memory grid | every code path's enrichment-trigger, focus trap, undo coverage | 🟢 quarterly |
-| `capture-sheet-audit` | "audit capture sheet" | `src/views/CaptureSheet.tsx`, file parse (`useCaptureSheetParse.ts`), AI classification, secret detection, vault branch, voice modal | capture-pipeline-audit overlap OK | offline queue replay, file-size guards, `extractFromBuffer` PDF safety | 🔴 weekly until launch |
-| `vault-view-audit` | "audit vault view" | `src/views/VaultView.tsx`, `VaultUnlocked.tsx`, `VaultPinSetup.tsx`, `SecurityTab.tsx`, recovery key UI | vault-unlock-audit overlap OK | inline confirm dialogs (no native `confirm()`), recovery-key copy / print / download flows, brand-asset usage | 🔴 weekly until launch |
-| `chat-view-audit` | "audit chat" | `src/views/ChatView.tsx`, retrieval call, citations, vault-gated answers, tool calling, streaming UX | retrieval-audit overlap OK | stream-cancel on unmount, error-boundary, scroll-anchor, rate-limit feedback | 🟡 monthly |
-| `todo-view-audit` | "audit todos" | `TodoView.tsx`, `TodoCalendarTab`, `TodoSomedayTab`, recurring rules, calendar overlay | calendar-sync-audit overlap OK | timezone correctness, completion idempotency, large-list virtualization | 🟢 quarterly |
-| `settings-views-audit` | "audit settings" | every tab in `src/components/settings/` — Profile / Admin / Brain / Connections / Privacy / Billing | dedicated tab audits OK | URL_ALIASES preserve old `?tab=` deep links, sidebar navigation, write-confirmation patterns | 🟡 monthly |
-| `profile-tab-audit` | "audit profile tab" | `ProfileTab.tsx` (2,328 LOC), persona-facts grid, fading-section, history timeline | settings overlap OK | persona dedup, soft-retire flow, scroll perf on big grids | 🟢 quarterly |
+| `landing-audit` | "audit landing" | `src/views/Landing.tsx`, hero, pricing, CTAs, animations, OG card, sitemap row | login / app | Lighthouse (perf/SEO/a11y), `clamp()` usage, scroll perf, signup-CTA conversion | 🟡 monthly · **1× · last 2026-05-07** |
+| `login-signup-audit` | "audit login screen" | `src/LoginScreen.tsx`, `SignupModal`, OAuth + magic-link + password forms, error messaging, rate-limit feedback | auth-flow-audit overlap OK | iOS auto-zoom (≥16 px input), aria-label coverage, focus order, redirect target validation | 🔴 weekly until launch · **1× · last 2026-05-07** |
+| `memory-grid-audit` | "audit memory grid" | `src/Everion.tsx`, `MemoryHeader.tsx`, EntryList, virtualizer, filters, sort, infinite scroll | detail modal | virtualizer scroll-container binding, filter perf, empty-state CTAs, time-to-first-paint with cached entries | 🟡 monthly · **1× · last 2026-05-07** |
+| `detail-modal-audit` | "audit entry detail" | `src/views/DetailModal.tsx` (1,590 LOC god component), edit flow, share flow, vault gate, audit-log writes | memory grid | every code path's enrichment-trigger, focus trap, undo coverage | 🟢 quarterly · **1× · last 2026-05-07** |
+| `capture-sheet-audit` | "audit capture sheet" | `src/views/CaptureSheet.tsx`, file parse (`useCaptureSheetParse.ts`), AI classification, secret detection, vault branch, voice modal | capture-pipeline-audit overlap OK | offline queue replay, file-size guards, `extractFromBuffer` PDF safety | 🔴 weekly until launch · **1× · last 2026-05-07** |
+| `vault-view-audit` | "audit vault view" | `src/views/VaultView.tsx`, `VaultUnlocked.tsx`, `VaultPinSetup.tsx`, `SecurityTab.tsx`, recovery key UI | vault-unlock-audit overlap OK | inline confirm dialogs (no native `confirm()`), recovery-key copy / print / download flows, brand-asset usage | 🔴 weekly until launch · **1× · last 2026-05-07** |
+| `chat-view-audit` | "audit chat" | `src/views/ChatView.tsx`, retrieval call, citations, vault-gated answers, tool calling, streaming UX | retrieval-audit overlap OK | stream-cancel on unmount, error-boundary, scroll-anchor, rate-limit feedback | 🟡 monthly · **1× · last 2026-05-07** |
+| `todo-view-audit` | "audit todos" | `TodoView.tsx`, `TodoCalendarTab`, `TodoSomedayTab`, recurring rules, calendar overlay | calendar-sync-audit overlap OK | timezone correctness, completion idempotency, large-list virtualization | 🟢 quarterly · **1× · last 2026-05-07** |
+| `settings-views-audit` | "audit settings" | every tab in `src/components/settings/` — Profile / Admin / Brain / Connections / Privacy / Billing | dedicated tab audits OK | URL_ALIASES preserve old `?tab=` deep links, sidebar navigation, write-confirmation patterns | 🟡 monthly · **1× · last 2026-05-07** |
+| `profile-tab-audit` | "audit profile tab" | `ProfileTab.tsx` (2,328 LOC), persona-facts grid, fading-section, history timeline | settings overlap OK | persona dedup, soft-retire flow, scroll perf on big grids | 🟢 quarterly · **1× · last 2026-05-07** |
 | `admin-tab-audit` | "audit admin" | `AdminTab.tsx`, `AdminCRMSection.tsx`, `isAdminUser` gate, tier-changer, mock-review, debug runners | F4 from prod-audit | server-side admin gate (currently client + endpoint check), audit_log on every mutation | 🔴 weekly until launch · **1× · last 2026-05-07** |
 
 ---
@@ -198,6 +198,16 @@ Findings still need triage into `TODO-AUDIT-FIXES.md` or addressed-and-archived.
 | `dependencies-audit-2026-05-07.md` | 0 vulns; RC SDK 2 majors behind — 1 MED, 5 LOW, 1 INFO | 3 |
 | `pwa-offline-audit-2026-05-07.md` | precache 2.64 MB; manifest mismatch — 2 HIGH, 1 MED, 2 LOW | 3 |
 | `cron-audit-2026-05-07.md` | auth right; serial loop blows 300s — 2 HIGH, 3 MED, 2 LOW | 3 |
+| `landing-audit-2026-05-07.md` | bones solid; 4 ship-blockers — 4 HIGH, 5 MED, 7 LOW | 4 |
+| `login-signup-audit-2026-05-07.md` | iOS auto-zoom + no forgot-password — 2 HIGH, 4 MED, 3 LOW | 4 |
+| `memory-grid-audit-2026-05-07.md` | virtualizer correct; no scroll-restore — 0 HIGH, 3 MED, 5 LOW | 4 |
+| `detail-modal-audit-2026-05-07.md` | god component; stale-clobber + vault-reveal — 2 HIGH, 3 MED, 3 LOW | 4 |
+| `capture-sheet-audit-2026-05-07.md` | offline+voice solid; PDF size unbounded — 2 HIGH, 3 MED, 2 LOW | 4 |
+| `vault-view-audit-2026-05-07.md` | one-click recovery dismiss; clipboard-only — 2 HIGH, 2 MED, 4 LOW | 4 |
+| `chat-view-audit-2026-05-07.md` | non-streaming, no `res.ok` check — 1 HIGH, 4 MED, 7 LOW | 4 |
+| `todo-view-audit-2026-05-07.md` | engine A−; TZ + race + recurrence — 4 HIGH, 2 MED, 3 LOW | 4 |
+| `settings-views-audit-2026-05-07.md` | shell solid; save semantics drift — 0 HIGH, 2 MED, 5 LOW | 4 |
+| `profile-tab-audit-2026-05-07.md` | sane; no virtualizer + no undo — 0 HIGH, 3 MED, 4 LOW | 4 |
 
 ### Archived (`EML/Audits/archive/`)
 
