@@ -320,14 +320,24 @@ const authedHandler = withAuth(
     // the table independently in case a request slips past withAuth.
 
     if (req.method === "GET" && action === "patterns-list") {
+      // PostgREST does NOT accept SQL function calls (greatest/least/etc.)
+      // inside `order=`. Fetch by created_at, sort by dominant score
+      // client-side. Previous version returned 400 silently → UI showed 0
+      // patterns even when rows existed.
       const r = await fetch(
         `${SB_URL}/rest/v1/gmail_pattern_rules?user_id=eq.${user.id}` +
           `&select=id,summary,example_subject,example_from,accept_score,reject_score,accept_hits,reject_hits,last_accept_at,last_reject_at,auto_accept_eligible_at,created_at` +
-          `&order=greatest(accept_score,reject_score).desc.nullslast,created_at.desc` +
+          `&order=created_at.desc` +
           `&limit=200`,
         { headers: SB_HEADERS },
       );
       const rows: any[] = r.ok ? await r.json() : [];
+      rows.sort((a, b) => {
+        const aMax = Math.max(a.accept_score ?? 0, a.reject_score ?? 0);
+        const bMax = Math.max(b.accept_score ?? 0, b.reject_score ?? 0);
+        if (bMax !== aMax) return bMax - aMax;
+        return (b.created_at || "").localeCompare(a.created_at || "");
+      });
       return void res.status(200).json({ patterns: rows });
     }
 

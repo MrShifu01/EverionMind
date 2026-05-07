@@ -86,11 +86,20 @@ export async function recordPatternDecision(params: {
   from_name?: string | null;
   snippet?: string | null;
   reason?: string | null;
+  // Cluster size of the staging row. One tap on a 49-cluster represents
+  // 49 dedup'd emails; treating it as +1 made hard-block unreachable for
+  // high-volume noise (the GitHub CI failure case the user hit). Bump
+  // accept_score / reject_score by this weight (capped at 10).
+  weight?: number;
 }): Promise<void> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return;
   const text = buildPatternText(params);
   if (!text.trim()) return;
+  const weight =
+    typeof params.weight === "number" && Number.isFinite(params.weight)
+      ? Math.max(1, Math.min(50, Math.round(params.weight)))
+      : 1;
 
   let embedding: number[];
   try {
@@ -105,10 +114,10 @@ export async function recordPatternDecision(params: {
 
   if (match) {
     const isAccept = params.decision === "accept";
-    const newAccept = isAccept ? Math.min(10, match.accept_score + 1) : match.accept_score;
-    const newReject = !isAccept ? Math.min(10, match.reject_score + 1) : match.reject_score;
-    const newAcceptHits = isAccept ? match.accept_hits + 1 : match.accept_hits;
-    const newRejectHits = !isAccept ? match.reject_hits + 1 : match.reject_hits;
+    const newAccept = isAccept ? Math.min(10, match.accept_score + weight) : match.accept_score;
+    const newReject = !isAccept ? Math.min(10, match.reject_score + weight) : match.reject_score;
+    const newAcceptHits = isAccept ? match.accept_hits + weight : match.accept_hits;
+    const newRejectHits = !isAccept ? match.reject_hits + weight : match.reject_hits;
     const crossedAcceptThreshold =
       isAccept &&
       match.accept_score < AUTO_ACCEPT_SCORE &&
@@ -149,19 +158,26 @@ export async function recordPatternDecision(params: {
     (params.reason ?? "").trim().slice(0, 200) ||
     (params.subject ?? "").trim().slice(0, 200) ||
     `${params.decision === "accept" ? "Accept" : "Reject"} similar emails`;
+  const initialScore = Math.min(10, weight);
   const row: Record<string, unknown> = {
     user_id: params.userId,
     embedding: `[${embedding.join(",")}]`,
     summary,
     example_subject: params.subject ?? null,
     example_from: params.from_email ?? null,
-    accept_score: params.decision === "accept" ? 1 : 0,
-    reject_score: params.decision === "reject" ? 1 : 0,
-    accept_hits: params.decision === "accept" ? 1 : 0,
-    reject_hits: params.decision === "reject" ? 1 : 0,
+    accept_score: params.decision === "accept" ? initialScore : 0,
+    reject_score: params.decision === "reject" ? initialScore : 0,
+    accept_hits: params.decision === "accept" ? weight : 0,
+    reject_hits: params.decision === "reject" ? weight : 0,
     last_accept_at: params.decision === "accept" ? now : null,
     last_reject_at: params.decision === "reject" ? now : null,
-    auto_accept_eligible_at: null,
+    // Heavy-cluster first-touch (weight ≥ 8) sets immediate probation so
+    // auto-accept doesn't fire until the user has had 7d to dispute. The
+    // existing crossed-threshold logic only triggers on later +bumps.
+    auto_accept_eligible_at:
+      params.decision === "accept" && initialScore >= AUTO_ACCEPT_SCORE
+        ? new Date(Date.now() + PROBATION_DAYS * 24 * 60 * 60 * 1000).toISOString()
+        : null,
   };
   await fetch(`${SB_URL}/rest/v1/gmail_pattern_rules`, {
     method: "POST",

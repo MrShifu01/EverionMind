@@ -803,11 +803,18 @@ async function handleDistillGmail({ res, user }: HandlerContext): Promise<void> 
 // next scan. After every 20 decisions we fire a fire-and-forget distill so
 // the rules stay current without manual intervention.
 async function handleGmailDecision({ req, res, user }: HandlerContext): Promise<void> {
-  const { decision, subject, from_email, from_name, snippet, reason, source_id } =
+  const { decision, subject, from_email, from_name, snippet, reason, source_id, cluster_size } =
     bodyObject(req.body);
   if (decision !== "accept" && decision !== "reject") {
     throw new ApiError(400, "decision must be 'accept' or 'reject'");
   }
+  // Clamp cluster weight to [1, 50]. Cap=50 prevents a runaway scanner
+  // from poisoning a pattern in one tap; floor=1 keeps non-cluster rows
+  // sane.
+  const clusterWeight =
+    typeof cluster_size === "number" && Number.isFinite(cluster_size)
+      ? Math.max(1, Math.min(50, Math.round(cluster_size)))
+      : 1;
   const row: Record<string, unknown> = {
     user_id: user.id,
     decision,
@@ -854,6 +861,7 @@ async function handleGmailDecision({ req, res, user }: HandlerContext): Promise<
     from_name: row.from_name as string | null,
     snippet: row.snippet as string | null,
     reason: row.reason as string | null,
+    weight: clusterWeight,
   }).catch((e) => console.error("[gmail-pattern] decision recorder failed:", e));
 
   res.status(200).json({ ok: true, total });

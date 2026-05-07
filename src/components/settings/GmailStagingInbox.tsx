@@ -174,6 +174,10 @@ export default function GmailStagingInbox({ onClose, onCountChange }: Props) {
         snippet: augmentedSnippet,
         reason,
         source_id: entry?.id,
+        // Each staging row already represents N deduped emails. The pattern
+        // scorer treats one tap as N decisions so a 49-cluster reject jumps
+        // straight to hard-block instead of crawling +1 per swipe.
+        cluster_size: cluster?.size && cluster.size > 1 ? cluster.size : 1,
       }),
     }).catch(() => {});
   }
