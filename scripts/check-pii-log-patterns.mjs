@@ -5,7 +5,13 @@ const ROOTS = ["api", "src"];
 const EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx"]);
 // Heuristic only. Full AST parsing (e.g. @typescript-eslint/parser) is
 // recommended for comprehensive raw-PII logging detection.
-const PATTERN = /console\.(?:log|info|warn|error)\s*\([\s\S]*?(?:\.email\b|\.name\b|\.phone\b|\.address\b|\b(?:email|name|phone|address)\b)[\s\S]*?\)/;
+//
+// Match property-access PII fields (.email, .name, .phone, .address) inside
+// a single-line console.{log,info,warn,error}(...) call. Single-line scope
+// avoids the cross-statement false positives from greedy [\s\S]*? matching
+// (any downstream "name"/"email" word in the file matched against the open
+// paren of an unrelated console call).
+const PATTERN = /console\.(?:log|info|warn|error)\s*\([^)\n]*?\.(?:email|name|phone|address)\b/;
 
 function* walk(dir) {
   for (const entry of readdirSync(dir)) {
@@ -24,10 +30,12 @@ const offenders = [];
 for (const root of ROOTS) {
   for (const file of walk(root)) {
     const content = readFileSync(file, "utf8");
-    for (const match of content.matchAll(PATTERN)) {
-      const line = content.slice(0, match.index ?? 0).split(/\r?\n/).length;
-      offenders.push(`${file}:${line}: ${match[0].trim()}`);
-    }
+    const lines = content.split(/\r?\n/);
+    lines.forEach((line, i) => {
+      if (PATTERN.test(line)) {
+        offenders.push(`${file}:${i + 1}: ${line.trim()}`);
+      }
+    });
   }
 }
 
