@@ -96,7 +96,8 @@ export default function OnboardingModal({ onComplete, brainId }: OnboardingModal
         try {
           const body = await res.json();
           if (body && typeof body === "object") {
-            message = (body as any).message || (body as any).error || JSON.stringify(body);
+            const errBody = body as { message?: string; error?: string };
+            message = errBody.message || errBody.error || JSON.stringify(body);
           }
         } catch {
           const text = await res.text().catch(() => "<unreadable response>");
