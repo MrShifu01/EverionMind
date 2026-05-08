@@ -63,6 +63,7 @@ export function isEncrypted(str: unknown): boolean {
 }
 
 const VAULT_VERIFY_PLAINTEXT = "openbrain-vault-ok";
+export const VAULT_DECRYPT_PLACEHOLDER = "[encrypted — key mismatch or corrupted]";
 
 export async function setupVault(
   passphrase: string,
@@ -122,14 +123,33 @@ export async function encryptVaultKeyForRecovery(
   return `${saltHex}:${ciphertext}`;
 }
 
-export async function decryptVaultKeyFromRecovery(
+export type VaultRecoveryErrorCode = "format" | "key";
+
+export class VaultRecoveryError extends Error {
+  code: VaultRecoveryErrorCode;
+
+  constructor(code: VaultRecoveryErrorCode, message: string) {
+    super(message);
+    this.name = "VaultRecoveryError";
+    this.code = code;
+  }
+}
+
+export async function decryptVaultKeyFromRecoveryStrict(
   recoveryBlob: string,
   recoveryKey: string,
-): Promise<CryptoKey | null> {
+): Promise<CryptoKey> {
+  const firstColon = recoveryBlob.indexOf(":");
+  if (firstColon <= 0) {
+    throw new VaultRecoveryError("format", "Recovery blob is missing its salt prefix");
+  }
+  const saltHex = recoveryBlob.slice(0, firstColon);
+  const ciphertext = recoveryBlob.slice(firstColon + 1);
+  if (!/^[0-9a-f]{32}$/i.test(saltHex) || !isEncrypted(ciphertext)) {
+    throw new VaultRecoveryError("format", "Recovery blob is not in the expected format");
+  }
+
   try {
-    const firstColon = recoveryBlob.indexOf(":");
-    const saltHex = recoveryBlob.slice(0, firstColon);
-    const ciphertext = recoveryBlob.slice(firstColon + 1);
     const saltBytes = new Uint8Array(saltHex.match(/.{2}/g)!.map((b) => parseInt(b, 16)));
     const recoveryAesKey = await deriveKeyFromPassphrase(recoveryKey, saltBytes);
     const rawKeyB64 = await decryptText(ciphertext, recoveryAesKey);
@@ -141,6 +161,18 @@ export async function decryptVaultKeyFromRecovery(
       true,
       MASTER_KEY_USAGES,
     );
+  } catch (err) {
+    if (err instanceof VaultRecoveryError) throw err;
+    throw new VaultRecoveryError("key", "Recovery key could not decrypt this vault");
+  }
+}
+
+export async function decryptVaultKeyFromRecovery(
+  recoveryBlob: string,
+  recoveryKey: string,
+): Promise<CryptoKey | null> {
+  try {
+    return await decryptVaultKeyFromRecoveryStrict(recoveryBlob, recoveryKey);
   } catch {
     return null;
   }
@@ -185,6 +217,9 @@ export async function encryptEntry(
   cryptoKey: CryptoKey,
 ): Promise<EncryptableEntry> {
   const out = { ...entry };
+  if (entry.content === VAULT_DECRYPT_PLACEHOLDER) {
+    throw new Error("Refusing to encrypt vault decrypt placeholder");
+  }
   if (entry.content && !isEncrypted(entry.content)) {
     out.content = await encryptText(entry.content, cryptoKey);
   }
@@ -204,7 +239,7 @@ export async function decryptEntry(
     try {
       out.content = await decryptText(entry.content as string, cryptoKey);
     } catch {
-      out.content = "[encrypted — key mismatch or corrupted]";
+      out.content = VAULT_DECRYPT_PLACEHOLDER;
     }
   }
   if (isEncrypted(entry.metadata)) {

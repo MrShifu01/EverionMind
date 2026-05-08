@@ -38,6 +38,7 @@ import { handleDeleteEntry } from "./_lib/handlers/entryDelete.js";
 import { bodyObject } from "./_lib/requestBody.js";
 import { GEMINI_BULK_MODEL } from "./_lib/geminiModels.js";
 import { isAdminUser } from "./_lib/adminAuth.js";
+import { writeAuditLog } from "./_lib/auditLog.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const ENTRY_FIELDS =
@@ -969,7 +970,7 @@ async function handleDistillGmail({ res, user }: HandlerContext): Promise<void> 
 // becomes part of the learning set the classifier prompt reads from on the
 // next scan. After every 20 decisions we fire a fire-and-forget distill so
 // the rules stay current without manual intervention.
-async function handleGmailDecision({ req, res, user }: HandlerContext): Promise<void> {
+async function handleGmailDecision({ req, res, user, req_id }: HandlerContext): Promise<void> {
   const { decision, subject, from_email, from_name, snippet, reason, source_id, cluster_size } =
     bodyObject(req.body);
   if (decision !== "accept" && decision !== "reject") {
@@ -1001,6 +1002,17 @@ async function handleGmailDecision({ req, res, user }: HandlerContext): Promise<
     const body = await insert.text().catch(() => "");
     throw new ApiError(502, `gmail_decisions insert HTTP ${insert.status}: ${body.slice(0, 200)}`);
   }
+  writeAuditLog({
+    userId: user.id,
+    action: "gmail_decision",
+    metadata: {
+      decision,
+      source_id: row.source_id,
+      cluster_weight: clusterWeight,
+      requestId: req_id,
+      resourceId: row.source_id ?? undefined,
+    },
+  });
 
   // Auto-fire distill at multiples of 20. Fire-and-forget so the user's
   // accept/reject roundtrip stays snappy.

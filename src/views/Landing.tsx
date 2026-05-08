@@ -604,6 +604,9 @@ function FooterCol({
                 cursor: "pointer",
                 background: "transparent",
                 textDecoration: "none",
+                minHeight: 44,
+                display: "inline-flex",
+                alignItems: "center",
               }}
             >
               {label}
@@ -653,7 +656,7 @@ export default function Landing({ onAuth }: LandingProps) {
     <div
       className="scrollbar-hide"
       style={{
-        height: "100vh",
+        height: "100dvh",
         overflowY: "auto",
         position: "relative",
         background: "var(--bg)",
@@ -727,7 +730,14 @@ export default function Landing({ onAuth }: LandingProps) {
               e.preventDefault();
               goto("landing#what");
             }}
-            style={{ cursor: "pointer", color: "inherit", textDecoration: "none" }}
+            style={{
+              cursor: "pointer",
+              color: "inherit",
+              textDecoration: "none",
+              minHeight: 44,
+              display: "inline-flex",
+              alignItems: "center",
+            }}
           >
             What it is
           </a>
@@ -738,7 +748,14 @@ export default function Landing({ onAuth }: LandingProps) {
               e.preventDefault();
               goto("landing#pricing");
             }}
-            style={{ cursor: "pointer", color: "inherit", textDecoration: "none" }}
+            style={{
+              cursor: "pointer",
+              color: "inherit",
+              textDecoration: "none",
+              minHeight: 44,
+              display: "inline-flex",
+              alignItems: "center",
+            }}
           >
             Pricing
           </a>
@@ -749,14 +766,31 @@ export default function Landing({ onAuth }: LandingProps) {
               e.preventDefault();
               goto("privacy");
             }}
-            style={{ cursor: "pointer", color: "inherit", textDecoration: "none" }}
+            style={{
+              cursor: "pointer",
+              color: "inherit",
+              textDecoration: "none",
+              minHeight: 44,
+              display: "inline-flex",
+              alignItems: "center",
+            }}
           >
             Privacy
           </a>
-          <Button variant="outline" size="sm" onClick={() => goto("login")}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => goto("login")}
+            style={{ minHeight: 44 }}
+          >
             Sign in
           </Button>
-          <Button size="sm" className="landing-nav-cta" onClick={() => goto("signup")}>
+          <Button
+            size="sm"
+            className="landing-nav-cta"
+            onClick={() => goto("signup")}
+            style={{ minHeight: 44 }}
+          >
             <span className="landing-nav-cta-full">Start remembering</span>
             <span className="landing-nav-cta-short">Sign up</span>
           </Button>
@@ -1158,6 +1192,9 @@ export default function Landing({ onAuth }: LandingProps) {
                       color: "var(--ember)",
                       textDecoration: "underline",
                       textUnderlineOffset: 2,
+                      minHeight: 44,
+                      display: "inline-flex",
+                      alignItems: "center",
                     }}
                   >
                     privacy page

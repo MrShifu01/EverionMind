@@ -132,9 +132,11 @@ export function withAuth(
 
     try {
       const limit = routeLimit(limitSpec, req);
+      const routeSuffix = opts.rateLimitKey?.(req);
       if (limit !== false) {
-        const suffix = opts.rateLimitKey?.(req);
-        if (!(await rateLimit(req, limit, 60_000, suffix))) {
+        const preAuthLimit = Math.max(limit * 5, 60);
+        const preAuthSuffix = routeSuffix ? `auth-pre:${routeSuffix}` : "auth-pre";
+        if (!(await rateLimit(req, preAuthLimit, 60_000, preAuthSuffix))) {
           res.status(429).json({ error: "Too many requests" });
           return;
         }
@@ -144,6 +146,14 @@ export function withAuth(
       if (!user) {
         res.status(401).json({ error: "Unauthorized" });
         return;
+      }
+
+      if (limit !== false) {
+        const suffix = routeSuffix ? `user:${user.id}:${routeSuffix}` : `user:${user.id}`;
+        if (!(await rateLimit(req, limit, 60_000, suffix))) {
+          res.status(429).json({ error: "Too many requests" });
+          return;
+        }
       }
 
       const log = createLogger(req_id, { user_id: user.id });

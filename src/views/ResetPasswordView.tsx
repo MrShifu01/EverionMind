@@ -114,7 +114,7 @@ const inputStyle: React.CSSProperties = {
   border: "1px solid var(--line-soft, #333)",
   background: "var(--surface-low, #161616)",
   color: "var(--ink, #f0ede6)",
-  fontSize: 15,
+  fontSize: 16,
   padding: "0 14px",
   outline: "none",
 };

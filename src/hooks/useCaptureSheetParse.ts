@@ -14,6 +14,15 @@ import { trackFirstCapture, trackCaptureMethod, type CaptureMethod } from "../li
 import type { Entry } from "../types";
 
 const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const DOCUMENT_MAX_BYTES = 12 * 1024 * 1024;
+
+function logSafeName(value: string): string {
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  }
+  return `size=${value.length},hash=${hash.toString(16).padStart(8, "0")}`;
+}
 
 interface ParsedEntry {
   title: string;
@@ -696,11 +705,13 @@ export function useCaptureSheetParse({
               } as Entry);
               saved++;
             } else {
-              console.error(`[vcf] Failed to save "${contact.name}": HTTP ${res.status}`);
+              const contactLogId = logSafeName(contact.name);
+              console.error(`[vcf] Failed to save contact=${contactLogId}: HTTP ${res.status}`);
               failed++;
             }
           } catch (err) {
-            console.error(`[vcf] Error saving "${contact.name}":`, err);
+            const contactLogId = logSafeName(contact.name);
+            console.error(`[vcf] Error saving contact=${contactLogId}:`, err);
             failed++;
           }
         }
@@ -745,6 +756,11 @@ export function useCaptureSheetParse({
           await handleImageFile(file);
           continue;
         }
+        if (file.size > DOCUMENT_MAX_BYTES) {
+          setFileParseError(file.name);
+          setErrorDetail("File too large (max 12 MB)");
+          continue;
+        }
         setExtracting(true);
         setStatus(`Reading ${file.name}…`);
         setErrorDetail(null);
@@ -759,7 +775,8 @@ export function useCaptureSheetParse({
             setErrorDetail("No content could be read from this file.");
           }
         } catch (e) {
-          console.error(`[fileExtract:${file.name}]`, e);
+          const fileLogId = logSafeName(file.name);
+          console.error(`[fileExtract:${fileLogId}]`, e);
           failedFileRef.current = { file, isImage: false };
           setFileParseError(file.name);
           setErrorDetail(e instanceof Error ? e.message : "Could not read file.");
@@ -774,6 +791,11 @@ export function useCaptureSheetParse({
   const retryLastFile = useCallback(async () => {
     if (!failedFileRef.current) return;
     const { file, isImage } = failedFileRef.current;
+    if (!isImage && file.size > DOCUMENT_MAX_BYTES) {
+      setFileParseError(file.name);
+      setErrorDetail("File too large (max 12 MB)");
+      return;
+    }
     setFileParseError(null);
     setErrorDetail(null);
     if (isImage) await handleImageFile(file);

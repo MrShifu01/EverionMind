@@ -3,7 +3,10 @@ import type { ApiRequest, ApiResponse } from "./_lib/types";
 import { withAuth } from "./_lib/withAuth.js";
 import { checkBrainAccess } from "./_lib/checkBrainAccess.js";
 import { sendInviteEmail } from "./_lib/sendInviteEmail.js";
-import { markWebhookEventSeen } from "./_lib/webhookIdempotency.js";
+import {
+  hasWebhookEventBeenProcessed,
+  markWebhookEventSeen,
+} from "./_lib/webhookIdempotency.js";
 import { applySecurityHeaders } from "./_lib/securityHeaders.js";
 import { sbHeaders } from "./_lib/sbHeaders.js";
 import {
@@ -34,10 +37,13 @@ import { googleAiFetch, googleAiModelUrl, googleAiModelsUrl } from "./_lib/googl
 import { bodyObject } from "./_lib/requestBody.js";
 import { GEMINI_BULK_MODEL, GEMINI_FALLBACK_MODEL } from "./_lib/geminiModels.js";
 import { isAdminUser } from "./_lib/adminAuth.js";
+import { writeAuditLog } from "./_lib/auditLog.js";
+import { rateLimit } from "./_lib/rateLimit.js";
 
 export const config = { api: { bodyParser: false } };
 
 const MAX_RAW_BODY_BYTES = 2 * 1024 * 1024;
+const REVENUECAT_WEBHOOK_MAX_AGE_MS = 5 * 60 * 1000;
 
 class BodyTooLargeError extends Error {
   constructor() {
@@ -440,6 +446,18 @@ const handleBrains = withAuth(
         role: role as "viewer" | "member",
       });
 
+      writeAuditLog({
+        userId: user.id,
+        action: "brain_invite_create",
+        resourceId: brainId,
+        metadata: {
+          invite_id: inviteRow.id,
+          invite_email_hash: crypto.createHash("sha256").update(email).digest("hex").slice(0, 16),
+          role,
+          email_sent: emailResult.ok,
+        },
+      });
+
       return void res.status(201).json({
         ok: true,
         invite: {
@@ -493,6 +511,12 @@ const handleBrains = withAuth(
             body: JSON.stringify({ accepted_at: new Date().toISOString() }),
           },
         ).catch(() => {});
+        writeAuditLog({
+          userId: user.id,
+          action: "brain_invite_accept_owner",
+          resourceId: invite.brain_id,
+          metadata: { invite_id: invite.id },
+        });
         return void res.status(200).json({ ok: true, brain_id: invite.brain_id });
       }
 
@@ -525,6 +549,13 @@ const handleBrains = withAuth(
           body: JSON.stringify({ accepted_at: new Date().toISOString() }),
         },
       ).catch(() => {});
+
+      writeAuditLog({
+        userId: user.id,
+        action: "brain_invite_accept",
+        resourceId: invite.brain_id,
+        metadata: { invite_id: invite.id, role: invite.role },
+      });
 
       return void res.status(200).json({ ok: true, brain_id: invite.brain_id });
     }
@@ -621,6 +652,12 @@ const handleBrains = withAuth(
         { method: "DELETE", headers: hdrs({ Prefer: "return=minimal" }) },
       );
       if (!del.ok) return void res.status(502).json({ error: "Failed to remove member" });
+      writeAuditLog({
+        userId: user.id,
+        action: isSelf ? "brain_member_leave" : "brain_member_remove",
+        resourceId: brainId,
+        metadata: { target_user_id: targetId },
+      });
       return void res.status(200).json({ ok: true });
     }
 
@@ -650,6 +687,12 @@ const handleBrains = withAuth(
         },
       );
       if (!upd.ok) return void res.status(502).json({ error: "Failed to update role" });
+      writeAuditLog({
+        userId: user.id,
+        action: "brain_member_role_update",
+        resourceId: brainId,
+        metadata: { target_user_id: targetId, role },
+      });
       return void res.status(200).json({ ok: true });
     }
 
@@ -673,6 +716,12 @@ const handleBrains = withAuth(
         { method: "DELETE", headers: hdrs({ Prefer: "return=minimal" }) },
       );
       if (!del.ok) return void res.status(502).json({ error: "Failed to revoke invite" });
+      writeAuditLog({
+        userId: user.id,
+        action: "brain_invite_revoke",
+        resourceId: brainId,
+        metadata: { invite_id: inviteId },
+      });
       return void res.status(200).json({ ok: true });
     }
 
@@ -704,6 +753,12 @@ const handleBrains = withAuth(
           .json({ error: `Failed to create brain: ${detail.slice(0, 200)}` });
       }
       const [row]: any[] = await r.json();
+      writeAuditLog({
+        userId: user.id,
+        action: "brain_create",
+        resourceId: row.id,
+        metadata: { is_personal: false },
+      });
       return void res.status(201).json(row);
     }
 
@@ -727,6 +782,7 @@ const handleBrains = withAuth(
         { method: "DELETE", headers: hdrs({ Prefer: "return=minimal" }) },
       );
       if (!del.ok) return void res.status(502).json({ error: "Failed to delete brain" });
+      writeAuditLog({ userId: user.id, action: "brain_delete", resourceId: id });
       return void res.status(200).json({ ok: true });
     }
 
@@ -767,6 +823,12 @@ const handleBrains = withAuth(
         );
         if (!upd.ok) return void res.status(502).json({ error: "Failed to update brain" });
         const [row]: any[] = await upd.json();
+        writeAuditLog({
+          userId: user.id,
+          action: "brain_metadata_update",
+          resourceId: id,
+          metadata: { keys: Object.keys(metadata as Record<string, unknown>).slice(0, 20) },
+        });
         return void res.status(200).json(row);
       }
 
@@ -794,6 +856,12 @@ const handleBrains = withAuth(
       if (!upd.ok) return void res.status(502).json({ error: "Failed to update brain" });
       const updRows: any[] = await upd.json();
       if (!updRows.length) return void res.status(403).json({ error: "Forbidden" });
+      writeAuditLog({
+        userId: user.id,
+        action: "brain_update",
+        resourceId: id,
+        metadata: { fields: Object.keys(patch) },
+      });
       return void res.status(200).json(updRows[0]);
     }
 
@@ -1214,7 +1282,7 @@ async function handlePublicStatus(_req: ApiRequest, res: ApiResponse): Promise<v
 
 // ── /api/health (rewritten to /api/user-data?resource=health) ──
 const handleHealth = withAuth(
-  { methods: ["GET", "POST", "PUT", "PATCH", "DELETE"], rateLimit: false },
+  { methods: ["GET"], rateLimit: 30 },
   async ({ res }) => {
     const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
     const GROQ_API_KEY = (process.env.GROQ_API_KEY || "").trim();
@@ -1498,6 +1566,11 @@ const handleVault = withAuth(
         const err = await r.text().catch(() => String(r.status));
         return void res.status(502).json({ error: `Database error: ${err}` });
       }
+      writeAuditLog({
+        userId: user.id,
+        action: "vault_asymmetric_key_backfill",
+        metadata: { has_public_key: true, has_wrapped_private_key: true },
+      });
       return void res.status(200).json({ ok: true });
     }
 
@@ -1584,6 +1657,11 @@ const handleVault = withAuth(
       const err = await r.text().catch(() => String(r.status));
       return void res.status(502).json({ error: `Database error: ${err}` });
     }
+    writeAuditLog({
+      userId: user.id,
+      action: "vault_setup",
+      metadata: { has_public_key: Boolean(pubKey), has_wrapped_private_key: Boolean(wrappedPriv) },
+    });
     return void res.status(201).json({ ok: true });
   },
 );
@@ -1987,6 +2065,12 @@ const handleApiKeys = withAuth(
         return void res.status(502).json({ error: `Database error: ${err}` });
       }
       const rows: any[] = await r.json();
+      writeAuditLog({
+        userId: user.id,
+        action: "api_key_create",
+        resourceId: rows[0].id,
+        metadata: { key_prefix: keyPrefix },
+      });
       // Return raw key once — it is never stored and cannot be retrieved again
       return void res
         .status(201)
@@ -2027,6 +2111,11 @@ const handleApiKeys = withAuth(
       if (idemSlot) await releaseIdempotency(user.id, idemSlot);
       return void res.status(502).json({ error: "Database error" });
     }
+    writeAuditLog({
+      userId: user.id,
+      action: "api_key_revoke",
+      resourceId: id,
+    });
     return void res.status(200).json({ ok: true });
   },
 );
@@ -2115,8 +2204,7 @@ const handlePushSubscribe = withAuth(
 const handleTriggerTestPush = withAuth(
   { methods: ["POST"], rateLimit: 10 },
   async ({ req, res, user }) => {
-    const adminEmail = (process.env.ADMIN_EMAIL || process.env.VITE_ADMIN_EMAIL || "").trim();
-    if (!adminEmail || !user.email || user.email !== adminEmail) {
+    if (!isAdminUser(user)) {
       return void res.status(403).json({ error: "Forbidden" });
     }
 
@@ -2972,12 +3060,32 @@ const handleLemonCheckout = withAuth(
   { methods: ["POST"], rateLimit: 10 },
   async ({ req, res, user }) => {
     const { plan } = (req.body ?? {}) as { plan?: string };
+    let idemKey: string | null = null;
+    let reservedIdempotency = false;
+    try {
+      idemKey = normalizeIdempotencyKey(req.headers["idempotency-key"]);
+      if (idemKey) {
+        const idem = await reserveActionIdempotency(user.id, `lemon-checkout:${plan ?? "unknown"}:${idemKey}`);
+        if (idem.kind === "replay") {
+          return void res.status(409).json({ error: "Checkout request already processed" });
+        }
+        reservedIdempotency = true;
+      }
+    } catch (err) {
+      if (err instanceof IdempotencyError) {
+        return void res.status(err.status).json({ error: err.publicMessage });
+      }
+      throw err;
+    }
 
     // Max is wired in the type system + DB but not yet purchaseable — the
     // env var is intentionally unset until launch. The 500 below covers the
     // case where someone hits this endpoint after manually setting the env
     // var; until then the 400 keeps Max strictly admin-overrideable.
     if (plan !== "starter" && plan !== "pro" && plan !== "max") {
+      if (reservedIdempotency && idemKey) {
+        await releaseIdempotency(user.id, `lemon-checkout:${plan ?? "unknown"}:${idemKey}`);
+      }
       return void res.status(400).json({ error: "Invalid plan" });
     }
 
@@ -2988,10 +3096,20 @@ const handleLemonCheckout = withAuth(
           ? "LEMONSQUEEZY_PRO_VARIANT_ID"
           : "LEMONSQUEEZY_MAX_VARIANT_ID";
     const variantId = process.env[variantEnvKey];
-    if (!variantId) return void res.status(500).json({ error: "Plan not configured" });
+    if (!variantId) {
+      if (reservedIdempotency && idemKey) {
+        await releaseIdempotency(user.id, `lemon-checkout:${plan}:${idemKey}`);
+      }
+      return void res.status(500).json({ error: "Plan not configured" });
+    }
 
     const appOrigin = (process.env.APP_ORIGIN || process.env.APP_URL || "").trim();
-    if (!appOrigin) return void res.status(500).json({ error: "App origin not configured" });
+    if (!appOrigin) {
+      if (reservedIdempotency && idemKey) {
+        await releaseIdempotency(user.id, `lemon-checkout:${plan}:${idemKey}`);
+      }
+      return void res.status(500).json({ error: "App origin not configured" });
+    }
     const successUrl = `${appOrigin.replace(/\/$/, "")}/settings?tab=billing&billing=success`;
 
     let url: string;
@@ -3004,6 +3122,9 @@ const handleLemonCheckout = withAuth(
         successUrl,
       });
     } catch (err) {
+      if (reservedIdempotency && idemKey) {
+        await releaseIdempotency(user.id, `lemon-checkout:${plan}:${idemKey}`);
+      }
       console.error("[lemon-checkout] checkout URL create failed:", err);
       return void res.status(502).json({ error: "Payment provider unavailable" });
     }
@@ -3025,6 +3146,10 @@ async function handleLemonWebhook(
   res: ApiResponse,
   rawBody: Buffer,
 ): Promise<void> {
+  if (!(await rateLimit(req, 200, 60_000, "webhook:lemon"))) {
+    return void res.status(429).json({ error: "Rate limit exceeded" });
+  }
+
   const sigHeader = req.headers["x-signature"] as string | undefined;
   const sigCheck = lemonVerifyWebhookSignature(rawBody, sigHeader);
   if (!sigCheck.ok) {
@@ -3057,13 +3182,19 @@ async function handleLemonWebhook(
   }
 
   const eventName = body.meta?.event_name ?? "";
-  const eventId = body.meta?.webhook_id ?? body.data?.id ?? "";
+  const eventId = body.meta?.webhook_id ?? "";
   if (!eventName || !eventId) {
     return void res.status(400).json({ error: "Missing event metadata" });
   }
 
-  const { firstTime } = await markWebhookEventSeen("lemon", eventId);
-  if (!firstTime) {
+  let alreadyProcessed = false;
+  try {
+    alreadyProcessed = await hasWebhookEventBeenProcessed("lemon", eventId);
+  } catch (err) {
+    console.warn("[lemon-webhook] idempotency check failed:", err);
+    return void res.status(503).json({ error: "Webhook idempotency unavailable" });
+  }
+  if (alreadyProcessed) {
     console.log(`[lemon-webhook] dropping duplicate event ${eventId} (${eventName})`);
     return void res.status(200).json({ received: true, duplicate: true });
   }
@@ -3151,6 +3282,24 @@ async function handleLemonWebhook(
   if (!dbOk.ok) {
     return void res.status(502).json({ error: "Database write failed — please retry" });
   }
+  try {
+    await markWebhookEventSeen("lemon", eventId);
+  } catch (err) {
+    console.warn("[lemon-webhook] idempotency mark failed:", err);
+    return void res.status(503).json({ error: "Webhook idempotency unavailable" });
+  }
+  writeAuditLog({
+    userId,
+    action: "billing_plan_change",
+    resourceId: null,
+    metadata: {
+      provider: "lemonsqueezy",
+      event_id: eventId,
+      event_name: eventName,
+      tier,
+      current_period_end: currentPeriodEnd,
+    },
+  });
   res.status(200).json({ received: true });
 }
 
@@ -3165,6 +3314,10 @@ async function handleRevenueCatWebhook(
   res: ApiResponse,
   rawBody: Buffer,
 ): Promise<void> {
+  if (!(await rateLimit(req, 100, 60_000, "webhook:revenuecat"))) {
+    return void res.status(429).json({ error: "Rate limit exceeded" });
+  }
+
   const auth = req.headers["authorization"] as string | undefined;
   if (!rcVerifyWebhookAuth(auth)) {
     return void res.status(401).json({ error: "Unauthorized" });
@@ -3183,10 +3336,29 @@ async function handleRevenueCatWebhook(
     return void res.status(400).json({ error: "Missing event fields" });
   }
 
-  const eventId =
-    event.id ?? `${event.type}:${event.app_user_id}:${event.event_timestamp_ms ?? "?"}`;
-  const { firstTime } = await markWebhookEventSeen("revenuecat", eventId);
-  if (!firstTime) {
+  if (typeof event.event_timestamp_ms !== "number") {
+    return void res.status(400).json({ error: "Missing event timestamp" });
+  }
+  const eventAgeMs = Date.now() - event.event_timestamp_ms;
+  if (eventAgeMs > REVENUECAT_WEBHOOK_MAX_AGE_MS || eventAgeMs < -REVENUECAT_WEBHOOK_MAX_AGE_MS) {
+    console.warn(
+      `[revenuecat-webhook] rejecting stale event ${event.type} age_ms=${eventAgeMs}`,
+    );
+    return void res.status(400).json({ error: "Stale webhook event" });
+  }
+
+  const eventId = event.id;
+  if (!eventId) {
+    return void res.status(400).json({ error: "Missing event id" });
+  }
+  let alreadyProcessed = false;
+  try {
+    alreadyProcessed = await hasWebhookEventBeenProcessed("revenuecat", eventId);
+  } catch (err) {
+    console.warn("[revenuecat-webhook] idempotency check failed:", err);
+    return void res.status(503).json({ error: "Webhook idempotency unavailable" });
+  }
+  if (alreadyProcessed) {
     console.log(`[revenuecat-webhook] dropping duplicate event ${eventId} (${event.type})`);
     return void res.status(200).json({ received: true, duplicate: true });
   }
@@ -3237,6 +3409,26 @@ async function handleRevenueCatWebhook(
   if (!writeRes.ok) {
     return void res.status(502).json({ error: "Database write failed — please retry" });
   }
+  try {
+    await markWebhookEventSeen("revenuecat", eventId);
+  } catch (err) {
+    console.warn("[revenuecat-webhook] idempotency mark failed:", err);
+    return void res.status(503).json({ error: "Webhook idempotency unavailable" });
+  }
+  writeAuditLog({
+    userId,
+    action: "billing_plan_change",
+    resourceId: null,
+    metadata: {
+      provider: "revenuecat",
+      event_id: eventId,
+      event_type: event.type,
+      product_id: productId,
+      store: event.store ?? null,
+      tier,
+      current_period_end: expirationIso,
+    },
+  });
   res.status(200).json({ received: true });
 }
 

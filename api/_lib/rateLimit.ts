@@ -118,12 +118,13 @@ async function _upstashLimited(key: string, windowMs: number, limit: number): Pr
 }
 
 function _getIp(req: ApiRequest): string {
-  // S1-6: Use LAST IP in x-forwarded-for chain (closest verified hop from Vercel edge).
-  // First hop is user-controlled and spoof-able. x-real-ip is harder to forge.
+  // Vercel provides the original client IP as the leftmost x-forwarded-for
+  // value. Using the last hop collapses all traffic behind the edge IP and
+  // turns rate limits into a site-wide NAT lockout.
   const forwarded = req.headers["x-forwarded-for"] as string | undefined;
-  const lastForwarded = forwarded?.split(",").pop()?.trim();
+  const firstForwarded = forwarded?.split(",")[0]?.trim();
   return (
-    lastForwarded ||
+    firstForwarded ||
     (req.headers["x-real-ip"] as string | undefined) ||
     req.socket?.remoteAddress ||
     "unknown"

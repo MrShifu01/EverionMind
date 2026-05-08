@@ -7,7 +7,7 @@
     "dev": "vite",
     "eml": "node EverionMindLaunch/server.mjs",
     "build": "node scripts/build.mjs",
-    "lint": "node scripts/check-service-role-headers.mjs && eslint . --max-warnings 0",
+    "lint": "node scripts/check-service-role-headers.mjs && node scripts/check-pii-log-patterns.mjs && eslint . --max-warnings 0",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",

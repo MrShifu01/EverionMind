@@ -336,13 +336,15 @@ export function useDataLayer({
     activeBrainId,
   });
 
-  // Flush pending delete on page hide / unload
+  // Flush pending delete on page hide. beforeunload blocks BFCache on iOS
+  // Safari, so use pagehide for the same lifecycle point without forcing a
+  // full reload on back/forward navigation.
   useEffect(() => {
     const flush = () => commitPendingDelete();
-    window.addEventListener("beforeunload", flush);
+    window.addEventListener("pagehide", flush);
     document.addEventListener("visibilitychange", flush);
     return () => {
-      window.removeEventListener("beforeunload", flush);
+      window.removeEventListener("pagehide", flush);
       document.removeEventListener("visibilitychange", flush);
     };
   }, [commitPendingDelete]);

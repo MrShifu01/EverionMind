@@ -102,7 +102,29 @@ export function useChat(brainId: string | undefined) {
           body: JSON.stringify(body),
         });
 
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const error = typeof data.error === "string" ? data.error : "";
+          const upgradeUrl = typeof data.upgrade_url === "string" ? data.upgrade_url : "";
+          let content = "Something went wrong. Please try again.";
+          if (res.status === 429 || error === "monthly_limit_reached") {
+            content = upgradeUrl
+              ? `Monthly AI limit reached. Upgrade to keep chatting: ${upgradeUrl}`
+              : "Monthly AI limit reached. Upgrade in Billing to keep chatting.";
+          } else if (error) {
+            content = error.replace(/_/g, " ");
+          }
+          const errMsg: ChatMessage = {
+            role: "assistant",
+            content,
+            ts: new Date().toISOString(),
+          };
+          const updated = [...nextMessages, errMsg];
+          setMessages(updated);
+          saveHistory(brainId, updated);
+          setLoading(false);
+          return;
+        }
 
         if (data.pending_action) {
           const assistantMsg: ChatMessage = {

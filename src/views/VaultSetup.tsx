@@ -3,7 +3,7 @@
 // "first time" pair of states. State + handlers live in useVaultOps;
 // these are stateless render components.
 
-import type { Dispatch, RefObject, SetStateAction } from "react";
+import { useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { Button } from "../components/ui/button";
 
 export function VaultSetupForm({
@@ -121,6 +121,36 @@ export function VaultRecoveryKeyDisplay({
   setCopied: Dispatch<SetStateAction<boolean>>;
   onDismiss: () => void;
 }) {
+  const [acknowledged, setAcknowledged] = useState(false);
+  const downloadRecoveryKey = () => {
+    const blob = new Blob(
+      [
+        `Everion recovery key\n\n${recoveryKey}\n\nStore this somewhere safe. Without your passphrase or this recovery key, encrypted entries are permanently lost.\n`,
+      ],
+      { type: "text/plain;charset=utf-8" },
+    );
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "everion-recovery-key.txt";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    }, 1000);
+  };
+
+  const printRecoveryKey = () => {
+    const content = `<!doctype html><html><head><title>Everion recovery key</title><style>body{font-family:system-ui,sans-serif;padding:24px;color:#111;background:#fff;}pre{white-space:pre-wrap;word-break:break-word;font-size:1rem;background:#f7f7f7;padding:16px;border-radius:16px;border:1px solid #ddd;}button{display:none;}</style></head><body><h1>Everion recovery key</h1><p>Print this page and store the recovery key somewhere safe. Without your passphrase or this recovery key, encrypted entries are permanently lost.</p><pre>${recoveryKey}</pre></body></html>`;
+    const printWindow = window.open("", "_blank", "width=600,height=700");
+    if (!printWindow) return;
+    printWindow.document.write(content);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
+
   return (
     <div
       className="flex flex-col items-center space-y-6 px-4 py-12"
@@ -169,6 +199,15 @@ export function VaultRecoveryKeyDisplay({
         {copied ? "Copied!" : "📋 Copy recovery key"}
       </Button>
 
+      <div className="grid w-full max-w-sm grid-cols-2 gap-2">
+        <Button variant="outline" size="lg" onClick={downloadRecoveryKey}>
+          Download .txt
+        </Button>
+        <Button variant="outline" size="lg" onClick={printRecoveryKey}>
+          Print
+        </Button>
+      </div>
+
       <div
         className="w-full max-w-sm rounded-2xl border p-3"
         style={{
@@ -182,7 +221,23 @@ export function VaultRecoveryKeyDisplay({
         </p>
       </div>
 
-      <Button onClick={onDismiss} size="lg" className="w-full max-w-sm">
+      <label
+        className="flex w-full max-w-sm items-center gap-3 rounded-xl border p-3 text-left text-sm"
+        style={{
+          borderColor: "var(--color-outline-variant)",
+          color: "var(--color-on-surface-variant)",
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={acknowledged}
+          onChange={(e) => setAcknowledged(e.target.checked)}
+          style={{ width: 18, height: 18, accentColor: "var(--color-primary)" }}
+        />
+        <span>I have saved this recovery key somewhere safe.</span>
+      </label>
+
+      <Button onClick={onDismiss} disabled={!acknowledged} size="lg" className="w-full max-w-sm">
         I've saved my recovery key
       </Button>
     </div>

@@ -29,7 +29,8 @@ import { mergeEntriesOneShot } from "./_lib/mergeEntries.js";
 import { loadUserAiContext } from "./_lib/loadUserAiContext.js";
 import { ApiError } from "./_lib/withAuth.js";
 import { optionalBodyObject } from "./_lib/requestBody.js";
-import { sbHeaders, supabaseServiceRoleKey } from "./_lib/sbHeaders.js";
+import { sbHeaders } from "./_lib/sbHeaders.js";
+import { writeAuditLog } from "./_lib/auditLog.js";
 const SB_URL = process.env.SUPABASE_URL!;
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
 
@@ -38,7 +39,11 @@ const hdrs = sbHeaders;
 type McpAuth = { userId: string; keyId: string; brainId: string };
 
 function mcpTokenSecret(): string {
-  return process.env.MCP_ACCESS_TOKEN_SECRET || process.env.OAUTH_STATE_SECRET || supabaseServiceRoleKey();
+  const secret = process.env.MCP_ACCESS_TOKEN_SECRET || process.env.OAUTH_STATE_SECRET;
+  if (!secret) {
+    throw new Error("MCP_ACCESS_TOKEN_SECRET is required");
+  }
+  return secret;
 }
 
 function b64url(input: string): string {
@@ -747,11 +752,17 @@ function jsonRpcErr(id: unknown, code: number, message: string) {
 }
 
 function mcpToolResult(content: unknown) {
+  const MAX_TEXT_CHARS = 32 * 1024;
+  const rawText = typeof content === "string" ? content : JSON.stringify(content) ?? "";
+  const text =
+    rawText.length > MAX_TEXT_CHARS
+      ? `${rawText.slice(0, MAX_TEXT_CHARS)}\n\n[truncated: MCP tool result exceeded 32 KB]`
+      : rawText;
   return {
     content: [
       {
         type: "text",
-        text: typeof content === "string" ? content : JSON.stringify(content, null, 2),
+        text,
       },
     ],
   };
@@ -763,7 +774,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   applySecurityHeaders(res);
   const reqId = getReqId(req);
   res.setHeader("x-request-id", reqId);
-  if (!(await rateLimit(req, 30))) return res.status(429).json({ error: "Too many requests" });
+  if (!(await rateLimit(req, 150, 60_000, "mcp-preauth"))) {
+    return res.status(429).json({ error: "Too many requests" });
+  }
 
   // OAuth discovery
   if (req.query._wk) {
@@ -822,7 +835,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   const auth = await resolveMcpBearer(rawKey);
   if (!auth) return res.status(401).json(jsonRpcErr(null, -32001, "Invalid or revoked API key"));
 
-  const { userId, brainId } = auth;
+  const { userId, brainId, keyId } = auth;
+  const mcpRateLimitKey = (name: string) => `mcp:${userId}:${keyId}:${name}`;
+  if (!(await rateLimit(req, 30, 60_000, mcpRateLimitKey("global")))) {
+    return res.status(429).json(jsonRpcErr(null, -32000, "Too many requests"));
+  }
   const { jsonrpc, id, method, params } = optionalBodyObject(req.body);
 
   if (jsonrpc !== "2.0")
@@ -874,8 +891,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
         if (!args.title || !args.content) {
           return res.status(200).json(jsonRpcErr(id, -32602, "title and content are required"));
         }
-        // Per-tool rate limit: 10 create_entry calls/min per IP
-        if (!(await rateLimit(req, 10, 60_000, "create_entry"))) {
+        if (!(await rateLimit(req, 10, 60_000, mcpRateLimitKey("create_entry")))) {
           return res
             .status(200)
             .json(jsonRpcErr(id, -32000, "Rate limit exceeded for create_entry (10/min)"));
@@ -894,7 +910,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
           log.warn("quota_exceeded", { plan: tier, action: "captures" });
           return res
             .status(200)
-            .json(jsonRpcErr(id, -32000, `Monthly capture limit reached (${plan} plan)`));
+            .json(jsonRpcErr(id, -32000, `Monthly capture limit reached (${tier} plan)`));
         }
         const iKey = req.headers["idempotency-key"] as string | undefined;
         if (iKey) {
@@ -977,7 +993,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
         // Per-tool rate limit — merge is more expensive than create. 5/min
         // mirrors gmail_sync; the daily quota gate inside mergeEntriesOneShot
         // is the longer-horizon cap.
-        if (!(await rateLimit(req, 5, 60_000, "merge_entries"))) {
+        if (!(await rateLimit(req, 5, 60_000, mcpRateLimitKey("merge_entries")))) {
           return res
             .status(200)
             .json(jsonRpcErr(id, -32000, "Rate limit exceeded for merge_entries (5/min)"));
@@ -992,8 +1008,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
           throw err;
         }
       } else if (toolName === "gmail_sync") {
-        // Per-tool rate limit: 5 gmail_sync calls/min per IP — prevents scan DoS
-        if (!(await rateLimit(req, 5, 60_000, "gmail_sync"))) {
+        if (!(await rateLimit(req, 5, 60_000, mcpRateLimitKey("gmail_sync")))) {
           return res
             .status(200)
             .json(jsonRpcErr(id, -32000, "Rate limit exceeded for gmail_sync (5/min)"));
@@ -1014,6 +1029,23 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
         return res.status(200).json(jsonRpcErr(id, -32601, `Unknown tool: ${toolName}`));
       }
 
+      const resourceId =
+        typeof args?.brain_id === "string" && args.brain_id ? args.brain_id : brainId;
+      writeAuditLog({
+        userId,
+        action: "mcp_tool_call",
+        resourceId,
+        requestId: reqId,
+        metadata: {
+          tool: toolName,
+          key_id: keyId,
+          entry_id: typeof args.id === "string" ? args.id : undefined,
+          result_id:
+            result && typeof result === "object" && "id" in result
+              ? (result as { id?: unknown }).id
+              : undefined,
+        },
+      });
       return res.status(200).json(jsonRpcOk(id, mcpToolResult(result)));
     } catch (err: any) {
       return res.status(200).json(jsonRpcErr(id, -32603, err.message || "Internal error"));

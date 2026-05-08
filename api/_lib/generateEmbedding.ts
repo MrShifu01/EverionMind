@@ -4,15 +4,55 @@
  */
 
 import { googleAiFetch, googleAiModelUrl } from "./googleAi.js";
+import { createHash } from "node:crypto";
 
 const EMBED_DIM = 768;
+const EMBEDDING_CACHE_TTL_MS = 5 * 60_000;
+const EMBEDDING_CACHE_MAX = 1000;
+const embeddingCache = new Map<string, { value: number[]; expiresAt: number }>();
+const embeddingInFlight = new Map<string, Promise<number[]>>();
+
+function cleanupExpiredEmbeddings(): void {
+  const now = Date.now();
+  for (const [key, entry] of embeddingCache) {
+    if (entry.expiresAt <= now) {
+      embeddingCache.delete(key);
+    }
+  }
+}
+
+if (typeof setInterval !== "undefined" && process.env.NODE_ENV !== "test") {
+  setInterval(cleanupExpiredEmbeddings, EMBEDDING_CACHE_TTL_MS);
+}
 
 /**
  * Generate an embedding vector for a single text string.
  */
 export async function generateEmbedding(text: string, apiKey: string): Promise<number[]> {
   const truncated = String(text).slice(0, 8000);
-  return generateGoogleEmbedding(truncated, apiKey);
+  const cacheKey = embeddingCacheKey(truncated, apiKey);
+  const now = Date.now();
+  const cached = embeddingCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) {
+    embeddingCache.delete(cacheKey);
+    embeddingCache.set(cacheKey, cached);
+    return [...cached.value];
+  }
+  if (cached) embeddingCache.delete(cacheKey);
+
+  const existing = embeddingInFlight.get(cacheKey);
+  if (existing) return [...(await existing)];
+
+  const pending = generateGoogleEmbedding(truncated, apiKey).then((value) => {
+    rememberEmbedding(cacheKey, value);
+    return value;
+  });
+  embeddingInFlight.set(cacheKey, pending);
+  try {
+    return [...(await pending)];
+  } finally {
+    embeddingInFlight.delete(cacheKey);
+  }
 }
 
 /**
@@ -38,6 +78,27 @@ export function buildEntryText(entry: {
 }
 
 const GOOGLE_EMBED_MODEL = "gemini-embedding-001";
+
+function hash(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function embeddingCacheKey(text: string, apiKey: string): string {
+  return `${GOOGLE_EMBED_MODEL}:${hash(apiKey).slice(0, 16)}:${hash(text)}`;
+}
+
+function rememberEmbedding(key: string, value: number[]): void {
+  if (embeddingCache.size >= EMBEDDING_CACHE_MAX) {
+    const firstKey = embeddingCache.keys().next().value;
+    if (firstKey) embeddingCache.delete(firstKey);
+  }
+  embeddingCache.set(key, { value: [...value], expiresAt: Date.now() + EMBEDDING_CACHE_TTL_MS });
+}
+
+export function _clearEmbeddingCacheForTests(): void {
+  embeddingCache.clear();
+  embeddingInFlight.clear();
+}
 
 // Retry transient failures (rate limit + service unavailable) with exponential
 // backoff. Without this, a single 429 from Gemini's free tier permanently

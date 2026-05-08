@@ -534,15 +534,11 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
                 <SectionHeader title="Account" />
                 <Suspense fallback={<TabLoading />}>
                   <AccountTab email={email} isAdmin={isAdmin} />
-                  {isAdmin && (
-                    <>
-                      <SubSection
-                        title="Billing"
-                        subtitle="manage your plan, usage, and subscription."
-                      />
-                      <BillingTab />
-                    </>
-                  )}
+                  <SubSection
+                    title="Billing"
+                    subtitle="manage your plan, usage, and subscription."
+                  />
+                  <BillingTab />
                 </Suspense>
               </div>
             )}

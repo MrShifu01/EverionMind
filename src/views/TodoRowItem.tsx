@@ -16,6 +16,14 @@ const PRIORITY_COLOR: Record<string, string> = {
   p4: "var(--ink-ghost)",
 };
 
+function addDaysToDate(dateStr: string | undefined, days: number): string {
+  const base = dateStr ? new Date(`${dateStr}T12:00:00`) : new Date();
+  base.setDate(base.getDate() + days);
+  return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(
+    base.getDate(),
+  ).padStart(2, "0")}`;
+}
+
 interface Props {
   entry: Entry;
   dateStr?: string;
@@ -52,6 +60,8 @@ export default function TodoRowItem({
   const [swipeState, setSwipeState] = useState<
     "idle" | "swiping-right" | "swiping-left" | "completing" | "rescheduling"
   >("idle");
+  const [togglePending, setTogglePending] = useState(false);
+  const [reschedulePending, setReschedulePending] = useState(false);
   const trackingRef = useRef(false);
   const rowRef = useRef<HTMLDivElement>(null);
 
@@ -63,7 +73,8 @@ export default function TodoRowItem({
     | undefined;
 
   function toggleDone() {
-    if (!ctx?.handleUpdate) return;
+    if (!ctx?.handleUpdate || togglePending) return;
+    setTogglePending(true);
     setOptimistic(!done);
     ctx
       .handleUpdate(entry.id, {
@@ -75,7 +86,8 @@ export default function TodoRowItem({
           onKarmaChange?.(k.points, k.streak);
         }
       })
-      .catch(() => setOptimistic(null));
+      .catch(() => setOptimistic(null))
+      .finally(() => setTogglePending(false));
   }
 
   function onPointerDown(e: React.PointerEvent) {
@@ -117,15 +129,22 @@ export default function TodoRowItem({
   }
 
   function bumpDueDate() {
-    if (!ctx?.handleUpdate) return;
-    const current = (entry.metadata as Record<string, unknown>)?.due_date as string | undefined;
-    const base = current ? new Date(current + "T12:00:00") : new Date();
-    base.setDate(base.getDate() + 1);
-    const next = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`;
+    if (!ctx?.handleUpdate || togglePending || reschedulePending) return;
+    setReschedulePending(true);
+    const meta = entry.metadata as Record<string, unknown>;
+    const current = (meta.scheduled_for ?? meta.due_date) as string | undefined;
+    const next = addDaysToDate(current, 1);
     ctx
-      .handleUpdate(entry.id, { metadata: { ...(entry.metadata || {}), due_date: next } })
-      .catch(() => null);
-    setSwipeState("idle");
+      .handleUpdate(entry.id, {
+        metadata: { ...(entry.metadata || {}), scheduled_for: next, due_date: next },
+      })
+      .catch((err) => {
+        console.error("[TodoRowItem] bumpDueDate failed:", err);
+      })
+      .finally(() => {
+        setReschedulePending(false);
+        setSwipeState("idle");
+      });
   }
 
   const isCompleting = swipeState === "completing";

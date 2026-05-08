@@ -17,6 +17,7 @@ import {
 import { sbHeaders } from "./sbHeaders.js";
 import { googleAiFetch, googleAiModelUrl } from "./googleAi.js";
 import { GEMINI_BULK_MODEL } from "./geminiModels.js";
+import crypto from "crypto";
 
 // Mask sensitive PII before storing in metadata (POPIA/GDPR compliance).
 // Keeps first/last characters for user context; obscures the middle.
@@ -26,6 +27,12 @@ function maskPii(value: string | null | undefined): string | null {
   if (s.length <= 4) return "*".repeat(s.length);
   const show = Math.min(3, Math.floor(s.length * 0.25));
   return s.slice(0, show) + "*".repeat(Math.max(1, s.length - show * 2)) + s.slice(-show);
+}
+
+function logSafeName(value: string | null | undefined): string {
+  const raw = value ?? "";
+  const hash = crypto.createHash("sha256").update(raw).digest("hex").slice(0, 8);
+  return `size=${raw.length},sha256=${hash}`;
 }
 
 // ── MIME / attachment helpers ────────────────────────────────────────────────
@@ -263,7 +270,11 @@ export async function fetchAndExtractAttachments(
 
       if (text.trim()) texts.push(`[Attachment: ${att.name}]\n${text.slice(0, 2000)}`);
     } catch (err) {
-      console.error(`[gmail-scan:attachment] ${messageId}/${att.name}:`, err);
+      const attachmentLogId = logSafeName(att.name);
+      console.error(
+        `[gmail-scan:attachment] message=${messageId} attachment=${attachmentLogId}:`,
+        err,
+      );
     }
   }
   return texts.join("\n\n");

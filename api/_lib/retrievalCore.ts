@@ -1,6 +1,6 @@
 /**
  * Core retrieval pipeline shared by /api/memory/retrieve and /api/mcp.
- * embed → vector search → keyword expand → tag siblings → metadata hydrate → graph boost
+ * embed → vector search → keyword expand → tag siblings → graph boost
  */
 import { generateEmbedding } from "./generateEmbedding.js";
 import { googleAiFetch, googleAiModelUrl } from "./googleAi.js";
@@ -182,7 +182,7 @@ export async function retrieveEntries(
   if (qTokens.length > 0) {
     const orFilter = qTokens.map((kw) => `title.ilike.*${kw}*,content.ilike.*${kw}*`).join(",");
     const kwRes = await fetch(
-      `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&type=neq.secret&or=(${encodeURIComponent(orFilter)})&select=id,title,type,tags,content&limit=10`,
+      `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&type=neq.secret&or=(${encodeURIComponent(orFilter)})&select=id,title,type,tags,content,metadata&limit=10`,
       { headers: SB_HEADERS },
     );
     if (kwRes.ok) {
@@ -229,23 +229,7 @@ export async function retrieveEntries(
     }
   }
 
-  // 4. Metadata hydrate
-  if (entries.length > 0) {
-    const ids = entries.map((e: any) => e.id).join(",");
-    const metaRes = await fetch(`${SB_URL}/rest/v1/entries?id=in.(${ids})&select=id,metadata`, {
-      headers: SB_HEADERS,
-    });
-    if (metaRes.ok) {
-      const metaRows: any[] = await metaRes.json();
-      const metaMap = new Map(metaRows.map((r: any) => [r.id, r.metadata]));
-      entries = entries.map((e: any) => ({
-        ...e,
-        metadata: metaMap.get(e.id) ?? e.metadata ?? null,
-      }));
-    }
-  }
-
-  // 5. Hybrid score + sort
+  // 4. Hybrid score + sort
   const queryTokens = query
     .toLowerCase()
     .split(/\s+/)
@@ -268,7 +252,7 @@ export async function retrieveEntries(
   entries.sort((a: any, b: any) => b._score - a._score);
   entries = entries.slice(0, 40);
 
-  // 6. Graph boost + concept collection
+  // 5. Graph boost + concept collection
   const matchedConcepts: Array<{ name: string; description?: string }> = [];
   try {
     const graphRes = await fetch(
@@ -386,7 +370,7 @@ export async function retrieveEntriesForUser(
   if (qTokens.length > 0) {
     const orFilter = qTokens.map((kw) => `title.ilike.*${kw}*,content.ilike.*${kw}*`).join(",");
     const kwRes = await fetch(
-      `${SB_URL}/rest/v1/entries?${brainScope}&deleted_at=is.null&type=neq.secret&or=(${encodeURIComponent(orFilter)})&select=id,title,type,tags,content,brain_id&limit=10`,
+      `${SB_URL}/rest/v1/entries?${brainScope}&deleted_at=is.null&type=neq.secret&or=(${encodeURIComponent(orFilter)})&select=id,title,type,tags,content,metadata,brain_id&limit=10`,
       { headers: SB_HEADERS },
     );
     if (kwRes.ok) {
@@ -433,23 +417,7 @@ export async function retrieveEntriesForUser(
     }
   }
 
-  // 4. Metadata hydrate
-  if (entries.length > 0) {
-    const ids = entries.map((e: any) => e.id).join(",");
-    const metaRes = await fetch(`${SB_URL}/rest/v1/entries?id=in.(${ids})&select=id,metadata`, {
-      headers: SB_HEADERS,
-    });
-    if (metaRes.ok) {
-      const metaRows: any[] = await metaRes.json();
-      const metaMap = new Map(metaRows.map((r: any) => [r.id, r.metadata]));
-      entries = entries.map((e: any) => ({
-        ...e,
-        metadata: metaMap.get(e.id) ?? e.metadata ?? null,
-      }));
-    }
-  }
-
-  // 5. Hybrid score + sort
+  // 4. Hybrid score + sort
   const queryTokens = query
     .toLowerCase()
     .split(/\s+/)

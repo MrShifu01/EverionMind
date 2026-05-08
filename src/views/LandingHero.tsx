@@ -28,7 +28,7 @@ export default function LandingHero({ onAuth }: LandingHeroProps) {
     <section
       style={{
         position: "relative",
-        minHeight: "100vh",
+        minHeight: "100dvh",
         width: "100%",
         overflow: "hidden",
         display: "flex",
@@ -142,10 +142,11 @@ export default function LandingHero({ onAuth }: LandingHeroProps) {
 
         <button
           type="button"
-          onClick={() => onAuth("login")}
+          onClick={() => onAuth("signup")}
           className="press"
           style={{
             marginTop: 12,
+            minHeight: 44,
             padding: "12px 26px",
             borderRadius: 999,
             background: "rgba(255,255,255,0.06)",
@@ -170,7 +171,7 @@ export default function LandingHero({ onAuth }: LandingHeroProps) {
             e.currentTarget.style.background = "rgba(255,255,255,0.06)";
           }}
         >
-          Sign in
+          Start free
           <span aria-hidden="true" style={{ fontSize: 13, opacity: 0.85 }}>
             ↗
           </span>
@@ -207,6 +208,8 @@ export default function LandingHero({ onAuth }: LandingHeroProps) {
             letterSpacing: "0.18em",
             textTransform: "uppercase",
             cursor: "pointer",
+            minWidth: 44,
+            minHeight: 44,
             padding: 6,
             display: "flex",
             flexDirection: "column",

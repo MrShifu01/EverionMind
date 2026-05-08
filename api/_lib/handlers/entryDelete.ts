@@ -1,6 +1,7 @@
 import { ApiError, requireBrainRole, type HandlerContext } from "../withAuth.js";
 import { bodyObject } from "../requestBody.js";
 import { sbHeaders, sbHeadersNoContent } from "../sbHeaders.js";
+import { writeAuditLog } from "../auditLog.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 
@@ -39,9 +40,15 @@ export async function handleDeleteEntry(
       deps.stripDeletedFromConceptGraph(entry.brain_id, id).catch((err: any) =>
         console.error("[delete:concept-graph]", err?.message ?? err),
       );
+
+      writeAuditLog({
+        userId: user.id,
+        action: "entry_permanent_delete",
+        resourceId: id,
+        requestId: req_id,
+      });
     }
 
-    writeEntryAudit(user.id, "entry_permanent_delete", id, req_id);
     res.status(response.ok ? 200 : 502).json({ ok: response.ok });
     return;
   }
@@ -56,25 +63,14 @@ export async function handleDeleteEntry(
   );
   log.info("entry soft delete", { entry_id: id, ok: response.ok });
 
-  writeEntryAudit(user.id, "entry_delete", id, req_id);
-  res.status(response.ok ? 200 : 502).json({ ok: response.ok });
-}
+  if (response.ok) {
+    writeAuditLog({
+      userId: user.id,
+      action: "entry_delete",
+      resourceId: id,
+      requestId: req_id,
+    });
+  }
 
-function writeEntryAudit(
-  userId: string,
-  action: "entry_delete" | "entry_permanent_delete",
-  resourceId: string,
-  requestId: string,
-): void {
-  fetch(`${SB_URL}/rest/v1/audit_log`, {
-    method: "POST",
-    headers: sbHeaders({ Prefer: "return=minimal" }),
-    body: JSON.stringify({
-      user_id: userId,
-      action,
-      resource_id: resourceId,
-      request_id: requestId,
-      timestamp: new Date().toISOString(),
-    }),
-  }).catch(() => {});
+  res.status(response.ok ? 200 : 502).json({ ok: response.ok });
 }

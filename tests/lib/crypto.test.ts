@@ -11,8 +11,11 @@ import {
   generateRecoveryKey,
   encryptVaultKeyForRecovery,
   decryptVaultKeyFromRecovery,
+  decryptVaultKeyFromRecoveryStrict,
   encryptEntry,
   decryptEntry,
+  VAULT_DECRYPT_PLACEHOLDER,
+  VaultRecoveryError,
 } from "../../src/lib/crypto";
 
 describe("crypto", () => {
@@ -83,5 +86,36 @@ describe("crypto", () => {
     const encrypted = await encryptText("test", key);
     const decrypted = await decryptText(encrypted, recovered!);
     expect(decrypted).toBe("test");
+  });
+
+  it("distinguishes malformed recovery blobs from wrong recovery keys", async () => {
+    const { key } = await setupVault("pass123");
+    const recoveryKey = generateRecoveryKey();
+    const blob = await encryptVaultKeyForRecovery(key, recoveryKey);
+
+    await expect(
+      decryptVaultKeyFromRecoveryStrict("not-a-recovery-blob", recoveryKey),
+    ).rejects.toMatchObject({
+      code: "format",
+    });
+    await expect(
+      decryptVaultKeyFromRecoveryStrict(blob, "AAAA-BBBB-CCCC-DDDD-EEEE"),
+    ).rejects.toMatchObject({
+      code: "key",
+    });
+  });
+
+  it("refuses to re-encrypt the vault decrypt placeholder", async () => {
+    const salt = generateSalt();
+    const key = await deriveKeyFromPassphrase("test", salt);
+    await expect(encryptEntry({ content: VAULT_DECRYPT_PLACEHOLDER }, key)).rejects.toThrow(
+      "Refusing to encrypt vault decrypt placeholder",
+    );
+  });
+
+  it("exports recovery errors as typed errors", () => {
+    const err = new VaultRecoveryError("format", "bad recovery blob");
+    expect(err).toBeInstanceOf(Error);
+    expect(err.code).toBe("format");
   });
 });

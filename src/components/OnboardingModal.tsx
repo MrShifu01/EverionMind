@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { authFetch } from "../lib/authFetch";
 import { getEmbedHeaders } from "../lib/aiSettings";
+import { trackCaptureMethod, trackFirstCapture } from "../lib/events";
 import { supabase } from "../lib/supabase";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogTitle } from "./ui/dialog";
@@ -50,6 +51,7 @@ function markOnboarded() {
 export default function OnboardingModal({ onComplete, brainId }: OnboardingModalProps) {
   const [input, setInput] = useState("");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -74,10 +76,12 @@ export default function OnboardingModal({ onComplete, brainId }: OnboardingModal
     if (!content || !brainId || saving) return;
     const title = content.split("\n")[0].slice(0, 80);
     setSaving(true);
+    setError("");
     try {
-      await authFetch("/api/capture", {
+      const res = await authFetch("/api/capture", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(getEmbedHeaders() || {}) },
+        signal: AbortSignal.timeout(12_000),
         body: JSON.stringify({
           p_title: title,
           p_content: content,
@@ -87,11 +91,29 @@ export default function OnboardingModal({ onComplete, brainId }: OnboardingModal
           p_brain_id: brainId,
         }),
       });
+      if (!res.ok) {
+        let message = "Unknown error";
+        try {
+          const body = await res.json();
+          if (body && typeof body === "object") {
+            message = (body as any).message || (body as any).error || JSON.stringify(body);
+          }
+        } catch {
+          const text = await res.text().catch(() => "<unreadable response>");
+          message = text || message;
+        }
+        throw new Error(`Capture failed (${res.status}): ${message}`);
+      }
+      trackCaptureMethod({ method: "text" });
+      trackFirstCapture({ method: "text" });
+      markOnboarded();
+      onComplete();
     } catch (err) {
-      console.error("[onboarding] capture failed", err);
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("[onboarding] capture failed", message);
+      setError(`Could not save that first memory: ${message}`);
+      setSaving(false);
     }
-    markOnboarded();
-    onComplete();
   }
 
   // Live preview values (derived, no state — recompute on every keystroke).
@@ -258,6 +280,21 @@ export default function OnboardingModal({ onComplete, brainId }: OnboardingModal
             </div>
           )}
         </div>
+
+        {error && (
+          <p
+            role="alert"
+            className="f-sans"
+            style={{
+              margin: "14px 0 0",
+              color: "var(--danger)",
+              fontSize: 13,
+              lineHeight: 1.4,
+            }}
+          >
+            {error}
+          </p>
+        )}
 
         {/* Bottom row */}
         <div

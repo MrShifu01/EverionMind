@@ -67,7 +67,11 @@ export default defineConfig({
           // Pinning to its own chunk keeps the deferred fetch from accidentally
           // pulling in unrelated vendor code via cross-chunk imports.
           if (id.includes("/node_modules/posthog-js/")) return "posthog";
-          // pdfjs/mammoth/exceljs/jszip are dynamically imported in
+          // Mammoth is also dynamically imported, but we manually name it so it
+          // can be excluded explicitly from the service worker precache/globIgnores
+          // and avoid shipping ~101 KB gzip to first-time visitors.
+          if (id.includes("/node_modules/mammoth/")) return "mammoth";
+          // pdfjs/exceljs/jszip are dynamically imported in
           // fileExtract.ts. Letting Vite auto-chunk them keeps small shared
           // utilities out of the eagerly-modulepreloaded set — manual chunking
           // these would pin shared utility modules into a "named" chunk that
@@ -139,6 +143,8 @@ export default defineConfig({
         // even for users who decline analytics.
         globIgnores: [
           "**/exceljs.min-*.{js,mjs}",
+          "**/mammoth.browser-*.{js,mjs}",
+          "**/mammoth-*.{js,mjs}",
           "**/pdf-*.{js,mjs}",
           "**/pdf.worker-*.{js,mjs}",
           "**/jszip.min-*.{js,mjs}",
