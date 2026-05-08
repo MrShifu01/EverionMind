@@ -9,36 +9,35 @@ import {
 import { sbHeaders, sbHeadersNoContent } from "./_lib/sbHeaders.js";
 import { computeCompletenessScore } from "./_lib/completeness.js";
 import { SERVER_PROMPTS } from "./_lib/prompts.js";
-import {
-  enrichInline,
-  enrichBrain,
-  backfillPersonaForBrain,
-  revertBackfilledPersonaForBrain,
-  wipeExtractedPersonaForBrain,
-  auditPersonaForBrain,
-} from "./_lib/enrich.js";
+import { enrichInline, enrichBrain } from "./_lib/enrich.js";
 import { flagsOf } from "./_lib/enrichFlags.js";
-import { buildPrompt, loadExtractorContext } from "./_lib/extractPersonaFacts.js";
-import { distillRejectedForUser } from "./_lib/distillRejected.js";
 import { distillGmailForUser, loadRecentGmailDecisions } from "./_lib/distillGmail.js";
 import { recordPatternDecision } from "./_lib/gmailPatternScore.js";
-import {
-  validateMergeRequest,
-  checkMergeQuota,
-  generateMergePreview,
-  commitMerge,
-} from "./_lib/mergeEntries.js";
 import {
   buildPrompt as buildGmailPrompt,
   defaultPreferences as defaultGmailPreferences,
   type GmailLearnings,
 } from "./_lib/gmailScan.js";
-import { googleAiFetch, googleAiModelUrl } from "./_lib/googleAi.js";
 import { handleDeleteEntry } from "./_lib/handlers/entryDelete.js";
+import {
+  handleMerge as handleMergeExtracted,
+  handleMergeUndo as handleMergeUndoExtracted,
+  handleMergeInto as handleMergeIntoExtracted,
+} from "./_lib/handlers/entryMerge.js";
+import {
+  handleBackfillPersona as handleBackfillPersonaExtracted,
+  handleRevertPersonaBackfill as handleRevertPersonaBackfillExtracted,
+  handleWipePersonaExtracted as handleWipePersonaExtractedExtracted,
+  handleAuditPersona as handleAuditPersonaExtracted,
+  handlePersonaPrompt as handlePersonaPromptExtracted,
+  handleDistillRejected as handleDistillRejectedExtracted,
+} from "./_lib/handlers/entryPersona.js";
 import { bodyObject } from "./_lib/requestBody.js";
 import { GEMINI_BULK_MODEL } from "./_lib/geminiModels.js";
 import { isAdminUser } from "./_lib/adminAuth.js";
 import { writeAuditLog } from "./_lib/auditLog.js";
+import { callAI, type AICall } from "./_lib/aiProvider.js";
+import { resolveProviderForUser } from "./_lib/resolveProvider.js";
 
 const SB_URL = process.env.SUPABASE_URL;
 const ENTRY_FIELDS =
@@ -88,15 +87,17 @@ export default withAuth(
     if (ctx.req.method === "GET" && action === "enrich-debug") return handleEnrichDebug(ctx);
     if (ctx.req.method === "POST" && action === "enrich-batch") return handleEnrichBatch(ctx);
     if (ctx.req.method === "POST" && action === "backfill-persona")
-      return handleBackfillPersona(ctx);
+      return handleBackfillPersonaExtracted(ctx);
     if (ctx.req.method === "POST" && action === "revert-persona-backfill")
-      return handleRevertPersonaBackfill(ctx);
+      return handleRevertPersonaBackfillExtracted(ctx);
     if (ctx.req.method === "POST" && action === "wipe-persona-extracted")
-      return handleWipePersonaExtracted(ctx);
-    if (ctx.req.method === "POST" && action === "audit-persona") return handleAuditPersona(ctx);
-    if (ctx.req.method === "GET" && action === "persona-prompt") return handlePersonaPrompt(ctx);
+      return handleWipePersonaExtractedExtracted(ctx);
+    if (ctx.req.method === "POST" && action === "audit-persona")
+      return handleAuditPersonaExtracted(ctx);
+    if (ctx.req.method === "GET" && action === "persona-prompt")
+      return handlePersonaPromptExtracted(ctx);
     if (ctx.req.method === "POST" && action === "distill-rejected")
-      return handleDistillRejected(ctx);
+      return handleDistillRejectedExtracted(ctx);
     if (ctx.req.method === "POST" && action === "distill-gmail")
       return handleDistillGmail(ctx);
     if (ctx.req.method === "POST" && action === "gmail-decision")
@@ -111,9 +112,11 @@ export default withAuth(
     if (ctx.req.method === "POST" && action === "bulk-delete") return handleBulkDelete(ctx);
     if (ctx.req.method === "POST" && action === "bulk-delete-by-filter")
       return handleBulkDeleteByFilter(ctx);
-    if (ctx.req.method === "POST" && action === "merge") return handleMerge(ctx);
-    if (ctx.req.method === "POST" && action === "merge-undo") return handleMergeUndo(ctx);
-    if (ctx.req.method === "POST" && action === "merge_into") return handleMergeInto(ctx);
+    if (ctx.req.method === "POST" && action === "merge") return handleMergeExtracted(ctx);
+    if (ctx.req.method === "POST" && action === "merge-undo")
+      return handleMergeUndoExtracted(ctx);
+    if (ctx.req.method === "POST" && action === "merge_into")
+      return handleMergeIntoExtracted(ctx, { enrichInline });
     if (ctx.req.method === "POST" && action === "move") return handleMoveEntry(ctx);
     if (ctx.req.method === "POST" && action === "share") return handleShareEntry(ctx);
     if (ctx.req.method === "POST" && action === "unshare") return handleUnshareEntry(ctx);
@@ -193,7 +196,12 @@ async function handleGet({ req, res, user }: HandlerContext): Promise<void> {
       brainScopeFilter = `&or=(brain_id.eq.${encodeURIComponent(brain_id)},id.in.(${idList}))`;
     }
 
-    const directUrl = `${SB_URL}/rest/v1/entries?select=${encodeURIComponent(ENTRY_FIELDS)}&order=created_at.desc&limit=${limit + 1}${deletedFilter}${statusFilter}${typeFilter}${brainScopeFilter}${cursorFilter}`;
+    // Vault entries are PIN-gated and accessed only via the vault endpoint —
+    // never expose them through brain listings, especially the share overlay
+    // where another user's secret could surface to a co-member.
+    const vaultExcludeFilter = `&type=neq.secret`;
+
+    const directUrl = `${SB_URL}/rest/v1/entries?select=${encodeURIComponent(ENTRY_FIELDS)}&order=created_at.desc&limit=${limit + 1}${deletedFilter}${statusFilter}${typeFilter}${brainScopeFilter}${vaultExcludeFilter}${cursorFilter}`;
     const directRes = await fetch(directUrl, { headers: sbHeadersNoContent() });
     if (!directRes.ok) throw new ApiError(502, "Database error");
     const rows: any[] = await directRes.json();
@@ -451,22 +459,32 @@ async function handleBulkPatch({ req, res, user, req_id }: HandlerContext): Prom
     );
     if (!r.ok) throw new ApiError(502, "Database error");
     const rows: Array<{ id: string; metadata: Record<string, any> | null }> = await r.json();
-    // Apply tags + pinned in the same body if present.
-    await Promise.all(
-      rows.map(async (row) => {
-        const nextMeta = { ...(row.metadata ?? {}), status: metadataStatus };
-        const body: Record<string, unknown> = { ...allowed, metadata: nextMeta };
-        const pr = await fetch(
-          `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(row.id)}&user_id=eq.${encodeURIComponent(user.id)}`,
-          {
-            method: "PATCH",
-            headers: sbHeaders({ Prefer: "return=minimal" }),
-            body: JSON.stringify(body),
-          },
-        );
-        if (pr.ok) updated++;
-      }),
+    // Apply tags + pinned in the same body if present. Cap concurrency at
+    // 8 — Promise.all over up to 200 ids would open 200 parallel PostgREST
+    // connections and could exhaust the pool / trip Supabase rate limits.
+    const BULK_PATCH_CONCURRENCY = 8;
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(BULK_PATCH_CONCURRENCY, rows.length) }, () =>
+      (async () => {
+        while (true) {
+          const idx = cursor++;
+          if (idx >= rows.length) return;
+          const row = rows[idx];
+          const nextMeta = { ...(row.metadata ?? {}), status: metadataStatus };
+          const body: Record<string, unknown> = { ...allowed, metadata: nextMeta };
+          const pr = await fetch(
+            `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(row.id)}&user_id=eq.${encodeURIComponent(user.id)}`,
+            {
+              method: "PATCH",
+              headers: sbHeaders({ Prefer: "return=minimal" }),
+              body: JSON.stringify(body),
+            },
+          );
+          if (pr.ok) updated++;
+        }
+      })(),
     );
+    await Promise.all(workers);
   } else {
     // Pure tags / pinned bulk update — one PATCH covers everything.
     const r = await fetch(
@@ -627,6 +645,20 @@ async function handleBulkDeleteByFilter({ req, res, user, req_id }: HandlerConte
 // relationships whose evidence_entries become empty. Runs as a single
 // PATCH so we don't race a graph rebuild.
 async function stripDeletedFromConceptGraph(brainId: string, entryId: string): Promise<void> {
+  return stripDeletedIdsFromConceptGraph(brainId, [entryId]);
+}
+
+// Bulk variant — used by empty-trash where a single user can wipe N entries
+// from one brain. Doing N parallel PATCHes against the same concept_graphs
+// row races and loses strips (last write wins). One PATCH per brain handles
+// the whole set atomically.
+async function stripDeletedIdsFromConceptGraph(
+  brainId: string,
+  entryIds: string[],
+): Promise<void> {
+  if (!entryIds.length) return;
+  const idSet = new Set(entryIds);
+
   const r = await fetch(
     `${SB_URL}/rest/v1/concept_graphs?brain_id=eq.${encodeURIComponent(brainId)}&select=graph,updated_at&limit=1`,
     { headers: sbHeadersNoContent() },
@@ -643,7 +675,7 @@ async function stripDeletedFromConceptGraph(brainId: string, entryId: string): P
   const cleanedConcepts = concepts
     .map((c) => {
       const sources: string[] = Array.isArray(c?.source_entries) ? c.source_entries : [];
-      const next = sources.filter((sid) => sid !== entryId);
+      const next = sources.filter((sid) => !idSet.has(sid));
       if (next.length === sources.length) return c; // unchanged
       return { ...c, source_entries: next, frequency: next.length };
     })
@@ -652,7 +684,7 @@ async function stripDeletedFromConceptGraph(brainId: string, entryId: string): P
   const cleanedRels = relationships
     .map((rel) => {
       const ev: string[] = Array.isArray(rel?.evidence_entries) ? rel.evidence_entries : [];
-      const next = ev.filter((sid) => sid !== entryId);
+      const next = ev.filter((sid) => !idSet.has(sid));
       if (next.length === ev.length) return rel;
       return { ...rel, evidence_entries: next };
     })
@@ -682,47 +714,34 @@ const AUDIT_MAX_TOKENS = 4096;
 const AUDIT_DB_PAGE = 500;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function runGeminiBatch(
+async function runAuditBatch(
   lines: string,
   batchSet: Set<string>,
-  apiKey: string,
-  model: string,
+  cfg: AICall,
   batchNum: number,
 ): Promise<any[]> {
+  // Routed through callAI so the audit step inherits BYOK provider routing
+  // and the shared exponential-backoff retry path. Was previously hard-wired
+  // to env GEMINI_API_KEY which silently dropped when the key was missing
+  // or the user had a BYOK key configured.
+  const text = await callAI(cfg, SERVER_PROMPTS.ENTRY_AUDIT, lines, {
+    maxTokens: AUDIT_MAX_TOKENS,
+    json: true,
+  });
+  if (!text) return [];
+  console.log(`[audit] batch ${batchNum} text:`, text.slice(0, 200));
+  const cleaned = text.replace(/```json|```/g, "").trim();
+  const match = cleaned.match(/\[[\s\S]*\]/);
+  if (!match) return [];
+  let parsed: unknown;
   try {
-    const r = await googleAiFetch(apiKey, googleAiModelUrl(model, "generateContent"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: lines }] }],
-        systemInstruction: { parts: [{ text: SERVER_PROMPTS.ENTRY_AUDIT }] },
-        generationConfig: { maxOutputTokens: AUDIT_MAX_TOKENS },
-      }),
-    });
-    if (!r.ok) {
-      const err = await r.text().catch(() => "");
-      console.log(`[audit] batch ${batchNum} error:`, r.status, err.slice(0, 200));
-      return [];
-    }
-    const data = await r.json();
-    const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    console.log(`[audit] batch ${batchNum} text:`, text.slice(0, 200));
-    const cleaned = text.replace(/```json|```/g, "").trim();
-    const match = cleaned.match(/\[[\s\S]*\]/);
-    if (!match) return [];
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(match[0]);
-    } catch (err: any) {
-      console.log(`[audit] batch ${batchNum} parse error:`, String(err?.message ?? err));
-      return [];
-    }
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((f: any) => f?.entryId && batchSet.has(f.entryId));
-  } catch (e) {
-    console.log(`[audit] batch ${batchNum} exception:`, e);
+    parsed = JSON.parse(match[0]);
+  } catch (err: any) {
+    console.log(`[audit] batch ${batchNum} parse error:`, String(err?.message ?? err));
     return [];
   }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter((f: any) => f?.entryId && batchSet.has(f.entryId));
 }
 
 async function handleAudit({ req, res, user }: HandlerContext): Promise<void> {
@@ -751,13 +770,16 @@ async function handleAudit({ req, res, user }: HandlerContext): Promise<void> {
     return;
   }
 
-  const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
-  const GEMINI_MODEL = GEMINI_BULK_MODEL;
+  const cfg = await resolveProviderForUser(user.id);
+  if (!cfg) {
+    res.status(200).json({ flagged: 0, entries: {} });
+    return;
+  }
   console.log(
-    "[audit] model:",
-    GEMINI_MODEL,
-    "key set:",
-    !!GEMINI_API_KEY,
+    "[audit] provider:",
+    cfg.provider,
+    "model:",
+    cfg.model,
     "total entries:",
     cappedEntries.length,
   );
@@ -776,11 +798,10 @@ async function handleAudit({ req, res, user }: HandlerContext): Promise<void> {
           `ID: ${e.id}\nTitle: ${e.title}\nType: ${e.type}\nTags: ${(e.tags || []).join(", ")}\nContent: ${String(e.content || "").slice(0, 500)}\nMetadata: ${JSON.stringify(e.metadata || {})}`,
       )
       .join("\n\n---\n\n");
-    const batchFlags = await runGeminiBatch(
+    const batchFlags = await runAuditBatch(
       lines,
       batchSet,
-      GEMINI_API_KEY,
-      GEMINI_MODEL,
+      cfg,
       Math.floor(i / AUDIT_GEMINI_BATCH) + 1,
     );
     allFlags.push(...batchFlags);
@@ -874,87 +895,8 @@ async function handleEnrichBatch({ req, res, user }: HandlerContext): Promise<vo
   res.status(200).json({ processed: totalProcessed, remaining: lastRemaining, loops });
 }
 
-// ── POST /api/entries?action=backfill-persona ──
-// Walks every entry in the brain, asks Gemini to extract 0..N short facts
-// about the user, writes each as a NEW type='persona' entry linked back via
-// metadata.derived_from. Source entries are never modified beyond stamping
-// enrichment.persona_extracted=true. Capped per call so the function stays
-// well under the Vercel timeout; the UI loops on `remaining > 0`.
-async function handleBackfillPersona({ req, res, user }: HandlerContext): Promise<void> {
-  const { brain_id, batch_size } = bodyObject(req.body);
-  if (!brain_id || typeof brain_id !== "string") throw new ApiError(400, "brain_id required");
-  await requireBrainAccess(user.id, brain_id);
-  const batchSize =
-    typeof batch_size === "number" && batch_size > 0 ? Math.min(batch_size, 100) : 50;
-  const result = await backfillPersonaForBrain(user.id, brain_id, batchSize);
-  res.status(200).json(result);
-}
-
-// ── POST /api/entries?action=revert-persona-backfill ──
-// One-time cleanup: undoes the first-iteration backfill that wrongly flipped
-// whole entries to type='persona'. Targets only entries the backfill itself
-// produced (source != manual/chat, no derived_from) and best-guesses the
-// original type from surviving tag/metadata signals. Idempotent.
-async function handleRevertPersonaBackfill({ req, res, user }: HandlerContext): Promise<void> {
-  const { brain_id } = bodyObject(req.body);
-  if (!brain_id || typeof brain_id !== "string") throw new ApiError(400, "brain_id required");
-  await requireBrainAccess(user.id, brain_id);
-  const result = await revertBackfilledPersonaForBrain(user.id, brain_id);
-  res.status(200).json(result);
-}
-
-// ── POST /api/entries?action=wipe-persona-extracted ──
-// Hard-deletes all auto-extracted persona child entries in the brain (the
-// ones with metadata.derived_from set and source != manual/chat) and clears
-// the persona_extracted flag from source entries so the next scan starts
-// fresh. Manual / chat / pinned facts are preserved.
-async function handleWipePersonaExtracted({ req, res, user }: HandlerContext): Promise<void> {
-  const { brain_id } = bodyObject(req.body);
-  if (!brain_id || typeof brain_id !== "string") throw new ApiError(400, "brain_id required");
-  await requireBrainAccess(user.id, brain_id);
-  const result = await wipeExtractedPersonaForBrain(user.id, brain_id);
-  res.status(200).json(result);
-}
-
-// ── POST /api/entries?action=audit-persona ──
-// Walks every active persona fact and bulk-rejects ones that:
-//   1. Duplicate another active fact (cosine ≥ 0.85 / normalized title match)
-//   2. Match a previously-rejected pattern (cosine ≥ 0.85 vs rejected pool)
-//   3. Are already covered by the user's About-You text (cosine ≥ 0.72)
-// User-confirmed sources (manual / chat / pinned) are NEVER touched. The
-// rejected-status preserves provenance so the user can un-reject if wrong.
-async function handleAuditPersona({ req, res, user }: HandlerContext): Promise<void> {
-  const { brain_id } = bodyObject(req.body);
-  if (!brain_id || typeof brain_id !== "string") throw new ApiError(400, "brain_id required");
-  await requireBrainAccess(user.id, brain_id);
-  const result = await auditPersonaForBrain(user.id, brain_id);
-  res.status(200).json(result);
-}
-
-// ── GET /api/entries?action=persona-prompt — admin only ──
-// Returns the live extractor context (name / pronouns / About You / confirmed
-// facts / rejected patterns) plus the fully-rendered prompt that would be
-// sent to Gemini for THIS user. Powers the bottom-of-Personal debug panel
-// so the admin can watch the prompt evolve as they reject/confirm facts.
-async function handlePersonaPrompt({ req, res, user }: HandlerContext): Promise<void> {
-  if (!isAdminUser(user)) throw new ApiError(403, "Forbidden");
-  const brain_id = req.query.brain_id as string | undefined;
-  if (!brain_id || typeof brain_id !== "string") throw new ApiError(400, "brain_id required");
-  await requireBrainAccess(user.id, brain_id);
-  const ctx = await loadExtractorContext(user.id, brain_id);
-  const prompt = buildPrompt(ctx);
-  res.status(200).json({ context: ctx, prompt });
-}
-
-// ── POST /api/entries?action=distill-rejected — admin only ──
-// On-demand refresh of the user's rejected-pattern summary. Same logic that
-// runs weekly via runPersonaWeeklyPass, but exposed here so the admin can
-// watch the summary update in real time after rejecting new facts.
-async function handleDistillRejected({ res, user }: HandlerContext): Promise<void> {
-  if (!isAdminUser(user)) throw new ApiError(403, "Forbidden");
-  const result = await distillRejectedForUser(user.id);
-  res.status(result.ok ? 200 : 502).json(result);
-}
+// Persona handlers (backfill / revert / wipe / audit / persona-prompt /
+// distill-rejected) live in _lib/handlers/entryPersona.ts.
 
 // ── POST /api/entries?action=distill-gmail — admin only ──
 // On-demand Gmail accept/reject distillation. Same shape as the persona
@@ -1356,8 +1298,10 @@ async function handleEmptyTrash({ res, user, req_id }: HandlerContext): Promise<
   }
   const deleted: { id: string; brain_id: string }[] = await r.json();
 
-  // One pass per affected brain — concept_graphs is keyed by brain_id, and
-  // a single PATCH per brain is cheaper than per-entry. Group ids first.
+  // One PATCH per affected brain. Per-entry was a real bug: 100 deleted
+  // rows fired 100 parallel PATCHes against the same concept_graphs row,
+  // which raced — last write won and earlier strips were lost. Grouping by
+  // brain and stripping every id in one merge is correct AND cheaper.
   const byBrain = new Map<string, string[]>();
   for (const row of deleted) {
     const list = byBrain.get(row.brain_id);
@@ -1365,211 +1309,24 @@ async function handleEmptyTrash({ res, user, req_id }: HandlerContext): Promise<
     else byBrain.set(row.brain_id, [row.id]);
   }
   for (const [brainId, ids] of byBrain) {
-    for (const entryId of ids) {
-      stripDeletedFromConceptGraph(brainId, entryId).catch((err: any) =>
-        console.error("[empty-trash:concept-graph]", err?.message ?? err),
-      );
-    }
+    stripDeletedIdsFromConceptGraph(brainId, ids).catch((err: any) =>
+      console.error("[empty-trash:concept-graph]", err?.message ?? err),
+    );
   }
 
-  console.log(`[audit] EMPTY_TRASH user=${user.id} count=${deleted.length}`);
-  fetch(`${SB_URL}/rest/v1/audit_log`, {
-    method: "POST",
-    headers: sbHeaders({ Prefer: "return=minimal" }),
-    body: JSON.stringify({
-      user_id: user.id,
-      action: "empty_trash",
-      resource_id: null,
-      request_id: req_id,
-      timestamp: new Date().toISOString(),
-    }),
-  }).catch(() => {});
+  writeAuditLog({
+    userId: user.id,
+    action: "empty_trash",
+    requestId: req_id,
+    metadata: { count: deleted.length },
+  });
 
   res.status(200).json({ deleted: deleted.length });
 }
 
-// ── POST /api/entries?action=merge ──────────────────────────────────────────
-// Combine 2-8 user-selected entries into a single LLM-generated merged entry,
-// then soft-delete the sources. Two-phase via the `preview` flag in the body:
-//
-//   preview=true  → LLM generates {title, content, type, tags}, NO DB writes.
-//                   Frontend shows it in a modal, user can edit.
-//   preview=false → frontend re-POSTs with the (possibly edited) fields,
-//                   server inserts merged entry, awaits enrichInline up to
-//                   60s, then soft-deletes sources, writes audit_log row.
-//
-// Validation: all ids must be UUIDs, must belong to caller, must share a
-// brain_id, none can be vault (type='secret') — vault contents can't be sent
-// to LLM. Range: 2 ≤ N ≤ 8 (above 8 the merge LLM context starts dropping
-// fidelity AND cost balloons).
-//
-// Quota: 1 credit per merge (the inline enrichInline call consumes one).
-// We peek upfront so over-quota free users get a clean 429 instead of a
-// half-merged state.
-async function handleMerge({ req, res, user }: HandlerContext): Promise<void> {
-  const body = bodyObject(req.body);
-  const validation = await validateMergeRequest(user.id, body.ids);
-  await checkMergeQuota(user.id);
-
-  const isPreview = body.preview === true;
-
-  // ── Preview mode — call LLM, return merged shape, no DB writes
-  if (isPreview) {
-    const fields = await generateMergePreview(validation.sources, user.id);
-    res.status(200).json({
-      preview: true,
-      ...fields,
-      source_count: validation.sources.length,
-    });
-    return;
-  }
-
-  // ── Commit mode — caller passes the (possibly user-edited) fields.
-  const body_ = body as { title?: unknown; content?: unknown; type?: unknown; tags?: unknown };
-  const fields = {
-    title: typeof body_.title === "string" ? body_.title : "",
-    content: typeof body_.content === "string" ? body_.content : "",
-    type: typeof body_.type === "string" ? body_.type : "note",
-    tags: Array.isArray(body_.tags)
-      ? (body_.tags.filter((t): t is string => typeof t === "string"))
-      : [],
-  };
-  const result = await commitMerge(user.id, validation, { fields });
-  res.status(200).json({ ok: true, ...result });
-}
-
-// ── POST /api/entries?action=merge-undo ─────────────────────────────────────
-// Reverses a recent merge — hard-deletes the merged entry and resurrects
-// the sources by clearing deleted_at. Used by the post-merge Undo toast
-// (10-second window). Defends with metadata.merged_from check so a caller
-// can't undo arbitrary entries by guessing IDs.
-async function handleMergeUndo({ req, res, user }: HandlerContext): Promise<void> {
-  const body = bodyObject(req.body);
-  const mergedId: unknown = body.merged_id;
-  const sourceIds: unknown = body.source_ids;
-  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (typeof mergedId !== "string" || !uuidRe.test(mergedId)) {
-    throw new ApiError(400, "merged_id must be a valid uuid");
-  }
-  if (!Array.isArray(sourceIds) || sourceIds.length < 2 || sourceIds.length > 8) {
-    throw new ApiError(400, "source_ids must be 2-8 valid uuids");
-  }
-  const cleanSourceIds: string[] = [];
-  for (const raw of sourceIds) {
-    if (typeof raw !== "string" || !uuidRe.test(raw)) {
-      throw new ApiError(400, "source_ids must be valid uuids");
-    }
-    cleanSourceIds.push(raw);
-  }
-
-  // Verify the merged entry exists, belongs to the user, and was created
-  // by a merge of EXACTLY these source ids. The merged_from check stops
-  // a malicious caller from undoing arbitrary entries.
-  const mergedRes = await fetch(
-    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(mergedId)}&user_id=eq.${encodeURIComponent(user.id)}&select=metadata`,
-    { headers: sbHeadersNoContent() },
-  );
-  if (!mergedRes.ok) throw new ApiError(502, "Database error");
-  const [mergedRow]: any[] = await mergedRes.json();
-  if (!mergedRow) throw new ApiError(404, "Merged entry not found");
-  const mergedFrom: string[] = Array.isArray(mergedRow.metadata?.merged_from)
-    ? mergedRow.metadata.merged_from
-    : [];
-  const expectSet = new Set(cleanSourceIds);
-  const actualSet = new Set(mergedFrom);
-  const sameSet = expectSet.size === actualSet.size && [...expectSet].every((id) => actualSet.has(id));
-  if (!sameSet) {
-    throw new ApiError(400, "merged_from mismatch — refusing to undo");
-  }
-
-  // Resurrect sources, hard-delete merged
-  const sourceIdList = cleanSourceIds.map((id) => encodeURIComponent(id)).join(",");
-  await Promise.all([
-    fetch(
-      `${SB_URL}/rest/v1/entries?id=in.(${sourceIdList})&user_id=eq.${encodeURIComponent(user.id)}`,
-      {
-        method: "PATCH",
-        headers: sbHeaders({ Prefer: "return=minimal" }),
-        body: JSON.stringify({ deleted_at: null }),
-      },
-    ),
-    fetch(
-      `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(mergedId)}&user_id=eq.${encodeURIComponent(user.id)}`,
-      { method: "DELETE", headers: sbHeaders({ Prefer: "return=minimal" }) },
-    ),
-  ]);
-
-  fetch(`${SB_URL}/rest/v1/audit_log`, {
-    method: "POST",
-    headers: sbHeaders({ Prefer: "return=minimal" }),
-    body: JSON.stringify({
-      user_id: user.id,
-      action: "entries_merge_undone",
-      resource_id: mergedId,
-      metadata: { source_ids: cleanSourceIds },
-      timestamp: new Date().toISOString(),
-    }),
-  }).catch(() => {});
-
-  res.status(200).json({ ok: true, restored: cleanSourceIds.length });
-}
-
-// ── POST /api/entries?action=merge_into — merge source entry into target, then soft-delete source ──
-async function handleMergeInto({ req, res, user }: HandlerContext): Promise<void> {
-  const source_id = req.query.id as string | undefined;
-  const { target_id } = bodyObject(req.body);
-  if (!source_id || typeof source_id !== "string" || source_id.length > 100)
-    throw new ApiError(400, "Missing or invalid id");
-  if (!target_id || typeof target_id !== "string" || target_id.length > 100)
-    throw new ApiError(400, "Missing or invalid target_id");
-  if (source_id === target_id) throw new ApiError(400, "source and target must differ");
-
-  const [sourceRes, targetRes] = await Promise.all([
-    fetch(
-      `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(source_id)}&select=${encodeURIComponent(ENTRY_FIELDS)}`,
-      { headers: sbHeadersNoContent() },
-    ),
-    fetch(
-      `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(target_id)}&select=${encodeURIComponent(ENTRY_FIELDS)}`,
-      { headers: sbHeadersNoContent() },
-    ),
-  ]);
-  if (!sourceRes.ok || !targetRes.ok) throw new ApiError(502, "Database error");
-  const [source]: any[] = await sourceRes.json();
-  const [target]: any[] = await targetRes.json();
-  if (!source) throw new ApiError(404, "Source entry not found");
-  if (!target) throw new ApiError(404, "Target entry not found");
-
-  await Promise.all([
-    requireBrainAccess(user.id, source.brain_id),
-    requireBrainAccess(user.id, target.brain_id),
-  ]);
-
-  const mergedContent = [target.content, source.content].filter(Boolean).join("\n\n---\n\n");
-  const mergedTags = Array.from(new Set([...(target.tags ?? []), ...(source.tags ?? [])])).slice(
-    0,
-    50,
-  );
-
-  const patchRes = await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(target_id)}`, {
-    method: "PATCH",
-    headers: sbHeaders({ Prefer: "return=representation" }),
-    body: JSON.stringify({ content: mergedContent, tags: mergedTags }),
-  });
-  if (!patchRes.ok) throw new ApiError(502, "Failed to update target entry");
-
-  await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(source_id)}`, {
-    method: "PATCH",
-    headers: sbHeaders({ Prefer: "return=minimal" }),
-    body: JSON.stringify({ deleted_at: new Date().toISOString() }),
-  });
-
-  console.log(`[audit] MERGE_INTO source=${source_id} target=${target_id} user=${user.id}`);
-
-  const [updated] = await patchRes.json();
-  res.status(200).json(updated ?? { ok: true });
-  enrichInline(target_id, user.id).catch(() => {});
-}
+// Merge handlers (preview/commit/undo + merge_into) live in
+// _lib/handlers/entryMerge.ts — kept out of this dispatcher because the
+// merge logic is self-contained and benefits from being co-located.
 
 // ── POST /api/entries?action=move&id=<entry>&brain_id=<dest> — move entry between brains ──
 //

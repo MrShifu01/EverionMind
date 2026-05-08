@@ -792,7 +792,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     });
   }
 
-  // OAuth token endpoint — validate em_ key and echo it back as access token
+  // OAuth token endpoint — validate em_ key, mint a short-lived signed
+  // mcp_ token (HMAC-signed payload, 24h TTL). Never echoes the raw em_
+  // API key back as access_token; rotating MCP sessions doesn't require
+  // rotating the underlying API key.
   if (req.query._oauth === "token") {
     const authHeader = (req.headers["authorization"] as string) || "";
     const key = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";

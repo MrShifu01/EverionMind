@@ -331,7 +331,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
       `${SB_URL}/rest/v1/calendar_integrations?user_id=eq.${user.id}&provider=eq.${provider}`,
       {
         method: "DELETE",
-        headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
+        headers: SB_HEADERS,
       },
     );
     return res.status(200).json({ ok: true });
@@ -342,7 +342,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   if (action === "integrations") {
     const r = await fetch(
       `${SB_URL}/rest/v1/calendar_integrations?user_id=eq.${user.id}&select=id,provider,calendar_email,sync_enabled`,
-      { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } },
+      { headers: SB_HEADERS },
     );
     return res.status(200).json(r.ok ? await r.json() : []);
   }
@@ -350,7 +350,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   res.setHeader("Cache-Control", "private, max-age=300");
   const intRes = await fetch(
     `${SB_URL}/rest/v1/calendar_integrations?user_id=eq.${user.id}&sync_enabled=eq.true`,
-    { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } },
+    { headers: SB_HEADERS },
   );
   if (!intRes.ok) return res.status(200).json({ events: [] });
 

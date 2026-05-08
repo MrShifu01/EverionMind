@@ -182,6 +182,12 @@ async function handleIngest({ userId, brainId }: Auth, body: any) {
   const safeTitle = title.trim().slice(0, 200);
   const safeContent = content.slice(0, 200_000);
   const safeType = String(type).trim().slice(0, 50).toLowerCase() || "note";
+  if (safeType === "secret") {
+    throw {
+      status: 400,
+      message: "Cannot create vault entries via API — use the in-app Vault to encrypt secrets",
+    };
+  }
   const safeTags = Array.isArray(tags)
     ? tags.slice(0, 20).map((t: any) => String(t).slice(0, 50))
     : [];

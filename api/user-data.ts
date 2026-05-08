@@ -1985,7 +1985,7 @@ const handleFullExport = withAuth({ methods: ["GET"], rateLimit: 5 }, async ({ r
 // ── /api/user-data?resource=account — delete authenticated user's account ──
 const handleDeleteAccount = withAuth(
   { methods: ["DELETE"], rateLimit: 5 },
-  async ({ res, user }) => {
+  async ({ res, user, req_id }) => {
     // Snapshot vault entries before deletion so they can be exported
     const vaultRes = await fetch(
       `${SB_URL}/rest/v1/vault_entries?user_id=eq.${encodeURIComponent(user.id)}&select=*`,
@@ -2019,7 +2019,13 @@ const handleDeleteAccount = withAuth(
       return void res.status(502).json({ error: "Failed to delete account" });
     }
 
-    console.log(`[audit] DELETE_ACCOUNT user=${user.id} cascade=${JSON.stringify(cascadeCounts)}`);
+    writeAuditLog({
+      userId: user.id,
+      action: "delete_account",
+      resourceId: user.id,
+      requestId: req_id,
+      metadata: { cascade: cascadeCounts },
+    });
     return void res.status(200).json({ deleted: true, vault_export });
   },
 );

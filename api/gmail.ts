@@ -27,6 +27,8 @@ import {
 import { optionalBodyObject } from "./_lib/requestBody.js";
 import { sbHeaders } from "./_lib/sbHeaders.js";
 import { distillPatternSummary } from "./_lib/distillPatternSummary.js";
+import { callAI } from "./_lib/aiProvider.js";
+import { resolveProviderForUser } from "./_lib/resolveProvider.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_HEADERS = sbHeaders();
@@ -42,28 +44,25 @@ function gmailRedirectUri(): string {
   );
 }
 
-async function generateIgnoreRule(params: {
-  subject?: string;
-  from?: string;
-  email_type?: string;
-  content_preview?: string;
-}): Promise<string> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return `Ignore emails from ${params.from ?? "this sender"}.`;
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model: process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5-20251001",
-      max_tokens: 150,
-      messages: [
-        {
-          role: "user",
-          content: `Generate a specific exclusion rule for a personal email scanning system.
+async function generateIgnoreRule(
+  userId: string,
+  params: {
+    subject?: string;
+    from?: string;
+    email_type?: string;
+    content_preview?: string;
+  },
+): Promise<string> {
+  // Routes through callAI so the rule generator works for BYOK and
+  // managed-Gemini users, not just env ANTHROPIC_API_KEY (unset on this
+  // project).
+  const fallback = `Ignore emails from ${params.from ?? "this sender"}.`;
+  const cfg = await resolveProviderForUser(userId);
+  if (!cfg) return fallback;
+  const text = await callAI(
+    cfg,
+    "",
+    `Generate a specific exclusion rule for a personal email scanning system.
 
 The rule must describe WHAT TYPE of email to ignore based on its content, subject, or purpose — NOT the sender's address or domain.
 The same sender may send both wanted and unwanted emails, so address-based rules block too much.
@@ -78,15 +77,9 @@ Write ONE sentence starting with "Ignore" that targets the specific content patt
 Bad: "Ignore emails from capitec.co.za" (blocks everything from that sender)
 Good: "Ignore Capitec promotional emails about credit card offers or insurance"
 Return only the rule text, no explanation.`,
-        },
-      ],
-    }),
-  });
-  if (!res.ok) return `Ignore emails from ${params.from ?? "this sender"}.`;
-  const data = await res.json();
-  return (
-    (data.content?.[0]?.text ?? "").trim() || `Ignore emails from ${params.from ?? "this sender"}.`
+    { maxTokens: 150 },
   );
+  return text.trim() || fallback;
 }
 
 /* ── OAuth ── */
@@ -427,7 +420,7 @@ const authedHandler = withAuth(
 
     if (req.method === "POST" && action === "ignore") {
       const { subject, from, email_type, content_preview } = optionalBodyObject(req.body);
-      const rule = await generateIgnoreRule({
+      const rule = await generateIgnoreRule(user.id, {
         subject: typeof subject === "string" ? subject : undefined,
         from: typeof from === "string" ? from : undefined,
         email_type: typeof email_type === "string" ? email_type : undefined,

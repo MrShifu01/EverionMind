@@ -23,6 +23,11 @@ function _getCached(k: string): unknown | null {
     _cache.delete(k);
     return null;
   }
+  // LRU bump: re-insert so this entry moves to the end of the Map's
+  // insertion order, ensuring eviction targets the least-recently-used
+  // key rather than the oldest-by-write.
+  _cache.delete(k);
+  _cache.set(k, e);
   return e.r;
 }
 function _setCache(k: string, r: unknown): void {
