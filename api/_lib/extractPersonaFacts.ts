@@ -21,13 +21,11 @@
 // is never modified.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { googleAiFetch, googleAiModelUrl } from "./googleAi.js";
-import { GEMINI_BULK_MODEL } from "./geminiModels.js";
 import { sbHeaders } from "./sbHeaders.js";
+import { callAI } from "./aiProvider.js";
+import { resolveProviderForUser } from "./resolveProvider.js";
 
 const SB_URL = (process.env.SUPABASE_URL || "").trim();
-const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
-const GEMINI_MODEL = (process.env.GEMINI_PERSONA_EXTRACTOR_MODEL || GEMINI_BULK_MODEL).trim();
 
 type PersonaBucket = "identity" | "family" | "habit" | "preference" | "event";
 
@@ -69,10 +67,6 @@ const MAX_CONFIRMED_IN_PROMPT = 50;
 // long-term learning lives in rejected_summary, an LLM-distilled set of
 // 5-10 short skip rules that doesn't grow with rejection count.
 const MAX_REJECTED_IN_PROMPT = 5;
-
-interface GeminiResponse {
-  candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-}
 
 // ── Prompt builder ──────────────────────────────────────────────────────────
 //
@@ -319,11 +313,14 @@ export async function extractPersonaFacts(args: {
   type: string;
   tags?: string[];
   context: ExtractorContext;
+  userId: string;
 }): Promise<ExtractedFact[]> {
-  if (!GEMINI_API_KEY) return [];
   // Sanity guard — never extract from a persona entry itself.
   if (args.type === "persona" || args.type === "secret") return [];
   // (Per design: NO category skip list — let the prompt do the filtering.)
+
+  const cfg = await resolveProviderForUser(args.userId);
+  if (!cfg) return [];
 
   const tagHint = args.tags?.length ? `\nTags: ${args.tags.slice(0, 8).join(", ")}` : "";
   const userBlock = [
@@ -336,26 +333,10 @@ export async function extractPersonaFacts(args: {
     .join("\n");
 
   try {
-    const r = await googleAiFetch(
-      GEMINI_API_KEY,
-      googleAiModelUrl(GEMINI_MODEL, "generateContent"),
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: buildPrompt(args.context) }] },
-          contents: [{ role: "user", parts: [{ text: userBlock }] }],
-          generationConfig: {
-            temperature: 0,
-            responseMimeType: "application/json",
-            maxOutputTokens: 800,
-          },
-        }),
-      },
-    );
-    if (!r.ok) return [];
-    const data: GeminiResponse = await r.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const text = await callAI(cfg, buildPrompt(args.context), userBlock, {
+      maxTokens: 800,
+      json: true,
+    });
     return tryParse(text);
   } catch {
     return [];

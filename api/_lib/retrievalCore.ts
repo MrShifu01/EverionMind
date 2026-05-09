@@ -3,14 +3,13 @@
  * embed → vector search → keyword expand → tag siblings → graph boost
  */
 import { generateEmbedding } from "./generateEmbedding.js";
-import { googleAiFetch, googleAiModelUrl } from "./googleAi.js";
-import { GEMINI_BULK_MODEL } from "./geminiModels.js";
 import { SERVER_PROMPTS } from "./prompts.js";
 import { sbHeaders } from "./sbHeaders.js";
+import { callAI } from "./aiProvider.js";
+import { resolveProviderForUser } from "./resolveProvider.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_HEADERS = sbHeaders();
-const GEMINI_MODEL = GEMINI_BULK_MODEL;
 const REBUILD_DEBOUNCE_MS = 10 * 60 * 1000; // 10 minutes
 
 interface RetrievedEntry {
@@ -491,7 +490,7 @@ async function reinforcePersonaFacts(entries: RetrievedEntry[]): Promise<void> {
   );
 }
 
-export async function rebuildConceptGraph(brainId: string, geminiApiKey: string): Promise<void> {
+export async function rebuildConceptGraph(brainId: string, userId: string): Promise<void> {
   try {
     // Debounce: skip if rebuilt within last 10 minutes
     const checkRes = await fetch(
@@ -528,25 +527,10 @@ export async function rebuildConceptGraph(brainId: string, geminiApiKey: string)
 
     const prompt = SERVER_PROMPTS.CONCEPT_GRAPH.replace("{{ENTRIES}}", entryLines);
 
-    const gemRes = await googleAiFetch(
-      geminiApiKey,
-      googleAiModelUrl(GEMINI_MODEL, "generateContent"),
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 2048 },
-        }),
-      },
-    );
-    if (!gemRes.ok) return;
-    const gemData: any = await gemRes.json();
-    const text = (gemData.candidates?.[0]?.content?.parts ?? [])
-      .filter((p: any) => !p.thought)
-      .map((p: any) => p.text ?? "")
-      .join("")
-      .trim();
+    const cfg = await resolveProviderForUser(userId);
+    if (!cfg) return;
+    const text = await callAI(cfg, "", prompt, { maxTokens: 2048, json: true });
+    if (!text) return;
 
     let graph: any;
     try {

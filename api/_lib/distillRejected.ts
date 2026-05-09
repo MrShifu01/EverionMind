@@ -19,14 +19,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { sbHeaders } from "./sbHeaders.js";
-import { googleAiFetch, googleAiModelUrl } from "./googleAi.js";
-import { GEMINI_BULK_MODEL, geminiFallbackChain } from "./geminiModels.js";
+import { geminiFallbackChain } from "./geminiModels.js";
+import { callAI, type AICall } from "./aiProvider.js";
+import { resolveProviderForUser } from "./resolveProvider.js";
 
 const SB_URL = (process.env.SUPABASE_URL || "").trim();
-const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
-const GEMINI_MODEL = (
-  process.env.GEMINI_REJECTED_DISTILLER_MODEL || GEMINI_BULK_MODEL
-).trim();
 
 // Cap the input to keep token cost predictable — most users won't hit this,
 // and the rules generalize fine from a representative sample.
@@ -38,8 +35,9 @@ export async function distillRejectedForUser(userId: string): Promise<{
   count: number;
   reason?: string;
 }> {
-  if (!GEMINI_API_KEY) {
-    return { ok: false, summary: null, count: 0, reason: "GEMINI_API_KEY not configured" };
+  const cfg = await resolveProviderForUser(userId);
+  if (!cfg) {
+    return { ok: false, summary: null, count: 0, reason: "no AI provider configured" };
   }
 
   // Pull rejected persona facts. order=created_at.desc so if we hit the cap
@@ -87,68 +85,28 @@ Example output:
 
 Return ONLY the bullet list. No extra text.`;
 
-  // 429s are common on the free tier — flash-lite has a low requests/minute
-  // ceiling. Try the primary model, then back off and retry, then fall back
-  // to a heavier-but-less-rate-limited model. Better to spend ~1s on a
-  // backup call than surface "Failed: HTTP 429" to the user.
-  const FALLBACK_MODELS = geminiFallbackChain(GEMINI_MODEL);
-  const requestBody = JSON.stringify({
-    systemInstruction: { parts: [{ text: systemPrompt }] },
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: `User's rejected facts (${rows.length} total):\n\n${block}` }],
-      },
-    ],
-    generationConfig: { temperature: 0.2, maxOutputTokens: 600 },
-  });
+  // 429s are common on the Gemini free tier — flash-lite has a low rpm
+  // ceiling. For Gemini providers we walk the fallback chain (heavier model
+  // is less rate-limited). Non-Gemini providers (Anthropic / OpenAI / OR)
+  // get a single attempt — callAI handles 5xx/429 retry internally with
+  // exponential backoff.
+  const userContent = `User's rejected facts (${rows.length} total):\n\n${block}`;
+  const models: string[] =
+    cfg.provider === "gemini" ? geminiFallbackChain(cfg.model) : [cfg.model];
 
   let lastError = "";
-  for (let attempt = 0; attempt < FALLBACK_MODELS.length; attempt += 1) {
-    const model = FALLBACK_MODELS[attempt]!;
+  for (const model of models) {
+    const cfgWithModel: AICall = { ...cfg, model };
     try {
-      const resp = await googleAiFetch(GEMINI_API_KEY, googleAiModelUrl(model, "generateContent"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: requestBody,
-      });
-      if (resp.status === 429) {
-        // Tight retry on 429 before falling back to the next model — the
-        // per-minute window is short and a 1-second pause usually clears it.
-        await new Promise((r) => setTimeout(r, 1500));
-        const retry = await googleAiFetch(
-          GEMINI_API_KEY,
-          googleAiModelUrl(model, "generateContent"),
-          { method: "POST", headers: { "Content-Type": "application/json" }, body: requestBody },
-        );
-        if (!retry.ok) {
-          lastError = `${model} HTTP ${retry.status} after retry`;
-          continue;
-        }
-        const data: any = await retry.json();
-        const summary = (data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
-        if (!summary) {
-          lastError = `${model} empty summary`;
-          continue;
-        }
-        await persistSummary(userId, summary);
-        return { ok: true, summary, count: rows.length };
-      }
-      if (!resp.ok) {
-        const body = await resp.text().catch(() => "");
-        lastError = `${model} HTTP ${resp.status}: ${body.slice(0, 120)}`;
-        continue;
-      }
-      const data: any = await resp.json();
-      const summary = (data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
+      const summary = await callAI(cfgWithModel, systemPrompt, userContent, { maxTokens: 600 });
       if (!summary) {
-        lastError = `${model} empty summary`;
+        lastError = `${cfg.provider}/${model} empty summary`;
         continue;
       }
-      await persistSummary(userId, summary);
-      return { ok: true, summary, count: rows.length };
+      await persistSummary(userId, summary.trim());
+      return { ok: true, summary: summary.trim(), count: rows.length };
     } catch (e: any) {
-      lastError = `${model}: ${String(e?.message ?? e)}`;
+      lastError = `${cfg.provider}/${model}: ${String(e?.message ?? e)}`;
     }
   }
   return { ok: false, summary: null, count: rows.length, reason: lastError };

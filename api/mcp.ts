@@ -63,7 +63,7 @@ function signMcpAccessToken(auth: McpAuth): string {
   return `mcp_${payload}.${sig}`;
 }
 
-function verifyMcpAccessToken(token: string): McpAuth | null {
+async function verifyMcpAccessToken(token: string): Promise<McpAuth | null> {
   if (!token.startsWith("mcp_")) return null;
   const rest = token.slice(4);
   const dot = rest.lastIndexOf(".");
@@ -74,26 +74,33 @@ function verifyMcpAccessToken(token: string): McpAuth | null {
   const a = Buffer.from(sig);
   const b = Buffer.from(expected);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  let parsed: { userId?: unknown; keyId?: unknown; brainId?: unknown; exp?: unknown };
   try {
-    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
-      userId?: unknown;
-      keyId?: unknown;
-      brainId?: unknown;
-      exp?: unknown;
-    };
-    if (
-      typeof parsed.userId !== "string" ||
-      typeof parsed.keyId !== "string" ||
-      typeof parsed.brainId !== "string" ||
-      typeof parsed.exp !== "number" ||
-      parsed.exp < Math.floor(Date.now() / 1000)
-    ) {
-      return null;
-    }
-    return { userId: parsed.userId, keyId: parsed.keyId, brainId: parsed.brainId };
+    parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
   } catch {
     return null;
   }
+  if (
+    typeof parsed.userId !== "string" ||
+    typeof parsed.keyId !== "string" ||
+    typeof parsed.brainId !== "string" ||
+    typeof parsed.exp !== "number" ||
+    parsed.exp < Math.floor(Date.now() / 1000)
+  ) {
+    return null;
+  }
+  // DB-backed revocation: signature + exp pass, but if the underlying
+  // user_api_keys row was revoked or deleted, the token must not work.
+  // Without this check, a leaked mcp_ token stays valid for 24h after
+  // its em_ key is revoked.
+  const keyRes = await fetch(
+    `${SB_URL}/rest/v1/user_api_keys?id=eq.${encodeURIComponent(parsed.keyId)}&revoked_at=is.null&select=id,user_id&limit=1`,
+    { headers: sbHeaders() },
+  );
+  if (!keyRes.ok) return null;
+  const rows: any[] = await keyRes.json();
+  if (!rows.length || rows[0].user_id !== parsed.userId) return null;
+  return { userId: parsed.userId, keyId: parsed.keyId, brainId: parsed.brainId };
 }
 
 async function resolveMcpBearer(raw: string): Promise<McpAuth | null> {
@@ -558,13 +565,14 @@ async function createEntry(
     throw new Error(`Failed to create entry: ${err}`);
   }
   const rows: any[] = await r.json();
-  if (GEMINI_API_KEY) await rebuildConceptGraph(resolvedBrainId, GEMINI_API_KEY);
+  await rebuildConceptGraph(resolvedBrainId, userId);
   return rows[0];
 }
 
 async function updateEntry(
   brainId: string,
   id: string,
+  callerUserId: string,
   fields: {
     title?: string;
     content?: string;
@@ -574,13 +582,21 @@ async function updateEntry(
   },
 ): Promise<unknown> {
   const entryRes = await fetch(
-    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&select=id,title,content,tags,type,metadata&limit=1`,
+    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&select=id,user_id,title,content,tags,type,metadata&limit=1`,
     { headers: hdrs() },
   );
   if (!entryRes.ok) throw new Error("Failed to fetch entry");
   const rows: any[] = await entryRes.json();
   if (!rows.length) throw new Error("Entry not found");
   if (rows[0].type === "secret") throw new Error("Entry is locked in Vault — open the app to edit");
+  // Cross-user gate: a brain member may only edit entries they authored.
+  // Brain owners may edit any entry in their brain.
+  if (rows[0].user_id !== callerUserId) {
+    const access = await checkBrainAccess(callerUserId, brainId);
+    if (access?.role !== "owner") {
+      throw new ApiError(403, "Only the entry author or brain owner can edit this entry");
+    }
+  }
 
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (fields.title !== undefined) patch.title = fields.title.trim().slice(0, 200);
@@ -627,7 +643,7 @@ async function updateEntry(
   );
   if (!r.ok) throw new Error(`Update failed: ${await r.text().catch(() => r.status)}`);
   const updated: any[] = await r.json();
-  if (GEMINI_API_KEY) await rebuildConceptGraph(brainId, GEMINI_API_KEY);
+  await rebuildConceptGraph(brainId, callerUserId);
   return updated[0];
 }
 
@@ -718,9 +734,9 @@ async function gmailIgnorePattern(userId: string, pattern: string): Promise<unkn
   return { ok: true, pattern: trimmed };
 }
 
-async function deleteEntry(brainId: string, id: string): Promise<unknown> {
+async function deleteEntry(brainId: string, id: string, callerUserId: string): Promise<unknown> {
   const entryRes = await fetch(
-    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&select=id,type&limit=1`,
+    `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&select=id,user_id,type&limit=1`,
     { headers: hdrs() },
   );
   if (!entryRes.ok) throw new Error("Failed to fetch entry");
@@ -728,6 +744,12 @@ async function deleteEntry(brainId: string, id: string): Promise<unknown> {
   if (!rows.length) throw new Error("Entry not found");
   if (rows[0].type === "secret")
     throw new Error("Entry is locked in Vault — open the app to delete");
+  if (rows[0].user_id !== callerUserId) {
+    const access = await checkBrainAccess(callerUserId, brainId);
+    if (access?.role !== "owner") {
+      throw new ApiError(403, "Only the entry author or brain owner can delete this entry");
+    }
+  }
 
   const r = await fetch(
     `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(id)}&brain_id=eq.${encodeURIComponent(brainId)}`,
@@ -970,7 +992,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
             .json(jsonRpcErr(id, -32602, "At least one field to update is required"));
         }
         const updateTarget = await resolveTargetBrain(args, brainId, userId, ["owner", "member"]);
-        result = await updateEntry(updateTarget, args.id, {
+        result = await updateEntry(updateTarget, args.id, userId, {
           title: args.title,
           content: args.content,
           type: args.type,
@@ -986,7 +1008,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
       } else if (toolName === "delete_entry") {
         if (!args.id) return res.status(200).json(jsonRpcErr(id, -32602, "id is required"));
         const deleteTarget = await resolveTargetBrain(args, brainId, userId, ["owner", "member"]);
-        result = await deleteEntry(deleteTarget, args.id);
+        result = await deleteEntry(deleteTarget, args.id, userId);
       } else if (toolName === "merge_entries") {
         if (!Array.isArray(args.ids) || args.ids.length < 2 || args.ids.length > 8) {
           return res

@@ -355,17 +355,12 @@ async function handlePatch({ req, res, user, req_id, log }: HandlerContext): Pro
 
   log.info("entry patch", { entry_id: id, ok: response.ok });
 
-  fetch(`${SB_URL}/rest/v1/audit_log`, {
-    method: "POST",
-    headers: sbHeaders({ Prefer: "return=minimal" }),
-    body: JSON.stringify({
-      user_id: user.id,
-      action: "entry_update",
-      resource_id: id,
-      request_id: req_id,
-      timestamp: new Date().toISOString(),
-    }),
-  }).catch(() => {});
+  writeAuditLog({
+    userId: user.id,
+    action: "entry_update",
+    resourceId: id,
+    requestId: req_id,
+  });
 
   const data: any = await response.json();
 
@@ -502,17 +497,12 @@ async function handleBulkPatch({ req, res, user, req_id }: HandlerContext): Prom
 
   // One audit log row per bulk action, not per affected entry — these are
   // the same logical operation from the user's POV.
-  fetch(`${SB_URL}/rest/v1/audit_log`, {
-    method: "POST",
-    headers: sbHeaders({ Prefer: "return=minimal" }),
-    body: JSON.stringify({
-      user_id: user.id,
-      action: "entry_bulk_patch",
-      resource_id: cleanIds[0], // first id as a representative anchor
-      request_id: req_id,
-      timestamp: new Date().toISOString(),
-    }),
-  }).catch(() => {});
+  writeAuditLog({
+    userId: user.id,
+    action: "entry_bulk_patch",
+    resourceId: cleanIds[0], // first id as a representative anchor
+    requestId: req_id,
+  });
 
   res.status(200).json({ ok: true, updated, requested: cleanIds.length });
 }
@@ -563,18 +553,13 @@ async function handleBulkDelete({ req, res, user, req_id }: HandlerContext): Pro
   const deletedIds = rows.map((row) => row.id);
 
   // Single audit log row per bulk action — same shape as bulk-patch.
-  fetch(`${SB_URL}/rest/v1/audit_log`, {
-    method: "POST",
-    headers: sbHeaders({ Prefer: "return=minimal" }),
-    body: JSON.stringify({
-      user_id: user.id,
-      action: "entry_bulk_delete",
-      resource_id: cleanIds[0],
-      request_id: req_id,
-      timestamp: now,
-      metadata: { count: deletedIds.length, requested: cleanIds.length },
-    }),
-  }).catch(() => {});
+  writeAuditLog({
+    userId: user.id,
+    action: "entry_bulk_delete",
+    resourceId: cleanIds[0],
+    requestId: req_id,
+    metadata: { count: deletedIds.length, requested: cleanIds.length },
+  });
 
   res.status(200).json({ ok: true, deleted: deletedIds.length, requested: cleanIds.length, ids: deletedIds });
 }
@@ -622,18 +607,13 @@ async function handleBulkDeleteByFilter({ req, res, user, req_id }: HandlerConte
   const rows: Array<{ id: string }> = await r.json().catch(() => []);
   const ids = rows.map((row) => row.id);
 
-  fetch(`${SB_URL}/rest/v1/audit_log`, {
-    method: "POST",
-    headers: sbHeaders({ Prefer: "return=minimal" }),
-    body: JSON.stringify({
-      user_id: user.id,
-      action: "entry_bulk_delete_by_filter",
-      resource_id: ids[0] ?? null,
-      request_id: req_id,
-      timestamp: now,
-      metadata: { type, brain_id: brainId || null, tag: tag || null, count: ids.length },
-    }),
-  }).catch(() => {});
+  writeAuditLog({
+    userId: user.id,
+    action: "entry_bulk_delete_by_filter",
+    resourceId: ids[0] ?? null,
+    requestId: req_id,
+    metadata: { type, brain_id: brainId || null, tag: tag || null, count: ids.length },
+  });
 
   res.status(200).json({ ok: true, deleted: ids.length, ids });
 }
@@ -1094,7 +1074,11 @@ async function handleGmailPrompt({ res, user }: HandlerContext): Promise<void> {
       ],
       participants: ["<all participants>"],
     };
-    prompt = buildGmailPrompt([placeholder], prefs, learnings);
+    const parts = buildGmailPrompt([placeholder], prefs, learnings);
+    // Debug panel shows the combined prompt so the operator can review the
+    // full text the model sees. Live scans pass system + user separately
+    // (see gmailScan.classifyWith*).
+    prompt = `# SYSTEM\n${parts.system}\n\n# USER\n${parts.user}`;
   } catch (e: any) {
     console.error("[gmail-prompt] template render failed:", e?.message ?? e);
   }
@@ -1397,18 +1381,13 @@ async function handleMoveEntry({ req, res, user, req_id }: HandlerContext): Prom
   );
 
   // Audit trail
-  fetch(`${SB_URL}/rest/v1/audit_log`, {
-    method: "POST",
-    headers: sbHeaders({ Prefer: "return=minimal" }),
-    body: JSON.stringify({
-      user_id: user.id,
-      action: "entry_move",
-      resource_id: id,
-      request_id: req_id,
-      details: { from: sourceBrainId, to: dest },
-      timestamp: new Date().toISOString(),
-    }),
-  }).catch(() => {});
+  writeAuditLog({
+    userId: user.id,
+    action: "entry_move",
+    resourceId: id,
+    requestId: req_id,
+    metadata: { from: sourceBrainId, to: dest },
+  });
 
   // Re-enrich in destination brain context. Best-effort; user sees move
   // immediately even if enrichment is slow.
@@ -1478,18 +1457,13 @@ async function handleShareEntry({ req, res, user, req_id }: HandlerContext): Pro
   });
   if (!ins.ok && ins.status !== 409) throw new ApiError(502, "Failed to share entry");
 
-  fetch(`${SB_URL}/rest/v1/audit_log`, {
-    method: "POST",
-    headers: sbHeaders({ Prefer: "return=minimal" }),
-    body: JSON.stringify({
-      user_id: user.id,
-      action: "entry_share",
-      resource_id: id,
-      request_id: req_id,
-      details: { source: entry.brain_id, target },
-      timestamp: new Date().toISOString(),
-    }),
-  }).catch(() => {});
+  writeAuditLog({
+    userId: user.id,
+    action: "entry_share",
+    resourceId: id,
+    requestId: req_id,
+    metadata: { source: entry.brain_id, target },
+  });
 
   res.status(200).json({ ok: true, target_brain_id: target });
 }
@@ -1517,18 +1491,13 @@ async function handleUnshareEntry({ req, res, user, req_id }: HandlerContext): P
   );
   if (!del.ok) throw new ApiError(502, "Failed to unshare entry");
 
-  fetch(`${SB_URL}/rest/v1/audit_log`, {
-    method: "POST",
-    headers: sbHeaders({ Prefer: "return=minimal" }),
-    body: JSON.stringify({
-      user_id: user.id,
-      action: "entry_unshare",
-      resource_id: id,
-      request_id: req_id,
-      details: { target },
-      timestamp: new Date().toISOString(),
-    }),
-  }).catch(() => {});
+  writeAuditLog({
+    userId: user.id,
+    action: "entry_unshare",
+    resourceId: id,
+    requestId: req_id,
+    metadata: { target },
+  });
 
   res.status(200).json({ ok: true });
 }

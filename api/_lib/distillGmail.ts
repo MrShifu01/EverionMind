@@ -14,14 +14,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { sbHeaders } from "./sbHeaders.js";
-import { googleAiFetch, googleAiModelUrl } from "./googleAi.js";
-import { GEMINI_BULK_MODEL, geminiFallbackChain } from "./geminiModels.js";
+import { geminiFallbackChain } from "./geminiModels.js";
+import { callAI, type AICall } from "./aiProvider.js";
+import { resolveProviderForUser } from "./resolveProvider.js";
 
 const SB_URL = (process.env.SUPABASE_URL || "").trim();
-const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
-const GEMINI_MODEL = (
-  process.env.GEMINI_GMAIL_DISTILLER_MODEL || GEMINI_BULK_MODEL
-).trim();
 
 const MAX_DECISIONS_INPUT = 200; // recent decisions per side (accept/reject)
 const MIN_FOR_DISTILL = 3;        // below this we don't have enough signal
@@ -53,8 +50,9 @@ export async function distillGmailForUser(userId: string): Promise<DistillOutcom
     accept_count: 0,
     reject_count: 0,
   };
-  if (!GEMINI_API_KEY) {
-    out.reason = "GEMINI_API_KEY not configured";
+  const cfg = await resolveProviderForUser(userId);
+  if (!cfg) {
+    out.reason = "no AI provider configured";
     return out;
   }
 
@@ -68,14 +66,10 @@ export async function distillGmailForUser(userId: string): Promise<DistillOutcom
   out.reject_count = rejects.length;
 
   out.accepted_summary =
-    accepts.length >= MIN_FOR_DISTILL
-      ? await distill(accepts, "KEEP")
-      : null;
+    accepts.length >= MIN_FOR_DISTILL ? await distill(accepts, "KEEP", cfg) : null;
 
   out.rejected_summary =
-    rejects.length >= MIN_FOR_DISTILL
-      ? await distill(rejects, "SKIP")
-      : null;
+    rejects.length >= MIN_FOR_DISTILL ? await distill(rejects, "SKIP", cfg) : null;
 
   await persist(userId, out.accepted_summary, out.rejected_summary);
   out.ok = true;
@@ -94,7 +88,11 @@ async function loadDecisions(
   return (await r.json()) as DecisionRow[];
 }
 
-async function distill(rows: DecisionRow[], kind: "KEEP" | "SKIP"): Promise<string | null> {
+async function distill(
+  rows: DecisionRow[],
+  kind: "KEEP" | "SKIP",
+  cfg: AICall,
+): Promise<string | null> {
   const block = rows
     .map((row, i) => {
       const sender = [row.from_name, row.from_email].filter(Boolean).join(" · ");
@@ -131,42 +129,15 @@ RULES FOR YOUR OUTPUT:
 
 Return ONLY the bullet list. No extra text.`;
 
-  const FALLBACK_MODELS = geminiFallbackChain(GEMINI_MODEL);
-  const body = JSON.stringify({
-    systemInstruction: { parts: [{ text: systemPrompt }] },
-    contents: [
-      {
-        role: "user",
-        parts: [
-          {
-            text: `User's recently ${verb} emails (${rows.length} total):\n\n<untrusted_email_decisions>\n${block}\n</untrusted_email_decisions>`,
-          },
-        ],
-      },
-    ],
-    generationConfig: { temperature: 0.2, maxOutputTokens: 600 },
-  });
-
-  for (const model of FALLBACK_MODELS) {
+  const userContent = `User's recently ${verb} emails (${rows.length} total):\n\n<untrusted_email_decisions>\n${block}\n</untrusted_email_decisions>`;
+  // Gemini providers walk the fallback chain (rpm pressure on lite models);
+  // others get a single attempt — callAI's internal exponential backoff
+  // handles transient 429/5xx within one model.
+  const models: string[] = cfg.provider === "gemini" ? geminiFallbackChain(cfg.model) : [cfg.model];
+  for (const model of models) {
     try {
-      let r = await googleAiFetch(GEMINI_API_KEY, googleAiModelUrl(model, "generateContent"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body,
-      });
-      // Tight 429 retry before stepping to a different model.
-      if (r.status === 429) {
-        await new Promise((res) => setTimeout(res, 1500));
-        r = await googleAiFetch(GEMINI_API_KEY, googleAiModelUrl(model, "generateContent"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body,
-        });
-      }
-      if (!r.ok) continue;
-      const data: any = await r.json();
-      const text = (data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
-      if (text) return text;
+      const text = await callAI({ ...cfg, model }, systemPrompt, userContent, { maxTokens: 600 });
+      if (text.trim()) return text.trim();
     } catch {
       // try next model
     }

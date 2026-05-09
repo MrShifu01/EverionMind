@@ -332,7 +332,9 @@ async function execTool(
     });
     if (!r.ok) return { error: `Failed to create: ${await r.text().catch(() => r.status)}` };
     const rows: any[] = await r.json();
-    if (GEMINI_API_KEY) rebuildConceptGraph(brainId, GEMINI_API_KEY).catch(() => {});
+    rebuildConceptGraph(brainId, userId).catch((err: unknown) =>
+      console.error("[llm:conceptGraph] rebuild failed — graph view will stay stale", err),
+    );
     // AWAIT enrichInline before returning — fire-and-forget on Vercel Node.js
     // is unreliable (function instance can be killed before the IIFE
     // completes, leaving entries with parsed=false forever). Slows the chat
@@ -392,7 +394,9 @@ async function execTool(
     );
     if (!r.ok) return { error: `Update failed: ${await r.text().catch(() => r.status)}` };
     const updated: any[] = await r.json();
-    if (GEMINI_API_KEY) rebuildConceptGraph(brainId, GEMINI_API_KEY).catch(() => {});
+    rebuildConceptGraph(brainId, userId).catch((err: unknown) =>
+      console.error("[llm:conceptGraph] rebuild failed — graph view will stay stale", err),
+    );
     // AWAIT — see create_entry above for rationale.
     try {
       await enrichInline(args.id, userId);
@@ -591,7 +595,13 @@ async function handleChat(
   const instrumentedExecTool = async (name: string, args: Record<string, any>) => {
     log.info("tool_call", { tool: name, brain_id });
     if (isManaged && quotaCtx) {
-      checkAndIncrement(user.id, "chats", quotaCtx.plan, quotaCtx.hasKey).catch(() => {});
+      checkAndIncrement(user.id, "chats", quotaCtx.plan, quotaCtx.hasKey).catch(
+        (err: unknown) =>
+          console.error(
+            "[llm:quota] chat increment failed — user may exceed plan silently this cycle",
+            err,
+          ),
+      );
     }
     return execTool(name, args, user.id, brain_id);
   };
@@ -712,6 +722,14 @@ async function handleExtractFile(
     res.status(413).json({ error: "File too large (max ~24 MB)" });
     return;
   }
+  // Validate base64 charset before decoding. Without this, garbage input
+  // silently truncates at the first non-base64 char and the parser sees a
+  // short buffer that fails to a "successful but empty" extraction — the
+  // user thinks the file imported when nothing was actually parsed.
+  if (!/^[A-Za-z0-9+/=\r\n]+$/.test(fileData) || Buffer.byteLength(fileData) < 4) {
+    res.status(400).json({ error: "fileData must be valid base64" });
+    return;
+  }
 
   // Try local parsers first (PDF, DOCX, XLSX, CSV, plain text, HTML).
   // Free, fast, no token cap, deterministic. Only images and scanned PDFs
@@ -724,8 +742,15 @@ async function handleExtractFile(
       return;
     }
   } catch (e: any) {
+    // extractFromBuffer now throws on magic-byte / extension mismatch.
+    // Surface that as 415 so the user knows their file was rejected, not
+    // silently turned into empty text.
+    if (e?.message?.includes("refusing to parse")) {
+      res.status(415).json({ error: e.message });
+      return;
+    }
     console.warn("[extract-file:local]", e?.message || e);
-    // fall through to Gemini
+    // fall through to Gemini for transient parser errors
   }
 
   // Gemini fallback for images, scanned PDFs, and anything the local
@@ -940,15 +965,25 @@ async function handleTranscribe(req: ApiRequest, res: ApiResponse): Promise<void
   // path base64-encoded the audio twice (client encode + server decode)
   // and inflated bytes by 33% — sending the Blob directly skips both
   // hops. mimeType + language ride on the query string.
-  const mimeType =
+  const rawMime =
     typeof req.query?.mime === "string"
       ? (req.query.mime as string)
       : typeof req.headers["content-type"] === "string"
         ? (req.headers["content-type"] as string).split(";")[0].trim()
         : "";
+  // Whitelist against the known audio extensions. Without this, an attacker
+  // can pass mime=audio/webm%0d%0a or `audio/webm";boundary=` to inject CRLF
+  // into the outbound multipart Content-Type / filename and corrupt the
+  // request to Groq.
+  const mimeType = rawMime && _mimeToExt(rawMime) ? rawMime : "";
   const language = typeof req.query?.language === "string" ? (req.query.language as string) : "";
+  // Strip any non-letter chars from language too — same multipart-injection
+  // surface, lower payoff but trivial to harden.
+  const safeLanguage = /^[a-z]{2,5}$/i.test(language) ? language : "";
   if (!mimeType) {
-    res.status(400).json({ error: "mime query param or Content-Type header required" });
+    res
+      .status(400)
+      .json({ error: "Unsupported audio mime type. Use audio/webm, audio/ogg, audio/mp4, audio/mpeg, audio/wav, audio/flac, or audio/m4a." });
     return;
   }
   let audioBuffer: Buffer;
@@ -976,8 +1011,8 @@ async function handleTranscribe(req: ApiRequest, res: ApiResponse): Promise<void
   const boundary = `----WebKitFormBoundary${crypto.randomUUID().replace(/-/g, "")}`;
   const CRLF = "\r\n";
   const modelField = `--${boundary}${CRLF}Content-Disposition: form-data; name="model"${CRLF}${CRLF}${model}`;
-  const langField = language
-    ? `${CRLF}--${boundary}${CRLF}Content-Disposition: form-data; name="language"${CRLF}${CRLF}${language}`
+  const langField = safeLanguage
+    ? `${CRLF}--${boundary}${CRLF}Content-Disposition: form-data; name="language"${CRLF}${CRLF}${safeLanguage}`
     : "";
   const responseFormatField = `${CRLF}--${boundary}${CRLF}Content-Disposition: form-data; name="response_format"${CRLF}${CRLF}json`;
   const fileHeader = `${CRLF}--${boundary}${CRLF}Content-Disposition: form-data; name="file"; filename="audio.${ext}"${CRLF}Content-Type: ${mimeType}${CRLF}${CRLF}`;

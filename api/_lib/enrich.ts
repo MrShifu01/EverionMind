@@ -40,7 +40,7 @@ import {
 } from "./generateEmbedding.js";
 import { sbHeaders } from "./sbHeaders.js";
 import { googleAiFetch, googleAiModelUrl } from "./googleAi.js";
-import { GEMINI_BULK_MODEL, geminiFallbackChain } from "./geminiModels.js";
+import { geminiFallbackChain } from "./geminiModels.js";
 import { randomUUID } from "crypto";
 
 const SB_URL = process.env.SUPABASE_URL!;
@@ -521,11 +521,19 @@ async function stepEmbed(entry: Entry, embed: EmbedConfig): Promise<void> {
     }
   } catch (err: any) {
     console.error("[enrich:embed]", err?.message ?? err);
+    // Mark the row as failed so the cron retry budget kicks in. If THIS PATCH
+    // also fails, the row is stuck pending forever and the cron will keep
+    // retrying it — log loudly so the operator notices.
     await fetch(`${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entry.id)}`, {
       method: "PATCH",
       headers: { ...SB_HDR, Prefer: "return=minimal" },
       body: JSON.stringify({ embedding_status: "failed" }),
-    }).catch(() => {});
+    }).catch((markErr: unknown) =>
+      console.error(
+        `[enrich:embed:mark-failed] PATCH failed for ${entry.id} — row may stay pending forever`,
+        markErr,
+      ),
+    );
   }
 }
 
@@ -593,6 +601,7 @@ async function stepPersonaExtract(
     type: entry.type || "note",
     tags: entry.tags ?? undefined,
     context: ctx,
+    userId,
   });
 
   // Always stamp the flag — empty extraction is a real answer.
@@ -1307,7 +1316,12 @@ async function markEmbeddingStatus(
     method: "PATCH",
     headers: { ...SB_HDR, Prefer: "return=minimal" },
     body: JSON.stringify(fields),
-  }).catch(() => {});
+  }).catch((err: unknown) =>
+    console.error(
+      `[markEmbeddingStatus] PATCH failed for ${ids.length} rows (status=${fields.embedding_status})`,
+      err,
+    ),
+  );
 }
 
 async function mapWithConcurrency<T, R>(
@@ -1821,7 +1835,7 @@ export async function auditPersonaForBrain(userId: string, brainId: string): Pro
           return true;
         });
         if (candidates.length > 0) {
-          const ruledOutIds = await classifyAgainstRules(rules, candidates, apiKey);
+          const ruledOutIds = await classifyAgainstRules(rules, candidates, userId);
           for (const id of ruledOutIds) rejectByRules.add(id);
         }
       }
@@ -1867,16 +1881,16 @@ export async function auditPersonaForBrain(userId: string, brainId: string): Pro
 }
 
 // Bulk-classify candidate facts against the user's distilled skip rules.
-// One Gemini Flash call returns an array of indices to reject.
+// One LLM call returns an array of indices to reject. Routes through callAI
+// so BYOK + retry semantics apply; Gemini gets the fallback chain.
 async function classifyAgainstRules(
   rules: string,
   candidates: AuditRow[],
-  apiKey: string,
+  userId: string,
 ): Promise<string[]> {
   if (!candidates.length) return [];
-  const model =
-    (process.env.GEMINI_AUDIT_RULES_MODEL || GEMINI_BULK_MODEL).trim() ||
-    GEMINI_BULK_MODEL;
+  const cfg = await resolveProviderForUser(userId);
+  if (!cfg) return [];
 
   const block = candidates
     .map((row, i) => {
@@ -1895,37 +1909,17 @@ Be conservative. If a fact is genuinely identity-defining (a relationship, a las
 
 Return ONLY a JSON array of integer indices to REJECT. Example: [0, 3, 7]. Empty array if all candidates pass.`;
 
-  const userPart = `Skip rules:\n${rules.slice(0, 2000)}\n\nCandidates:\n${block}`;
-  const body = JSON.stringify({
-    systemInstruction: { parts: [{ text: systemPrompt }] },
-    contents: [{ role: "user", parts: [{ text: userPart }] }],
-    generationConfig: {
-      temperature: 0,
-      responseMimeType: "application/json",
-      maxOutputTokens: 600,
-    },
-  });
+  const userContent = `Skip rules:\n${rules.slice(0, 2000)}\n\nCandidates:\n${block}`;
+  const models: string[] = cfg.provider === "gemini" ? geminiFallbackChain(cfg.model) : [cfg.model];
 
-  const FALLBACK = geminiFallbackChain(model);
-  for (const m of FALLBACK) {
+  for (const m of models) {
     try {
-      let r = await googleAiFetch(apiKey, googleAiModelUrl(m, "generateContent"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body,
+      const text = await callAI({ ...cfg, model: m }, systemPrompt, userContent, {
+        maxTokens: 600,
+        json: true,
       });
-      if (r.status === 429) {
-        await new Promise((res) => setTimeout(res, 1500));
-        r = await googleAiFetch(apiKey, googleAiModelUrl(m, "generateContent"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body,
-        });
-      }
-      if (!r.ok) continue;
-      const data: any = await r.json();
-      const text = (data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
-      const arr = JSON.parse(text);
+      if (!text) continue;
+      const arr = JSON.parse(text.trim());
       if (!Array.isArray(arr)) return [];
       return arr
         .filter((n) => typeof n === "number" && n >= 0 && n < candidates.length)

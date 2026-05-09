@@ -12,11 +12,11 @@
 // the existing summary stays in place if the LLM call fails.
 
 import { sbHeaders } from "./sbHeaders.js";
-import { googleAiFetch, googleAiModelUrl } from "./googleAi.js";
-import { GEMINI_BULK_MODEL, geminiFallbackChain } from "./geminiModels.js";
+import { geminiFallbackChain } from "./geminiModels.js";
+import { callAI, type AICall } from "./aiProvider.js";
+import { resolveProviderForUser } from "./resolveProvider.js";
 
 const SB_URL = (process.env.SUPABASE_URL || "").trim();
-const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
 
 interface RecentMatch {
   subject?: string | null;
@@ -27,6 +27,7 @@ interface RecentMatch {
 
 interface PatternRow {
   id: string;
+  user_id: string;
   example_subject: string | null;
   example_from: string | null;
   accept_hits: number;
@@ -38,11 +39,9 @@ export async function distillPatternSummary(
   patternId: string,
   options: { force?: boolean } = {},
 ): Promise<void> {
-  if (!GEMINI_API_KEY) return;
-
   const r = await fetch(
     `${SB_URL}/rest/v1/gmail_pattern_rules?id=eq.${encodeURIComponent(patternId)}` +
-      `&select=id,example_subject,example_from,accept_hits,reject_hits,recent_matches&limit=1`,
+      `&select=id,user_id,example_subject,example_from,accept_hits,reject_hits,recent_matches&limit=1`,
     { headers: sbHeaders() },
   ).catch(() => null);
   if (!r || !r.ok) return;
@@ -73,7 +72,9 @@ export async function distillPatternSummary(
     ),
   );
 
-  const summary = await callGemini(samples, senders);
+  const cfg = await resolveProviderForUser(row.user_id);
+  if (!cfg) return;
+  const summary = await runDistill(samples, senders, cfg);
   if (!summary) return;
 
   await fetch(`${SB_URL}/rest/v1/gmail_pattern_rules?id=eq.${encodeURIComponent(patternId)}`, {
@@ -86,7 +87,11 @@ export async function distillPatternSummary(
   }).catch(() => {});
 }
 
-async function callGemini(samples: string[], senders: string[]): Promise<string | null> {
+async function runDistill(
+  samples: string[],
+  senders: string[],
+  cfg: AICall,
+): Promise<string | null> {
   const sampleBlock = samples.map((s, i) => `${i + 1}. ${sanitize(s, 200)}`).join("\n");
   const senderBlock = senders.length ? senders.map((s) => sanitize(s, 120)).join(", ") : "(unknown)";
 
@@ -106,41 +111,14 @@ RULES:
 - If the sender domain is consistent, use it. Otherwise describe the kind generically.
 - Return ONLY the label. No preamble, no explanation.`;
 
-  const FALLBACK_MODELS = geminiFallbackChain(GEMINI_BULK_MODEL);
-  const body = JSON.stringify({
-    systemInstruction: { parts: [{ text: systemPrompt }] },
-    contents: [
-      {
-        role: "user",
-        parts: [
-          {
-            text: `Senders: ${senderBlock}\n\nSample subjects:\n<untrusted_samples>\n${sampleBlock}\n</untrusted_samples>`,
-          },
-        ],
-      },
-    ],
-    generationConfig: { temperature: 0.2, maxOutputTokens: 80 },
-  });
+  const userContent = `Senders: ${senderBlock}\n\nSample subjects:\n<untrusted_samples>\n${sampleBlock}\n</untrusted_samples>`;
+  const models: string[] = cfg.provider === "gemini" ? geminiFallbackChain(cfg.model) : [cfg.model];
 
-  for (const model of FALLBACK_MODELS) {
+  for (const model of models) {
     try {
-      let r = await googleAiFetch(GEMINI_API_KEY, googleAiModelUrl(model, "generateContent"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body,
-      });
-      if (r.status === 429) {
-        await new Promise((res) => setTimeout(res, 1500));
-        r = await googleAiFetch(GEMINI_API_KEY, googleAiModelUrl(model, "generateContent"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body,
-        });
-      }
-      if (!r.ok) continue;
-      const data: any = await r.json();
-      const text = (data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
-      if (text) return text.replace(/^["'`]|["'`]\s*\.?$/g, "").trim();
+      const text = await callAI({ ...cfg, model }, systemPrompt, userContent, { maxTokens: 80 });
+      const trimmed = text.trim();
+      if (trimmed) return trimmed.replace(/^["'`]|["'`]\s*\.?$/g, "").trim();
     } catch {
       // try next model
     }

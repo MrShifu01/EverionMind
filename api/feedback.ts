@@ -20,13 +20,11 @@
 import { withAuth, requireBrainAccess, ApiError, type HandlerContext } from "./_lib/withAuth.js";
 import { sbHeaders, sbHeadersNoContent } from "./_lib/sbHeaders.js";
 import { learnKnowledgeShortcut } from "./_lib/feedback.js";
-import { googleAiFetch, googleAiModelUrl } from "./_lib/googleAi.js";
 import { bodyObject, optionalBodyObject } from "./_lib/requestBody.js";
-import { GEMINI_BULK_MODEL } from "./_lib/geminiModels.js";
+import { callAI } from "./_lib/aiProvider.js";
+import { resolveProviderForUser } from "./_lib/resolveProvider.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
-const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
-const GEMINI_MODEL = GEMINI_BULK_MODEL;
 
 export default withAuth({ methods: ["POST"], rateLimit: 30 }, async (ctx) => {
   const { type } = optionalBodyObject(ctx.req.body);
@@ -154,7 +152,8 @@ async function handleInsightCorrection({ req, res, user }: HandlerContext): Prom
   }
   await requireBrainAccess(user.id, brain_id);
 
-  if (!GEMINI_API_KEY) throw new ApiError(500, "AI not configured");
+  const cfg = await resolveProviderForUser(user.id);
+  if (!cfg) throw new ApiError(500, "AI not configured for this user");
 
   const entriesRes = await fetch(
     `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brain_id)}&select=id,title,content&order=created_at.desc&limit=80`,
@@ -183,44 +182,19 @@ ${entriesSummary}`;
 
   let fixes: Array<{ id: string; content: string }> = [];
   try {
-    const llmRes = await googleAiFetch(
-      GEMINI_API_KEY,
-      googleAiModelUrl(GEMINI_MODEL, "generateContent"),
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-          systemInstruction: { parts: [{ text: INSIGHT_CORRECTION_SYSTEM }] },
-          generationConfig: { maxOutputTokens: 2000 },
-        }),
-      },
-    );
-    if (llmRes.ok) {
-      const data: any = await llmRes.json();
-      const parts: any[] = data.candidates?.[0]?.content?.parts || [];
-      const text =
-        parts
-          .filter((p: any) => !p.thought)
-          .map((p: any) => p.text || "")
-          .join("")
-          .trim() ||
-        parts
-          .map((p: any) => p.text || "")
-          .join("")
-          .trim();
-      const match = text.match(/\[[\s\S]*\]/);
-      if (match) {
-        const parsed = JSON.parse(match[0]);
-        if (Array.isArray(parsed)) {
-          fixes = parsed.filter(
-            (f: any) =>
-              f && typeof f.id === "string" && typeof f.content === "string" && validIds.has(f.id),
-          );
-        }
+    const text = await callAI(cfg, INSIGHT_CORRECTION_SYSTEM, userPrompt, {
+      maxTokens: 2000,
+      json: true,
+    });
+    const match = text.match(/\[[\s\S]*\]/);
+    if (match) {
+      const parsed = JSON.parse(match[0]);
+      if (Array.isArray(parsed)) {
+        fixes = parsed.filter(
+          (f: any) =>
+            f && typeof f.id === "string" && typeof f.content === "string" && validIds.has(f.id),
+        );
       }
-    } else {
-      console.error("[feedback:insight_correction:llm]", llmRes.status);
     }
   } catch (e: any) {
     console.error("[feedback:insight_correction:llm]", e?.message);

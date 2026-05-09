@@ -4,7 +4,8 @@
  *   or { fallback: true } when no embed key / empty query / RPC error.
  * GET  /api/search?brain_id=...&threshold=0.4 — Embedding similarity graph links.
  */
-import { withAuth, requireBrainAccess, ApiError, type HandlerContext } from "./_lib/withAuth.js";
+import { requireBrainAccess, ApiError, type HandlerContext } from "./_lib/withAuth.js";
+import { withRoute } from "./_lib/withRoute.js";
 import { generateEmbedding } from "./_lib/generateEmbedding.js";
 import { optionalBodyObject } from "./_lib/requestBody.js";
 import { sbHeaders } from "./_lib/sbHeaders.js";
@@ -43,17 +44,19 @@ function _setCache(k: string, r: unknown): void {
   _cache.set(k, { r, ts: Date.now() });
 }
 
-export default withAuth(
-  {
-    methods: ["GET", "POST"],
-    rateLimit: (req) => (req.method === "GET" ? 10 : 20),
-    cacheControl: "private, max-age=60",
-  },
-  async (ctx) => {
-    if (ctx.req.method === "GET") return handleGraph(ctx);
-    return handleSearch(ctx);
-  },
-);
+// Adopted withRoute (audit task 1314) to demonstrate the declarative
+// dispatch path. handleGraph runs on GET (similarity graph), handleSearch
+// on POST (semantic query).
+export default withRoute({
+  auth: "user",
+  methods: ["GET", "POST"],
+  rateLimit: (req) => (req.method === "GET" ? 10 : 20),
+  cacheControl: "private, max-age=60",
+  dispatch: [
+    { method: "GET", handle: (ctx: HandlerContext) => handleGraph(ctx) },
+    { method: "POST", handle: (ctx: HandlerContext) => handleSearch(ctx) },
+  ],
+});
 
 // ── GET /api/search?brain_id=...&threshold=0.4 — similarity graph ──
 async function handleGraph({ req, res, user }: HandlerContext): Promise<void> {
