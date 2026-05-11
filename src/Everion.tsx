@@ -129,7 +129,7 @@ const NAV_VIEWS = [
   { id: "vault", l: "Vault", ic: "🔐" },
 ];
 
-// ─── EverionContent ────────────────────────────────────────────
+// ─── EverionContent ──────────────────────────────────────────────────────────
 // Reads context (BrainContext, EntriesContext, ConceptGraphContext) + receives
 // appShell and the few values that don't belong in any context.
 
@@ -388,7 +388,7 @@ function EverionContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- appShell as a whole would invalidate this listener every render; only the setter is read.
   }, [appShell.setShowCapture]);
 
-  // ── Merge session ─────────────────────────────────────────────────
+  // ── Merge session ────────────────────────────────────────────────────────
   // Lives at this scope so the preview fetch survives a modal close. User
   // can click "Hide — notify when ready"; the bar reappears, the LLM keeps
   // generating in this same async scope, and a sonner Review toast fires
@@ -936,9 +936,9 @@ function EverionContent({
               >
                 <Suspense fallback={null}>
                   <MobileHome
+                    brainId={activeBrain?.id}
                     onOpenCapture={() => appShell.setShowCapture(true)}
                     onOpenCaptureWith={(text) => appShell.openCapture(text)}
-                    onNavigate={appShell.setView}
                   />
                 </Suspense>
               </ErrorBoundary>
@@ -1192,7 +1192,7 @@ function EverionContent({
   );
 }
 
-// ─── Everion ────────────────────────────────────────────────────────────
+// ─── Everion ─────────────────────────────────────────────────────────────────
 // Orchestrates all hooks, provides contexts, and delegates rendering to
 // EverionContent (which calls useConceptGraph inside ConceptGraphProvider).
 
