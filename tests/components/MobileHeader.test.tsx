@@ -41,7 +41,7 @@ describe("MobileHeader", () => {
 
   it("renders the Everion brand", () => {
     renderWithTheme(<MobileHeader {...defaultProps} />);
-    expect(screen.getByText("Everion")).toBeInTheDocument();
+    expect(screen.getByText("Everion Mind")).toBeInTheDocument();
   });
 
   it("renders a header element with banner role", () => {
