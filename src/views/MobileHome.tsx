@@ -225,6 +225,28 @@ export default function MobileHome({
     const id = window.setTimeout(() => setConnectTimedOut(true), 10_000);
     return () => window.clearTimeout(id);
   }, [isConnecting]);
+
+  // visualViewport → --vvh. 100dvh on some mobile browsers doesn't shrink
+  // when the soft keyboard opens (Android Chrome PWA in particular), so
+  // the input form ends up floating mid-viewport with a gap below it.
+  // Tracking visualViewport.height directly puts the input flush above
+  // the keyboard on every device.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const setVvh = () => {
+      document.documentElement.style.setProperty("--vvh", `${vv.height}px`);
+    };
+    setVvh();
+    vv.addEventListener("resize", setVvh);
+    vv.addEventListener("scroll", setVvh);
+    return () => {
+      vv.removeEventListener("resize", setVvh);
+      vv.removeEventListener("scroll", setVvh);
+    };
+  }, []);
+
+  const hasChat = isAsk && messages.length > 0 && !liveShow;
   // Compact layout pins the input to the bottom and shrinks the orb so the
   // message list fills the space between. Two triggers:
   //   1. user tapped the text input (typing to chat)
@@ -247,7 +269,10 @@ export default function MobileHome({
   return (
     <div
       style={{
-        minHeight: "calc(100dvh - var(--app-header-h, 56px))",
+        // var(--vvh) is set by the visualViewport effect above — it shrinks
+        // when the soft keyboard opens. Falls back to dvh for environments
+        // that don't expose visualViewport (older browsers, tests).
+        minHeight: "calc(var(--vvh, 100dvh) - var(--app-header-h, 56px))",
         display: "flex",
         flexDirection: "column",
         padding: "16px 16px calc(16px + env(safe-area-inset-bottom, 0px))",
@@ -266,68 +291,28 @@ export default function MobileHome({
 
       <ModeToggle mode={mode} onChange={setModeAndResetFocus} listening={listening} />
 
+      {/* Top spacer — always flex 1. Naturally shrinks as the askGroup
+          below grows (messages list expanding, banners stacking). When
+          idle the spacer claims most of the viewport so the orb sits
+          just above the input form. */}
+      <div style={{ flex: 1, minHeight: 0 }} />
+
+      {/* Ask group: orb + prompt + banners + messages + form, all
+          clustered at the bottom of the viewport. Orb sits right above
+          the input; as messages arrive the messages list expands and
+          pushes the orb upward. */}
       <div
         style={{
-          // Top zone: prompt + orb. flex 1 when idle so the orb sits in
-          // the middle; flex 0 when compact so messages below can claim
-          // the space without the orb staying centred mid-screen.
-          flex: compact ? 0 : 1,
+          width: "100%",
+          maxWidth: 560,
+          margin: "0 auto",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          justifyContent: compact ? "flex-start" : "center",
-          gap: compact ? 16 : 28,
-          paddingTop: compact ? 28 : 0,
+          gap: 12,
           minHeight: 0,
-          transition:
-            "flex 520ms cubic-bezier(0.16, 1, 0.3, 1), gap 520ms cubic-bezier(0.16, 1, 0.3, 1), padding-top 520ms cubic-bezier(0.16, 1, 0.3, 1)",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 10,
-            opacity: compact ? 0 : 1,
-            transform: compact ? "translateY(-4px) scale(0.98)" : "translateY(0) scale(1)",
-            pointerEvents: compact ? "none" : "auto",
-            // Slow + smooth — crossfade between Add prompt, Ask prompt, and
-            // hidden-while-typing. 480ms feels considered without dragging.
-            transition:
-              "opacity 480ms cubic-bezier(0.16, 1, 0.3, 1), transform 480ms cubic-bezier(0.16, 1, 0.3, 1)",
-            // Stop the row from collapsing height-wise when faded so the
-            // orb doesn't shift as a side-effect of the text disappearing.
-            height: compact ? 0 : "auto",
-            overflow: "hidden",
-          }}
-        >
-          <div
-            className="f-serif"
-            aria-live="polite"
-            style={{
-              fontSize: 16,
-              fontStyle: "italic",
-              color: error ? "var(--blood)" : "var(--ink-soft)",
-              letterSpacing: "-0.005em",
-              textAlign: "center",
-              minHeight: 24,
-              transition: "color 320ms ease",
-            }}
-          >
-            {error
-              ? error
-              : transcribing
-                ? "transcribing…"
-                : listening
-                  ? "recording — release to send"
-                  : isAsk
-                    ? askLiveCopy
-                    : "Tap to add, hold to record"}
-          </div>
-          {!isAsk && <VoiceModePill mode={voiceMode} onChange={setVoiceMode} />}
-        </div>
-
         <button
           type="button"
           aria-label={
@@ -544,46 +529,78 @@ export default function MobileHome({
             </div>
           </div>
         )}
-      </div>
 
-      {/* Bottom zone: voice/chat surfaces. Lives OUTSIDE the centered top
-          zone so the form always anchors to the viewport bottom, regardless
-          of whether the orb is centred (idle) or shrunk (compact). When
-          compact, this zone claims flex:1 so messages + banners fill the
-          space between the orb and the form. */}
-      {isAsk && (
+        {/* Prompt text — sits directly under the orb. Hidden when the
+            chat input is focused so the keyboard + form get the room. */}
         <div
           style={{
-            width: "100%",
-            maxWidth: 560,
-            margin: "0 auto",
             display: "flex",
             flexDirection: "column",
-            gap: 12,
-            flex: compact ? 1 : 0,
-            minHeight: 0,
-            opacity: 1,
-            animation: "mh-ask-in 440ms cubic-bezier(0.16, 1, 0.3, 1)",
+            alignItems: "center",
+            gap: 8,
+            opacity: inputFocused ? 0 : 1,
+            transform: inputFocused ? "translateY(-4px) scale(0.98)" : "translateY(0) scale(1)",
+            pointerEvents: inputFocused ? "none" : "auto",
+            height: inputFocused ? 0 : "auto",
+            overflow: "hidden",
+            transition:
+              "opacity 320ms ease, transform 320ms ease, height 320ms cubic-bezier(0.16, 1, 0.3, 1)",
           }}
         >
-          {liveShow && (
-            <LiveBanner
-              status={liveSession.status}
-              error={liveSession.error}
-              userTranscript={liveSession.userTranscript}
-              assistantTranscript={liveSession.assistantTranscript}
-              lastEvent={liveSession.lastEvent}
-              chunksOut={liveSession.chunksOut}
-              chunksIn={liveSession.chunksIn}
-              closeCode={liveSession.closeCode}
-              closeReason={liveSession.closeReason}
-            />
-          )}
-          <PendingVoiceActionsBanner
-            pending={pendingActions.pending}
-            onAccept={pendingActions.accept}
-            onReject={pendingActions.reject}
+          <div
+            className="f-serif"
+            aria-live="polite"
+            style={{
+              fontSize: 14,
+              fontStyle: "italic",
+              color: error ? "var(--blood)" : "var(--ink-soft)",
+              letterSpacing: "-0.005em",
+              textAlign: "center",
+              minHeight: 20,
+              transition: "color 320ms ease",
+            }}
+          >
+            {error
+              ? error
+              : transcribing
+                ? "transcribing…"
+                : listening
+                  ? "recording — release to send"
+                  : isAsk
+                    ? askLiveCopy
+                    : "Tap to add, hold to record"}
+          </div>
+          {!isAsk && <VoiceModePill mode={voiceMode} onChange={setVoiceMode} />}
+        </div>
+
+        {/* Voice surfaces — both hide themselves when their content is
+            empty so they don't reserve space in idle Ask. */}
+        {liveShow && (
+          <LiveBanner
+            status={liveSession.status}
+            error={liveSession.error}
+            userTranscript={liveSession.userTranscript}
+            assistantTranscript={liveSession.assistantTranscript}
+            lastEvent={liveSession.lastEvent}
+            chunksOut={liveSession.chunksOut}
+            chunksIn={liveSession.chunksIn}
+            closeCode={liveSession.closeCode}
+            closeReason={liveSession.closeReason}
           />
+        )}
+        <PendingVoiceActionsBanner
+          pending={pendingActions.pending}
+          onAccept={pendingActions.accept}
+          onReject={pendingActions.reject}
+        />
+
+        {/* Chat panel — sits between orb-group and... wait, form is INSIDE
+            AskPanel. So the chat messages + form live here. The messages
+            container inside AskPanel claims flex:1 when expanded (any
+            messages exist) and pushes the form to the bottom of the
+            askGroup; the askGroup itself grows downward as messages
+            arrive, and the top spacer above naturally shrinks. */}
+        {isAsk && (
           <AskPanel
             // Voice and chat are mutually exclusive in the visual stack:
             // when a Live session is non-idle the LiveBanner above shows
@@ -600,10 +617,10 @@ export default function MobileHome({
             onBlur={() => setInputFocused(false)}
             messagesEndRef={messagesEndRef}
             brainReady={!!brainId}
-            expanded={compact}
+            expanded={hasChat}
           />
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -949,7 +966,6 @@ function AskPanel({
         display: "flex",
         flexDirection: "column",
         gap: 12,
-        flex: expanded ? 1 : 0,
         minHeight: 0,
       }}
     >
@@ -1005,9 +1021,11 @@ function AskPanel({
       )}
       <div
         style={{
-          flex: expanded ? 1 : 0,
-          minHeight: 0,
-          maxHeight: expanded ? "100%" : 0,
+          // Cap the messages list at ~45% of the visible viewport so it
+          // grows naturally with content but can't push the form below
+          // the keyboard. Past the cap it scrolls. expanded=false
+          // collapses to zero so idle Ask shows just orb + prompt + form.
+          maxHeight: expanded ? "calc(var(--vvh, 100dvh) * 0.45)" : 0,
           overflowY: expanded ? "auto" : "hidden",
           display: "flex",
           flexDirection: "column",
@@ -1018,20 +1036,10 @@ function AskPanel({
             "max-height 520ms cubic-bezier(0.16, 1, 0.3, 1), opacity 360ms ease, padding 320ms ease",
         }}
       >
-        {messages.length === 0 && !loading && (
-          <div
-            className="f-serif"
-            style={{
-              fontSize: 14,
-              fontStyle: "italic",
-              color: "var(--ink-faint)",
-              textAlign: "center",
-              padding: "20px 0",
-            }}
-          >
-            ask your brain anything.
-          </div>
-        )}
+        {/* Empty-state placeholder removed — the prompt text already
+            lives directly under the orb in MobileHome and serves the same
+            "what can I do here?" purpose. Two stacked empty-state
+            messages was redundant and noisy. */}
         {messages.map((m, i) => (
           <div
             key={i}
