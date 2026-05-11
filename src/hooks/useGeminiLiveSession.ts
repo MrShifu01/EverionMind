@@ -76,8 +76,7 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
   const chunksInRef = useRef(0);
 
   const wsRef = useRef<WebSocket | null>(null);
-  const micCtxRef = useRef<AudioContext | null>(null);
-  const playCtxRef = useRef<AudioContext | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const micNodeRef = useRef<AudioWorkletNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -110,17 +109,11 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
     }
     streamRef.current = null;
     try {
-      void micCtxRef.current?.close();
+      void audioCtxRef.current?.close();
     } catch {
       /* ignore */
     }
-    micCtxRef.current = null;
-    try {
-      void playCtxRef.current?.close();
-    } catch {
-      /* ignore */
-    }
-    playCtxRef.current = null;
+    audioCtxRef.current = null;
     nextPlayTimeRef.current = 0;
     setStatus("idle");
   }, []);
@@ -182,17 +175,26 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
       }
       streamRef.current = stream;
 
-      // Separate contexts: mic capture runs at system rate; playback uses
-      // the model output rate (24 kHz). Keeping them distinct sidesteps
-      // iOS Safari's "rate-locked" AudioContext quirk.
-      const MicCtx =
+      // Single AudioContext for both capture + playback. iOS Safari throws
+      // (or hangs) when you pass an unsupported `sampleRate` to the
+      // constructor — earlier "separate context at 24 kHz for playback"
+      // bricked the flow right after worklet load. AudioBufferSourceNode
+      // resamples 24 kHz inbound chunks to the system rate automatically.
+      const AudioCtxCtor =
         window.AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const micCtx = new MicCtx();
-      micCtxRef.current = micCtx;
-      setLastEvent(`loading worklet (mic rate=${micCtx.sampleRate})…`);
+      let audioCtx: AudioContext;
       try {
-        await micCtx.audioWorklet.addModule("/audio-worklets/pcm-recorder.js");
+        audioCtx = new AudioCtxCtor();
+      } catch (e) {
+        setError(e instanceof Error ? `audio_ctx:${e.message}` : "audio_ctx_failed");
+        setStatus("error");
+        return;
+      }
+      audioCtxRef.current = audioCtx;
+      setLastEvent(`loading worklet (rate=${audioCtx.sampleRate})…`);
+      try {
+        await audioCtx.audioWorklet.addModule("/audio-worklets/pcm-recorder.js");
       } catch (e) {
         stop();
         setError(e instanceof Error ? e.message : "worklet_failed");
@@ -201,12 +203,13 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
       }
       setLastEvent("worklet loaded");
 
-      const playCtx = new MicCtx({ sampleRate: cfg.outputSampleRate });
-      playCtxRef.current = playCtx;
+      // iOS suspends contexts until a user gesture. The hold IS the gesture
+      // but `resume()` still needs to be awaited or playback stays silent.
       try {
-        await playCtx.resume();
-      } catch {
-        /* iOS resumes lazily — first scheduled node will start it */
+        await audioCtx.resume();
+        setLastEvent(`ctx resumed (state=${audioCtx.state})`);
+      } catch (e) {
+        setLastEvent(e instanceof Error ? `ctx resume failed: ${e.message}` : "ctx resume failed");
       }
 
       const url = `${cfg.wsUrl}?access_token=${encodeURIComponent(cfg.token)}`;
@@ -273,9 +276,9 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
         if (msg.setupComplete) {
           setLastEvent("setupComplete — streaming mic");
           // Setup acknowledged — wire mic worklet and start streaming.
-          const source = micCtx.createMediaStreamSource(stream);
+          const source = audioCtx.createMediaStreamSource(stream);
           sourceRef.current = source;
-          const node = new AudioWorkletNode(micCtx, "pcm-recorder");
+          const node = new AudioWorkletNode(audioCtx, "pcm-recorder");
           micNodeRef.current = node;
           node.port.onmessage = (e) => {
             if (!(e.data instanceof ArrayBuffer)) return;
@@ -327,13 +330,15 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
           const data = p.inlineData?.data;
           if (!data) continue;
           // Schedule playback. Each chunk plays back-to-back to avoid gaps.
+          // AudioBuffer is created at the source rate (24 kHz); the context
+          // resamples to its own rate when the source node plays.
           const f32 = base64ToFloat32(data);
-          const buf = playCtx.createBuffer(1, f32.length, cfg.outputSampleRate);
+          const buf = audioCtx.createBuffer(1, f32.length, cfg.outputSampleRate);
           buf.getChannelData(0).set(f32);
-          const src = playCtx.createBufferSource();
+          const src = audioCtx.createBufferSource();
           src.buffer = buf;
-          src.connect(playCtx.destination);
-          const startAt = Math.max(nextPlayTimeRef.current, playCtx.currentTime);
+          src.connect(audioCtx.destination);
+          const startAt = Math.max(nextPlayTimeRef.current, audioCtx.currentTime);
           src.start(startAt);
           nextPlayTimeRef.current = startAt + buf.duration;
         }
