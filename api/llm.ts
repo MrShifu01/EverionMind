@@ -1132,6 +1132,23 @@ const LIVE_VOICES = new Set([
   "Zephyr",
 ]);
 
+// Voice-safe tool subset of CHAT_TOOLS. Skips update/delete/merge (require
+// confirmation, awkward in real-time speech) and persona tools (too complex
+// for first cut). Server-side `?action=tool-exec` enforces this allow-list.
+const VOICE_TOOL_NAMES = new Set([
+  "retrieve_memory",
+  "search_entries",
+  "get_entry",
+  "get_upcoming",
+  "create_entry",
+]);
+
+const VOICE_SYSTEM_ADDENDUM = `
+You are speaking aloud, not typing. Keep replies SHORT — one or two spoken sentences. Plain words only. No markdown, no asterisks, no bullet points, no code blocks, no headings. No "Sure!" or "Of course!" preambles. Speak naturally.
+
+When the user asks for stored data (numbers, names, codes, addresses), retrieve_memory first, then read the value out plainly.
+When the user says things like "save this", "remember this", "add to my", "make a note that…", call create_entry with a short descriptive title and the literal content.`;
+
 async function handleLiveSession(req: ApiRequest, res: ApiResponse, user: AuthedUser) {
   const model = (process.env.GEMINI_LIVE_MODEL || "").trim();
   if (!model) {
@@ -1143,10 +1160,17 @@ async function handleLiveSession(req: ApiRequest, res: ApiResponse, user: Authed
   const body = optionalBodyObject(req.body) ?? {};
   const rawVoice = typeof body.voice === "string" ? body.voice : "Aoede";
   const voice = LIVE_VOICES.has(rawVoice) ? rawVoice : "Aoede";
-  const systemInstruction =
-    typeof body.systemInstruction === "string" && body.systemInstruction.length > 0
-      ? body.systemInstruction.slice(0, 4000)
-      : "You are a warm, concise voice assistant. Reply in one or two short sentences unless asked for more.";
+  const brainId = typeof body.brain_id === "string" ? body.brain_id : "";
+  if (!brainId) {
+    return res.status(400).json({
+      error: "brain_id_required",
+      message: "brain_id is required to mint a voice session.",
+    });
+  }
+  const brainAccess = await checkBrainAccess(user.id, brainId);
+  if (!brainAccess) {
+    return res.status(403).json({ error: "forbidden", message: "No access to this brain." });
+  }
 
   const apiKey = await resolveGeminiKey(user.id);
   if (!apiKey) {
@@ -1155,6 +1179,19 @@ async function handleLiveSession(req: ApiRequest, res: ApiResponse, user: Authed
       message: "Add a Gemini API key in Settings or upgrade to Pro.",
     });
   }
+
+  // Same prompt + personalization stack chat uses (api/llm.ts handleChat),
+  // plus the voice-only addendum that constrains output to short spoken
+  // sentences without markdown.
+  const profilePreamble = await buildProfilePreamble(user.id, brainId).catch(() => "");
+  const systemInstruction =
+    `${SERVER_PROMPTS.CHAT_AGENT}${profilePreamble}${VOICE_SYSTEM_ADDENDUM}`.slice(0, 30000);
+
+  const voiceTools = CHAT_TOOLS.filter((t) => VOICE_TOOL_NAMES.has(t.name)).map((t) => ({
+    name: t.name,
+    description: t.description,
+    parameters: t.parameters,
+  }));
 
   try {
     const { GoogleGenAI, Modality } = await import("@google/genai");
@@ -1177,6 +1214,11 @@ async function handleLiveSession(req: ApiRequest, res: ApiResponse, user: Authed
               voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
             },
             systemInstruction: { parts: [{ text: systemInstruction }] },
+            // SDK's FunctionDeclaration uses the Type enum ("Type.OBJECT")
+            // but the wire format accepts the lowercase strings CHAT_TOOLS
+            // already uses, so we cast through any rather than rebuilding
+            // every schema. Same shape chat sends to Anthropic/Gemini.
+            tools: [{ functionDeclarations: voiceTools as any }],
           },
         },
       },
@@ -1196,6 +1238,47 @@ async function handleLiveSession(req: ApiRequest, res: ApiResponse, user: Authed
     const msg = err instanceof Error ? err.message : "mint_failed";
     console.error("[live-session] mint failed", msg);
     return res.status(502).json({ error: "live_mint_failed", message: msg });
+  }
+}
+
+// ── Voice tool relay ──────────────────────────────────────────────────────
+// The Live API surface is browser-direct (no server-side WS), so when the
+// model fires a function call the *browser* receives it and posts here to
+// execute. Same execTool the chat handler uses; allow-listed to the
+// voice-safe subset so a future broader CHAT_TOOLS list can't accidentally
+// expose destructive ops to voice without an explicit decision.
+async function handleToolExec(
+  req: ApiRequest,
+  res: ApiResponse,
+  user: AuthedUser,
+): Promise<void> {
+  const { name, args, brain_id } = bodyObject(req.body) as {
+    name?: unknown;
+    args?: unknown;
+    brain_id?: unknown;
+  };
+  if (typeof name !== "string" || !VOICE_TOOL_NAMES.has(name)) {
+    res.status(400).json({ error: "invalid_tool", message: `Tool '${name}' not allowed for voice` });
+    return;
+  }
+  if (typeof brain_id !== "string" || !brain_id) {
+    res.status(400).json({ error: "brain_id_required" });
+    return;
+  }
+  const safeArgs =
+    args && typeof args === "object" && !Array.isArray(args) ? (args as Record<string, any>) : {};
+  const brainAccess = await checkBrainAccess(user.id, brain_id);
+  if (!brainAccess) {
+    res.status(403).json({ error: "forbidden" });
+    return;
+  }
+  try {
+    const result = await execTool(name, safeArgs, user.id, brain_id);
+    res.status(200).json({ result });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "tool_exec_failed";
+    console.error("[tool-exec]", name, msg);
+    res.status(200).json({ result: { error: msg } });
   }
 }
 
@@ -1222,6 +1305,10 @@ export default withAuth(
       // Live session mints are expensive — cap tight so a runaway client
       // can't burn through Gemini quota in one minute.
       "live-session": 12,
+      // Voice tool relay — each model turn might fire 1-3 tool calls and
+      // a chatty session could fire one every few seconds. 90/min covers
+      // bursts without leaving the door wide open.
+      "tool-exec": 90,
       // List extraction is heavier (file extract + LLM call). Lower
       // limit so a runaway client can't drain quota in one minute.
       "extract-list-from-file": 6,
@@ -1232,6 +1319,7 @@ export default withAuth(
     }
 
     if (action === "live-session") return handleLiveSession(req, res, user);
+    if (action === "tool-exec") return handleToolExec(req, res, user);
 
     if (action === "transcribe") return handleTranscribe(req, res);
 

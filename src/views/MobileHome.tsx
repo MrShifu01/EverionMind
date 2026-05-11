@@ -136,9 +136,9 @@ export default function MobileHome({
       if (liveActiveRef.current || liveSession.status === "connecting") {
         liveActiveRef.current = false;
         liveSession.stop();
-      } else {
+      } else if (brainId) {
         liveActiveRef.current = true;
-        void liveSession.start({ voice: liveVoiceRef.current });
+        void liveSession.start({ voice: liveVoiceRef.current, brainId });
       }
       return;
     }

@@ -6,6 +6,7 @@ export type LiveStatus = "idle" | "connecting" | "listening" | "speaking" | "err
 
 interface StartOpts {
   voice: GeminiVoice;
+  brainId: string;
   systemInstruction?: string;
 }
 
@@ -82,6 +83,8 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
   const streamRef = useRef<MediaStream | null>(null);
   const nextPlayTimeRef = useRef(0);
   const stoppedRef = useRef(false);
+  const brainIdRef = useRef<string>("");
+  const debugSeenRef = useRef(0);
 
   const stop = useCallback(() => {
     stoppedRef.current = true;
@@ -122,7 +125,7 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
   useEffect(() => () => stop(), [stop]);
 
   const start = useCallback(
-    async ({ voice, systemInstruction }: StartOpts) => {
+    async ({ voice, brainId, systemInstruction }: StartOpts) => {
       stoppedRef.current = false;
       setError(null);
       setUserTranscript("");
@@ -135,13 +138,18 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
       setCloseReason("");
       chunksOutRef.current = 0;
       chunksInRef.current = 0;
+      debugSeenRef.current = 0;
+
+      // Stash brainId for tool-call relay (Gemini fires toolCall events
+      // with no brain context — we have to thread it in from the start).
+      brainIdRef.current = brainId;
 
       let cfg: SessionConfig;
       try {
         const r = await authFetch("/api/llm?action=live-session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ voice, systemInstruction }),
+          body: JSON.stringify({ voice, brain_id: brainId, systemInstruction }),
         });
         if (!r.ok) {
           const data = await r.json().catch(() => ({}));
@@ -293,6 +301,59 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
           else if (ev.data instanceof Blob) msg = JSON.parse(await ev.data.text());
           else return;
         } catch {
+          return;
+        }
+
+        // Diagnostic: log shape of the first few inbound messages so we
+        // can see EXACTLY what Google sends (audio chunks vs transcript-only,
+        // tool calls, etc). Capped at 5 to avoid flooding the console.
+        if (debugSeenRef.current < 5) {
+          debugSeenRef.current += 1;
+          try {
+            console.log(`[live#${debugSeenRef.current}]`, JSON.stringify(msg).slice(0, 800));
+          } catch {
+            /* ignore */
+          }
+        }
+
+        // Tool call relay — model fires functionCalls, we POST each to our
+        // server (which runs the same execTool chat uses), then send the
+        // result back so the model can keep talking with the data in hand.
+        const toolCall = msg.toolCall as
+          | { functionCalls?: { id?: string; name?: string; args?: Record<string, unknown> }[] }
+          | undefined;
+        if (toolCall?.functionCalls?.length) {
+          setLastEvent(`tool: ${toolCall.functionCalls.map((f) => f.name).join(", ")}`);
+          const responses = await Promise.all(
+            toolCall.functionCalls.map(async (fc) => {
+              const name = fc.name || "";
+              try {
+                const r = await authFetch("/api/llm?action=tool-exec", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    name,
+                    args: fc.args ?? {},
+                    brain_id: brainIdRef.current,
+                  }),
+                });
+                const data = await r.json().catch(() => ({}));
+                const result = (data as { result?: unknown }).result ?? {
+                  error: `tool-exec HTTP ${r.status}`,
+                };
+                return { id: fc.id, name, response: { result } };
+              } catch (e) {
+                return {
+                  id: fc.id,
+                  name,
+                  response: { result: { error: e instanceof Error ? e.message : "relay_failed" } },
+                };
+              }
+            }),
+          );
+          if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ toolResponse: { functionResponses: responses } }));
+          }
           return;
         }
 
