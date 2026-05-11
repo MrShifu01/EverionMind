@@ -39,7 +39,6 @@ const DOCS = [
   { id: "arch-capture",     file: "architecture/capture.md",          title: "Capture pipeline",    role: "doc",  group: "architecture" },
   { id: "arch-cron",        file: "architecture/cron.md",             title: "Cron + workflows",    role: "doc",  group: "architecture" },
   { id: "arch-enrich",      file: "architecture/enrich.md",           title: "Enrichment pipeline", role: "doc",  group: "architecture" },
-  { id: "arch-gmail",       file: "architecture/gmail.md",            title: "Gmail sync",          role: "doc",  group: "architecture" },
   { id: "arch-events",      file: "architecture/events.md",           title: "PostHog events",      role: "doc",  group: "architecture" },
   { id: "arch-security",    file: "architecture/security.md",         title: "Security",            role: "doc",  group: "architecture" },
   { id: "arch-onboarding",  file: "architecture/onboarding-flow.md",  title: "Onboarding flow",     role: "doc",  group: "architecture" },
@@ -185,6 +184,109 @@ async function listDocs() {
   return out;
 }
 
+// Pretty title for the source filter chips. "EverionMindLaunch/Roadmap/week-2.md"
+// → "Roadmap · week-2"; "EverionMindLaunch/LAUNCH_CHECKLIST.md" → "Checklist".
+function sourceLabelFor(relPath) {
+  const parts = relPath.split("/").filter(Boolean);
+  if (parts.length === 1) {
+    const base = parts[0].replace(/\.md$/i, "");
+    if (base === "LAUNCH_CHECKLIST") return "Checklist";
+    if (base === "ROADMAP") return "Roadmap";
+    if (base === "PLAYBOOK") return "Playbook";
+    if (base === "STRATEGY") return "Strategy";
+    if (base === "RESEARCH") return "Research";
+    if (base === "BRAINSTORM") return "Brainstorm";
+    return fallbackTitleFromFile(parts[0]);
+  }
+  const folder = parts[0];
+  const leaf = parts[parts.length - 1].replace(/\.md$/i, "");
+  return `${folder} · ${leaf}`;
+}
+
+// Walk every .md under ROOT and return a flat list of paths. Skips
+// dist/, node_modules/, .git/. Used by the /tasks endpoint to parse
+// checkboxes across the entire knowledge base.
+async function walkMarkdownFiles() {
+  const out = [];
+  async function walk(absDir) {
+    let entries;
+    try {
+      entries = await readdir(absDir, { withFileTypes: true });
+    } catch { return; }
+    for (const ent of entries) {
+      if (ent.name.startsWith(".")) continue;
+      if (ent.name === "node_modules" || ent.name === "dist") continue;
+      const abs = join(absDir, ent.name);
+      if (ent.isDirectory()) {
+        await walk(abs);
+      } else if (ent.isFile() && ent.name.endsWith(".md")) {
+        out.push(abs);
+      }
+    }
+  }
+  await walk(ROOT);
+  return out;
+}
+
+const CHECKBOX_RE = /^(\s*-\s*)\[([ xX])\]\s*(.*)$/;
+const PRIORITY_RE = /\*\*P([0-3])(?:-\d+)?\*\*/;
+const ISO_DATE_RE = /\b(20\d{2}-\d{2}-\d{2})\b/;
+
+// Parse the rendered task text down to its essentials. Strips the priority
+// pill markup so it doesn't double-render in the UI; keeps the rest.
+function cleanTaskText(raw) {
+  return raw
+    .replace(PRIORITY_RE, "")          // priority is shown as a pill
+    .replace(/^\s+/, "")
+    .replace(/\s+$/, "");
+}
+
+// Parse every checkbox out of a single markdown file. Returns { tasks, total }.
+function parseTasksFromContent(relPath, content, mtime) {
+  const tasks = [];
+  const lines = content.split(/\r?\n/);
+  const source = sourceLabelFor(relPath);
+  const archived = relPath.includes("/archive/");
+  for (let i = 0; i < lines.length; i++) {
+    const m = CHECKBOX_RE.exec(lines[i]);
+    if (!m) continue;
+    const checked = m[2].toLowerCase() === "x";
+    const rawText = m[3];
+    if (!rawText.trim()) continue;          // empty checkbox row — skip
+    const priorityMatch = PRIORITY_RE.exec(rawText);
+    const priority = priorityMatch ? `P${priorityMatch[1]}` : null;
+    const dateMatch = ISO_DATE_RE.exec(rawText);
+    const dueDate = dateMatch ? dateMatch[1] : null;
+    tasks.push({
+      id: `${relPath}#${i + 1}`,
+      docPath: relPath,
+      lineNumber: i + 1,
+      checked,
+      text: cleanTaskText(rawText),
+      rawText,
+      priority,
+      dueDate,
+      source,
+      archived,
+      mtime,
+    });
+  }
+  return tasks;
+}
+
+async function collectAllTasks() {
+  const absFiles = await walkMarkdownFiles();
+  const out = [];
+  for (const abs of absFiles) {
+    const rel = relative(ROOT, abs).split(sep).join("/");
+    try {
+      const [content, st] = await Promise.all([readFile(abs, "utf8"), stat(abs)]);
+      out.push(...parseTasksFromContent(rel, content, st.mtimeMs));
+    } catch { /* unreadable — skip */ }
+  }
+  return out;
+}
+
 async function toggleLine(rel, lineNumber, checked) {
   const abs = safeResolve(rel);
   const content = await readFile(abs, "utf8");
@@ -223,6 +325,15 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/docs") {
       const docs = await listDocs();
       return send(res, 200, JSON.stringify({ docs }), {
+        "Content-Type": "application/json",
+      });
+    }
+
+    // Structured task list — every [ ] / [x] across every .md in EML.
+    // Drives the Linear-style task list in the dashboard.
+    if (req.method === "GET" && url.pathname === "/tasks") {
+      const tasks = await collectAllTasks();
+      return send(res, 200, JSON.stringify({ tasks, count: tasks.length, generatedAt: Date.now() }), {
         "Content-Type": "application/json",
       });
     }

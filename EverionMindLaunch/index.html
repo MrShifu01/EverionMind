@@ -10,12 +10,14 @@
         --bg: #f7f3ee;
         --surface: #fffcf6;
         --surface-high: #ffffff;
+        --surface-sunk: #efe7da;
         --ink: #2a1f1a;
         --ink-soft: #5b4b41;
         --ink-faint: #94857a;
         --ink-ghost: #b8aca0;
         --line: #e6dccf;
         --line-soft: #efe7da;
+        --line-strong: #d4c8b7;
         --ember: #c64f17;
         --ember-wash: #fbe5d6;
         --moss: #4d7755;
@@ -23,6 +25,9 @@
         --blood: #a83a2a;
         --blood-wash: #f7d9d3;
         --gold: #b88a2c;
+        --gold-wash: #f3e9cf;
+        --slate: #6b6155;
+        --slate-wash: #ebe5dc;
         --shadow-sm: 0 1px 2px rgba(42, 31, 26, 0.06);
         --shadow-md: 0 2px 8px rgba(42, 31, 26, 0.08);
         --shadow-lg: 0 8px 24px rgba(42, 31, 26, 0.12);
@@ -30,1699 +35,1271 @@
         --f-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
         --f-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Source Serif 4", Georgia, serif;
         --f-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-        --safe-top: env(safe-area-inset-top, 0px);
-        --safe-bot: env(safe-area-inset-bottom, 0px);
       }
       @media (prefers-color-scheme: dark) {
         :root {
-          --bg: #1a1310;
-          --surface: #221a16;
-          --surface-high: #2a201b;
+          --bg: #16110d;
+          --surface: #1d1612;
+          --surface-high: #251c17;
+          --surface-sunk: #120d0a;
           --ink: #f0e6da;
           --ink-soft: #c0b3a4;
           --ink-faint: #8a7a6c;
           --ink-ghost: #5b4d43;
-          --line: #3a2e26;
-          --line-soft: #322620;
+          --line: #2f251f;
+          --line-soft: #261d18;
+          --line-strong: #3d3027;
           --ember: #e6814d;
           --ember-wash: #3a221a;
           --moss: #7fa787;
-          --moss-wash: #1f2a22;
+          --moss-wash: #1d2a20;
           --blood: #d66659;
           --blood-wash: #2e1a18;
-          --shadow-drawer: 0 0 40px rgba(0, 0, 0, 0.45);
+          --gold: #d6ab57;
+          --gold-wash: #2d2316;
+          --slate: #9a9082;
+          --slate-wash: #221c17;
+          --shadow-drawer: 0 0 40px rgba(0, 0, 0, 0.55);
         }
       }
       * { box-sizing: border-box; }
-      html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+      html, body { height: 100%; margin: 0; padding: 0; }
       body {
         background: var(--bg);
         color: var(--ink);
-        font-family: var(--f-sans);
-        font-size: 14px;
-        line-height: 1.5;
+        font: 13px/1.5 var(--f-sans);
         -webkit-font-smoothing: antialiased;
+        overflow: hidden;
       }
+      button { font: inherit; color: inherit; }
       a { color: var(--ember); text-decoration: none; }
       a:hover { text-decoration: underline; }
+      ::selection { background: var(--ember-wash); color: var(--ink); }
 
-      code {
-        font-family: var(--f-mono);
-        font-size: 0.85em;
-        background: var(--line-soft);
-        padding: 1px 5px;
-        border-radius: 4px;
-        color: var(--ink-soft);
-      }
-      pre {
-        background: var(--surface);
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 12px 14px;
-        overflow-x: auto;
-        font-family: var(--f-mono);
-        font-size: 12px;
-        line-height: 1.5;
-        color: var(--ink);
-      }
-      pre code { background: none; padding: 0; font-size: inherit; color: inherit; }
-      blockquote {
-        margin: 0 0 14px;
-        padding: 8px 14px;
-        border-left: 3px solid var(--ember);
-        background: var(--ember-wash);
-        color: var(--ink-soft);
-        border-radius: 0 8px 8px 0;
-      }
-      blockquote p { margin: 4px 0; }
-      table {
-        border-collapse: collapse;
-        width: 100%;
-        margin: 8px 0 16px;
-        font-size: 13px;
-        display: block;
-        overflow-x: auto;
-      }
-      th, td {
-        text-align: left;
-        padding: 7px 10px;
-        border: 1px solid var(--line);
-        vertical-align: top;
-        white-space: normal;
-      }
-      th { background: var(--surface); font-weight: 600; color: var(--ink); }
-      td { background: var(--surface-high); }
-      hr { border: 0; border-top: 1px solid var(--line); margin: 24px 0; }
-
-      /* ── App shell ────────────────────────────────────────────────────── */
-      .app {
+      /* === SHELL =========================================================== */
+      .shell {
         display: grid;
-        grid-template-rows: auto 1fr;
+        grid-template-columns: 240px 1fr;
         height: 100vh;
         height: 100dvh;
       }
-
-      /* ── Top bar ─────────────────────────────────────────────────────── */
-      .topbar {
-        display: grid;
-        grid-template-columns: auto 1fr auto;
-        gap: 8px;
-        align-items: center;
-        padding: 10px 14px calc(10px) 14px;
-        padding-top: calc(10px + var(--safe-top));
-        background: var(--surface);
-        border-bottom: 1px solid var(--line);
-        z-index: 30;
+      .shell.has-detail { grid-template-columns: 240px 1fr 540px; }
+      @media (max-width: 900px) {
+        .shell, .shell.has-detail { grid-template-columns: 1fr; }
+        .sidebar { display: none; }
+        .detail { display: none; }
       }
-      .topbar .brand {
+
+      /* === SIDEBAR ========================================================= */
+      .sidebar {
+        background: var(--surface-sunk);
+        border-right: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .brand {
+        padding: 16px 16px 14px;
         display: flex;
         align-items: center;
         gap: 8px;
-        min-width: 0;
+        border-bottom: 1px solid var(--line-soft);
       }
-      .ember-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
+      .brand-mark {
+        width: 22px; height: 22px;
+        border-radius: 6px;
         background: var(--ember);
-        flex-shrink: 0;
-        box-shadow: 0 0 8px color-mix(in srgb, var(--ember) 60%, transparent);
+        display: flex; align-items: center; justify-content: center;
+        color: #fff;
+        font-weight: 700;
+        font-size: 12px;
+        letter-spacing: -0.02em;
       }
       .brand-name {
-        font-family: var(--f-serif);
-        font-size: 15px;
         font-weight: 600;
-        letter-spacing: -0.005em;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        font-size: 13px;
+        letter-spacing: -0.01em;
+        color: var(--ink);
       }
-      .doc-title-bar {
+      .sidebar-scroll {
+        flex: 1;
+        overflow-y: auto;
+        padding: 6px 8px 12px;
+        scrollbar-width: thin;
+      }
+      .nav-group { margin-top: 10px; }
+      .nav-label {
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+        padding: 6px 8px 4px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .nav-label-count {
+        font-weight: 500;
+        letter-spacing: 0.04em;
+        opacity: 0.7;
+      }
+      .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 8px;
+        border-radius: 6px;
+        cursor: pointer;
+        color: var(--ink-soft);
+        font-size: 12.5px;
+        line-height: 1.3;
+        user-select: none;
+        position: relative;
+      }
+      .nav-item:hover { background: var(--surface); color: var(--ink); }
+      .nav-item.is-active {
+        background: var(--ember-wash);
+        color: var(--ember);
+        font-weight: 500;
+      }
+      .nav-item.is-active .nav-icon { color: var(--ember); }
+      .nav-icon {
+        width: 14px; height: 14px;
+        display: inline-flex; align-items: center; justify-content: center;
+        color: var(--ink-faint);
+        flex-shrink: 0;
+      }
+      .nav-count {
+        margin-left: auto;
+        font-size: 11px;
+        color: var(--ink-faint);
+        font-variant-numeric: tabular-nums;
+      }
+      .nav-item.is-active .nav-count { color: var(--ember); opacity: 0.8; }
+
+      /* === MAIN ============================================================ */
+      .main {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+        background: var(--bg);
+      }
+      .topbar {
+        height: 48px;
+        padding: 0 18px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: var(--bg);
+      }
+      .topbar-title {
+        font-weight: 600;
+        font-size: 14px;
+        color: var(--ink);
+        letter-spacing: -0.01em;
+      }
+      .topbar-count {
         font-size: 12px;
         color: var(--ink-faint);
-        text-align: center;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        min-width: 0;
+        font-variant-numeric: tabular-nums;
+      }
+      .topbar-spacer { flex: 1; }
+      .iconbtn {
+        height: 28px;
+        min-width: 28px;
         padding: 0 8px;
-      }
-      .doc-title-bar .live-dot {
-        display: inline-block;
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background: var(--moss);
-        margin-right: 5px;
-        vertical-align: 1px;
-        animation: pulse 2s ease-in-out infinite;
-      }
-      @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.4; }
-      }
-      .topbar-actions {
-        display: flex;
-        gap: 6px;
-      }
-      .icon-btn {
-        appearance: none;
         background: transparent;
         border: 1px solid var(--line);
-        border-radius: 999px;
-        padding: 0 12px;
-        height: 32px;
-        font: 600 12px var(--f-sans);
+        border-radius: 6px;
         color: var(--ink-soft);
         cursor: pointer;
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        white-space: nowrap;
-        transition: all 0.12s ease;
+        font-size: 12px;
       }
-      .icon-btn:hover { background: var(--ember-wash); border-color: var(--ember); color: var(--ember); }
-      .icon-btn.active { background: var(--ember); border-color: var(--ember); color: #fff; }
-      .icon-btn:active { transform: scale(0.96); }
-      .icon-btn svg { width: 14px; height: 14px; }
-      .icon-btn .label-only { display: inline; }
-      @media (max-width: 480px) {
-        .topbar { padding: 8px 10px; padding-top: calc(8px + var(--safe-top)); }
-        .brand-name { display: none; }
-        .doc-title-bar { font-size: 11px; }
-        .icon-btn { padding: 0 10px; }
-        .icon-btn .label-only { display: none; }
-      }
-
-      /* ── Body — desktop = 3 columns; mobile = 1 column with drawers ── */
-      .body {
-        display: grid;
-        grid-template-columns: 280px 1fr;
-        min-height: 0;
-      }
-      @media (max-width: 900px) {
-        .body { grid-template-columns: 1fr; }
-      }
-
-      /* ── Library (left rail / drawer) ────────────────────────────────── */
-      .library {
+      .iconbtn:hover { background: var(--surface-high); color: var(--ink); border-color: var(--line-strong); }
+      .kbd {
+        font-family: var(--f-mono);
+        font-size: 10.5px;
+        padding: 1px 5px;
         background: var(--surface);
-        border-right: 1px solid var(--line);
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        padding: 14px 12px calc(20px + var(--safe-bot));
+        border: 1px solid var(--line);
+        border-bottom-width: 2px;
+        border-radius: 4px;
+        color: var(--ink-faint);
       }
-      .library-search-wrap {
+
+      /* === TASK LIST ====================================================== */
+      .tasklist {
+        flex: 1;
+        overflow-y: auto;
+        background: var(--bg);
+      }
+      .empty-state {
+        padding: 80px 20px;
+        text-align: center;
+        color: var(--ink-faint);
+      }
+      .empty-state .empty-title {
+        font-family: var(--f-serif);
+        font-style: italic;
+        font-size: 15px;
+        color: var(--ink-soft);
+      }
+      .empty-state .empty-sub {
+        margin-top: 6px;
+        font-size: 12px;
+      }
+      .group-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 18px 6px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+        background: var(--bg);
         position: sticky;
         top: 0;
-        z-index: 2;
-        background: var(--surface);
-        padding-bottom: 10px;
-        margin-bottom: 4px;
+        z-index: 1;
       }
-      .library-search {
-        width: 100%;
-        padding: 8px 13px;
-        font-size: 13px;
-        font-family: var(--f-sans);
-        background: var(--surface-high);
-        border: 1px solid var(--line);
-        border-radius: 999px;
-        color: var(--ink);
-        outline: none;
+      .group-header::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: var(--line-soft);
       }
-      .library-search:focus {
-        border-color: var(--ember);
-        box-shadow: 0 0 0 3px color-mix(in srgb, var(--ember) 12%, transparent);
-      }
-      .library-group {
-        margin: 0 0 6px;
-      }
-      .library-group.muted { opacity: 0.65; }
-      .library-group-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        width: 100%;
-        background: transparent;
-        border: 0;
-        padding: 8px 10px;
-        border-radius: 8px;
-        cursor: pointer;
-        text-align: left;
-        font: 700 10.5px/1 var(--f-sans);
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-        color: var(--ink-faint);
-        transition: background 0.12s ease, color 0.12s ease;
-      }
-      .library-group-head:hover { background: var(--ember-wash); color: var(--ember); }
-      .library-group-head .chev {
-        width: 10px;
-        height: 10px;
-        margin-right: 6px;
-        flex-shrink: 0;
-        transition: transform 0.18s ease;
-      }
-      .library-group.open .library-group-head .chev { transform: rotate(90deg); }
-      .library-group-head .left { display: flex; align-items: center; min-width: 0; }
-      .library-group-head .label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .library-group-head .count {
-        font-variant-numeric: tabular-nums;
-        letter-spacing: 0;
-        font-size: 11px;
+      .group-count {
+        font-weight: 500;
         color: var(--ink-ghost);
-        background: var(--line-soft);
-        padding: 1px 7px;
-        border-radius: 999px;
-        font-weight: 600;
+        margin-left: 4px;
       }
-      .library-group-items {
-        display: none;
-        flex-direction: column;
-        gap: 1px;
-        padding: 2px 0 4px 14px;
-      }
-      .library-group.open .library-group-items { display: flex; }
-      .doc-btn {
+      .row {
         display: grid;
-        grid-template-columns: 1fr auto;
+        grid-template-columns: 28px 36px 1fr auto;
         align-items: center;
-        gap: 8px;
-        width: 100%;
+        gap: 10px;
+        padding: 7px 18px;
+        border-bottom: 1px solid var(--line-soft);
+        cursor: pointer;
+        color: var(--ink);
+        position: relative;
         min-height: 36px;
-        background: transparent;
-        border: 1px solid transparent;
-        border-radius: 8px;
-        padding: 7px 9px;
-        color: var(--ink-soft);
-        cursor: pointer;
-        font: 400 13px/1.25 var(--f-sans);
-        text-align: left;
-        transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
       }
-      .doc-btn:hover {
+      .row:hover { background: var(--surface-high); }
+      .row.is-cursor {
         background: var(--ember-wash);
-        color: var(--ember);
       }
-      .doc-btn.active {
-        background: var(--surface);
-        border-color: var(--ember);
-        color: var(--ink);
-        box-shadow: var(--shadow-sm);
-      }
-      .doc-btn:focus-visible {
-        outline: 2px solid var(--ember);
-        outline-offset: 2px;
-      }
-      .doc-btn > .doc-label {
-        min-width: 0;
-        overflow: hidden;
-      }
-      .doc-btn .doc-title {
-        display: block;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-      .doc-btn .doc-path {
-        display: block;
-        overflow: hidden;
-        color: var(--ink-faint);
-        font-family: var(--f-mono);
-        font-size: 10px;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        margin-top: 1px;
-      }
-      .doc-btn .doc-role {
-        border-radius: 999px;
-        background: var(--line-soft);
-        color: var(--ink-faint);
-        font-size: 9px;
-        font-weight: 700;
-        letter-spacing: 0.06em;
-        padding: 2px 6px;
-        text-transform: uppercase;
-      }
-      .doc-empty {
-        color: var(--ink-faint);
-        font-family: var(--f-serif);
-        font-size: 13px;
-        font-style: italic;
-        padding: 8px 10px;
-      }
-
-      /* ── Main content ────────────────────────────────────────────────── */
-      .main {
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        padding: 0;
-        position: relative;
-      }
-      .main-inner {
-        max-width: 880px;
-        margin: 0 auto;
-        padding: 22px 22px calc(60px + var(--safe-bot));
-      }
-      @media (max-width: 600px) {
-        .main-inner { padding: 16px 14px calc(80px + var(--safe-bot)); }
-      }
-
-      /* ── TOC ─ floating button + drawer (mobile); inline aside (desktop) */
-      .toc-fab {
-        position: fixed;
-        right: 16px;
-        bottom: calc(16px + var(--safe-bot));
-        z-index: 25;
-        background: var(--surface);
-        border: 1px solid var(--line);
-        border-radius: 999px;
-        padding: 0 14px;
-        height: 40px;
-        display: none;
-        align-items: center;
-        gap: 7px;
-        font: 600 12px var(--f-sans);
-        color: var(--ink);
-        cursor: pointer;
-        box-shadow: var(--shadow-md);
-      }
-      .toc-fab:hover { background: var(--ember-wash); color: var(--ember); border-color: var(--ember); }
-      .toc-fab svg { width: 14px; height: 14px; }
-      .toc-fab[hidden] { display: none !important; }
-      @media (max-width: 1100px) {
-        .toc-fab.has-toc { display: inline-flex; }
-      }
-
-      /* ── Doc rendering ───────────────────────────────────────────────── */
-      .doc-content h1 {
-        font-family: var(--f-serif);
-        font-size: clamp(22px, 4vw, 30px);
-        font-weight: 600;
-        margin: 0 0 6px;
-        color: var(--ink);
-        letter-spacing: -0.01em;
-        line-height: 1.15;
-      }
-      .doc-content h2 {
-        font-family: var(--f-serif);
-        font-size: clamp(18px, 3vw, 22px);
-        font-weight: 600;
-        margin: 0;
-        color: var(--ink);
-        line-height: 1.25;
-        scroll-margin-top: 80px;
-      }
-      .doc-content h3 {
-        font-family: var(--f-sans);
-        font-size: 15px;
-        font-weight: 700;
-        margin: 18px 0 6px;
-        color: var(--ink);
-        scroll-margin-top: 80px;
-      }
-      .doc-content h4 {
-        font-family: var(--f-sans);
-        font-size: 13px;
-        font-weight: 700;
-        margin: 14px 0 4px;
-        color: var(--ink-soft);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-      }
-      .doc-content p { margin: 0 0 12px; color: var(--ink); }
-      .doc-content ul, .doc-content ol { margin: 0 0 14px; padding-left: 20px; }
-      .doc-content li { margin: 4px 0; }
-      .doc-content li.checkbox-item {
-        list-style: none;
-        margin-left: -20px;
-        padding-left: 0;
-        display: grid;
-        grid-template-columns: auto 1fr;
-        gap: 10px;
-        align-items: flex-start;
-        margin-bottom: 6px;
-      }
-      .doc-content li.checkbox-item .label { line-height: 1.5; padding-top: 1px; }
-      .doc-content li.checkbox-item.done .label {
-        text-decoration: line-through;
-        color: var(--ink-faint);
-      }
-      .doc-content li.checkbox-item .checkbox { margin-top: 1px; }
-
-      /* H2 collapsible sections */
-      .h2-section {
-        margin: 22px 0 0;
-        border-top: 1px solid var(--line-soft);
-        padding-top: 18px;
-      }
-      .h2-section:first-of-type { border-top: 0; padding-top: 0; }
-      .h2-toggle {
-        display: flex;
-        align-items: flex-start;
-        gap: 10px;
-        background: transparent;
-        border: 0;
-        padding: 4px 0;
-        margin: 0 0 6px;
-        cursor: pointer;
-        text-align: left;
-        width: 100%;
-        font: inherit;
-        color: inherit;
-      }
-      .h2-toggle:hover { color: var(--ember); }
-      .h2-toggle .chev {
-        width: 14px;
-        height: 14px;
-        margin-top: 6px;
-        color: var(--ink-faint);
-        transition: transform 0.18s ease;
-        flex-shrink: 0;
-      }
-      .h2-section.open .h2-toggle .chev { transform: rotate(90deg); }
-      .h2-section.open .h2-toggle:hover .chev { color: var(--ember); }
-      .h2-body { display: none; padding-top: 8px; }
-      .h2-section.open .h2-body { display: block; }
-
-      /* Custom checkbox — never use OS-native UI per CLAUDE.md DESIGN PHILOSOPHY */
-      .checkbox {
-        appearance: none;
-        -webkit-appearance: none;
-        width: 22px;
-        height: 22px;
-        border-radius: 6px;
-        border: 1.5px solid var(--ink-ghost);
-        background: var(--surface-high);
-        cursor: pointer;
-        position: relative;
-        transition: all 0.15s ease;
-        flex-shrink: 0;
-        margin: 0;
-      }
-      .checkbox:hover { border-color: var(--ember); }
-      .checkbox:checked { background: var(--moss); border-color: var(--moss); }
-      .checkbox:checked::after {
+      .row.is-cursor::before {
         content: "";
         position: absolute;
-        left: 6px;
-        top: 2px;
-        width: 6px;
-        height: 11px;
-        border: solid #fff;
-        border-width: 0 2px 2px 0;
-        transform: rotate(45deg);
+        left: 0; top: 0; bottom: 0;
+        width: 2px;
+        background: var(--ember);
       }
-      .checkbox:disabled { opacity: 0.4; cursor: not-allowed; }
-
-      /* ── Score band (checklist only) ─────────────────────────────────── */
-      .scorecard {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 10px;
-        margin: 4px 0 8px;
-      }
-      .score {
-        background: var(--surface);
-        border: 1px solid var(--line);
-        border-radius: 14px;
-        padding: 12px 14px;
-        box-shadow: var(--shadow-sm);
-      }
-      .score .num {
-        font-family: var(--f-serif);
-        font-size: clamp(20px, 4vw, 28px);
-        font-weight: 600;
-        line-height: 1;
-        color: var(--ink);
-      }
-      .score .label {
-        font-size: 10px;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
+      .row.is-done .row-text {
         color: var(--ink-faint);
-        margin-top: 6px;
+        text-decoration: line-through;
+        text-decoration-color: var(--ink-ghost);
       }
-      .score.done .num { color: var(--moss); }
-      .score.partial .num { color: var(--gold); }
-      .score.missing .num { color: var(--blood); }
-      .score.open .num { color: var(--ink-soft); }
-      @media (max-width: 480px) {
-        .scorecard { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-      }
-
-      .progress-bar {
-        margin-top: 12px;
-        background: var(--line-soft);
-        border-radius: 999px;
-        overflow: hidden;
-        height: 8px;
-        display: flex;
-        box-shadow: var(--shadow-sm) inset;
-      }
-      .progress-bar .seg.done { background: var(--moss); }
-      .progress-bar .seg.partial { background: var(--gold); }
-      .progress-bar .seg.missing { background: var(--blood); }
-      .progress-bar .seg.open { background: var(--ink-ghost); }
-
-      /* ── Filters (checklist) ─────────────────────────────────────────── */
-      .filters {
-        margin: 22px 0 14px;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-      }
-      .chip-row {
-        display: flex;
-        gap: 6px;
-        flex-wrap: wrap;
-      }
-      .chip {
+      .checkbox {
+        width: 16px; height: 16px;
+        border-radius: 4px;
+        border: 1.4px solid var(--line-strong);
         background: var(--surface);
-        border: 1px solid var(--line);
-        color: var(--ink-soft);
-        font: 500 12px var(--f-sans);
-        padding: 5px 11px;
-        border-radius: 999px;
         cursor: pointer;
-        transition: all 0.12s ease;
-        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        transition: background 80ms, border-color 80ms;
       }
-      .chip:hover { background: var(--ember-wash); border-color: var(--ember); color: var(--ember); }
-      .chip.active { background: var(--ember); color: #fff; border-color: var(--ember); }
-      .chip .count {
-        opacity: 0.6;
-        margin-left: 4px;
+      .checkbox:hover { border-color: var(--ember); }
+      .checkbox.is-checked {
+        background: var(--moss);
+        border-color: var(--moss);
+        color: #fff;
+      }
+      .checkbox.is-checked svg { display: block; }
+      .checkbox svg { display: none; }
+      .priority {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 18px;
+        min-width: 28px;
+        padding: 0 6px;
+        border-radius: 4px;
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        color: var(--ink-faint);
+        background: var(--surface-sunk);
         font-variant-numeric: tabular-nums;
       }
-      .chip.active .count { opacity: 0.9; }
-      .search {
-        flex: 1;
-        min-width: 200px;
-        padding: 8px 14px;
+      .priority.is-p0 { color: var(--blood); background: var(--blood-wash); }
+      .priority.is-p1 { color: var(--ember); background: var(--ember-wash); }
+      .priority.is-p2 { color: var(--gold); background: var(--gold-wash); }
+      .priority.is-p3 { color: var(--slate); background: var(--slate-wash); }
+      .priority.is-empty { background: transparent; color: var(--ink-ghost); }
+      .row-text {
         font-size: 13px;
-        font-family: var(--f-sans);
-        background: var(--surface);
-        border: 1px solid var(--line);
-        border-radius: 999px;
         color: var(--ink);
-        outline: none;
-        transition: border-color 0.15s;
-      }
-      .search:focus { border-color: var(--ember); }
-
-      /* Scrollable chip rows on small screens */
-      .chip-row.scroll {
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        margin: 0 -14px;
-        padding: 0 14px;
-        scrollbar-width: none;
-      }
-      .chip-row.scroll::-webkit-scrollbar { display: none; }
-
-      /* ── Sections + Items (checklist) ────────────────────────────────── */
-      .check-section {
-        margin: 18px 0;
-      }
-      .check-section h2 {
-        font-family: var(--f-serif);
-        font-size: 18px;
-        font-weight: 600;
-        margin: 0 0 4px;
-        color: var(--ink);
-      }
-      .check-section .section-meta {
-        font-size: 12px;
-        color: var(--ink-faint);
-        margin-bottom: 10px;
-      }
-      .cat-tag {
-        display: inline-block;
-        background: var(--ember-wash);
-        color: var(--ember);
-        padding: 1px 8px;
-        border-radius: 999px;
-        font-size: 10px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        margin-right: 6px;
-      }
-      .item {
-        background: var(--surface);
-        border: 1px solid var(--line);
-        border-radius: 12px;
-        padding: 12px 14px;
-        margin-bottom: 8px;
-        display: grid;
-        grid-template-columns: auto 1fr auto;
-        gap: 12px;
-        align-items: flex-start;
-        transition: box-shadow 0.15s, border-color 0.15s;
-      }
-      .item:hover { border-color: var(--ink-ghost); box-shadow: var(--shadow-md); }
-      .item.done { background: color-mix(in srgb, var(--moss-wash) 35%, var(--surface)); border-color: color-mix(in srgb, var(--moss) 30%, var(--line)); }
-      .item .checkbox { margin-top: 2px; }
-      .item .body { min-width: 0; }
-      .item .title { font-weight: 500; color: var(--ink); line-height: 1.4; }
-      .item.done .title { text-decoration: line-through; color: var(--ink-faint); }
-      .item .title strong { font-weight: 700; }
-      .item .desc {
-        margin-top: 4px;
-        color: var(--ink-soft);
-        font-size: 13px;
-        line-height: 1.55;
-      }
-      .item .desc.collapsed {
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        line-clamp: 2;
-        -webkit-box-orient: vertical;
+        line-height: 1.4;
         overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0;
       }
-      .item .desc-toggle {
-        background: none;
-        border: 0;
-        padding: 0;
-        margin-top: 6px;
-        font-size: 11px;
-        color: var(--ember);
-        cursor: pointer;
-        font-family: var(--f-sans);
+      .row-text code {
+        font-family: var(--f-mono);
+        font-size: 11.5px;
+        padding: 1px 4px;
+        background: var(--surface-sunk);
+        border-radius: 3px;
+        color: var(--ink);
       }
-      .item .desc-toggle:hover { text-decoration: underline; }
-
-      .status-pill {
-        display: inline-block;
-        padding: 2px 9px;
-        border-radius: 999px;
-        font-size: 10px;
-        font-weight: 700;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
+      .row-text strong { color: var(--ink); font-weight: 600; }
+      .row-meta {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
         flex-shrink: 0;
-        font-family: var(--f-sans);
       }
-      .status-pill.done { background: var(--moss-wash); color: var(--moss); }
-      .status-pill.partial { background: color-mix(in srgb, var(--gold) 18%, transparent); color: var(--gold); }
-      .status-pill.missing { background: var(--blood-wash); color: var(--blood); }
-      .status-pill.open { background: var(--line-soft); color: var(--ink-faint); }
-
-      /* ── Drawers (mobile library + TOC) ──────────────────────────────── */
-      .drawer-overlay {
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0);
-        z-index: 40;
-        pointer-events: none;
-        transition: background 0.22s ease;
-      }
-      .drawer-overlay.open {
-        pointer-events: auto;
-        background: rgba(0, 0, 0, 0.42);
-      }
-      .drawer {
-        position: fixed;
-        top: 0;
-        bottom: 0;
-        width: min(85vw, 360px);
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        height: 20px;
+        padding: 0 7px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        font-size: 11px;
+        color: var(--ink-soft);
         background: var(--surface);
-        z-index: 50;
+        white-space: nowrap;
+        max-width: 180px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .chip.is-date { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+      .chip.is-archived { color: var(--ink-ghost); border-style: dashed; }
+      .row-mtime {
+        font-size: 11px;
+        color: var(--ink-faint);
+        font-variant-numeric: tabular-nums;
+        min-width: 52px;
+        text-align: right;
+      }
+
+      /* === DETAIL PANE ===================================================== */
+      .detail {
+        background: var(--surface);
+        border-left: 1px solid var(--line);
         display: flex;
         flex-direction: column;
-        box-shadow: var(--shadow-drawer);
-        transition: transform 0.22s ease;
-        will-change: transform;
-        padding-top: var(--safe-top);
-        padding-bottom: var(--safe-bot);
+        min-height: 0;
+        animation: slideIn 160ms ease-out;
       }
-      .drawer.left { left: 0; transform: translateX(-100%); border-right: 1px solid var(--line); }
-      .drawer.right { right: 0; transform: translateX(100%); border-left: 1px solid var(--line); }
-      .drawer.open { transform: translateX(0); }
-      .drawer-head {
+      @keyframes slideIn {
+        from { transform: translateX(8px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+      .detail-head {
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--line-soft);
         display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-        padding: 14px 16px 10px;
-        border-bottom: 1px solid var(--line);
+        align-items: flex-start;
+        gap: 12px;
       }
-      .drawer-title {
-        font: 600 13px var(--f-sans);
-        color: var(--ink);
-      }
-      .drawer-close {
-        appearance: none;
-        background: transparent;
-        border: 0;
-        width: 32px;
-        height: 32px;
-        border-radius: 999px;
-        cursor: pointer;
+      .detail-head-text { flex: 1; min-width: 0; }
+      .detail-breadcrumb {
+        font-size: 11px;
         color: var(--ink-faint);
+        font-family: var(--f-mono);
+      }
+      .detail-title {
+        font-size: 14px;
+        font-weight: 600;
+        margin-top: 3px;
+        color: var(--ink);
+        word-break: break-word;
+      }
+      .detail-close {
+        width: 26px; height: 26px;
+        border-radius: 6px;
+        background: transparent;
+        border: 1px solid var(--line);
+        color: var(--ink-soft);
+        cursor: pointer;
         display: inline-flex;
         align-items: center;
         justify-content: center;
       }
-      .drawer-close:hover { background: var(--ember-wash); color: var(--ember); }
-      .drawer-close svg { width: 16px; height: 16px; }
-      .drawer-body {
+      .detail-close:hover { background: var(--surface-high); color: var(--ink); }
+      .detail-body {
         flex: 1;
         overflow-y: auto;
-        overscroll-behavior: contain;
-        padding: 10px 12px 18px;
+        padding: 18px 22px 60px;
+        font-family: var(--f-serif);
+        font-size: 14.5px;
+        line-height: 1.65;
+        color: var(--ink);
+      }
+      .detail-body h1, .detail-body h2, .detail-body h3, .detail-body h4 {
+        font-family: var(--f-sans);
+        letter-spacing: -0.01em;
+        color: var(--ink);
+        line-height: 1.25;
+      }
+      .detail-body h1 { font-size: 20px; margin: 18px 0 8px; }
+      .detail-body h2 { font-size: 16px; margin: 22px 0 6px; }
+      .detail-body h3 { font-size: 14px; margin: 18px 0 4px; }
+      .detail-body p { margin: 8px 0; }
+      .detail-body ul, .detail-body ol { padding-left: 22px; margin: 8px 0; }
+      .detail-body li { margin: 2px 0; }
+      .detail-body code {
+        font-family: var(--f-mono);
+        font-size: 12px;
+        padding: 1px 4px;
+        background: var(--surface-sunk);
+        border-radius: 3px;
+      }
+      .detail-body pre {
+        background: var(--surface-sunk);
+        border: 1px solid var(--line-soft);
+        border-radius: 6px;
+        padding: 10px 12px;
+        overflow-x: auto;
+        font-family: var(--f-mono);
+        font-size: 12px;
+        line-height: 1.5;
+        margin: 10px 0;
+      }
+      .detail-body pre code { background: transparent; padding: 0; font-size: inherit; }
+      .detail-body blockquote {
+        border-left: 3px solid var(--ember);
+        padding: 4px 12px;
+        margin: 10px 0;
+        color: var(--ink-soft);
+        background: var(--ember-wash);
+        border-radius: 0 6px 6px 0;
+        font-style: italic;
+      }
+      .detail-body hr {
+        border: 0;
+        border-top: 1px solid var(--line);
+        margin: 22px 0;
+      }
+      .detail-body table {
+        border-collapse: collapse;
+        margin: 10px 0;
+        font-size: 12.5px;
+        font-family: var(--f-sans);
+      }
+      .detail-body th, .detail-body td {
+        border: 1px solid var(--line);
+        padding: 5px 9px;
+        text-align: left;
+        vertical-align: top;
+      }
+      .detail-body th { background: var(--surface-sunk); font-weight: 600; }
+      .detail-body .task-line {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 2px 4px;
+        border-radius: 4px;
+      }
+      .detail-body .task-line.is-highlight {
+        background: var(--ember-wash);
+        outline: 1px solid var(--ember);
+        outline-offset: -1px;
+      }
+      .detail-body .task-line input[type="checkbox"] {
+        margin-top: 5px;
       }
 
-      /* On mobile, hide the inline library; on desktop, hide drawer button. */
-      @media (max-width: 900px) {
-        .library { display: none; }
+      /* === PALETTE ========================================================= */
+      .palette-backdrop {
+        position: fixed; inset: 0;
+        background: rgba(20, 14, 10, 0.45);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding-top: 14vh;
+        z-index: 50;
       }
-      @media (min-width: 901px) {
-        .topbar-actions .btn-library { display: none; }
-        .drawer.left { display: none; }
-      }
-
-      /* ── TOC drawer body (right side) ────────────────────────────────── */
-      .toc-list {
+      .palette {
+        width: min(640px, 92vw);
+        max-height: 64vh;
+        background: var(--surface-high);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        box-shadow: var(--shadow-lg);
         display: flex;
         flex-direction: column;
-        gap: 1px;
+        overflow: hidden;
       }
-      .toc-list a {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 7px 10px;
-        border-radius: 6px;
-        font-size: 13px;
-        color: var(--ink-soft);
-        text-decoration: none;
-        line-height: 1.35;
+      .palette input {
+        height: 48px;
+        padding: 0 18px;
+        border: 0;
+        border-bottom: 1px solid var(--line);
+        background: transparent;
+        color: var(--ink);
+        font: 15px/1.2 var(--f-sans);
+        outline: none;
+        width: 100%;
       }
-      .toc-list a:hover { background: var(--ember-wash); color: var(--ember); }
-      .toc-list a.depth-3 { padding-left: 22px; font-size: 12px; opacity: 0.85; }
-      .toc-list a .num {
-        font-size: 10px;
-        color: var(--ink-faint);
-        font-variant-numeric: tabular-nums;
-      }
-      .toc-empty {
-        color: var(--ink-faint);
-        font-family: var(--f-serif);
-        font-size: 13px;
-        font-style: italic;
-        padding: 8px 10px;
-      }
-
-      /* Inline (desktop) sidebar TOC for very wide viewports */
-      @media (min-width: 1280px) {
-        .body { grid-template-columns: 280px 1fr 240px; }
-        .toc-rail { display: block; }
-        .toc-fab { display: none !important; }
-      }
-      .toc-rail {
-        display: none;
-        background: var(--surface);
-        border-left: 1px solid var(--line);
+      .palette-results {
+        flex: 1;
         overflow-y: auto;
-        overscroll-behavior: contain;
-        padding: 18px 14px calc(20px + var(--safe-bot));
+        padding: 6px 0;
       }
-      .toc-rail h4 {
-        margin: 0 0 8px;
-        font: 700 10.5px var(--f-sans);
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
+      .palette-row {
+        padding: 8px 18px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+        font-size: 13px;
+        color: var(--ink);
+      }
+      .palette-row.is-active { background: var(--ember-wash); }
+      .palette-row-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .palette-row-src { font-size: 11px; color: var(--ink-faint); }
+      .palette-row .checkbox { width: 14px; height: 14px; }
+      .palette-empty {
+        padding: 30px 18px;
+        text-align: center;
         color: var(--ink-faint);
+        font-style: italic;
+      }
+      .palette-foot {
+        padding: 8px 18px;
+        border-top: 1px solid var(--line-soft);
+        font-size: 11px;
+        color: var(--ink-faint);
+        display: flex;
+        gap: 14px;
       }
 
-      /* ── Toast ───────────────────────────────────────────────────────── */
+      /* === FILTER BAR (sticky inside main) ================================= */
+      .filterbar {
+        height: 36px;
+        padding: 0 18px;
+        border-bottom: 1px solid var(--line-soft);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--bg);
+        overflow-x: auto;
+      }
+      .filter-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        height: 22px;
+        padding: 0 8px;
+        border: 1px solid var(--line);
+        border-radius: 11px;
+        font-size: 11px;
+        color: var(--ink-soft);
+        background: var(--surface);
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .filter-chip:hover { background: var(--surface-high); color: var(--ink); }
+      .filter-chip.is-on {
+        background: var(--ember-wash);
+        color: var(--ember);
+        border-color: var(--ember);
+      }
+      .filter-x { opacity: 0.6; margin-left: 2px; }
+      .filter-clear {
+        font-size: 11px;
+        color: var(--ember);
+        cursor: pointer;
+        padding: 0 6px;
+      }
+      .filter-clear:hover { text-decoration: underline; }
+
+      /* === MISC ============================================================ */
       .toast {
         position: fixed;
-        bottom: calc(20px + var(--safe-bot));
+        bottom: 18px;
         left: 50%;
-        transform: translateX(-50%) translateY(60px);
+        transform: translateX(-50%);
         background: var(--ink);
         color: var(--bg);
-        padding: 10px 18px;
-        border-radius: 999px;
         font-size: 12.5px;
+        padding: 9px 14px;
+        border-radius: 8px;
         box-shadow: var(--shadow-lg);
         opacity: 0;
-        transition: all 0.25s ease;
         pointer-events: none;
-        z-index: 100;
+        transition: opacity 140ms;
+        z-index: 60;
       }
-      .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-      .toast.error { background: var(--blood); color: #fff; }
-
-      /* ── Empty state ─────────────────────────────────────────────────── */
-      .empty {
-        text-align: center;
-        padding: 48px 24px;
-        color: var(--ink-faint);
-        font-style: italic;
-        font-family: var(--f-serif);
+      .toast.is-visible { opacity: 1; }
+      .spinner {
+        display: inline-block;
+        width: 12px; height: 12px;
+        border: 2px solid var(--line);
+        border-top-color: var(--ember);
+        border-radius: 50%;
+        animation: spin 700ms linear infinite;
+        vertical-align: -2px;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .visually-hidden {
+        position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+        overflow: hidden; clip: rect(0,0,0,0); border: 0;
       }
     </style>
   </head>
   <body>
-    <div class="app">
-      <header class="topbar">
+    <div id="app" class="shell">
+      <aside class="sidebar">
         <div class="brand">
-          <span class="ember-dot" aria-hidden="true"></span>
-          <span class="brand-name">Everion Mind</span>
+          <div class="brand-mark">E</div>
+          <div class="brand-name">Everion Launch</div>
         </div>
-        <div class="doc-title-bar" id="doc-title-bar">
-          <span class="live-dot" aria-hidden="true"></span>
-          <span id="active-doc-title">Loading…</span>
-        </div>
-        <div class="topbar-actions">
-          <button class="icon-btn btn-library" id="btn-library" type="button" aria-label="Open document library">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="4" x2="13" y2="4"/><line x1="3" y1="8" x2="13" y2="8"/><line x1="3" y1="12" x2="13" y2="12"/></svg>
-            <span class="label-only">Library</span>
+        <div class="sidebar-scroll" id="sidebar-scroll"></div>
+      </aside>
+      <main class="main">
+        <header class="topbar">
+          <div class="topbar-title" id="view-title">All tasks</div>
+          <div class="topbar-count" id="view-count">—</div>
+          <div class="topbar-spacer"></div>
+          <button class="iconbtn" id="search-btn" title="Search (⌘K)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            Search
+            <span class="kbd">⌘K</span>
           </button>
-          <button class="icon-btn btn-toc" id="btn-toc" type="button" aria-label="Open table of contents" hidden>
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="2" y1="5" x2="9" y2="5"/><line x1="2" y1="9" x2="11" y2="9"/><line x1="2" y1="13" x2="7" y2="13"/></svg>
-            <span class="label-only">Sections</span>
-          </button>
-        </div>
-      </header>
-
-      <div class="body">
-        <aside class="library" id="library" aria-label="Document library"></aside>
-        <main class="main"><div class="main-inner" id="root"></div></main>
-        <aside class="toc-rail" id="toc-rail" aria-label="On this page"></aside>
-      </div>
+        </header>
+        <div class="filterbar" id="filterbar"></div>
+        <div class="tasklist" id="tasklist"></div>
+      </main>
+      <aside class="detail" id="detail" style="display:none"></aside>
     </div>
-
-    <!-- Drawers -->
-    <div class="drawer-overlay" id="drawer-overlay"></div>
-    <aside class="drawer left" id="drawer-library" aria-label="Document library">
-      <div class="drawer-head">
-        <span class="drawer-title">Document Library</span>
-        <button class="drawer-close" data-close-drawer aria-label="Close library">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>
-        </button>
-      </div>
-      <div class="drawer-body" id="drawer-library-body"></div>
-    </aside>
-    <aside class="drawer right" id="drawer-toc" aria-label="On this page">
-      <div class="drawer-head">
-        <span class="drawer-title">On this page</span>
-        <button class="drawer-close" data-close-drawer aria-label="Close TOC">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>
-        </button>
-      </div>
-      <div class="drawer-body" id="drawer-toc-body"></div>
-    </aside>
-
-    <button class="toc-fab" id="toc-fab" type="button" aria-label="Open table of contents">
-      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="2" y1="5" x2="9" y2="5"/><line x1="2" y1="9" x2="11" y2="9"/><line x1="2" y1="13" x2="7" y2="13"/></svg>
-      Sections
-    </button>
-
+    <div id="palette-root"></div>
     <div class="toast" id="toast"></div>
+    <script>
+    (() => {
+      const $ = (sel, root = document) => root.querySelector(sel);
+      const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+      const escapeAttr = escapeHtml;
 
-    <script type="module">
-      // ───────────────────────────────────────────────────────────────────
-      // State
-      // ───────────────────────────────────────────────────────────────────
-      let docs = [];
-      let activeDocId = "playbook";        // start on the hub
-      let docCache = new Map();
-      let docNavTerm = "";
-      let activeStatus = "all";
-      let activeCategory = "all";
-      let searchTerm = "";
-      let openGroups = new Set();          // library groups currently expanded
-      let collapsedH2 = new Set();         // doc-mode H2 anchors collapsed (per-doc, cleared on doc switch)
+      // ----- STATE -----
+      const state = {
+        tasks: [],
+        loading: true,
+        view: "all",          // all | open | done | priority | week | source:<name>
+        cursorId: null,
+        openId: null,
+        openMarkdown: null,
+        openMtime: null,
+        searchOpen: false,
+        searchQuery: "",
+        searchSelected: 0,
+      };
 
-      const toastEl = document.getElementById("toast");
-      let toastTimer = null;
-      function toast(msg, kind = "ok") {
-        clearTimeout(toastTimer);
-        toastEl.textContent = msg;
-        toastEl.className = `toast show ${kind === "error" ? "error" : ""}`;
-        toastTimer = setTimeout(() => toastEl.classList.remove("show"), 1800);
+      // ----- API -----
+      async function fetchTasks() {
+        const r = await fetch("/tasks", { cache: "no-store" });
+        if (!r.ok) throw new Error("tasks " + r.status);
+        const j = await r.json();
+        return j.tasks;
+      }
+      async function fetchDoc(rel) {
+        const r = await fetch("/docs/" + encodeURIComponent(rel), { cache: "no-store" });
+        if (!r.ok) throw new Error("doc " + r.status);
+        return { content: await r.text(), mtime: Number(r.headers.get("x-mtime") || 0) };
+      }
+      async function toggleTask(docPath, lineNumber, checked) {
+        const r = await fetch("/toggle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ docPath, lineNumber, checked }),
+        });
+        if (!r.ok) throw new Error("toggle " + r.status);
+        return r.json();
       }
 
-      // ───────────────────────────────────────────────────────────────────
-      // Group config
-      // ───────────────────────────────────────────────────────────────────
-      const DOC_GROUPS = [
-        { key: "working", label: "Currently Working" },
-        { key: "core", label: "Launch Control" },
-        { key: "roadmap", label: "Roadmap (week-by-week)" },
-        { key: "specs", label: "Specs" },
-        { key: "marketing-playbooks", label: "Marketing — Playbooks" },
-        { key: "marketing-producthunt", label: "Marketing — Product Hunt" },
-        { key: "audits", label: "Audits" },
-        { key: "architecture", label: "Architecture" },
-        { key: "ops", label: "Ops" },
-        { key: "legal", label: "Legal" },
-        { key: "support", label: "Support" },
-        { key: "brand", label: "Brand" },
-        { key: "mobile", label: "Mobile" },
-        { key: "analytics", label: "Analytics" },
-        { key: "specs-archive", label: "Specs Archive", muted: true },
-        { key: "audits-archive", label: "Audit Archive", muted: true },
-        { key: "working-archive", label: "Working Archive", muted: true },
-      ];
-
-      const docGroupOf = (doc) => doc.group || "core";
-
-      // ───────────────────────────────────────────────────────────────────
-      // Category map (checklist sub-categorization — unchanged)
-      // ───────────────────────────────────────────────────────────────────
-      const CATEGORY_MAP = [
-        { match: ["readiness scorecard"], cat: "Overview" },
-        { match: ["infrastructure"], cat: "Infrastructure" },
-        { match: ["security"], cat: "Security" },
-        { match: ["compliance", "legal"], cat: "Compliance" },
-        { match: ["telemetry", "observability"], cat: "Telemetry" },
-        { match: ["weekly automated roll-up"], cat: "Telemetry" },
-        { match: ["billing", "lemonsqueezy", "revenuecat", "stripe"], cat: "Billing" },
-        { match: ["quality"], cat: "Quality / UX" },
-        { match: ["communications"], cat: "Communications" },
-        { match: ["design system", "ui consistency", "shadcn", "phase 1", "phase 2", "phase 3", "cross-cutting"], cat: "Design System" },
-        { match: ["pwa"], cat: "PWA" },
-        { match: ["performance"], cat: "Performance" },
-        { match: ["shared brains"], cat: "Multi-Brain (P2)" },
-        { match: ["other backlog"], cat: "Backlog" },
-        { match: ["owner-only", "before public launch", "weekly roll-up email setup", "people stuff", "visibility", "one-time then quarterly"], cat: "Owner Tasks" },
-        { match: ["findings from readiness audit"], cat: "Audit Findings" },
-        { match: ["stability-critical"], cat: "Stability" },
-        { match: ["ux", "accessibility"], cat: "Quality / UX" },
-        { match: ["maintainability"], cat: "Code Quality" },
-        { match: ["compliance follow-ups"], cat: "Compliance" },
-        { match: ["post-launch hardening"], cat: "Post-Launch" },
-        { match: ["operations", "bus factor"], cat: "Operations" },
-        { match: ["mobile app launch", "capacitor wrap", "implementation playbook", "build order", "app-feel requirements", "auth", "deep linking", "native plugins", "session storage", "offline behaviour", "real-device test", "acceptance criteria"], cat: "Mobile" },
-        { match: ["m0", "submission blockers", "m4", "store metadata", "m5", "pre-submission gate", "m6", "cannot assess"], cat: "App Store Submission" },
-        { match: ["m1", "listing copy", "apple description", "google play full description", "marketing copy"], cat: "Marketing / Store Copy" },
-        { match: ["m2", "visual assets"], cat: "Visual Assets" },
-        { match: ["m3", "native shell config"], cat: "Mobile" },
-        { match: ["important memories", "vault"], cat: "Post-Launch" },
-        { match: ["this week"], cat: "Owner Tasks" },
-      ];
-      function categorize(headingPath) {
-        const haystack = headingPath.join(" ").toLowerCase();
-        for (const { match, cat } of CATEGORY_MAP) {
-          if (match.some((m) => haystack.includes(m))) return cat;
+      // ----- TASK FILTERING / GROUPING -----
+      function viewFilter(task) {
+        const v = state.view;
+        if (task.archived) return v === "source:" + task.source;  // archived only visible in their source
+        if (v === "all") return true;
+        if (v === "open") return !task.checked;
+        if (v === "done") return task.checked;
+        if (v === "priority") return !!task.priority;
+        if (v === "week") {
+          const wk = 7 * 24 * 60 * 60 * 1000;
+          return Date.now() - task.mtime < wk;
         }
-        return "Other";
+        if (v.startsWith("source:")) return task.source === v.slice(7);
+        return true;
       }
-      function statusOf(line) {
-        const checked = /^\s*-\s*\[[xX]\]/.test(line);
-        if (checked) return "done";
-        if (line.includes("🟡")) return "partial";
-        if (line.includes("❌")) return "missing";
-        return "open";
-      }
-      const STATUS_LABEL = { done: "Done", partial: "Partial", missing: "Missing", open: "Open" };
 
-      // ───────────────────────────────────────────────────────────────────
-      // Markdown parsing — checklist
-      // ───────────────────────────────────────────────────────────────────
-      function parseChecklist(md) {
-        const lines = md.split(/\r?\n/);
-        const items = [];
-        const headingPath = [];
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i];
-          const hMatch = /^(#{1,4})\s+(.+)$/.exec(line);
-          if (hMatch) {
-            const depth = hMatch[1].length;
-            headingPath.length = depth - 1;
-            headingPath[depth - 1] = hMatch[2].trim();
-            continue;
-          }
-          const cbMatch = /^(\s{0,4})-\s*\[([ xX])\]\s*(.+)$/.exec(line);
-          if (!cbMatch) continue;
-          const [, indent, , rest] = cbMatch;
-          if (indent.length > 4) continue;
+      function visibleTasks() { return state.tasks.filter(viewFilter); }
 
-          const descLines = [];
-          let j = i + 1;
-          while (j < lines.length) {
-            const next = lines[j];
-            if (/^(\s{0,4})-\s*\[[ xX]\]/.test(next)) break;
-            if (/^#{1,4}\s/.test(next)) break;
-            if (/^\s*$/.test(next)) {
-              const after = lines[j + 1];
-              if (!after) break;
-              if (/^(\s{0,4})-\s*\[[ xX]\]/.test(after)) break;
-              if (/^#{1,4}\s/.test(after)) break;
-            }
-            descLines.push(next);
-            j++;
-          }
-
-          const status = statusOf(line);
-          const title = rest.replace(/✅|🟡|❌/g, "").trim();
-          const desc = descLines.join("\n").trim();
-
-          items.push({
-            lineNumber: i + 1,
-            status,
-            title,
-            desc,
-            headingPath: [...headingPath],
-            section: headingPath.slice(1).join(" › ") || "Top",
-            category: categorize(headingPath),
-          });
+      const PRIORITY_ORDER = { P0: 0, P1: 1, P2: 2, P3: 3, "": 4 };
+      function groupTasks(tasks) {
+        // Default: group by priority bucket, sort within by mtime desc.
+        const groups = new Map();
+        for (const t of tasks) {
+          const key = t.priority || "—";
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key).push(t);
         }
-        return items;
+        const sorted = [...groups.entries()].sort((a, b) => {
+          return (PRIORITY_ORDER[a[0] === "—" ? "" : a[0]] ?? 5) - (PRIORITY_ORDER[b[0] === "—" ? "" : b[0]] ?? 5);
+        });
+        for (const [, list] of sorted) list.sort((a, b) => b.mtime - a.mtime);
+        return sorted;
       }
 
-      // ───────────────────────────────────────────────────────────────────
-      // Markdown rendering — doc mode
-      // ───────────────────────────────────────────────────────────────────
-      const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({
-        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-      }[c]));
-
-      function inlineMd(s) {
-        let out = escapeHtml(s);
-        out = out.replace(/`([^`]+)`/g, "<code>$1</code>");
-        out = out.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-        out = out.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
-        out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-        return out;
+      function sourceCounts() {
+        const m = new Map();
+        for (const t of state.tasks) {
+          if (t.archived) continue;
+          m.set(t.source, (m.get(t.source) || 0) + 1);
+        }
+        return [...m.entries()].sort((a, b) => b[1] - a[1]);
       }
 
-      function renderMarkdown(md) {
-        const lines = md.split(/\r?\n/);
-        const out = [];
-        const headings = [];
-        let i = 0;
-        let inList = null;
-        let listBuffer = [];
-        const flushList = () => {
-          if (!inList) return;
-          out.push(`<${inList}>${listBuffer.join("")}</${inList}>`);
-          listBuffer = [];
-          inList = null;
+      // ----- SIDEBAR RENDER -----
+      function renderSidebar() {
+        const v = state.view;
+        const counts = {
+          all: state.tasks.filter(t => !t.archived).length,
+          open: state.tasks.filter(t => !t.archived && !t.checked).length,
+          done: state.tasks.filter(t => !t.archived && t.checked).length,
+          priority: state.tasks.filter(t => !t.archived && t.priority).length,
+          week: state.tasks.filter(t => !t.archived && Date.now() - t.mtime < 7*24*3600*1000).length,
         };
-        const slug = (s) => "h-" + s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+        const ic = {
+          all: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>',
+          open: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg>',
+          done: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
+          priority: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V4a1 1 0 011-1h7l1 3h6v10H10l-1-3H4"/></svg>',
+          week: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+          src: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4M3 17l9 4 9-4"/></svg>',
+        };
+        const navHtml = `
+          <div class="nav-group">
+            <div class="nav-label">Views</div>
+            ${renderNav("all", "All tasks", counts.all, ic.all, v)}
+            ${renderNav("open", "Open", counts.open, ic.open, v)}
+            ${renderNav("done", "Done", counts.done, ic.done, v)}
+            ${renderNav("priority", "Prioritised", counts.priority, ic.priority, v)}
+            ${renderNav("week", "Active this week", counts.week, ic.week, v)}
+          </div>
+          <div class="nav-group">
+            <div class="nav-label"><span>Sources</span> <span class="nav-label-count">${sourceCounts().length}</span></div>
+            ${sourceCounts().map(([src, n]) => renderNav("source:" + src, src, n, ic.src, v)).join("")}
+          </div>
+        `;
+        $("#sidebar-scroll").innerHTML = navHtml;
+        $("#sidebar-scroll").addEventListener("click", onNavClick);
+      }
+      function renderNav(viewId, label, count, icon, active) {
+        const cls = active === viewId ? "nav-item is-active" : "nav-item";
+        return `<div class="${cls}" data-view="${escapeAttr(viewId)}"><span class="nav-icon">${icon}</span><span>${escapeHtml(label)}</span><span class="nav-count">${count}</span></div>`;
+      }
+      function onNavClick(e) {
+        const item = e.target.closest("[data-view]");
+        if (!item) return;
+        state.view = item.dataset.view;
+        state.cursorId = null;
+        render();
+      }
 
-        while (i < lines.length) {
+      // ----- TASK LIST RENDER -----
+      function priorityHtml(p) {
+        if (!p) return `<span class="priority is-empty">—</span>`;
+        return `<span class="priority is-${p.toLowerCase()}">${p}</span>`;
+      }
+      function relativeMtime(ms) {
+        const diff = Date.now() - ms;
+        const d = 24 * 3600 * 1000;
+        if (diff < 60_000) return "now";
+        if (diff < 3600_000) return Math.round(diff / 60_000) + "m";
+        if (diff < d) return Math.round(diff / 3600_000) + "h";
+        if (diff < 30 * d) return Math.round(diff / d) + "d";
+        return new Date(ms).toISOString().slice(0, 10);
+      }
+      // Minimal inline-text renderer for task lines. Handles `code`, **bold**.
+      function renderInline(s) {
+        // Mask code first so its content escapes special handling.
+        const tokens = [];
+        let masked = s.replace(/`([^`]+)`/g, (_, code) => {
+          tokens.push(`<code>${escapeHtml(code)}</code>`);
+          return `\x00${tokens.length - 1}\x00`;
+        });
+        masked = escapeHtml(masked);
+        masked = masked.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+        return masked.replace(/\x00(\d+)\x00/g, (_, i) => tokens[Number(i)]);
+      }
+      function rowHtml(t, isCursor) {
+        const cls = ["row"];
+        if (t.checked) cls.push("is-done");
+        if (isCursor) cls.push("is-cursor");
+        const date = t.dueDate ? `<span class="chip is-date">${escapeHtml(t.dueDate)}</span>` : "";
+        const arch = t.archived ? `<span class="chip is-archived">archive</span>` : "";
+        return `
+          <div class="${cls.join(" ")}" data-id="${escapeAttr(t.id)}">
+            <button class="checkbox ${t.checked ? "is-checked" : ""}" data-checkbox aria-label="${t.checked ? "Mark open" : "Mark done"}">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+            </button>
+            ${priorityHtml(t.priority)}
+            <span class="row-text">${renderInline(t.text)}</span>
+            <span class="row-meta">
+              ${date}
+              ${arch}
+              <span class="chip">${escapeHtml(t.source)}</span>
+              <span class="row-mtime">${relativeMtime(t.mtime)}</span>
+            </span>
+          </div>
+        `;
+      }
+      function renderTaskList() {
+        const tasks = visibleTasks();
+        const grouped = groupTasks(tasks);
+        $("#view-title").textContent = viewLabel();
+        $("#view-count").textContent = tasks.length + (state.loading ? " · loading" : "");
+        if (!tasks.length) {
+          $("#tasklist").innerHTML = `<div class="empty-state"><div class="empty-title">Nothing here.</div><div class="empty-sub">Switch view or pick a source on the left.</div></div>`;
+          return;
+        }
+        // Ensure cursor lives inside the visible set
+        if (!state.cursorId || !tasks.some(t => t.id === state.cursorId)) {
+          state.cursorId = tasks[0]?.id || null;
+        }
+        let html = "";
+        for (const [bucket, list] of grouped) {
+          const lbl = bucket === "—" ? "No priority" : bucket;
+          html += `<div class="group-header">${escapeHtml(lbl)} <span class="group-count">${list.length}</span></div>`;
+          for (const t of list) html += rowHtml(t, t.id === state.cursorId);
+        }
+        $("#tasklist").innerHTML = html;
+      }
+      function viewLabel() {
+        const v = state.view;
+        if (v === "all") return "All tasks";
+        if (v === "open") return "Open";
+        if (v === "done") return "Done";
+        if (v === "priority") return "Prioritised";
+        if (v === "week") return "Active this week";
+        if (v.startsWith("source:")) return v.slice(7);
+        return "Tasks";
+      }
+      function renderFilterBar() {
+        const v = state.view;
+        const isDefault = v === "all";
+        if (isDefault) { $("#filterbar").innerHTML = ""; $("#filterbar").style.display = "none"; return; }
+        $("#filterbar").style.display = "flex";
+        $("#filterbar").innerHTML = `
+          <span class="filter-chip is-on">${escapeHtml(viewLabel())}<span class="filter-x" data-clear-view>×</span></span>
+          <span class="filter-clear" data-clear-view>Reset</span>
+        `;
+        $("#filterbar").addEventListener("click", (e) => {
+          if (e.target.closest("[data-clear-view]")) {
+            state.view = "all";
+            state.cursorId = null;
+            render();
+          }
+        }, { once: true });
+      }
+
+      // ----- ROW INTERACTIONS -----
+      function onTaskListClick(e) {
+        const cbBtn = e.target.closest("[data-checkbox]");
+        const row = e.target.closest(".row");
+        if (!row) return;
+        const id = row.dataset.id;
+        const task = state.tasks.find(t => t.id === id);
+        if (!task) return;
+        if (cbBtn) {
+          e.stopPropagation();
+          handleToggle(task);
+          return;
+        }
+        state.cursorId = id;
+        openDetail(task);
+        render();
+      }
+
+      async function handleToggle(task) {
+        const newChecked = !task.checked;
+        task.checked = newChecked;                 // optimistic
+        render();
+        try {
+          await toggleTask(task.docPath, task.lineNumber, newChecked);
+          toast(newChecked ? "Marked done" : "Reopened");
+        } catch (err) {
+          task.checked = !newChecked;              // revert
+          render();
+          toast("Toggle failed");
+        }
+      }
+
+      // ----- DETAIL PANE -----
+      async function openDetail(task) {
+        state.openId = task.id;
+        $("#app").classList.add("has-detail");
+        const elDetail = $("#detail");
+        elDetail.style.display = "flex";
+        elDetail.innerHTML = renderDetailShell(task, true);
+        try {
+          const { content, mtime } = await fetchDoc(task.docPath);
+          state.openMarkdown = content;
+          state.openMtime = mtime;
+          elDetail.innerHTML = renderDetailShell(task, false);
+          // Scroll the highlighted line into view.
+          requestAnimationFrame(() => {
+            const hl = $(".task-line.is-highlight", elDetail);
+            if (hl) hl.scrollIntoView({ block: "center", behavior: "auto" });
+          });
+        } catch (err) {
+          elDetail.querySelector(".detail-body").innerHTML = `<p style="color:var(--blood)">Failed to load ${escapeHtml(task.docPath)}: ${escapeHtml(err.message || String(err))}</p>`;
+        }
+      }
+      function closeDetail() {
+        state.openId = null;
+        state.openMarkdown = null;
+        $("#app").classList.remove("has-detail");
+        $("#detail").style.display = "none";
+        $("#detail").innerHTML = "";
+      }
+      function renderDetailShell(task, loading) {
+        const body = loading
+          ? `<p style="color:var(--ink-faint)"><span class="spinner"></span> Loading ${escapeHtml(task.docPath)}…</p>`
+          : renderMarkdown(state.openMarkdown, task);
+        return `
+          <div class="detail-head">
+            <div class="detail-head-text">
+              <div class="detail-breadcrumb">${escapeHtml(task.docPath)} · line ${task.lineNumber}</div>
+              <div class="detail-title">${renderInline(task.text)}</div>
+            </div>
+            <button class="detail-close" data-close-detail title="Close (esc)">×</button>
+          </div>
+          <div class="detail-body">${body}</div>
+        `;
+      }
+
+      // ----- MARKDOWN RENDERER (minimal) -----
+      function renderMarkdown(src, task) {
+        const lines = src.split(/\r?\n/);
+        const out = [];
+        let i = 0;
+        let inCode = false;
+        let codeBuf = [];
+        let listType = null;       // "ul" | "ol" | null
+        let listBuf = [];
+        let tableBuf = [];
+        function flushList() {
+          if (!listType) return;
+          out.push(`<${listType}>` + listBuf.join("") + `</${listType}>`);
+          listType = null; listBuf = [];
+        }
+        function flushTable() {
+          if (!tableBuf.length) return;
+          const rows = tableBuf;
+          // Strip alignment row if present.
+          let alignRowIdx = -1;
+          for (let r = 0; r < rows.length; r++) {
+            if (/^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$/.test(rows[r])) { alignRowIdx = r; break; }
+          }
+          const parsed = rows.map(r => r.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map(c => c.trim()));
+          const head = alignRowIdx > 0 ? parsed[alignRowIdx - 1] : null;
+          const bodyRows = parsed.filter((_, idx) => idx !== alignRowIdx && (head ? idx !== alignRowIdx - 1 : true));
+          let h = "<table>";
+          if (head) h += "<thead><tr>" + head.map(c => `<th>${renderInline(c)}</th>`).join("") + "</tr></thead>";
+          h += "<tbody>";
+          for (const r of bodyRows) h += "<tr>" + r.map(c => `<td>${renderInline(c)}</td>`).join("") + "</tr>";
+          h += "</tbody></table>";
+          out.push(h);
+          tableBuf = [];
+        }
+        for (i = 0; i < lines.length; i++) {
           const line = lines[i];
-
+          const lineNum = i + 1;
+          // Fenced code
           if (/^```/.test(line)) {
-            flushList();
-            const lang = line.slice(3).trim();
-            const code = [];
-            i++;
-            while (i < lines.length && !/^```/.test(lines[i])) {
-              code.push(lines[i]);
-              i++;
+            if (!inCode) {
+              flushList(); flushTable();
+              inCode = true; codeBuf = [];
+            } else {
+              out.push(`<pre><code>${escapeHtml(codeBuf.join("\n"))}</code></pre>`);
+              inCode = false; codeBuf = [];
             }
-            i++;
-            out.push(`<pre><code class="lang-${escapeHtml(lang)}">${escapeHtml(code.join("\n"))}</code></pre>`);
             continue;
           }
-
-          if (/^\s*---+\s*$/.test(line)) {
+          if (inCode) { codeBuf.push(line); continue; }
+          // Table row
+          if (/^\s*\|.*\|\s*$/.test(line)) {
             flushList();
-            out.push("<hr/>");
-            i++;
+            tableBuf.push(line);
             continue;
+          } else if (tableBuf.length) {
+            flushTable();
           }
-
-          const hMatch = /^(#{1,6})\s+(.+)$/.exec(line);
-          if (hMatch) {
-            flushList();
-            const depth = hMatch[1].length;
-            const text = hMatch[2].trim();
-            const anchor = slug(text);
-            headings.push({ depth, text, anchor });
-            out.push(`<h${depth} id="${anchor}">${inlineMd(text)}</h${depth}>`);
-            i++;
-            continue;
-          }
-
+          // Horizontal rule
+          if (/^---+\s*$/.test(line)) { flushList(); out.push("<hr/>"); continue; }
+          // Heading
+          const hMatch = /^(#{1,4})\s+(.+?)\s*$/.exec(line);
+          if (hMatch) { flushList(); out.push(`<h${hMatch[1].length}>${renderInline(hMatch[2])}</h${hMatch[1].length}>`); continue; }
+          // Blockquote
           if (/^>\s?/.test(line)) {
             flushList();
-            const block = [];
-            while (i < lines.length && /^>\s?/.test(lines[i])) {
-              block.push(lines[i].replace(/^>\s?/, ""));
-              i++;
-            }
-            out.push(`<blockquote>${block.map(l => `<p>${inlineMd(l)}</p>`).join("")}</blockquote>`);
+            out.push(`<blockquote>${renderInline(line.replace(/^>\s?/, ""))}</blockquote>`);
             continue;
           }
-
-          if (/^\s*\|.+\|\s*$/.test(line) && i + 1 < lines.length && /^\s*\|?\s*[-:]+/.test(lines[i + 1])) {
-            flushList();
-            const header = line.split("|").map(c => c.trim()).filter(Boolean);
-            i += 2;
-            const rows = [];
-            while (i < lines.length && /^\s*\|.+\|\s*$/.test(lines[i])) {
-              rows.push(lines[i].split("|").map(c => c.trim()).filter(Boolean));
-              i++;
-            }
-            out.push(
-              `<table><thead><tr>${header.map(c => `<th>${inlineMd(c)}</th>`).join("")}</tr></thead><tbody>` +
-              rows.map(r => `<tr>${r.map(c => `<td>${inlineMd(c)}</td>`).join("")}</tr>`).join("") +
-              `</tbody></table>`
-            );
-            continue;
-          }
-
-          const cbMatch = /^(\s*)-\s*\[([ xX])\]\s*(.+)$/.exec(line);
+          // Checkbox list item
+          const cbMatch = /^(\s*)[-*]\s+\[([ xX])\]\s+(.*)$/.exec(line);
           if (cbMatch) {
-            if (inList !== "ul") { flushList(); inList = "ul"; }
-            const [, , box, rest] = cbMatch;
-            const checked = box.toLowerCase() === "x";
-            const lineNumber = i + 1;
-            const labelHtml = inlineMd(rest);
-            listBuffer.push(
-              `<li class="checkbox-item ${checked ? "done" : ""}">` +
-                `<input type="checkbox" class="checkbox doc-toggle" data-line="${lineNumber}" id="cb-${lineNumber}" name="cb-${lineNumber}" ${checked ? "checked" : ""} />` +
-                `<span class="label">${labelHtml}</span>` +
-              `</li>`
-            );
-            i++;
+            if (listType !== "ul") { flushList(); listType = "ul"; }
+            const checked = cbMatch[2].toLowerCase() === "x";
+            const isHL = task && task.lineNumber === lineNum;
+            listBuf.push(`<li><span class="task-line${isHL ? " is-highlight" : ""}" data-line="${lineNum}"><input type="checkbox" ${checked ? "checked" : ""} disabled />${renderInline(cbMatch[3])}</span></li>`);
             continue;
           }
-
-          const bMatch = /^(\s*)[-*]\s+(.+)$/.exec(line);
-          if (bMatch) {
-            if (inList !== "ul") { flushList(); inList = "ul"; }
-            listBuffer.push(`<li>${inlineMd(bMatch[2])}</li>`);
-            i++;
+          // Unordered list item
+          const ulMatch = /^(\s*)[-*]\s+(.*)$/.exec(line);
+          if (ulMatch) {
+            if (listType !== "ul") { flushList(); listType = "ul"; }
+            listBuf.push(`<li>${renderInline(ulMatch[2])}</li>`);
             continue;
           }
-
-          const oMatch = /^(\s*)(\d+)\.\s+(.+)$/.exec(line);
-          if (oMatch) {
-            if (inList !== "ol") { flushList(); inList = "ol"; }
-            listBuffer.push(`<li>${inlineMd(oMatch[3])}</li>`);
-            i++;
+          // Ordered list item
+          const olMatch = /^(\s*)\d+\.\s+(.*)$/.exec(line);
+          if (olMatch) {
+            if (listType !== "ol") { flushList(); listType = "ol"; }
+            listBuf.push(`<li>${renderInline(olMatch[2])}</li>`);
             continue;
           }
-
-          if (/^\s*$/.test(line)) {
-            flushList();
-            i++;
-            continue;
-          }
-
+          // Paragraph / blank
+          if (!line.trim()) { flushList(); continue; }
           flushList();
-          const para = [line];
-          i++;
-          while (i < lines.length && lines[i].trim() && !/^(#{1,6}\s|>\s|```|---|\s*[-*]\s|\s*\d+\.\s|\s*\|.+\|\s*$)/.test(lines[i])) {
-            para.push(lines[i]);
-            i++;
-          }
-          out.push(`<p>${inlineMd(para.join(" "))}</p>`);
+          out.push(`<p>${renderInline(line)}</p>`);
         }
         flushList();
-        return { html: out.join("\n"), headings };
+        flushTable();
+        if (inCode) out.push(`<pre><code>${escapeHtml(codeBuf.join("\n"))}</code></pre>`);
+        return out.join("\n");
       }
 
-      // Wrap H2-and-following content into collapsible <section>s. Anything
-      // before the first H2 stays as a preamble. H1 stays at top, untouched.
-      function wrapH2Sections(html) {
-        const tpl = document.createElement("template");
-        tpl.innerHTML = html;
-        const frag = tpl.content;
-        const out = document.createDocumentFragment();
-        let preamble = document.createElement("div");
-        preamble.className = "doc-preamble";
-        let currentSection = null;
-        let firstH2Seen = false;
-
-        const children = Array.from(frag.childNodes);
-        for (const node of children) {
-          if (node.nodeType === 1 && node.tagName === "H2") {
-            firstH2Seen = true;
-            if (currentSection) out.appendChild(currentSection);
-            currentSection = document.createElement("section");
-            currentSection.className = "h2-section open";
-            const id = node.id || "";
-            const headingText = node.innerHTML;
-            const toggle = document.createElement("button");
-            toggle.type = "button";
-            toggle.className = "h2-toggle";
-            toggle.dataset.target = id;
-            toggle.innerHTML = `
-              <svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6,3 11,8 6,13"/></svg>
-              <span>${headingText}</span>
-            `;
-            // Move the H2's id onto the wrapper so anchor jumps still land here.
-            currentSection.id = id;
-            // Replace H2 element with toggle button + body.
-            currentSection.appendChild(toggle);
-            const body = document.createElement("div");
-            body.className = "h2-body";
-            currentSection.appendChild(body);
-          } else if (currentSection) {
-            currentSection.querySelector(".h2-body").appendChild(node);
-          } else {
-            preamble.appendChild(node);
-          }
+      // ----- CMD+K PALETTE -----
+      function openPalette() {
+        state.searchOpen = true;
+        state.searchQuery = "";
+        state.searchSelected = 0;
+        renderPalette();
+        setTimeout(() => $("#palette-input")?.focus(), 0);
+      }
+      function closePalette() {
+        state.searchOpen = false;
+        $("#palette-root").innerHTML = "";
+      }
+      function paletteResults() {
+        const q = state.searchQuery.trim().toLowerCase();
+        if (!q) return [];
+        const tasks = state.tasks.filter(t => !t.archived);
+        const scored = [];
+        for (const t of tasks) {
+          const hay = (t.text + " " + t.source + " " + (t.priority || "")).toLowerCase();
+          const idx = hay.indexOf(q);
+          if (idx === -1) continue;
+          scored.push({ t, score: idx + (t.checked ? 1000 : 0) });
         }
-        if (currentSection) out.appendChild(currentSection);
-        const wrapper = document.createElement("div");
-        if (preamble.childNodes.length) wrapper.appendChild(preamble);
-        if (firstH2Seen) wrapper.appendChild(out);
-        // No H2 case: preamble already contains every node (we moved them).
-        return wrapper.innerHTML;
+        scored.sort((a, b) => a.score - b.score);
+        return scored.slice(0, 30).map(s => s.t);
       }
-
-      // ───────────────────────────────────────────────────────────────────
-      // Toggle handler (writes back to source markdown)
-      // ───────────────────────────────────────────────────────────────────
-      async function onToggle(e) {
-        const cb = e.target;
-        if (!cb.matches(".checkbox")) return;
-        const lineNumber = Number(cb.dataset.line);
-        if (!Number.isFinite(lineNumber)) return;
-        const checked = cb.checked;
-        cb.disabled = true;
-        const doc = docs.find(d => d.id === activeDocId);
-        if (!doc) return;
-        try {
-          const res = await fetch("/toggle", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ docPath: doc.file, lineNumber, checked }),
-          });
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          toast(checked ? "Marked done" : "Re-opened");
-          docCache.delete(activeDocId);
-          await loadActiveDoc(true);
-        } catch (err) {
-          cb.checked = !checked;
-          toast(`Toggle failed: ${err.message}`, "error");
-        } finally {
-          cb.disabled = false;
-        }
-      }
-
-      function onDescToggle(e) {
-        const btn = e.target;
-        const desc = btn.previousElementSibling;
-        const collapsed = desc.classList.toggle("collapsed");
-        btn.textContent = collapsed ? "Show more" : "Show less";
-      }
-
-      // ───────────────────────────────────────────────────────────────────
-      // Library rendering — collapsible accordion
-      // ───────────────────────────────────────────────────────────────────
-      function renderLibraryInto(host) {
-        const needle = docNavTerm.trim().toLowerCase();
-        const visible = docs.filter((d) => {
-          if (!needle) return true;
-          return [d.title, d.file, d.group || "launch"].join(" ").toLowerCase().includes(needle);
-        });
-        const known = new Set(DOC_GROUPS.map(g => g.key));
-        const extras = [...new Set(visible.map(docGroupOf).filter(g => !known.has(g)))]
-          .map(key => ({ key, label: key.replace(/[-_]/g, " ") }));
-        const allGroups = [...DOC_GROUPS, ...extras];
-
-        // If searching, expand all groups with matches.
-        const expandKeys = new Set(openGroups);
-        if (needle) {
-          for (const g of allGroups) {
-            if (visible.some(d => docGroupOf(d) === g.key)) expandKeys.add(g.key);
-          }
-        }
-
-        const groupsHtml = allGroups.map((g) => {
-          const groupDocs = visible.filter(d => docGroupOf(d) === g.key);
-          if (!groupDocs.length) return "";
-          const isOpen = expandKeys.has(g.key);
-          return `
-            <div class="library-group ${isOpen ? "open" : ""} ${g.muted ? "muted" : ""}" data-group="${g.key}">
-              <button class="library-group-head" type="button" aria-expanded="${isOpen}">
-                <span class="left">
-                  <svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6,3 11,8 6,13"/></svg>
-                  <span class="label">${escapeHtml(g.label)}</span>
-                </span>
-                <span class="count">${groupDocs.length}</span>
-              </button>
-              <div class="library-group-items">
-                ${groupDocs.map(doc => `
-                  <button class="doc-btn ${doc.id === activeDocId ? "active" : ""}" data-doc="${doc.id}" type="button">
-                    <span class="doc-label">
-                      <span class="doc-title">${escapeHtml(doc.title)}</span>
-                      <span class="doc-path">${escapeHtml(doc.file)}</span>
-                    </span>
-                    <span class="doc-role">${doc.role === "checklist" ? "tasks" : "doc"}</span>
-                  </button>
-                `).join("")}
+      function renderPalette() {
+        if (!state.searchOpen) { $("#palette-root").innerHTML = ""; return; }
+        const results = paletteResults();
+        if (state.searchSelected >= results.length) state.searchSelected = Math.max(0, results.length - 1);
+        const rows = results.length
+          ? results.map((t, idx) => `
+              <div class="palette-row ${idx === state.searchSelected ? "is-active" : ""}" data-pal-idx="${idx}">
+                <span class="checkbox ${t.checked ? "is-checked" : ""}"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+                <span class="palette-row-text">${renderInline(t.text)}</span>
+                <span class="palette-row-src">${escapeHtml(t.source)}</span>
+              </div>`).join("")
+          : (state.searchQuery.trim() ? `<div class="palette-empty">No matches for "${escapeHtml(state.searchQuery)}".</div>` : `<div class="palette-empty">Start typing to search ${state.tasks.length} tasks.</div>`);
+        $("#palette-root").innerHTML = `
+          <div class="palette-backdrop" id="palette-backdrop">
+            <div class="palette" role="dialog" aria-modal="true">
+              <input id="palette-input" placeholder="Search tasks…" value="${escapeAttr(state.searchQuery)}" autocomplete="off" />
+              <div class="palette-results" id="palette-results">${rows}</div>
+              <div class="palette-foot">
+                <span><span class="kbd">↑</span> <span class="kbd">↓</span> navigate</span>
+                <span><span class="kbd">↵</span> open</span>
+                <span><span class="kbd">esc</span> close</span>
               </div>
             </div>
-          `;
-        }).join("");
-
-        host.innerHTML = `
-          <div class="library-search-wrap">
-            <input type="search" class="library-search" placeholder="Find a document…" value="${escapeHtml(docNavTerm)}" aria-label="Search documents" />
           </div>
-          ${groupsHtml || `<div class="doc-empty">No documents match that search.</div>`}
         `;
-
-        const search = host.querySelector(".library-search");
-        search.addEventListener("input", (e) => {
-          docNavTerm = e.target.value;
-          renderLibraries();
-          // Refocus only in the host the user typed in.
-          const live = host.querySelector(".library-search");
-          if (live) {
-            live.focus();
-            live.setSelectionRange(live.value.length, live.value.length);
+        const input = $("#palette-input");
+        input.addEventListener("input", (e) => { state.searchQuery = e.target.value; state.searchSelected = 0; renderPalette(); setTimeout(() => $("#palette-input")?.focus(), 0); });
+        $("#palette-backdrop").addEventListener("click", (e) => { if (e.target.id === "palette-backdrop") closePalette(); });
+        $("#palette-results").addEventListener("click", (e) => {
+          const r = e.target.closest("[data-pal-idx]");
+          if (!r) return;
+          const idx = Number(r.dataset.palIdx);
+          const t = paletteResults()[idx];
+          if (t) {
+            closePalette();
+            state.cursorId = t.id;
+            openDetail(t);
+            render();
           }
         });
-
-        host.querySelectorAll(".library-group-head").forEach((btn) => {
-          btn.addEventListener("click", () => {
-            const key = btn.parentElement.dataset.group;
-            if (openGroups.has(key)) openGroups.delete(key);
-            else openGroups.add(key);
-            renderLibraries();
-          });
-        });
-
-        host.querySelectorAll(".doc-btn").forEach((btn) => {
-          btn.addEventListener("click", () => {
-            activeDocId = btn.dataset.doc;
-            collapsedH2.clear();
-            closeDrawers();
-            renderLibraries();
-            loadActiveDoc(true);
-          });
-        });
       }
 
-      function renderLibraries() {
-        // Always rebuild both rails so they stay in sync.
-        renderLibraryInto(document.getElementById("library"));
-        renderLibraryInto(document.getElementById("drawer-library-body"));
-        // Ensure the active doc's group is open by default.
-        const active = docs.find(d => d.id === activeDocId);
-        if (active) {
-          const g = docGroupOf(active);
-          if (!openGroups.has(g)) {
-            openGroups.add(g);
-            renderLibraryInto(document.getElementById("library"));
-            renderLibraryInto(document.getElementById("drawer-library-body"));
+      // ----- KEYBOARD -----
+      function visibleFlat() {
+        // Return the flat order of currently rendered rows (matches grouped order)
+        const tasks = visibleTasks();
+        const grouped = groupTasks(tasks);
+        const flat = [];
+        for (const [, list] of grouped) flat.push(...list);
+        return flat;
+      }
+      function moveCursor(delta) {
+        const flat = visibleFlat();
+        if (!flat.length) return;
+        let idx = flat.findIndex(t => t.id === state.cursorId);
+        if (idx === -1) idx = 0;
+        idx = Math.max(0, Math.min(flat.length - 1, idx + delta));
+        state.cursorId = flat[idx].id;
+        render();
+        const el = document.querySelector(`.row[data-id="${CSS.escape(state.cursorId)}"]`);
+        if (el) el.scrollIntoView({ block: "nearest" });
+      }
+      function onKey(e) {
+        // Palette has its own key handling when open.
+        if (state.searchOpen) {
+          if (e.key === "Escape") { e.preventDefault(); closePalette(); return; }
+          if (e.key === "ArrowDown") { e.preventDefault(); state.searchSelected++; renderPalette(); setTimeout(() => $("#palette-input")?.focus(), 0); return; }
+          if (e.key === "ArrowUp")   { e.preventDefault(); state.searchSelected = Math.max(0, state.searchSelected - 1); renderPalette(); setTimeout(() => $("#palette-input")?.focus(), 0); return; }
+          if (e.key === "Enter") {
+            e.preventDefault();
+            const t = paletteResults()[state.searchSelected];
+            if (t) { closePalette(); state.cursorId = t.id; openDetail(t); render(); }
+            return;
           }
+          return;
+        }
+        const inEditable = e.target.closest("input, textarea, [contenteditable]");
+        // Cmd/Ctrl+K toggles palette regardless of focus
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+          e.preventDefault();
+          openPalette();
+          return;
+        }
+        if (inEditable) return;
+        if (e.key === "Escape" && state.openId) { e.preventDefault(); closeDetail(); return; }
+        if (e.key === "j" || e.key === "ArrowDown") { e.preventDefault(); moveCursor(1); return; }
+        if (e.key === "k" || e.key === "ArrowUp")   { e.preventDefault(); moveCursor(-1); return; }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          const t = state.tasks.find(t => t.id === state.cursorId);
+          if (t) openDetail(t);
+          return;
+        }
+        if (e.key === " " || e.key === "x") {
+          e.preventDefault();
+          const t = state.tasks.find(t => t.id === state.cursorId);
+          if (t) handleToggle(t);
+          return;
+        }
+        if (e.key === "/") {
+          e.preventDefault();
+          openPalette();
+          return;
         }
       }
 
-      // ───────────────────────────────────────────────────────────────────
-      // TOC rendering (right rail + drawer)
-      // ───────────────────────────────────────────────────────────────────
-      function renderTOC(headings) {
-        const items = (headings || []).filter(h => h.depth === 2 || h.depth === 3);
-        const html = items.length
-          ? `<div class="toc-list">` + items.map(h =>
-              `<a href="#${h.anchor}" class="depth-${h.depth}"><span>${escapeHtml(h.text)}</span></a>`
-            ).join("") + `</div>`
-          : `<div class="toc-empty">No sections.</div>`;
-
-        const rail = document.getElementById("toc-rail");
-        rail.innerHTML = items.length ? `<h4>On this page</h4>${html}` : "";
-
-        const drawerBody = document.getElementById("drawer-toc-body");
-        drawerBody.innerHTML = html;
-
-        const fab = document.getElementById("toc-fab");
-        const btn = document.getElementById("btn-toc");
-        if (items.length) {
-          fab.classList.add("has-toc");
-          btn.hidden = false;
-        } else {
-          fab.classList.remove("has-toc");
-          btn.hidden = true;
-        }
-
-        // Wire anchor clicks in the drawer to close after jumping.
-        drawerBody.querySelectorAll("a").forEach((a) => {
-          a.addEventListener("click", () => {
-            closeDrawers();
-            // Make sure the section is open if user jumps into it.
-            const id = a.getAttribute("href").slice(1);
-            const sec = document.getElementById(id);
-            if (sec && sec.classList.contains("h2-section") && !sec.classList.contains("open")) {
-              sec.classList.add("open");
-              collapsedH2.delete(id);
-            }
-          });
-        });
+      // ----- TOAST -----
+      let toastTimer;
+      function toast(msg) {
+        const el = $("#toast");
+        el.textContent = msg;
+        el.classList.add("is-visible");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.remove("is-visible"), 1800);
       }
 
-      // ───────────────────────────────────────────────────────────────────
-      // Checklist mode
-      // ───────────────────────────────────────────────────────────────────
-      function anchorize(s) {
-        return "s-" + s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-      }
-
-      function renderChecklist(items) {
-        const root = document.getElementById("root");
-        const counts = { done: 0, partial: 0, missing: 0, open: 0 };
-        for (const it of items) counts[it.status]++;
-        const total = items.length || 1;
-
-        const catCounts = {};
-        for (const it of items) catCounts[it.category] = (catCounts[it.category] || 0) + 1;
-        const cats = Object.entries(catCounts).sort((a, b) => b[1] - a[1]);
-
-        const filtered = items.filter((it) => {
-          if (activeStatus !== "all" && it.status !== activeStatus) return false;
-          if (activeCategory !== "all" && it.category !== activeCategory) return false;
-          if (searchTerm) {
-            const hay = (it.title + " " + it.desc + " " + it.section).toLowerCase();
-            if (!hay.includes(searchTerm)) return false;
-          }
-          return true;
-        });
-
-        const grouped = new Map();
-        for (const it of filtered) {
-          const key = it.headingPath.slice(1).join(" › ") || it.headingPath[0] || "Top";
-          if (!grouped.has(key)) grouped.set(key, { items: [], category: it.category });
-          grouped.get(key).items.push(it);
-        }
-
-        // Build TOC for the right rail / drawer (one entry per section).
-        const tocHeadings = [...grouped.entries()].map(([section]) => ({
-          depth: 2,
-          text: section.split(" › ").pop() || section,
-          anchor: anchorize(section),
-        }));
-        renderTOC(tocHeadings);
-
-        root.innerHTML = `
-          <div class="scorecard">
-            <div class="score done"><div class="num">${counts.done}</div><div class="label">Done</div></div>
-            <div class="score partial"><div class="num">${counts.partial}</div><div class="label">Partial</div></div>
-            <div class="score missing"><div class="num">${counts.missing}</div><div class="label">Missing</div></div>
-            <div class="score open"><div class="num">${counts.open}</div><div class="label">Open</div></div>
-          </div>
-          <div class="progress-bar">
-            <div class="seg done" style="width: ${(counts.done / total) * 100}%"></div>
-            <div class="seg partial" style="width: ${(counts.partial / total) * 100}%"></div>
-            <div class="seg missing" style="width: ${(counts.missing / total) * 100}%"></div>
-            <div class="seg open" style="width: ${(counts.open / total) * 100}%"></div>
-          </div>
-          <div class="filters">
-            <div class="chip-row scroll" id="status-filter">
-              ${[["all", "All", items.length], ["open", "Open", counts.open], ["missing", "Missing", counts.missing], ["partial", "Partial", counts.partial], ["done", "Done", counts.done]]
-                .map(([k, label, n]) => `<button class="chip ${activeStatus === k ? "active" : ""}" data-status="${k}">${label}<span class="count">${n}</span></button>`).join("")}
-            </div>
-            <div class="chip-row scroll" id="category-filter">
-              <button class="chip ${activeCategory === "all" ? "active" : ""}" data-cat="all">All categories</button>
-              ${cats.map(([cat, n]) => `<button class="chip ${activeCategory === cat ? "active" : ""}" data-cat="${cat}">${escapeHtml(cat)}<span class="count">${n}</span></button>`).join("")}
-            </div>
-            <input type="search" class="search" id="search" placeholder="Search items…" value="${escapeHtml(searchTerm)}" />
-          </div>
-          <div>${grouped.size === 0 ? `<div class="empty">No items match these filters.</div>` :
-            [...grouped.entries()].map(([section, { items, category }]) => `
-              <section class="check-section" id="${anchorize(section)}">
-                <h2>${escapeHtml(section.split(" › ").pop() || section)}</h2>
-                <div class="section-meta">
-                  <span class="cat-tag">${escapeHtml(category)}</span>
-                  ${escapeHtml(section)}
-                </div>
-                ${items.map(renderItem).join("")}
-              </section>
-            `).join("")
-          }</div>
-        `;
-
-        root.querySelector("#status-filter").addEventListener("click", (e) => {
-          const btn = e.target.closest(".chip");
-          if (!btn) return;
-          activeStatus = btn.dataset.status;
-          renderChecklist(items);
-        });
-        root.querySelector("#category-filter").addEventListener("click", (e) => {
-          const btn = e.target.closest(".chip");
-          if (!btn) return;
-          activeCategory = btn.dataset.cat;
-          renderChecklist(items);
-        });
-        root.querySelector("#search").addEventListener("input", (e) => {
-          searchTerm = e.target.value.trim().toLowerCase();
-          renderChecklist(items);
-        });
-        root.querySelectorAll(".checkbox").forEach((cb) => cb.addEventListener("change", onToggle));
-        root.querySelectorAll(".desc-toggle").forEach((btn) => btn.addEventListener("click", onDescToggle));
-      }
-
-      function renderItem(it) {
-        const checked = it.status === "done" ? "checked" : "";
-        const showMore = it.desc && it.desc.length > 220;
-        const descHtml = it.desc ? inlineMd(it.desc.split(/\n\s*\n/)[0].trim()) : "";
-        return `
-          <article class="item ${it.status === "done" ? "done" : ""}">
-            <input type="checkbox" class="checkbox" id="cb-${it.lineNumber}" name="cb-${it.lineNumber}" data-line="${it.lineNumber}" ${checked} aria-label="Toggle ${escapeHtml(it.title.slice(0, 60))}" />
-            <div class="body">
-              <div class="title">${inlineMd(it.title)}</div>
-              ${descHtml ? `<div class="desc${showMore ? " collapsed" : ""}">${descHtml}</div>` : ""}
-              ${showMore ? `<button class="desc-toggle">Show more</button>` : ""}
-            </div>
-            <span class="status-pill ${it.status}">${STATUS_LABEL[it.status]}</span>
-          </article>
-        `;
-      }
-
-      // ───────────────────────────────────────────────────────────────────
-      // Doc mode
-      // ───────────────────────────────────────────────────────────────────
-      function renderDoc(rendered) {
-        const root = document.getElementById("root");
-        const wrappedHtml = wrapH2Sections(rendered.html);
-        root.innerHTML = `<div class="doc-content">${wrappedHtml}</div>`;
-        renderTOC(rendered.headings);
-
-        // Reapply collapsed state from this doc-render cycle.
-        root.querySelectorAll(".h2-section").forEach((sec) => {
-          const id = sec.id;
-          if (collapsedH2.has(id)) sec.classList.remove("open");
-        });
-
-        // H2 toggle behavior.
-        root.querySelectorAll(".h2-toggle").forEach((toggle) => {
-          toggle.addEventListener("click", () => {
-            const sec = toggle.closest(".h2-section");
-            const id = sec.id;
-            const willOpen = !sec.classList.contains("open");
-            sec.classList.toggle("open", willOpen);
-            if (willOpen) collapsedH2.delete(id);
-            else collapsedH2.add(id);
-          });
-        });
-
-        root.querySelectorAll(".checkbox").forEach((cb) => cb.addEventListener("change", onToggle));
-      }
-
-      // ───────────────────────────────────────────────────────────────────
-      // Drawer behavior
-      // ───────────────────────────────────────────────────────────────────
-      const overlay = document.getElementById("drawer-overlay");
-      const drawerLib = document.getElementById("drawer-library");
-      const drawerToc = document.getElementById("drawer-toc");
-
-      function openDrawer(which) {
-        closeDrawers();
-        if (which === "library") drawerLib.classList.add("open");
-        if (which === "toc") drawerToc.classList.add("open");
-        overlay.classList.add("open");
-      }
-      function closeDrawers() {
-        drawerLib.classList.remove("open");
-        drawerToc.classList.remove("open");
-        overlay.classList.remove("open");
-      }
-      overlay.addEventListener("click", closeDrawers);
-      document.querySelectorAll("[data-close-drawer]").forEach((b) => b.addEventListener("click", closeDrawers));
-      document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") closeDrawers();
-      });
-
-      document.getElementById("btn-library").addEventListener("click", () => openDrawer("library"));
-      document.getElementById("btn-toc").addEventListener("click", () => openDrawer("toc"));
-      document.getElementById("toc-fab").addEventListener("click", () => openDrawer("toc"));
-
-      // ───────────────────────────────────────────────────────────────────
-      // Loading
-      // ───────────────────────────────────────────────────────────────────
-      async function loadDocList() {
-        const res = await fetch("/docs", { cache: "no-store" });
-        const { docs: list } = await res.json();
-        docs = list;
-        // If the URL hash references a known doc id, switch to it.
-        const hash = location.hash.replace(/^#/, "");
-        if (hash && docs.some(d => d.id === hash)) activeDocId = hash;
-        else if (!docs.some(d => d.id === activeDocId)) {
-          // Fallback: prefer playbook → checklist → first doc.
-          if (docs.some(d => d.id === "playbook")) activeDocId = "playbook";
-          else if (docs.some(d => d.id === "checklist")) activeDocId = "checklist";
-          else if (docs[0]) activeDocId = docs[0].id;
+      // ----- RENDER ENTRY -----
+      function render() {
+        renderSidebar();
+        renderTaskList();
+        renderFilterBar();
+        // If detail open and the task no longer exists (e.g., removed from
+        // file), close the slide-over so we don't render stale content.
+        if (state.openId && !state.tasks.some(t => t.id === state.openId)) {
+          closeDetail();
         }
       }
 
-      async function loadActiveDoc(force = false) {
-        const doc = docs.find(d => d.id === activeDocId);
-        if (!doc) return;
-        document.getElementById("active-doc-title").textContent = doc.title;
-
+      // ----- POLL LOOP -----
+      let pollTimer;
+      async function refresh() {
         try {
-          const res = await fetch(`/docs/${encodeURIComponent(doc.file)}`, { cache: "no-store" });
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const mtime = Number(res.headers.get("x-mtime") || 0);
-          const cached = docCache.get(activeDocId);
-          if (!force && cached && cached.mtime === mtime) return;
-          const md = await res.text();
-          docCache.set(activeDocId, { content: md, mtime });
-
-          if (doc.role === "checklist") {
-            const items = parseChecklist(md);
-            renderChecklist(items);
-          } else {
-            const rendered = renderMarkdown(md);
-            renderDoc(rendered);
+          const tasks = await fetchTasks();
+          state.tasks = tasks;
+          state.loading = false;
+          render();
+          // If the open detail's source file changed, re-fetch markdown so
+          // the slide-over reflects the edit immediately.
+          if (state.openId) {
+            const t = tasks.find(x => x.id === state.openId);
+            if (t) {
+              try {
+                const { content, mtime } = await fetchDoc(t.docPath);
+                if (mtime !== state.openMtime) {
+                  state.openMarkdown = content;
+                  state.openMtime = mtime;
+                  $("#detail").innerHTML = renderDetailShell(t, false);
+                }
+              } catch {}
+            }
           }
-          // Scroll to top on doc switch (force=true).
-          if (force) document.querySelector(".main").scrollTo({ top: 0 });
         } catch (err) {
+          state.loading = false;
+          render();
           console.error(err);
-          toast(`Load failed: ${err.message}`, "error");
         }
       }
-
-      // ───────────────────────────────────────────────────────────────────
-      // Boot + live polling
-      // ───────────────────────────────────────────────────────────────────
-      async function boot() {
-        await loadDocList();
-        // Open the active doc's group by default.
-        const active = docs.find(d => d.id === activeDocId);
-        if (active) openGroups.add(docGroupOf(active));
-        // Always start with launch-control surfaces visible to give context.
-        openGroups.add("core");
-        renderLibraries();
-        await loadActiveDoc(true);
+      function startPolling() {
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = setInterval(refresh, 2500);
       }
-      boot();
 
-      setInterval(() => loadActiveDoc(false), 2500);
+      // ----- WIRE -----
+      document.getElementById("tasklist").addEventListener("click", onTaskListClick);
+      document.getElementById("search-btn").addEventListener("click", openPalette);
+      document.getElementById("detail").addEventListener("click", (e) => {
+        if (e.target.closest("[data-close-detail]")) closeDetail();
+      });
+      window.addEventListener("keydown", onKey);
 
-      // Update hash on doc switch so deep links work.
-      const _prevLoad = loadActiveDoc;
-      // (No-op — hash sync happens implicitly via boot's hash-read; if you
-      //  want hash-write on switch, uncomment below.)
-      // window.addEventListener("hashchange", () => { ... });
+      // Initial state
+      render();
+      refresh().then(startPolling);
+    })();
     </script>
   </body>
 </html>
