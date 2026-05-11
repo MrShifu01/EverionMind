@@ -924,37 +924,6 @@ export async function enrichInline(
   // this row. recompute below rewrites it to a final state.
   await setEnrichmentState(entryId, "processing");
 
-  // Gmail safety net: if this is a Gmail entry with attachments listed but
-  // attachment_text not yet extracted, pull it first. Means the LLM steps
-  // below see the full text. Belt-and-braces — covers entries that were
-  // auto-accepted at scan time but had their fire-and-forget extract call
-  // killed by Vercel, AND historical entries imported before extraction
-  // was wired up. Idempotent — extractGmailAttachmentsForEntry short-
-  // circuits when attachment_text is already present.
-  const needsGmailExtract =
-    entry.metadata?.source === "gmail" &&
-    typeof entry.metadata?.gmail_message_id === "string" &&
-    Array.isArray(entry.metadata?.attachments) &&
-    entry.metadata.attachments.length > 0 &&
-    (typeof entry.metadata?.attachment_text !== "string" ||
-      entry.metadata.attachment_text.length === 0);
-  if (needsGmailExtract) {
-    try {
-      const mod = await import("./gmailScan.js");
-      await mod.extractGmailAttachmentsForEntry(entryId, userId);
-      // Re-fetch so workingMeta below sees the new attachment_text. Without
-      // this the LLM steps would still operate on the pre-extract metadata.
-      const refreshed = await fetchEntry(entryId, userId);
-      if (refreshed) entry = refreshed;
-    } catch (err: any) {
-      console.error(
-        "[enrich:gmail-extract]",
-        entryId,
-        String(err?.message ?? err).slice(0, 200),
-      );
-    }
-  }
-
   const flags = flagsOf(entry);
   let changed = false;
   let workingMeta = entry.metadata ?? {};

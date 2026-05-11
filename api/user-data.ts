@@ -23,7 +23,6 @@ import {
 import { resolveTier, writePlanChange, type Tier } from "./_lib/billing.js";
 import crypto from "crypto";
 import webpush from "web-push";
-import { runGmailScanAllUsers } from "./_lib/gmailScan.js";
 import { enrichAllBrains } from "./_lib/enrich.js";
 import { verifyCronBearer } from "./_lib/cronAuth.js";
 import { runPersonaDecayPass, runPersonaWeeklyPass } from "./_lib/personaHygiene.js";
@@ -1921,7 +1920,7 @@ const handlePin = withAuth(
 
 // ── /api/user-data?resource=full_export — full account data dump (GDPR right of access) ──
 // Returns one JSON of every public-schema row owned by the requester. Sensitive
-// integration tokens (gmail/calendar) are stripped — the user already has the
+// integration tokens (calendar) are stripped — the user already has the
 // underlying provider account, and we don't hand back OAuth refresh tokens.
 const FULL_EXPORT_TABLES: Array<{ table: string; col: string; strip?: string[] }> = [
   { table: "entries", col: "user_id" },
@@ -1936,7 +1935,6 @@ const FULL_EXPORT_TABLES: Array<{ table: string; col: string; strip?: string[] }
   { table: "notification_prefs", col: "user_id" },
   { table: "notifications", col: "user_id" },
   { table: "push_subscriptions", col: "user_id", strip: ["endpoint", "p256dh", "auth"] },
-  { table: "gmail_integrations", col: "user_id", strip: ["refresh_token", "access_token"] },
   { table: "calendar_integrations", col: "user_id", strip: ["refresh_token", "access_token"] },
   { table: "messaging_connections", col: "user_id" },
   { table: "user_api_keys", col: "user_id", strip: ["key_hash"] },
@@ -2749,8 +2747,8 @@ async function handleCronHourly(req: ApiRequest, res: ApiResponse): Promise<void
 // ── /api/cron/daily (rewritten to /api/user-data?resource=cron-daily) ──
 //
 // Heavy work that should fire once per day regardless of any user's tz:
-// Gmail inbox scan, enrich-all-brains catch-up, persona hygiene. The
-// per-user time-aware push notifications now live in handleCronHourly.
+// enrich-all-brains catch-up + persona hygiene. The per-user time-aware
+// push notifications now live in handleCronHourly.
 async function handleCronDaily(req: ApiRequest, res: ApiResponse): Promise<void> {
   const auth = (req.headers as any).authorization as string | undefined;
   if (!process.env.CRON_SECRET || !verifyCronBearer(auth, process.env.CRON_SECRET)) {
@@ -2762,14 +2760,6 @@ async function handleCronDaily(req: ApiRequest, res: ApiResponse): Promise<void>
   const pub = process.env.VAPID_PUBLIC_KEY;
   const priv = process.env.VAPID_PRIVATE_KEY;
   if (subject && pub && priv) webpush.setVapidDetails(subject, pub, priv);
-
-  // ── Gmail inbox scan ──
-  const gmailResults = envFlagEnabled("GMAIL_CRON_DISABLE")
-    ? { users: 0, created: 0, errors: 0, disabled: true }
-    : await runGmailScanAllUsers().catch((e) => {
-        console.error("[cron/daily] gmail scan failed:", e);
-        return { users: 0, created: 0, errors: 1 };
-      });
 
   // ── Enrich every brain — daily catch-up pass for entries inline didn't cover ──
   const enrichResults = envFlagEnabled("ENRICH_CRON_DISABLE")
@@ -2819,7 +2809,6 @@ async function handleCronDaily(req: ApiRequest, res: ApiResponse): Promise<void>
         const adminSub = admin?.user_metadata?.push_subscription;
         const summaryOn = admin?.user_metadata?.notification_prefs?.admin_summary_enabled === true;
         const summaryBody =
-          `gmail ${gmailResults.created}/${gmailResults.users}u · ` +
           `enrich ${enrichResults.processed}/${enrichResults.brains}b · ` +
           `decay ${personaDecay.decayed}d ${personaDecay.archived}a`;
         const summaryTitle = "Everion · daily cron ✓";
@@ -2849,7 +2838,6 @@ async function handleCronDaily(req: ApiRequest, res: ApiResponse): Promise<void>
         // platform without web-push support, or subscription expired).
         if (summaryOn && admin?.id) {
           await insertCronNotification(admin.id, "cron_summary", summaryTitle, summaryBody, {
-            gmail: gmailResults,
             enrich: enrichResults,
             persona_decay: personaDecay,
             persona_weekly: personaWeekly,
@@ -2863,7 +2851,6 @@ async function handleCronDaily(req: ApiRequest, res: ApiResponse): Promise<void>
   }
 
   return void res.status(200).json({
-    gmail: gmailResults,
     enrich: enrichResults,
     persona_decay: personaDecay,
     persona_weekly: personaWeekly,

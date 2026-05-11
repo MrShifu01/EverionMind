@@ -11,13 +11,6 @@ import { computeCompletenessScore } from "./_lib/completeness.js";
 import { SERVER_PROMPTS } from "./_lib/prompts.js";
 import { enrichInline, enrichBrain } from "./_lib/enrich.js";
 import { flagsOf } from "./_lib/enrichFlags.js";
-import { distillGmailForUser, loadRecentGmailDecisions } from "./_lib/distillGmail.js";
-import { recordPatternDecision } from "./_lib/gmailPatternScore.js";
-import {
-  buildPrompt as buildGmailPrompt,
-  defaultPreferences as defaultGmailPreferences,
-  type GmailLearnings,
-} from "./_lib/gmailScan.js";
 import { handleDeleteEntry } from "./_lib/handlers/entryDelete.js";
 import {
   handleMerge as handleMergeExtracted,
@@ -58,9 +51,9 @@ function rateLimitForEntries(req: ApiRequest): number {
 }
 
 // Per-action rate-limit key suffix. Without this, every ?action=* GET shares
-// the bare /api/entries bucket with the memory-feed list call — so opening
-// the admin "Live Gmail Prompt" panel after a normal session would 429 on
-// the first click. Action and resource queries get their own buckets so
+// the bare /api/entries bucket with the memory-feed list call — so the
+// admin debug panels would 429 the first time you opened them after a
+// normal session. Action and resource queries get their own buckets so
 // admin/debug paths don't compete with the feed.
 function rateLimitKeyForEntries(req: ApiRequest): string | undefined {
   const action = req.query.action as string | undefined;
@@ -98,11 +91,6 @@ export default withAuth(
       return handlePersonaPromptExtracted(ctx);
     if (ctx.req.method === "POST" && action === "distill-rejected")
       return handleDistillRejectedExtracted(ctx);
-    if (ctx.req.method === "POST" && action === "distill-gmail")
-      return handleDistillGmail(ctx);
-    if (ctx.req.method === "POST" && action === "gmail-decision")
-      return handleGmailDecision(ctx);
-    if (ctx.req.method === "GET" && action === "gmail-prompt") return handleGmailPrompt(ctx);
     if (ctx.req.method === "POST" && action === "enrich-clear-backfill")
       return handleClearBackfill(ctx);
     if (ctx.req.method === "POST" && action === "enrich-retry-failed")
@@ -367,25 +355,13 @@ async function handlePatch({ req, res, user, req_id, log }: HandlerContext): Pro
   // Run enrichment BEFORE the response so the user sees fully-enriched state
   // on the next render. Previous fire-and-forget pattern was unreliable on
   // Vercel — the function instance gets killed after res.send so the IIFE
-  // often never completed (proof: today's accepted Gmail entries had
-  // enrichment.parsed=false with no last_error — meaning the step never
-  // ran, not that it failed). Trade-off: PATCH is now slower (3-5s with
+  // often never completed. Trade-off: PATCH is now slower (3-5s with
   // multiple LLM calls) but every entry is fully enriched on first try.
   // Hourly cron sweep (cron-hourly) is the safety net for any path that
   // somehow misses this — but the inline path should now succeed 100% of
   // the time the LLM is reachable.
   const promotedToActive = patch.status === "active";
   if (response.ok && (titleChanged || contentChanged || promotedToActive)) {
-    if (promotedToActive && entry?.metadata?.source === "gmail") {
-      // Gmail accept: pull attachments first so enrichInline's parse +
-      // concept steps see attachment_text in metadata.
-      try {
-        const mod = await import("./_lib/gmailScan.js");
-        await mod.extractGmailAttachmentsForEntry(id, user.id);
-      } catch (e) {
-        console.error("[entries:patch] attachment extract failed", e);
-      }
-    }
     try {
       await enrichInline(id, user.id);
     } catch (e) {
@@ -877,225 +853,6 @@ async function handleEnrichBatch({ req, res, user }: HandlerContext): Promise<vo
 
 // Persona handlers (backfill / revert / wipe / audit / persona-prompt /
 // distill-rejected) live in _lib/handlers/entryPersona.ts.
-
-// ── POST /api/entries?action=distill-gmail — admin only ──
-// On-demand Gmail accept/reject distillation. Same shape as the persona
-// version; refreshes accepted_summary + rejected_summary on gmail_integrations.
-async function handleDistillGmail({ res, user }: HandlerContext): Promise<void> {
-  if (!isAdminUser(user)) throw new ApiError(403, "Forbidden");
-  const result = await distillGmailForUser(user.id);
-  res.status(result.ok ? 200 : 502).json(result);
-}
-
-// ── POST /api/entries?action=gmail-decision ──
-// Records a user's accept/reject of a staged Gmail entry. The decision row
-// becomes part of the learning set the classifier prompt reads from on the
-// next scan. After every 20 decisions we fire a fire-and-forget distill so
-// the rules stay current without manual intervention.
-async function handleGmailDecision({ req, res, user, req_id }: HandlerContext): Promise<void> {
-  const { decision, subject, from_email, from_name, snippet, reason, source_id, cluster_size } =
-    bodyObject(req.body);
-  if (decision !== "accept" && decision !== "reject") {
-    throw new ApiError(400, "decision must be 'accept' or 'reject'");
-  }
-  // Clamp cluster weight to [1, 50]. Cap=50 prevents a runaway scanner
-  // from poisoning a pattern in one tap; floor=1 keeps non-cluster rows
-  // sane.
-  const clusterWeight =
-    typeof cluster_size === "number" && Number.isFinite(cluster_size)
-      ? Math.max(1, Math.min(50, Math.round(cluster_size)))
-      : 1;
-  const row: Record<string, unknown> = {
-    user_id: user.id,
-    decision,
-    subject: typeof subject === "string" ? subject.slice(0, 500) : null,
-    from_email: typeof from_email === "string" ? from_email.slice(0, 200) : null,
-    from_name: typeof from_name === "string" ? from_name.slice(0, 200) : null,
-    snippet: typeof snippet === "string" ? snippet.slice(0, 600) : null,
-    reason: typeof reason === "string" ? reason.slice(0, 200) : null,
-    source_id: typeof source_id === "string" ? source_id.slice(0, 100) : null,
-  };
-  const insert = await fetch(`${SB_URL}/rest/v1/gmail_decisions`, {
-    method: "POST",
-    headers: sbHeaders({ Prefer: "return=minimal" }),
-    body: JSON.stringify(row),
-  });
-  if (!insert.ok) {
-    const body = await insert.text().catch(() => "");
-    throw new ApiError(502, `gmail_decisions insert HTTP ${insert.status}: ${body.slice(0, 200)}`);
-  }
-  writeAuditLog({
-    userId: user.id,
-    action: "gmail_decision",
-    metadata: {
-      decision,
-      source_id: row.source_id,
-      cluster_weight: clusterWeight,
-      requestId: req_id,
-      resourceId: row.source_id ?? undefined,
-    },
-  });
-
-  // Auto-fire distill at multiples of 20. Fire-and-forget so the user's
-  // accept/reject roundtrip stays snappy.
-  const countRes = await fetch(
-    `${SB_URL}/rest/v1/gmail_decisions?user_id=eq.${encodeURIComponent(user.id)}&select=id`,
-    { headers: sbHeaders({ Prefer: "count=exact" }) },
-  ).catch(() => null);
-  const total = parseInt(
-    countRes?.headers.get("content-range")?.split("/")[1] || "0",
-    10,
-  );
-  if (total > 0 && total % 20 === 0) {
-    distillGmailForUser(user.id).catch(() => {});
-  }
-
-  // Pattern-rule scoring (Alt 1 — see api/_lib/gmailPatternScore.ts). Embeds
-  // the email, finds nearest pattern at cosine ≥ 0.82, bumps accept/reject
-  // score capped at 10, and starts a 7-day probation when accept_score first
-  // crosses 8. Fire-and-forget so the staging-inbox tap stays snappy.
-  recordPatternDecision({
-    userId: user.id,
-    decision,
-    subject: row.subject as string | null,
-    from_email: row.from_email as string | null,
-    from_name: row.from_name as string | null,
-    snippet: row.snippet as string | null,
-    reason: row.reason as string | null,
-    weight: clusterWeight,
-  }).catch((e) => console.error("[gmail-pattern] decision recorder failed:", e));
-
-  res.status(200).json({ ok: true, total });
-}
-
-// ── GET /api/entries?action=gmail-prompt — admin only ──
-// Returns the live Gmail classifier learnings + a sample rendered prompt so
-// the admin debug panel can show the same "watch it learn" view we have
-// for persona.
-async function handleGmailPrompt({ res, user }: HandlerContext): Promise<void> {
-  if (!isAdminUser(user)) throw new ApiError(403, "Forbidden");
-
-  // Single parallel wave for everything the panel needs. The previous shape
-  // was 7 sequential round-trips: integration → dynamic import → recent
-  // decisions → count(accept) → count(reject) → loadGmailLearnings (which
-  // calls recent decisions A SECOND TIME) → buildPrompt. On a cold lambda
-  // that easily took 1.5–3 s. Now: one wave of 4 fetches in parallel, then
-  // CPU-only prompt assembly with the recent decisions already in hand.
-  const userIdEnc = encodeURIComponent(user.id);
-  const [integRes, recent, cAcc, cRej] = await Promise.all([
-    fetch(
-      `${SB_URL}/rest/v1/gmail_integrations?user_id=eq.${userIdEnc}&select=accepted_summary,rejected_summary,summary_updated_at,preferences&limit=1`,
-      { headers: sbHeadersNoContent() },
-    ),
-    loadRecentGmailDecisions(user.id, 5).catch(() => ({ accepts: [], rejects: [] })),
-    fetch(
-      `${SB_URL}/rest/v1/gmail_decisions?user_id=eq.${userIdEnc}&decision=eq.accept&select=id&limit=1`,
-      { headers: sbHeaders({ Prefer: "count=exact" }) },
-    ),
-    fetch(
-      `${SB_URL}/rest/v1/gmail_decisions?user_id=eq.${userIdEnc}&decision=eq.reject&select=id&limit=1`,
-      { headers: sbHeaders({ Prefer: "count=exact" }) },
-    ),
-  ]);
-
-  if (!integRes.ok) throw new ApiError(502, `gmail_integrations HTTP ${integRes.status}`);
-  const rows: any[] = await integRes.json();
-  const integ = rows[0] ?? null;
-  if (!integ) {
-    res.status(200).json({
-      connected: false,
-      acceptedSummary: null,
-      rejectedSummary: null,
-      summaryUpdatedAt: null,
-      recentAccepts: [],
-      recentRejects: [],
-      counts: { accepts: 0, rejects: 0 },
-      prompt: null,
-    });
-    return;
-  }
-
-  const accepts = parseInt(cAcc.headers.get("content-range")?.split("/")[1] || "0", 10);
-  const rejects = parseInt(cRej.headers.get("content-range")?.split("/")[1] || "0", 10);
-
-  // Catch-up distill — the auto-trigger in the staging endpoint only fires
-  // every 20 decisions, which leaves a gap when a user crosses the
-  // MIN_FOR_DISTILL threshold (3) for the first time. If we have enough
-  // signal for a side but no summary yet, fire-and-forget so the panel
-  // populates on the next refresh (or the auto-reload below).
-  const MIN_FOR_DISTILL = 3;
-  const acceptedSummary = (integ.accepted_summary ?? "").trim() || null;
-  const rejectedSummary = (integ.rejected_summary ?? "").trim() || null;
-  const acceptsNeedDistill = accepts >= MIN_FOR_DISTILL && !acceptedSummary;
-  const rejectsNeedDistill = rejects >= MIN_FOR_DISTILL && !rejectedSummary;
-  const pending_distill = acceptsNeedDistill || rejectsNeedDistill;
-  if (pending_distill) {
-    distillGmailForUser(user.id).catch((e) =>
-      console.error("[gmail-prompt] catch-up distill failed:", e?.message ?? e),
-    );
-  }
-
-  // Render the literal classifier prompt template the live scan uses, with
-  // a placeholder block instead of real email threads. Same buildPrompt the
-  // runtime calls — what you see is exactly what Gemini sees, minus the
-  // per-scan thread data. We assemble GmailLearnings inline from what we
-  // already fetched, instead of calling loadGmailLearnings (which would
-  // trigger a second loadRecentGmailDecisions round-trip).
-  let prompt: string | null = null;
-  try {
-    const learnings: GmailLearnings = {
-      acceptedSummary: (integ.accepted_summary ?? "").trim() || null,
-      rejectedSummary: (integ.rejected_summary ?? "").trim() || null,
-      recentAccepts: recent.accepts.map((a) => ({
-        subject: a.subject,
-        from: a.from,
-        reason: a.reason,
-      })),
-      recentRejects: recent.rejects.map((r) => ({
-        subject: r.subject,
-        from: r.from,
-        reason: r.reason,
-      })),
-      // Admin debug panel doesn't fetch scored rules; the template just
-      // shows the static prompt skeleton. Live scans assemble this via
-      // loadGmailLearnings which queries gmail_pattern_rules.
-      scoredRulesBlock: "",
-    };
-    const prefs = integ.preferences ?? defaultGmailPreferences();
-    const placeholder: any = {
-      messages: [
-        {
-          from: "<sender will appear here at scan time>",
-          subject: "<subject>",
-          date: "<date>",
-          body: "<email body, up to 400 chars>",
-          attachments: [],
-        },
-      ],
-      participants: ["<all participants>"],
-    };
-    const parts = buildGmailPrompt([placeholder], prefs, learnings);
-    // Debug panel shows the combined prompt so the operator can review the
-    // full text the model sees. Live scans pass system + user separately
-    // (see gmailScan.classifyWith*).
-    prompt = `# SYSTEM\n${parts.system}\n\n# USER\n${parts.user}`;
-  } catch (e: any) {
-    console.error("[gmail-prompt] template render failed:", e?.message ?? e);
-  }
-
-  res.status(200).json({
-    connected: true,
-    acceptedSummary: integ.accepted_summary ?? null,
-    rejectedSummary: integ.rejected_summary ?? null,
-    summaryUpdatedAt: integ.summary_updated_at ?? null,
-    recentAccepts: recent.accepts,
-    recentRejects: recent.rejects,
-    counts: { accepts, rejects },
-    preferences: integ.preferences ?? null,
-    prompt,
-    pending_distill,
-  });
-}
 
 // ── GET /api/entries?action=enrich-debug — admin only ──
 // Returns provider status, entry-flag counts, and recent entries with their

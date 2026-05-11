@@ -125,15 +125,6 @@ export async function runPersonaWeeklyPass(): Promise<{
     console.error("[persona/weekly] distill rejected failed:", e);
   }
 
-  // Same treatment for Gmail accept/reject decisions — refreshes the
-  // KEEP / SKIP rule blocks the classifier prompt reads on every scan.
-  try {
-    const { distillGmailForAllUsers } = await import("./distillGmail.js");
-    await distillGmailForAllUsers();
-  } catch (e) {
-    console.error("[persona/weekly] distill gmail failed:", e);
-  }
-
   // Pull all active persona entries with embeddings, group by brain.
   const r = await fetch(
     `${SB_URL}/rest/v1/entries?type=eq.persona&deleted_at=is.null&metadata->>status=eq.active&select=id,user_id,brain_id,metadata,embedding&limit=${PER_RUN_CAP}`,

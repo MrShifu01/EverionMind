@@ -181,8 +181,6 @@ export default function DetailModal({
   const [secretRevealed, setSecretRevealed] = useState(false);
   const [aiTyping, setAiTyping] = useState(false);
   const [aiMsg, setAiMsg] = useState<{ text: string; ok: boolean } | null>(null);
-  const [ignoringEmail, setIgnoringEmail] = useState(false);
-  const [ignoreMsg, setIgnoreMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   const importantMemoriesEnabled = false;
   const [keeping, setKeeping] = useState(false);
@@ -292,31 +290,6 @@ No explanation, no punctuation, just one word.`,
   const isPinned = !!entry.pinned;
   const isContact = entry.type === "contact" || entry.type === "person";
   const isGmailEntry = entry.type === "gmail-flag" || entry.metadata?.source === "gmail";
-
-  async function handleIgnoreEmail() {
-    setIgnoringEmail(true);
-    setIgnoreMsg(null);
-    try {
-      const r = await authFetch("/api/gmail?action=ignore", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          subject: entry.metadata?.gmail_subject,
-          from: entry.metadata?.gmail_from,
-          email_type: entry.metadata?.email_type,
-          content_preview: entry.content?.slice(0, 300),
-        }),
-      });
-      if (r?.ok) {
-        setIgnoreMsg({ text: "Rule saved ✓", ok: true });
-      } else {
-        setIgnoreMsg({ text: "Failed — try again", ok: false });
-      }
-    } catch {
-      setIgnoreMsg({ text: "Failed — try again", ok: false });
-    }
-    setIgnoringEmail(false);
-  }
 
   function saveToContacts() {
     const meta = (entry.metadata || {}) as Record<string, string>;
@@ -1472,27 +1445,6 @@ No explanation, no punctuation, just one word.`,
                       <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
                     </svg>
                     save to contacts
-                  </Button>
-                )}
-                {!isContact && isGmailEntry && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleIgnoreEmail}
-                    disabled={ignoringEmail || ignoreMsg?.ok === true}
-                    style={{
-                      color: ignoreMsg?.ok
-                        ? "var(--moss)"
-                        : ignoreMsg
-                          ? "var(--blood)"
-                          : "var(--ink-soft)",
-                    }}
-                  >
-                    {ignoringEmail
-                      ? "Adding rule…"
-                      : ignoreMsg
-                        ? ignoreMsg.text
-                        : "Ignore future emails like this"}
                   </Button>
                 )}
                 {!isContact &&
