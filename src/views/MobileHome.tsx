@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { useChat } from "../hooks/useChat";
+import { useBrain } from "../context/BrainContext";
 
 interface MobileHomeProps {
   brainId: string | undefined;
@@ -11,11 +12,13 @@ interface MobileHomeProps {
 const HOLD_THRESHOLD_MS = 250;
 
 export default function MobileHome({ brainId, onOpenCapture, onOpenCaptureWith }: MobileHomeProps) {
+  const { brains, activeBrain } = useBrain();
   const [mode, setMode] = useState<"add" | "ask">("add");
   const [pressed, setPressed] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [askInput, setAskInput] = useState("");
+  const [showDebug, setShowDebug] = useState(true);
 
   const pendingOpenRef = useRef(false);
   const holdTimerRef = useRef<number | null>(null);
@@ -131,6 +134,35 @@ export default function MobileHome({ brainId, onOpenCapture, onOpenCaptureWith }
           to   { opacity: 1; transform: translateY(0); }
         }
       `}</style>
+
+      {showDebug && (
+        <button
+          type="button"
+          onClick={() => setShowDebug(false)}
+          aria-label="Dismiss debug"
+          style={{
+            position: "fixed",
+            top: "calc(env(safe-area-inset-top, 0px) + 64px)",
+            right: 8,
+            zIndex: 9999,
+            padding: "6px 10px",
+            background: "rgba(0,0,0,0.78)",
+            color: "#fff",
+            border: "1px solid rgba(255,255,255,0.15)",
+            borderRadius: 8,
+            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+            fontSize: 11,
+            lineHeight: 1.4,
+            textAlign: "left",
+            cursor: "pointer",
+            maxWidth: 240,
+            wordBreak: "break-all",
+            whiteSpace: "pre-line",
+          }}
+        >
+          {`brains=${brains.length}\nactive=${activeBrain?.id ? activeBrain.id.slice(0, 8) : "null"}\nprop=${brainId ? brainId.slice(0, 8) : "undef"}\nname=${activeBrain?.name ?? "—"}`}
+        </button>
+      )}
 
       <ModeToggle mode={mode} onChange={setMode} listening={listening} />
 
