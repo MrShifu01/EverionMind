@@ -27,31 +27,46 @@ CREATE POLICY user_enrich_quota_owner_read
 
 -- ── Function search_path hardening ─────────────────────────────────────────
 -- pg_temp is included after public so temp-object shadowing cannot win name
--- resolution inside SECURITY DEFINER functions.
-ALTER FUNCTION IF EXISTS public.create_personal_brain_for_new_user()
-  SET search_path = public, pg_temp;
-ALTER FUNCTION IF EXISTS public.user_personas_touch_updated_at()
-  SET search_path = public, pg_temp;
-ALTER FUNCTION IF EXISTS public.handle_new_user()
-  SET search_path = public, pg_temp;
-ALTER FUNCTION IF EXISTS public.match_gmail_pattern(vector, vector, double precision, integer)
-  SET search_path = public, pg_temp;
-ALTER FUNCTION IF EXISTS public.match_gmail_pattern(uuid, vector, double precision, integer)
-  SET search_path = public, pg_temp;
-ALTER FUNCTION IF EXISTS public.important_memories_touch()
-  SET search_path = public, pg_temp;
-ALTER FUNCTION IF EXISTS public._lock_billing_columns()
-  SET search_path = public, pg_temp;
-ALTER FUNCTION IF EXISTS public.enforce_entries_brain_owner_match()
-  SET search_path = public, pg_temp;
-ALTER FUNCTION IF EXISTS public.bulk_apply_embeddings(jsonb)
-  SET search_path = public, pg_temp;
-ALTER FUNCTION IF EXISTS public.claim_pending_enrichments(uuid, uuid, integer)
-  SET search_path = public, pg_temp;
-ALTER FUNCTION IF EXISTS public.consume_enrich_quota(uuid, integer)
-  SET search_path = public, pg_temp;
-ALTER FUNCTION IF EXISTS public.recompute_enrichment_state(uuid[])
-  SET search_path = public, pg_temp;
+-- resolution inside SECURITY DEFINER functions. Postgres has no
+-- `ALTER FUNCTION IF EXISTS` syntax, so each statement is wrapped in a DO
+-- block that swallows undefined_function — applying what's there, skipping
+-- what isn't (e.g. envs where a per-feature migration was never run).
+DO $do$ BEGIN
+  ALTER FUNCTION public.create_personal_brain_for_new_user() SET search_path = public, pg_temp;
+EXCEPTION WHEN undefined_function THEN NULL; END $do$;
+DO $do$ BEGIN
+  ALTER FUNCTION public.user_personas_touch_updated_at() SET search_path = public, pg_temp;
+EXCEPTION WHEN undefined_function THEN NULL; END $do$;
+DO $do$ BEGIN
+  ALTER FUNCTION public.handle_new_user() SET search_path = public, pg_temp;
+EXCEPTION WHEN undefined_function THEN NULL; END $do$;
+DO $do$ BEGIN
+  ALTER FUNCTION public.match_gmail_pattern(vector, vector, double precision, integer) SET search_path = public, pg_temp;
+EXCEPTION WHEN undefined_function THEN NULL; END $do$;
+DO $do$ BEGIN
+  ALTER FUNCTION public.match_gmail_pattern(uuid, vector, double precision, integer) SET search_path = public, pg_temp;
+EXCEPTION WHEN undefined_function THEN NULL; END $do$;
+DO $do$ BEGIN
+  ALTER FUNCTION public.important_memories_touch() SET search_path = public, pg_temp;
+EXCEPTION WHEN undefined_function THEN NULL; END $do$;
+DO $do$ BEGIN
+  ALTER FUNCTION public._lock_billing_columns() SET search_path = public, pg_temp;
+EXCEPTION WHEN undefined_function THEN NULL; END $do$;
+DO $do$ BEGIN
+  ALTER FUNCTION public.enforce_entries_brain_owner_match() SET search_path = public, pg_temp;
+EXCEPTION WHEN undefined_function THEN NULL; END $do$;
+DO $do$ BEGIN
+  ALTER FUNCTION public.bulk_apply_embeddings(jsonb) SET search_path = public, pg_temp;
+EXCEPTION WHEN undefined_function THEN NULL; END $do$;
+DO $do$ BEGIN
+  ALTER FUNCTION public.claim_pending_enrichments(uuid, uuid, integer) SET search_path = public, pg_temp;
+EXCEPTION WHEN undefined_function THEN NULL; END $do$;
+DO $do$ BEGIN
+  ALTER FUNCTION public.consume_enrich_quota(uuid, integer) SET search_path = public, pg_temp;
+EXCEPTION WHEN undefined_function THEN NULL; END $do$;
+DO $do$ BEGIN
+  ALTER FUNCTION public.recompute_enrichment_state(uuid[]) SET search_path = public, pg_temp;
+EXCEPTION WHEN undefined_function THEN NULL; END $do$;
 
 -- ── RPC execute hardening ──────────────────────────────────────────────────
 -- These mutating RPCs are intended for server/service-role paths. Revoke anon
