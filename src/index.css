@@ -269,61 +269,6 @@ html:not(.dark) {
     transform: translateX(300%);
   }
 }
-/* Orb drop-and-bounce — runs once on LoadingScreen mount. The orb falls
-   from above the viewport under gravity, lands with a squash, bounces
-   twice with diminishing amplitude, settles. animation-fill-mode:forwards
-   keeps it at the resting transform after the keyframes finish so the
-   fade-out at the end of LoadingScreen sees a stable orb. */
-@keyframes orb-drop-bounce {
-  0% {
-    transform: translateY(-110vh) scaleX(1) scaleY(1);
-    opacity: 0;
-    animation-timing-function: cubic-bezier(0.7, 0, 0.84, 0);
-  }
-  10% {
-    opacity: 1;
-  }
-  46% {
-    transform: translateY(0) scaleX(1) scaleY(1);
-    animation-timing-function: cubic-bezier(0.42, 0, 0.58, 1);
-  }
-  50% {
-    transform: translateY(0) scaleX(1.07) scaleY(0.93);
-    animation-timing-function: cubic-bezier(0.34, 0, 0.58, 1);
-  }
-  64% {
-    transform: translateY(-42px) scaleX(0.97) scaleY(1.03);
-    animation-timing-function: cubic-bezier(0.5, 0, 0.84, 0);
-  }
-  78% {
-    transform: translateY(0) scaleX(1) scaleY(1);
-    animation-timing-function: cubic-bezier(0.34, 0, 0.58, 1);
-  }
-  80% {
-    transform: translateY(0) scaleX(1.03) scaleY(0.97);
-    animation-timing-function: cubic-bezier(0.42, 0, 0.58, 1);
-  }
-  88% {
-    transform: translateY(-14px) scaleX(0.99) scaleY(1.01);
-    animation-timing-function: cubic-bezier(0.5, 0, 0.84, 0);
-  }
-  95% {
-    transform: translateY(0) scaleX(1.01) scaleY(0.99);
-  }
-  100% {
-    transform: translateY(0) scaleX(1) scaleY(1);
-  }
-}
-/* Loading-screen brand text + sweep bar fade-in. Delayed so the orb's
-   drop+bounce reads as the lead, then the meta elements settle in. */
-@keyframes loading-meta-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
 @keyframes typing-dot {
   0%,
   60%,

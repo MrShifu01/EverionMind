@@ -1,10 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { useChat } from "../hooks/useChat";
 import { useVoiceMode, useGeminiLive, useGeminiVoice, type VoiceMode } from "../hooks/useVoiceMode";
 import { useGeminiLiveSession } from "../hooks/useGeminiLiveSession";
 import { usePendingVoiceActions } from "../hooks/usePendingVoiceActions";
 import { PendingVoiceActionsBanner } from "../components/PendingVoiceActionsBanner";
+
+// Motion presets — applied to the in-tree enter animations that used to
+// live as CSS @keyframes (mh-ask-in, mh-banner-in, mh-bubble-in, mh-clear-in).
+// Framer Motion gives us per-component initial→animate orchestration with
+// a single shared easing language across the file.
+const EASE_OUT_QUART = [0.16, 1, 0.3, 1] as const;
+const FADE_SLIDE_UP = (offset = 8, duration = 0.28) => ({
+  initial: { opacity: 0, y: offset },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration, ease: EASE_OUT_QUART },
+});
+const FADE_SLIDE_DOWN = (offset = 6, duration = 0.26) => ({
+  initial: { opacity: 0, y: -offset },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration, ease: EASE_OUT_QUART },
+});
+const BUBBLE_IN = {
+  initial: { opacity: 0, y: 8, scale: 0.98 },
+  animate: { opacity: 1, y: 0, scale: 1 },
+  transition: { duration: 0.28, ease: EASE_OUT_QUART },
+};
 
 interface MobileHomeProps {
   brainId: string | undefined;
@@ -281,28 +303,6 @@ export default function MobileHome({
         transition: "min-height 240ms cubic-bezier(0.16, 1, 0.3, 1)",
       }}
     >
-      <style>{`
-        @keyframes mh-ask-in {
-          from { opacity: 0; transform: translateY(12px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes mh-clear-in {
-          from { opacity: 0; transform: translateY(-4px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        /* Banners + message bubbles ease in instead of popping. Subtle —
-           220ms fade + 6-8px slide is enough to read as "appeared" not
-           "snapped in". */
-        @keyframes mh-banner-in {
-          from { opacity: 0; transform: translateY(-6px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes mh-bubble-in {
-          from { opacity: 0; transform: translateY(8px) scale(0.98); }
-          to   { opacity: 1; transform: translateY(0) scale(1); }
-        }
-      `}</style>
-
       <ModeToggle mode={mode} onChange={setModeAndResetFocus} listening={listening} />
 
       {/* Top spacer — always flex 1. Naturally shrinks as the askGroup
@@ -588,11 +588,11 @@ export default function MobileHome({
         </div>
 
         {/* Voice surfaces — both hide themselves when their content is
-            empty so they don't reserve space in idle Ask. Each wrapped in
-            a span with mh-banner-in so they fade + slide instead of
-            popping when they appear. */}
+            empty so they don't reserve space in idle Ask. Each wrapped
+            with FADE_SLIDE_DOWN so they fade + slide instead of popping
+            when they appear. */}
         {liveShow && (
-          <div style={{ width: "100%", animation: "mh-banner-in 260ms ease-out" }}>
+          <motion.div style={{ width: "100%" }} {...FADE_SLIDE_DOWN(6, 0.26)}>
             <LiveBanner
               status={liveSession.status}
               error={liveSession.error}
@@ -604,16 +604,16 @@ export default function MobileHome({
               closeCode={liveSession.closeCode}
               closeReason={liveSession.closeReason}
             />
-          </div>
+          </motion.div>
         )}
         {pendingActions.pending.length > 0 && (
-          <div style={{ width: "100%", animation: "mh-banner-in 260ms ease-out" }}>
+          <motion.div style={{ width: "100%" }} {...FADE_SLIDE_DOWN(6, 0.26)}>
             <PendingVoiceActionsBanner
               pending={pendingActions.pending}
               onAccept={pendingActions.accept}
               onReject={pendingActions.reject}
             />
-          </div>
+          </motion.div>
         )}
 
         {/* Chat panel — sits between orb-group and... wait, form is INSIDE
@@ -623,12 +623,7 @@ export default function MobileHome({
             askGroup; the askGroup itself grows downward as messages
             arrive, and the top spacer above naturally shrinks. */}
         {isAsk && (
-          <div
-            style={{
-              width: "100%",
-              animation: "mh-ask-in 360ms cubic-bezier(0.16, 1, 0.3, 1)",
-            }}
-          >
+          <motion.div style={{ width: "100%" }} {...FADE_SLIDE_UP(12, 0.36)}>
             <AskPanel
               // Voice and chat are mutually exclusive in the visual stack:
               // when a Live session is non-idle the LiveBanner above shows
@@ -647,7 +642,7 @@ export default function MobileHome({
               brainReady={!!brainId}
               expanded={hasChat}
             />
-          </div>
+          </motion.div>
         )}
       </div>
     </div>
@@ -999,13 +994,13 @@ function AskPanel({
       }}
     >
       {expanded && hasMessages && (
-        <div
+        <motion.div
           style={{
             display: "flex",
             justifyContent: "flex-end",
             padding: "0 4px",
-            animation: "mh-clear-in 240ms ease-out",
           }}
+          {...FADE_SLIDE_DOWN(4, 0.24)}
         >
           <button
             type="button"
@@ -1046,7 +1041,7 @@ function AskPanel({
             </svg>
             clear chat
           </button>
-        </div>
+        </motion.div>
       )}
       <div
         style={{
@@ -1070,7 +1065,7 @@ function AskPanel({
             "what can I do here?" purpose. Two stacked empty-state
             messages was redundant and noisy. */}
         {messages.map((m, i) => (
-          <div
+          <motion.div
             key={i}
             style={{
               alignSelf: m.role === "user" ? "flex-end" : "flex-start",
@@ -1085,18 +1080,18 @@ function AskPanel({
               lineHeight: 1.5,
               whiteSpace: "pre-wrap",
               wordBreak: "break-word",
-              // Each new bubble eases in. Reused-key bubbles (i.e. ones
-              // already mounted) won't re-run the animation because
-              // React keeps the DOM node; new ones get the keyframe on
-              // first paint.
-              animation: "mh-bubble-in 280ms cubic-bezier(0.16, 1, 0.3, 1)",
             }}
+            // Each new bubble eases in. Reused-key bubbles (already-
+            // mounted DOM nodes) won't re-run the animation because React
+            // keeps the node and Framer only runs `initial → animate` on
+            // first mount.
+            {...BUBBLE_IN}
           >
             {m.content}
-          </div>
+          </motion.div>
         ))}
         {loading && (
-          <div
+          <motion.div
             style={{
               alignSelf: "flex-start",
               padding: "10px 14px",
@@ -1106,11 +1101,11 @@ function AskPanel({
               fontSize: 14,
               color: "var(--ink-faint)",
               fontStyle: "italic",
-              animation: "mh-bubble-in 280ms cubic-bezier(0.16, 1, 0.3, 1)",
             }}
+            {...BUBBLE_IN}
           >
             thinking…
-          </div>
+          </motion.div>
         )}
         <div ref={messagesEndRef} />
       </div>

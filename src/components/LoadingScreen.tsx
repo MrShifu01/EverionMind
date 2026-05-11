@@ -1,4 +1,5 @@
 import { useEffect, useState, type JSX } from "react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
 // Splash mirrors MobileHome's bottom-anchored layout so the orb sits at
 // the SAME screen Y as MobileHome's "Ask" orb. Once the splash fades, the
@@ -6,16 +7,15 @@ import { useEffect, useState, type JSX } from "react";
 // a single continuous orb that the home page reveals around. The wordmark
 // fades out shortly before the rest of the home content fades in.
 //
+// Motion is driven by framer-motion springs (orb fall + bounce) and
+// AnimatePresence (wordmark mount/unmount). Honours prefers-reduced-motion
+// by collapsing the fall to an instant settle.
+//
 // `ready` defaults to true so Suspense-fallback usage (main.tsx, App.tsx)
 // dismisses the moment the min-time window elapses — those locations
 // already unmount the fallback when their chunk lands.
-//
-// MIN_DISPLAY_MS sized for the orb-drop-bounce keyframe duration (1100ms)
-// + a short post-bounce settle window so the orb isn't caught mid-fall by
-// the fade.
-const MIN_DISPLAY_MS = 1300;
+const MIN_DISPLAY_MS = 1200;
 const FADE_MS = 400;
-const ORB_BOUNCE_MS = 1100;
 const ORB_SIZE = 168;
 const LOGO_SIZE = Math.round(ORB_SIZE * 0.78); // matches MobileHome line 259
 
@@ -24,6 +24,7 @@ interface LoadingScreenProps {
 }
 
 export default function LoadingScreen({ ready = true }: LoadingScreenProps): JSX.Element | null {
+  const reduceMotion = useReducedMotion();
   // Two independent timers — both flip via setTimeout callbacks (not
   // synchronous setState in an effect body) so the eslint
   // react-hooks/set-state-in-effect rule stays happy. `phase` is derived.
@@ -51,9 +52,19 @@ export default function LoadingScreen({ ready = true }: LoadingScreenProps): JSX
 
   if (phase === "gone") return null;
 
+  // Spring config: low damping = visible overshoot + bounce. Mass 0.8 +
+  // stiffness 120 give a satisfying ~900ms fall with two diminishing
+  // bounces, similar to the hand-tuned cubic-bezier curves we replace.
+  const orbSpring = reduceMotion
+    ? { duration: 0 }
+    : { type: "spring" as const, mass: 0.9, stiffness: 120, damping: 9, restDelta: 0.5 };
+
   return (
-    <div
+    <motion.div
       aria-hidden="true"
+      initial={{ opacity: 1 }}
+      animate={{ opacity: phase === "fading" ? 0 : 1 }}
+      transition={{ duration: FADE_MS / 1000, ease: "easeOut" }}
       style={{
         position: "fixed",
         inset: 0,
@@ -67,8 +78,6 @@ export default function LoadingScreen({ ready = true }: LoadingScreenProps): JSX
         padding:
           "calc(56px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px))",
         zIndex: "var(--z-loading)",
-        opacity: phase === "fading" ? 0 : 1,
-        transition: `opacity ${FADE_MS}ms ease-out`,
         pointerEvents: phase === "fading" ? "none" : "auto",
       }}
     >
@@ -94,12 +103,25 @@ export default function LoadingScreen({ ready = true }: LoadingScreenProps): JSX
           minHeight: 0,
         }}
       >
-        <div
+        <motion.div
+          // layoutId would let framer interpolate this orb to MobileHome's
+          // orb across the LoadingScreen → MobileHome handoff. Disabled
+          // for now because both elements need to be alive simultaneously
+          // within a shared LayoutGroup, which the Suspense boundary
+          // doesn't support without a boot-orchestrator refactor. Position
+          // alignment + fade-out handles the visual continuity in the
+          // meantime; flipping this on is a follow-up.
+          // layoutId="brain-orb"
+          initial={reduceMotion ? { y: 0, opacity: 1 } : { y: "-110vh", opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{
+            y: orbSpring,
+            opacity: { duration: reduceMotion ? 0 : 0.15, ease: "easeOut" },
+          }}
           style={{
             position: "relative",
             width: ORB_SIZE,
             height: ORB_SIZE,
-            animation: `orb-drop-bounce ${ORB_BOUNCE_MS}ms both`,
             willChange: "transform, opacity",
           }}
         >
@@ -155,27 +177,38 @@ export default function LoadingScreen({ ready = true }: LoadingScreenProps): JSX
               style={{ objectFit: "contain", display: "block" }}
             />
           </span>
-        </div>
+        </motion.div>
 
-        {/* "Everion Mind" wordmark sits where MobileHome's prompt text
-            would be. Fades in once the orb has settled, then fades out
-            when the splash starts dismissing. */}
-        <div
-          className="f-serif"
-          style={{
-            fontSize: 18,
-            fontStyle: "italic",
-            color: "var(--ink-soft)",
-            letterSpacing: "-0.005em",
-            textAlign: "center",
-            minHeight: 26,
-            opacity: 0,
-            animation: "loading-meta-in 380ms 800ms ease-out forwards",
-          }}
-        >
-          Everion Mind
-        </div>
+        {/* "Everion Mind" wordmark — fades in once the orb has settled.
+            AnimatePresence mode="wait" so on the eventual exit it fades
+            out cleanly before the container itself begins its fade. */}
+        <AnimatePresence mode="wait">
+          {phase === "visible" && (
+            <motion.div
+              key="wordmark"
+              className="f-serif"
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{
+                duration: reduceMotion ? 0 : 0.38,
+                delay: reduceMotion ? 0 : 0.7,
+                ease: [0.16, 1, 0.3, 1],
+              }}
+              style={{
+                fontSize: 18,
+                fontStyle: "italic",
+                color: "var(--ink-soft)",
+                letterSpacing: "-0.005em",
+                textAlign: "center",
+                minHeight: 26,
+              }}
+            >
+              Everion Mind
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
-    </div>
+    </motion.div>
   );
 }
