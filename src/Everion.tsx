@@ -880,6 +880,22 @@ function EverionContent({
                     brainId={activeBrain?.id}
                     onOpenCapture={() => appShell.setShowCapture(true)}
                     onOpenCaptureWith={(text) => appShell.openCapture(text)}
+                    onCaptureRaw={(text) => {
+                      const t = text.trim();
+                      if (!t) return;
+                      const title = t.length > 60 ? t.slice(0, 57) + "…" : t;
+                      bgQueueDirectSave(
+                        {
+                          title,
+                          content: t,
+                          type: "note",
+                          tags: [],
+                          metadata: { source: "voice_auto" },
+                        },
+                        activeBrain?.id,
+                        handleCreated,
+                      );
+                    }}
                   />
                 </Suspense>
               </ErrorBoundary>
