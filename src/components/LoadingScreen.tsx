@@ -35,7 +35,12 @@ export default function LoadingScreen(): JSX.Element {
         background: "var(--bg, var(--color-background))",
         display: "flex",
         flexDirection: "column",
-        paddingTop: "calc(56px + env(safe-area-inset-top, 0px))",
+        // Matches MobileHeader's effective height when the brain switcher
+        // is visible (116px base + safe-area-inset-top). multiBrain is
+        // always prodEnabled so the switcher always shows on mobile; if
+        // it's ever flag-gated again, this needs to read --app-header-h
+        // (which MobileHeader writes on mount).
+        paddingTop: "calc(116px + env(safe-area-inset-top, 0px))",
         paddingBottom: "calc(48px + env(safe-area-inset-bottom, 0px))",
         zIndex: "var(--z-loading)",
       }}
