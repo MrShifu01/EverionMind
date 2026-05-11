@@ -539,6 +539,7 @@ function friendlyLiveError(error: string | null, closeCode: number | null): stri
     return "Voice model is unavailable. Update GEMINI_LIVE_MODEL on the server.";
   // Common WebSocket close codes.
   if (closeCode === 1008) return "Voice service rejected the request (model or auth).";
+  if (closeCode === 1007) return "Voice client sent an unsupported message. Update the app.";
   if (closeCode === 1011) return "Voice service hit an internal error. Try again.";
   if (closeCode === 1006) return "Voice connection dropped. Tap mic to retry.";
   if (raw.startsWith("ws_error")) return "Voice connection failed. Check your network and retry.";

@@ -308,10 +308,12 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
             const b64 = int16ToBase64(e.data);
             const open = wsRef.current?.readyState === WebSocket.OPEN;
             if (!open) return;
+            // Google deprecated realtimeInput.mediaChunks (close code 1007).
+            // New shape is realtimeInput.audio (single Blob, not an array).
             wsRef.current?.send(
               JSON.stringify({
                 realtimeInput: {
-                  mediaChunks: [{ mimeType: "audio/pcm;rate=16000", data: b64 }],
+                  audio: { mimeType: "audio/pcm;rate=16000", data: b64 },
                 },
               }),
             );
