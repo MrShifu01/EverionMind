@@ -448,21 +448,6 @@ export default function ProfileTab() {
     }
   }
 
-  function runBackfill() {
-    if (!brainId || scanning) return;
-    ops.startTask({
-      kind: "persona-scan",
-      label: "Scanning entries for persona facts",
-      resumeKey: brainId,
-    });
-    // Poll every few seconds to show in-flight extractions as they land.
-    // Final reload on completion is handled by the opsActive effect above.
-    const poll = setInterval(() => {
-      reloadFacts();
-    }, 3000);
-    setTimeout(() => clearInterval(poll), 5 * 60_000);
-  }
-
   function runReset() {
     if (!brainId || resetting) return;
     setConfirmRequest({
@@ -734,33 +719,10 @@ export default function ProfileTab() {
         />
       </SettingsRow>
 
-      {/* Sensitive-data warning */}
-      <div
-        style={{
-          margin: "10px 0 18px",
-          padding: "12px 14px",
-          background: "color-mix(in oklch, var(--ember-wash) 70%, var(--surface))",
-          border: "1px solid color-mix(in oklch, var(--ember) 24%, var(--line-soft))",
-          borderRadius: 10,
-        }}
-      >
-        <p
-          className="f-serif"
-          style={{ margin: 0, fontSize: 13, color: "var(--ink)", lineHeight: 1.5 }}
-        >
-          <strong style={{ fontWeight: 600 }}>
-            Never put ID numbers, passport, driver's licence, banking or medical details here.
-          </strong>{" "}
-          Those go in your encrypted{" "}
-          <span style={{ color: "var(--ember)", fontWeight: 600 }}>Vault</span>. This profile is
-          plaintext and is sent to the AI on every chat call.
-        </p>
-      </div>
-
       {/* Core scalars */}
       <SectionTitle>Core</SectionTitle>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
-        <Field label="Preferred name / nickname">
+        <Field label="Preferred name">
           <input
             type="text"
             value={core.preferred_name}
@@ -1001,57 +963,6 @@ export default function ProfileTab() {
           </Button>
         </div>
       )}
-
-      {/* Backfill — scan existing entries and extract short persona facts */}
-      <div
-        style={{
-          marginTop: 12,
-          padding: "10px 14px",
-          background: "var(--surface-low)",
-          border: "1px dashed var(--line-soft)",
-          borderRadius: 10,
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <p
-            className="f-sans"
-            style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "var(--ink)" }}
-          >
-            Scan existing entries
-          </p>
-          <p
-            className="f-serif"
-            style={{
-              margin: "2px 0 0",
-              fontSize: 12,
-              fontStyle: "italic",
-              color: "var(--ink-faint)",
-              lineHeight: 1.45,
-            }}
-          >
-            Look through every note in this brain and extract <em>short facts</em> about you. Each
-            fact becomes its own small entry; your originals are never changed. Progress shows in
-            the toast — safe to switch tabs or close the app.
-          </p>
-        </div>
-        <Button
-          type="button"
-          onClick={runBackfill}
-          disabled={scanning || !brainId}
-          variant="outline"
-          size="sm"
-          style={{
-            color: "var(--ember)",
-            borderColor: "color-mix(in oklch, var(--ember) 40%, var(--line-soft))",
-          }}
-        >
-          {scanning ? "Scanning…" : "Run scan"}
-        </Button>
-      </div>
 
       {/* Manual add */}
       <div
