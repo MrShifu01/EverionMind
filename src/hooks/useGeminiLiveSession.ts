@@ -23,6 +23,13 @@ interface UseGeminiLiveSession {
   error: string | null;
   userTranscript: string;
   assistantTranscript: string;
+  /** Diagnostic counters — visible in the on-screen LiveBanner so users
+   *  can report what stage actually failed when nothing happens. */
+  lastEvent: string;
+  chunksOut: number;
+  chunksIn: number;
+  closeCode: number | null;
+  closeReason: string;
   start: (opts: StartOpts) => Promise<void>;
   stop: () => void;
 }
@@ -60,6 +67,13 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
   const [error, setError] = useState<string | null>(null);
   const [userTranscript, setUserTranscript] = useState("");
   const [assistantTranscript, setAssistantTranscript] = useState("");
+  const [lastEvent, setLastEvent] = useState("");
+  const [chunksOut, setChunksOut] = useState(0);
+  const [chunksIn, setChunksIn] = useState(0);
+  const [closeCode, setCloseCode] = useState<number | null>(null);
+  const [closeReason, setCloseReason] = useState("");
+  const chunksOutRef = useRef(0);
+  const chunksInRef = useRef(0);
 
   const wsRef = useRef<WebSocket | null>(null);
   const micCtxRef = useRef<AudioContext | null>(null);
@@ -121,6 +135,13 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
       setUserTranscript("");
       setAssistantTranscript("");
       setStatus("connecting");
+      setLastEvent("minting token…");
+      setChunksOut(0);
+      setChunksIn(0);
+      setCloseCode(null);
+      setCloseReason("");
+      chunksOutRef.current = 0;
+      chunksInRef.current = 0;
 
       let cfg: SessionConfig;
       try {
@@ -131,15 +152,21 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
         });
         if (!r.ok) {
           const data = await r.json().catch(() => ({}));
-          throw new Error((data as { error?: string }).error || `HTTP ${r.status}`);
+          const msg =
+            (data as { message?: string; error?: string }).message ||
+            (data as { error?: string }).error ||
+            `HTTP ${r.status}`;
+          throw new Error(`mint:${r.status} ${msg}`);
         }
         cfg = (await r.json()) as SessionConfig;
+        setLastEvent(`token ok (model=${cfg.model.replace("models/", "")})`);
       } catch (e) {
         setError(e instanceof Error ? e.message : "session_failed");
         setStatus("error");
         return;
       }
 
+      setLastEvent("requesting mic…");
       let stream: MediaStream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -148,6 +175,7 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
         setStatus("error");
         return;
       }
+      setLastEvent("mic granted");
       if (stoppedRef.current) {
         for (const t of stream.getTracks()) t.stop();
         return;
@@ -162,6 +190,7 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       const micCtx = new MicCtx();
       micCtxRef.current = micCtx;
+      setLastEvent(`loading worklet (mic rate=${micCtx.sampleRate})…`);
       try {
         await micCtx.audioWorklet.addModule("/audio-worklets/pcm-recorder.js");
       } catch (e) {
@@ -170,6 +199,7 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
         setStatus("error");
         return;
       }
+      setLastEvent("worklet loaded");
 
       const playCtx = new MicCtx({ sampleRate: cfg.outputSampleRate });
       playCtxRef.current = playCtx;
@@ -182,8 +212,10 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
       const url = `${cfg.wsUrl}?access_token=${encodeURIComponent(cfg.token)}`;
       const ws = new WebSocket(url);
       wsRef.current = ws;
+      setLastEvent("ws opening…");
 
       ws.onopen = () => {
+        setLastEvent("ws open, sending setup");
         ws.send(
           JSON.stringify({
             setup: {
@@ -204,16 +236,27 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
         );
       };
 
-      ws.onerror = () => {
+      ws.onerror = (ev) => {
         if (stoppedRef.current) return;
-        setError("ws_error");
+        const type = (ev as Event).type || "ws_error";
+        setError(`ws_error:${type}`);
+        setLastEvent(`ws error (${type})`);
         setStatus("error");
       };
 
-      ws.onclose = () => {
+      ws.onclose = (ev) => {
+        setCloseCode(ev.code);
+        setCloseReason(ev.reason || "");
+        setLastEvent(`ws closed code=${ev.code}${ev.reason ? ` reason="${ev.reason}"` : ""}`);
         if (stoppedRef.current) return;
-        // Server closed: drop back to idle without flagging an error so the
-        // UI doesn't look broken on a normal end-of-turn close.
+        // Server closed before we explicitly stopped — surface as error so
+        // the user sees what code Google sent back (1000=normal, 1006=abnormal,
+        // 1008=policy violation, 4xxx=app-level).
+        if (ev.code !== 1000) {
+          setError(`ws_closed:${ev.code}${ev.reason ? ` ${ev.reason}` : ""}`);
+          setStatus("error");
+          return;
+        }
         setStatus("idle");
       };
 
@@ -228,6 +271,7 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
         }
 
         if (msg.setupComplete) {
+          setLastEvent("setupComplete — streaming mic");
           // Setup acknowledged — wire mic worklet and start streaming.
           const source = micCtx.createMediaStreamSource(stream);
           sourceRef.current = source;
@@ -245,12 +289,18 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
                 },
               }),
             );
+            chunksOutRef.current += 1;
+            // Throttle setState to every 10 chunks (~1s) to avoid re-render storm.
+            if (chunksOutRef.current % 10 === 0) setChunksOut(chunksOutRef.current);
           };
           source.connect(node);
           // Don't connect to destination — we don't want mic monitoring.
           setStatus("listening");
           return;
         }
+
+        chunksInRef.current += 1;
+        if (chunksInRef.current % 5 === 0) setChunksIn(chunksInRef.current);
 
         const sc = msg.serverContent as
           | {
@@ -299,5 +349,17 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
     [stop],
   );
 
-  return { status, error, userTranscript, assistantTranscript, start, stop };
+  return {
+    status,
+    error,
+    userTranscript,
+    assistantTranscript,
+    lastEvent,
+    chunksOut,
+    chunksIn,
+    closeCode,
+    closeReason,
+    start,
+    stop,
+  };
 }
