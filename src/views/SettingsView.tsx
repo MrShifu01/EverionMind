@@ -14,7 +14,6 @@ const AITab = lazy(() => import("../components/settings/AITab"));
 const DangerTab = lazy(() => import("../components/settings/DangerTab"));
 const ClaudeCodeTab = lazy(() => import("../components/settings/ClaudeCodeTab"));
 const NotificationSettings = lazy(() => import("../components/NotificationSettings"));
-const AppearanceTab = lazy(() => import("../components/settings/AppearanceTab"));
 const ProfileTab = lazy(() => import("../components/settings/ProfileTab"));
 const BillingTab = lazy(() => import("../components/settings/BillingTab"));
 const AdminTab = lazy(() => import("../components/settings/AdminTab"));
@@ -42,7 +41,7 @@ function TabLoading() {
 type SectionId = "personal" | "account" | "brain" | "connections" | "privacy" | "admin";
 
 const BASE_SECTIONS: { id: SectionId; label: string }[] = [
-  { id: "personal", label: "Personal" },
+  { id: "personal", label: "Persona" },
   { id: "account", label: "Account" },
   { id: "brain", label: "Brain" },
   { id: "connections", label: "Connections" },
@@ -206,11 +205,6 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
 
   const [isAdmin, setIsAdmin] = useState(false);
   useEffect(() => {
-    // Force a token refresh before reading app_metadata. JWTs issued before
-    // is_admin (or any future role flag) was set on auth.users.app_metadata
-    // carry stale claims until the next scheduled refresh — this makes the
-    // Settings entry-point always reflect the current server-side role
-    // without requiring a manual log-out / log-in.
     void supabase.auth
       .refreshSession()
       .catch(() => null)
@@ -253,11 +247,6 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
     <div
       className="settings-root"
       style={{
-        // height/overflow are set in the stylesheet so the mobile media
-        // query can flatten them without !important. Desktop fixes the
-        // viewport height (so the sidebar can have its own scroll); mobile
-        // lets the page itself scroll, which avoids the iOS nested-scroll
-        // rubber-band that delays touch routing into an inner container.
         background: "var(--bg)",
         fontFamily: "var(--f-sans)",
         display: "flex",
@@ -298,14 +287,6 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
           borderBottom: "1px solid var(--line-soft)",
           background: "var(--surface-low)",
           gap: 4,
-          // Sticky on mobile so users deep in a section can always reach
-          // another section without scrolling back. top: 0 because the
-          // scroll container is now <main id="main-content"> (post layout
-          // refactor a14d914) which already starts below the global app
-          // header — sticky 0 pins this tab strip at the top of main-
-          // content's visible area, flush under the header bars. Previous
-          // var(--app-header-h) double-counted the header height and
-          // pushed the strip off-screen.
           position: "sticky",
           top: 0,
           zIndex: "var(--z-sticky)",
@@ -342,18 +323,11 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
           style={{
             width: 220,
             flexShrink: 0,
-            // height: 100% forces the background to fill the body's full
-            // height. Without this, overflowY: auto on a flex item with no
-            // explicit height collapsed the nav to its content size and
-            // surface-low only painted a few rows tall.
             height: "100%",
             padding: "20px 16px",
             borderRight: "1px solid var(--line-soft)",
             background: "var(--surface-low)",
             overflowY: "auto",
-            // display is set in the stylesheet (flex on desktop, none on
-            // mobile via @media). Setting it inline would override the
-            // @media rule and leak the desktop sidebar into mobile view.
             flexDirection: "column",
             gap: 2,
           }}
@@ -383,16 +357,8 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
           <div className="settings-content-inner" style={{ maxWidth: 720 }}>
             {visited.has("personal") && (
               <div style={{ display: section === "personal" ? "block" : "none" }}>
-                <SectionHeader
-                  title="Personal"
-                  subtitle="how the app looks and what the assistant knows about you."
-                />
+                <SectionHeader title="Persona" />
                 <Suspense fallback={<TabLoading />}>
-                  <AppearanceTab />
-                  <SubSection
-                    title="About you"
-                    subtitle="injected into every chat — never includes IDs, passport, banking, or anything that belongs in the vault."
-                  />
                   <ProfileTab />
                 </Suspense>
               </div>
@@ -533,9 +499,6 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
       </div>
 
       <style>{`
-        /* Desktop: viewport-locked layout. The root pins to 100dvh so the
-           sidebar can have its own scroll independent of the content
-           panel — both use overflow-y: auto. */
         .settings-root { height: 100dvh; }
         .settings-body { overflow: hidden; }
         .settings-content { overflow-y: auto; padding: 32px 40px; }
@@ -543,13 +506,6 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
         .settings-mobile-tabs { display: none; }
         .settings-desktop-nav { display: flex; }
 
-        /* Mobile: flatten to a single page-level scroll. Nesting an inner
-           overflow-y: auto inside an overflow: hidden parent causes iOS to
-           rubber-band the outer page on the first touch and only re-route
-           into the inner container after a few hundred ms — the "screen
-           feels static, then suddenly scrolls" symptom. Dropping the inner
-           scroll lets every device scroll the page natively with no touch
-           routing delay. */
         @media (max-width: 1024px) {
           .settings-root { height: auto; min-height: 100vh; min-height: 100dvh; }
           .settings-body { overflow: visible; flex-direction: column; }
