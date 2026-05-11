@@ -24,7 +24,7 @@ Single source of truth for every `process.env.*` and `import.meta.env.*` key the
 - `GEMINI_MODEL` — chat default (e.g. `gemini-2.5-flash`)
 - `GEMINI_PRO_MODEL`, `GEMINI_STARTER_MODEL`, `GEMINI_PRO_CHAT_MODEL`, `GEMINI_STARTER_CHAT_MODEL` — tier-specific overrides
 - `GEMINI_PERSONA_EXTRACTOR_MODEL`, `GEMINI_AUDIT_RULES_MODEL`, `GEMINI_REJECTED_DISTILLER_MODEL`, `GEMINI_GMAIL_DISTILLER_MODEL` — per-task overrides
-- `GEMINI_LIVE_MODEL` — Live API native-audio model for spoken replies (e.g. `gemini-3.1-flash-live-preview` or `gemini-2.5-flash-native-audio-preview`). Read by `api/llm.ts ?action=live-session` to mint an ephemeral `v1alpha` token bound to model + voice + system prompt. Unset = feature off server-side even if user toggles it on.
+- `GEMINI_LIVE_MODEL` — Live API model for spoken replies. Primary: `gemini-3.1-flash-live-preview` (current, launched late March 2026 via AI Studio Live API; A2A, low-latency). Fallback: `gemini-live-2.5-flash-preview` (older, still works). The `-preview` suffix is required — setting `gemini-3.1-flash-live` (no suffix) yields `ws_closed:1008 … not found for API version v1main`. Read by `api/llm.ts ?action=live-session` to mint an ephemeral `v1alpha` token bound to model + voice + system prompt. Unset = feature off server-side even if user toggles it on.
 - `ANTHROPIC_API_KEY` — Pro/Max managed tier (currently NOT configured, see CLAUDE.md)
 - `ANTHROPIC_MODEL` — `claude-haiku-4-5-20251001` default
 - `GROQ_API_KEY` — fallback / experimental
