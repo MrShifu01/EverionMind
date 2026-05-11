@@ -11,11 +11,17 @@ interface SettingsRowProps {
 }
 
 /**
- * Canonical Settings row from the redesign:
- *   - Serif 16/450 label on the left
- *   - Italic serif hint below the label
- *   - Right-aligned control slot (button, toggle, text, etc.)
- *   - Hairline divider below the row
+ * Canonical Settings row — Linear/Notion-style. Sans-serif label on the left,
+ * sans hint below, right-aligned control slot, hairline divider below.
+ *
+ * Visual decisions (2026-05-11):
+ *   - Label: sans 14/500 — feels like a tool, not an essay.
+ *   - Hint: sans 12.5/regular --ink-faint, line-height 1.5.
+ *   - Padding: 14px top/bottom for density without crowding.
+ *   - Divider: hairline `--line-soft`.
+ *
+ * Every settings tab uses this primitive — updating it cascades cohesion
+ * across the whole Settings surface.
  */
 export default function SettingsRow({ label, hint, children, last }: SettingsRowProps) {
   return (
@@ -24,31 +30,30 @@ export default function SettingsRow({ label, hint, children, last }: SettingsRow
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        gap: 24,
-        padding: "18px 0",
+        gap: 20,
+        padding: "14px 0",
         borderBottom: last ? "none" : "1px solid var(--line-soft)",
       }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
-          className="f-serif"
+          className="f-sans"
           style={{
-            fontSize: 16,
-            fontWeight: 450,
+            fontSize: 14,
+            fontWeight: 500,
             color: "var(--ink)",
-            letterSpacing: "-0.005em",
+            lineHeight: 1.35,
           }}
         >
           {label}
         </div>
         {hint && (
           <div
-            className="f-serif"
+            className="f-sans"
             style={{
-              fontSize: 13,
+              fontSize: 12.5,
               color: "var(--ink-faint)",
-              fontStyle: "italic",
-              marginTop: 3,
+              marginTop: 4,
               lineHeight: 1.5,
             }}
           >
@@ -57,6 +62,63 @@ export default function SettingsRow({ label, hint, children, last }: SettingsRow
         )}
       </div>
       {children && <div style={{ flexShrink: 0 }}>{children}</div>}
+    </div>
+  );
+}
+
+/**
+ * Section heading — small-caps sans label sits at the top of each Settings
+ * section, replacing the previous 32px serif H2. Single visual scale per
+ * section keeps the surface from feeling essay-shaped.
+ *
+ * Use `topMargin` when a section follows another inside the same panel
+ * (acts as the previous SubSection).
+ */
+export function SettingsSectionLabel({
+  label,
+  hint,
+  topMargin,
+  danger,
+}: {
+  label: string;
+  hint?: ReactNode;
+  topMargin?: boolean;
+  danger?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        marginTop: topMargin ? 36 : 0,
+        marginBottom: 6,
+        paddingTop: topMargin ? 24 : 0,
+        borderTop: topMargin ? "1px solid var(--line-soft)" : "none",
+      }}
+    >
+      <div
+        className="f-sans"
+        style={{
+          fontSize: 10.5,
+          fontWeight: 600,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          color: danger ? "var(--blood)" : "var(--ink-faint)",
+          marginBottom: hint ? 4 : 0,
+        }}
+      >
+        {label}
+      </div>
+      {hint && (
+        <div
+          className="f-sans"
+          style={{
+            fontSize: 13,
+            color: "var(--ink-soft)",
+            lineHeight: 1.5,
+          }}
+        >
+          {hint}
+        </div>
+      )}
     </div>
   );
 }
@@ -88,11 +150,11 @@ export function SettingsExpand({
   return (
     <div
       style={{
-        padding: "0 0 18px",
+        padding: "0 0 14px",
         borderBottom: last ? "none" : "1px solid var(--line-soft)",
         display: open ? "flex" : "none",
         flexDirection: "column",
-        gap: 12,
+        gap: 10,
       }}
     >
       {children}
@@ -100,14 +162,13 @@ export function SettingsExpand({
   );
 }
 
-/** Italic serif value — used for right-side informational text like "Hanno's brain". */
+/** Right-side informational text. Sans for cohesion with the new row style. */
 export function SettingsValue({ children }: { children: ReactNode }) {
   return (
     <span
-      className="f-serif"
+      className="f-sans"
       style={{
-        fontSize: 15,
-        fontStyle: "italic",
+        fontSize: 13.5,
         color: "var(--ink-soft)",
       }}
     >
@@ -119,7 +180,7 @@ export function SettingsValue({ children }: { children: ReactNode }) {
 /** Secondary sans value — used for right-side plain text like "hanno@everion.app". */
 export function SettingsText({ children }: { children: ReactNode }) {
   return (
-    <span className="f-sans" style={{ fontSize: 14, color: "var(--ink)" }}>
+    <span className="f-sans" style={{ fontSize: 13.5, color: "var(--ink)" }}>
       {children}
     </span>
   );

@@ -1,31 +1,34 @@
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect, lazy, Suspense, type ReactNode } from "react";
 import { supabase } from "../lib/supabase";
 import { getCachedEmail, setCachedEmail } from "../lib/userEmailCache";
 import { useBrain } from "../context/BrainContext";
-// Tab modules are lazy-loaded so opening Settings doesn't parse all 14 tabs
-// (~6000 lines + their fetch waterfalls) up front. Each tab now downloads
-// only when its containing section is first revealed via `visited`. AdminTab
-// alone is 1861 lines + 3 mount-time API probes; lazy-loading it cuts the
-// admin-user Settings open from "wait for sentry_issues" to "instant".
-const AccountTab = lazy(() => import("../components/settings/AccountTab"));
+// Tab modules are lazy-loaded so opening Settings doesn't parse all sections
+// (~6000 lines + their fetch waterfalls) up front. Each section downloads
+// only when first revealed via `visited`. AdminTab + ProfileTab + AITab are
+// the heaviest — lazy keeps the initial Settings open at "instant".
+const ProfileTab = lazy(() => import("../components/settings/ProfileTab"));
+const AITab = lazy(() => import("../components/settings/AITab"));
+const VoiceTab = lazy(() => import("../components/settings/VoiceTab"));
 const BrainTab = lazy(() => import("../components/settings/BrainTab"));
 const DataTab = lazy(() => import("../components/settings/DataTab"));
-const AITab = lazy(() => import("../components/settings/AITab"));
+const NotificationSettings = lazy(() => import("../components/NotificationSettings"));
+const AccountTab = lazy(() => import("../components/settings/AccountTab"));
+const BillingTab = lazy(() => import("../components/settings/BillingTab"));
+const SecurityTab = lazy(() => import("../components/settings/SecurityTab"));
 const DangerTab = lazy(() => import("../components/settings/DangerTab"));
 const ClaudeCodeTab = lazy(() => import("../components/settings/ClaudeCodeTab"));
-const NotificationSettings = lazy(() => import("../components/NotificationSettings"));
-const ProfileTab = lazy(() => import("../components/settings/ProfileTab"));
-const BillingTab = lazy(() => import("../components/settings/BillingTab"));
 const AdminTab = lazy(() => import("../components/settings/AdminTab"));
-const SecurityTab = lazy(() => import("../components/settings/SecurityTab"));
-const VoiceTab = lazy(() => import("../components/settings/VoiceTab"));
-import SettingsRow, { SettingsButton, SettingsExpand } from "../components/settings/SettingsRow";
+import SettingsRow, {
+  SettingsButton,
+  SettingsSectionLabel,
+} from "../components/settings/SettingsRow";
 
 // Skeleton shown while a tab chunk is fetching. Sized roughly to a typical
 // settings tab so the layout doesn't jump when content arrives.
 function TabLoading() {
   return (
     <div
+      className="f-sans"
       style={{
         padding: "20px 0",
         opacity: 0.5,
@@ -39,33 +42,51 @@ function TabLoading() {
   );
 }
 
-type SectionId = "personal" | "voice" | "account" | "brain" | "connections" | "privacy" | "admin";
+type SectionId =
+  | "persona"
+  | "ai"
+  | "brain"
+  | "notifications"
+  | "account"
+  | "billing"
+  | "privacy"
+  | "developer"
+  | "admin";
 
-const BASE_SECTIONS: { id: SectionId; label: string }[] = [
-  { id: "personal", label: "Persona" },
-  { id: "voice", label: "Voice" },
-  { id: "account", label: "Account" },
+interface SectionDef {
+  id: SectionId;
+  label: string;
+}
+
+const BASE_SECTIONS: SectionDef[] = [
+  { id: "persona", label: "Persona" },
+  { id: "ai", label: "AI" },
   { id: "brain", label: "Brain" },
-  { id: "connections", label: "Connections" },
-  { id: "privacy", label: "Privacy & danger" },
+  { id: "notifications", label: "Notifications" },
+  { id: "account", label: "Account" },
+  { id: "billing", label: "Billing" },
+  { id: "privacy", label: "Privacy" },
 ];
 
 // Legacy URL ids → consolidated section. Keeps deep-links from /api/capture,
 // /api/llm, OAuth redirects, and any docs that still reference the old taxonomy
-// from sending users into a 404-looking Appearance fallback.
+// from sending users into a 404-looking fallback.
 const URL_ALIASES: Record<string, SectionId> = {
-  appearance: "personal",
-  profile: "personal",
-  voice: "voice",
-  account: "account",
-  billing: "account",
+  appearance: "persona",
+  profile: "persona",
+  voice: "ai",
+  ai: "ai",
   brain: "brain",
   data: "brain",
-  ai: "brain",
-  notifications: "connections",
-  integrations: "connections",
+  connections: "notifications",
+  integrations: "developer",
+  notifications: "notifications",
+  account: "account",
+  billing: "billing",
   security: "privacy",
   danger: "privacy",
+  developer: "developer",
+  api: "developer",
   admin: "admin",
 };
 
@@ -73,108 +94,34 @@ function deriveInitialSection(): SectionId {
   const params = new URLSearchParams(window.location.search);
   const tab = params.get("tab");
   if (tab && URL_ALIASES[tab]) return URL_ALIASES[tab];
-  return "personal";
+  return "persona";
 }
 
-function SectionHeader({
-  title,
-  subtitle,
-  danger,
-}: {
-  title: string;
-  subtitle?: string;
-  danger?: boolean;
-}) {
-  return (
-    <div style={{ marginBottom: 24 }}>
-      <h2
-        className="f-serif"
-        style={{
-          fontSize: 32,
-          fontWeight: 450,
-          letterSpacing: "-0.015em",
-          lineHeight: 1.15,
-          color: danger ? "var(--blood)" : "var(--ink)",
-          margin: 0,
-        }}
-      >
-        {title}
-      </h2>
-      {subtitle && (
-        <p
-          className="f-serif"
-          style={{
-            fontSize: 15,
-            color: "var(--ink-faint)",
-            fontStyle: "italic",
-            marginTop: 14,
-            marginBottom: 0,
-            lineHeight: 1.5,
-          }}
-        >
-          {subtitle}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function SubSection({
-  title,
-  subtitle,
-  danger,
-}: {
-  title: string;
-  subtitle?: string;
-  danger?: boolean;
-}) {
-  return (
-    <div
-      style={{
-        marginTop: 36,
-        paddingTop: 24,
-        borderTop: "1px solid var(--line-soft)",
-        marginBottom: 12,
-      }}
-    >
-      <h3
-        className="f-serif"
-        style={{
-          fontSize: 22,
-          fontWeight: 450,
-          letterSpacing: "-0.01em",
-          color: danger ? "var(--blood)" : "var(--ink)",
-          margin: 0,
-        }}
-      >
-        {title}
-      </h3>
-      {subtitle && (
-        <p
-          className="f-serif"
-          style={{
-            fontSize: 14,
-            color: "var(--ink-faint)",
-            fontStyle: "italic",
-            marginTop: 8,
-            marginBottom: 0,
-            lineHeight: 1.5,
-          }}
-        >
-          {subtitle}
-        </p>
-      )}
-    </div>
-  );
+function isDeveloperEnabled(): boolean {
+  // Gated by ?dev=1 (sticky via localStorage) so the surface is invisible to
+  // most users but always one URL hop away for the operator.
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("dev") === "1") {
+      localStorage.setItem("everion:dev-mode", "1");
+      return true;
+    }
+    if (params.get("dev") === "0") {
+      localStorage.removeItem("everion:dev-mode");
+      return false;
+    }
+    return localStorage.getItem("everion:dev-mode") === "1";
+  } catch {
+    return false;
+  }
 }
 
 function EmptyState({ message }: { message: string }) {
   return (
     <p
-      className="f-serif"
+      className="f-sans"
       style={{
-        fontSize: 14,
-        fontStyle: "italic",
+        fontSize: 13,
         color: "var(--ink-faint)",
         margin: "8px 0 0",
         lineHeight: 1.5,
@@ -193,9 +140,8 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
   const { activeBrain, refresh } = useBrain();
   const [section, setSection] = useState<SectionId>(deriveInitialSection);
   const [email, setEmail] = useState(() => getCachedEmail());
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [apiOpen, setApiOpen] = useState(false);
   const [visited, setVisited] = useState<Set<SectionId>>(() => new Set([section]));
+  const [devEnabled] = useState(() => isDeveloperEnabled());
 
   function visit(id: SectionId) {
     setVisited((prev) => {
@@ -221,27 +167,29 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
       });
   }, []);
 
-  const SECTIONS = isAdmin
-    ? [...BASE_SECTIONS, { id: "admin" as SectionId, label: "Admin" }]
-    : BASE_SECTIONS;
+  const SECTIONS: SectionDef[] = [
+    ...BASE_SECTIONS,
+    ...(devEnabled ? [{ id: "developer" as SectionId, label: "Developer" }] : []),
+    ...(isAdmin ? [{ id: "admin" as SectionId, label: "Admin" }] : []),
+  ];
 
   function navButtonStyle(active: boolean): React.CSSProperties {
     return {
       flexShrink: 0,
       width: "100%",
       textAlign: "left",
-      padding: "0 14px",
-      minHeight: 38,
-      height: 38,
-      borderRadius: 8,
+      padding: "0 12px",
+      minHeight: 32,
+      height: 32,
+      borderRadius: 6,
       fontFamily: "var(--f-sans)",
-      fontSize: 14,
+      fontSize: 13,
       fontWeight: 500,
       color: active ? "var(--ink)" : "var(--ink-soft)",
       background: active ? "var(--surface-high)" : "transparent",
       border: "none",
       cursor: "pointer",
-      transition: "background 180ms, color 180ms",
+      transition: "background 140ms, color 140ms",
       whiteSpace: "nowrap",
     };
   }
@@ -268,11 +216,11 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
         }}
       >
         <h1
-          className="f-serif"
+          className="f-sans"
           style={{
-            fontSize: 28,
-            fontWeight: 450,
-            letterSpacing: "-0.015em",
+            fontSize: 18,
+            fontWeight: 600,
+            letterSpacing: "-0.01em",
             margin: 0,
             color: "var(--ink)",
           }}
@@ -289,7 +237,7 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
           padding: "8px 12px",
           borderBottom: "1px solid var(--line-soft)",
           background: "var(--surface-low)",
-          gap: 4,
+          gap: 2,
           position: "sticky",
           top: 0,
           zIndex: "var(--z-sticky)",
@@ -309,9 +257,9 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
               style={{
                 ...navButtonStyle(active),
                 width: "auto",
-                padding: "0 14px",
-                height: 36,
-                minHeight: 36,
+                padding: "0 12px",
+                height: 32,
+                minHeight: 32,
               }}
             >
               {label}
@@ -324,10 +272,10 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
         <nav
           className="settings-desktop-nav scrollbar-hide"
           style={{
-            width: 220,
+            width: 200,
             flexShrink: 0,
             height: "100%",
-            padding: "20px 16px",
+            padding: "20px 12px",
             borderRight: "1px solid var(--line-soft)",
             background: "var(--surface-low)",
             overflowY: "auto",
@@ -345,7 +293,6 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
                   visit(id);
                   setSection(id);
                 }}
-                onMouseEnter={() => visit(id)}
                 aria-current={active ? "page" : undefined}
                 className="press"
                 style={navButtonStyle(active)}
@@ -357,149 +304,138 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
         </nav>
 
         <div className="settings-content scrollbar-hide" style={{ flex: 1 }}>
-          <div className="settings-content-inner" style={{ maxWidth: 720 }}>
-            {visited.has("personal") && (
-              <div style={{ display: section === "personal" ? "block" : "none" }}>
-                <SectionHeader title="Persona" />
-                <Suspense fallback={<TabLoading />}>
-                  <ProfileTab />
-                </Suspense>
-              </div>
-            )}
+          <div className="settings-content-inner" style={{ maxWidth: 680 }}>
+            <SettingsPanel show={section === "persona"} visited={visited.has("persona")}>
+              <SettingsSectionLabel
+                label="Persona"
+                hint="how Everion addresses you and tailors its replies."
+              />
+              <Suspense fallback={<TabLoading />}>
+                <ProfileTab />
+              </Suspense>
+            </SettingsPanel>
 
-            {visited.has("voice") && (
-              <div style={{ display: section === "voice" ? "block" : "none" }}>
-                <SectionHeader title="Voice" />
-                <Suspense fallback={<TabLoading />}>
-                  <VoiceTab />
-                </Suspense>
-              </div>
-            )}
+            <SettingsPanel show={section === "ai"} visited={visited.has("ai")}>
+              <SettingsSectionLabel label="AI" hint="provider, enrichment, and voice." />
+              <Suspense fallback={<TabLoading />}>
+                {activeBrain ? (
+                  <AITab activeBrain={activeBrain} isAdmin={isAdmin} />
+                ) : (
+                  <EmptyState message="no brain selected." />
+                )}
+                <SettingsSectionLabel label="Voice" topMargin />
+                <VoiceTab />
+              </Suspense>
+            </SettingsPanel>
 
-            {visited.has("account") && (
-              <div style={{ display: section === "account" ? "block" : "none" }}>
-                <SectionHeader title="Account" />
+            <SettingsPanel show={section === "brain"} visited={visited.has("brain")}>
+              <SettingsSectionLabel
+                label="Brain"
+                hint="the brain you're capturing into, your archive, and imports."
+              />
+              {activeBrain ? (
                 <Suspense fallback={<TabLoading />}>
-                  <AccountTab email={email} isAdmin={isAdmin} />
-                  <SubSection
-                    title="Billing"
-                    subtitle="manage your plan, usage, and subscription."
-                  />
-                  <BillingTab />
+                  <BrainTab activeBrain={activeBrain} onRefreshBrains={refresh} />
+                  <SettingsSectionLabel label="Data" topMargin />
+                  <DataTab brainId={activeBrain.id} activeBrain={activeBrain} />
                 </Suspense>
-              </div>
-            )}
+              ) : (
+                <EmptyState message="no brain selected. create or pick one to manage its settings." />
+              )}
+            </SettingsPanel>
 
-            {visited.has("brain") && (
-              <div style={{ display: section === "brain" ? "block" : "none" }}>
-                <SectionHeader
-                  title="Brain"
-                  subtitle="the brain you're capturing into, your archive, and the ai layer."
+            <SettingsPanel
+              show={section === "notifications"}
+              visited={visited.has("notifications")}
+            >
+              <SettingsSectionLabel
+                label="Notifications"
+                hint="daily prompts, weekly nudges, and push delivery."
+              />
+              <Suspense fallback={<TabLoading />}>
+                <NotificationSettings />
+              </Suspense>
+            </SettingsPanel>
+
+            <SettingsPanel show={section === "account"} visited={visited.has("account")}>
+              <SettingsSectionLabel label="Account" hint="sign-in identity and password." />
+              <Suspense fallback={<TabLoading />}>
+                <AccountTab email={email} isAdmin={isAdmin} />
+              </Suspense>
+            </SettingsPanel>
+
+            <SettingsPanel show={section === "billing"} visited={visited.has("billing")}>
+              <SettingsSectionLabel
+                label="Billing"
+                hint="manage your plan, usage, and subscription."
+              />
+              <Suspense fallback={<TabLoading />}>
+                <BillingTab />
+              </Suspense>
+            </SettingsPanel>
+
+            <SettingsPanel show={section === "privacy"} visited={visited.has("privacy")}>
+              <SettingsSectionLabel
+                label="Privacy"
+                hint="vault PIN, encrypted secrets, and irreversible actions."
+              />
+              <Suspense fallback={<TabLoading />}>
+                <SecurityTab />
+                {onNavigate && (
+                  <SettingsRow label="Vault" hint="end-to-end encrypted secrets.">
+                    <SettingsButton onClick={() => onNavigate("vault")}>Open vault</SettingsButton>
+                  </SettingsRow>
+                )}
+                <SettingsSectionLabel
+                  label="Danger zone"
+                  hint="all of these are irreversible. we've made them clear, not hidden."
+                  topMargin
+                  danger
                 />
                 {activeBrain ? (
-                  <Suspense fallback={<TabLoading />}>
-                    <BrainTab activeBrain={activeBrain} onRefreshBrains={refresh} />
-                    <SubSection title="Data" subtitle="imports, exports, and your entry archive." />
-                    <DataTab brainId={activeBrain.id} activeBrain={activeBrain} />
-                    <SubSection title="AI" subtitle="model providers and enrichment pipeline." />
-                    <AITab activeBrain={activeBrain} isAdmin={isAdmin} />
-                  </Suspense>
+                  <DangerTab
+                    activeBrain={activeBrain}
+                    deleteBrain={async (_id: string) => {
+                      /* single brain — no-op */
+                    }}
+                    isOwner={true}
+                    deleteAccount={async () => {
+                      const session = await supabase.auth.getSession();
+                      const token = session.data.session?.access_token;
+                      const r = await fetch("/api/user-data?resource=account", {
+                        method: "DELETE",
+                        headers: { Authorization: `Bearer ${token}` },
+                      });
+                      if (!r.ok) {
+                        const data = await r.json().catch(() => ({}));
+                        throw new Error(data.error || "Failed to delete account");
+                      }
+                      await supabase.auth.signOut();
+                    }}
+                  />
                 ) : (
-                  <EmptyState message="no brain selected. create or pick one to manage its settings." />
+                  <EmptyState message="no brain selected. create or pick one to access destructive actions." />
                 )}
-              </div>
-            )}
+              </Suspense>
+            </SettingsPanel>
 
-            {visited.has("connections") && (
-              <div style={{ display: section === "connections" ? "block" : "none" }}>
-                <SectionHeader
-                  title="Connections"
-                  subtitle="notifications, external services, and developer access."
-                />
-                <SettingsRow
-                  label="Notifications"
-                  hint="daily capture prompts, weekly nudges, and push delivery."
-                >
-                  <SettingsButton onClick={() => setNotificationsOpen((o) => !o)}>
-                    {notificationsOpen ? "Done" : "Manage"}
-                  </SettingsButton>
-                </SettingsRow>
-                <SettingsExpand open={notificationsOpen} keepMounted>
-                  <Suspense fallback={<TabLoading />}>
-                    <NotificationSettings />
-                  </Suspense>
-                </SettingsExpand>
-                <SubSection title="Integrations" subtitle="developer access." />
-                <SettingsRow
-                  label="API & developer"
-                  hint="generate api tokens for claude code and other clients."
-                  last={!apiOpen}
-                >
-                  <SettingsButton onClick={() => setApiOpen((o) => !o)}>
-                    {apiOpen ? "Done" : "Manage"}
-                  </SettingsButton>
-                </SettingsRow>
-                <SettingsExpand open={apiOpen} last>
-                  <Suspense fallback={<TabLoading />}>
-                    <ClaudeCodeTab />
-                  </Suspense>
-                </SettingsExpand>
-              </div>
-            )}
-
-            {visited.has("privacy") && (
-              <div style={{ display: section === "privacy" ? "block" : "none" }}>
-                <SectionHeader
-                  title="Privacy & danger"
-                  subtitle="vault pin, encrypted secrets, and irreversible actions."
+            {devEnabled && (
+              <SettingsPanel show={section === "developer"} visited={visited.has("developer")}>
+                <SettingsSectionLabel
+                  label="Developer"
+                  hint="API tokens for Claude Code and other clients. Hidden by default; toggle with ?dev=1 in the URL."
                 />
                 <Suspense fallback={<TabLoading />}>
-                  <SecurityTab />
-                  {onNavigate && (
-                    <SettingsRow label="Vault" hint="end-to-end encrypted secrets.">
-                      <SettingsButton onClick={() => onNavigate("vault")}>
-                        Open vault
-                      </SettingsButton>
-                    </SettingsRow>
-                  )}
-                  <SubSection
-                    title="Danger zone"
-                    subtitle="all of these are irreversible. we've made them clear, not hidden."
-                    danger
-                  />
-                  {activeBrain ? (
-                    <DangerTab
-                      activeBrain={activeBrain}
-                      deleteBrain={async (_id: string) => {
-                        /* single brain — no-op */
-                      }}
-                      isOwner={true}
-                      deleteAccount={async () => {
-                        const session = await supabase.auth.getSession();
-                        const token = session.data.session?.access_token;
-                        const r = await fetch("/api/user-data?resource=account", {
-                          method: "DELETE",
-                          headers: { Authorization: `Bearer ${token}` },
-                        });
-                        if (!r.ok) {
-                          const data = await r.json().catch(() => ({}));
-                          throw new Error(data.error || "Failed to delete account");
-                        }
-                        await supabase.auth.signOut();
-                      }}
-                    />
-                  ) : (
-                    <EmptyState message="no brain selected. create or pick one to access destructive actions." />
-                  )}
+                  <ClaudeCodeTab />
                 </Suspense>
-              </div>
+              </SettingsPanel>
             )}
 
-            {section === "admin" && isAdmin && (
+            {isAdmin && section === "admin" && (
               <>
-                <SectionHeader
-                  title="Admin"
-                  subtitle="connection tests and diagnostics. only visible to you."
+                <SettingsSectionLabel
+                  label="Admin"
+                  hint="connection tests and diagnostics. only visible to you."
                 />
                 <Suspense fallback={<TabLoading />}>
                   <AdminTab />
@@ -513,15 +449,15 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
       <style>{`
         .settings-root { height: 100dvh; }
         .settings-body { overflow: hidden; }
-        .settings-content { overflow-y: auto; padding: 32px 40px; }
-        .settings-topbar { padding: 18px 32px; min-height: 72px; }
+        .settings-content { overflow-y: auto; padding: 28px 36px; }
+        .settings-topbar { padding: 16px 28px; min-height: 56px; }
         .settings-mobile-tabs { display: none; }
         .settings-desktop-nav { display: flex; }
 
         @media (max-width: 1024px) {
           .settings-root { height: auto; min-height: 100vh; min-height: 100dvh; }
           .settings-body { overflow: visible; flex-direction: column; }
-          .settings-content { overflow: visible; padding: 20px 16px calc(96px + env(safe-area-inset-bottom)); }
+          .settings-content { overflow: visible; padding: 18px 16px calc(96px + env(safe-area-inset-bottom)); }
           .settings-content-inner { max-width: 100%; }
           .settings-topbar { display: none; }
           .settings-mobile-tabs { display: flex; }
@@ -530,4 +466,17 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
       `}</style>
     </div>
   );
+}
+
+function SettingsPanel({
+  show,
+  visited,
+  children,
+}: {
+  show: boolean;
+  visited: boolean;
+  children: ReactNode;
+}) {
+  if (!visited) return null;
+  return <div style={{ display: show ? "block" : "none" }}>{children}</div>;
 }
