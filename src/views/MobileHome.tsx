@@ -200,7 +200,17 @@ export default function MobileHome({
   const isSpeaking = liveSession.status === "speaking";
   const isConnecting = liveSession.status === "connecting";
   const liveShow = liveSession.status !== "idle" || !!liveSession.error;
-  const animating = listening || chatLoading || liveActive || isConnecting;
+  // The orb is the brain symbol — it animates whenever ANYONE is thinking.
+  //   Human side:  recording STT, transcribing STT, typing into the input
+  //   LLM side:    chat responding, voice listening/speaking, voice connecting
+  // Idle = no human, no LLM activity → orb is still.
+  const animating =
+    listening ||
+    transcribing ||
+    chatLoading ||
+    liveActive ||
+    isConnecting ||
+    askInput.trim().length > 0;
 
   // 10s connect timeout — after that the orb deflates and we show
   // "sorry, connection fell flat". Reset on every transition INTO the
