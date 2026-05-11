@@ -1113,6 +1113,92 @@ function _mimeToExt(mime: string): string | null {
   return map[m] || null;
 }
 
+// ── Gemini Live: ephemeral session token ──────────────────────────────────
+// Mints a short-lived auth token so the browser can WebSocket directly to
+// Gemini's Live BidiGenerateContent endpoint without ever seeing the API
+// key. Token is bound to the configured model + voice + system prompt at
+// mint time (single-use, 1-min window to start session, 30-min message
+// window once started). Server reads GEMINI_LIVE_MODEL env var — unset
+// disables the feature regardless of user toggle.
+
+const LIVE_VOICES = new Set([
+  "Aoede",
+  "Charon",
+  "Fenrir",
+  "Kore",
+  "Puck",
+  "Leda",
+  "Orus",
+  "Zephyr",
+]);
+
+async function handleLiveSession(req: ApiRequest, res: ApiResponse, user: AuthedUser) {
+  const model = (process.env.GEMINI_LIVE_MODEL || "").trim();
+  if (!model) {
+    return res.status(503).json({
+      error: "live_not_configured",
+      message: "GEMINI_LIVE_MODEL not set on server.",
+    });
+  }
+  const body = optionalBodyObject(req.body) ?? {};
+  const rawVoice = typeof body.voice === "string" ? body.voice : "Aoede";
+  const voice = LIVE_VOICES.has(rawVoice) ? rawVoice : "Aoede";
+  const systemInstruction =
+    typeof body.systemInstruction === "string" && body.systemInstruction.length > 0
+      ? body.systemInstruction.slice(0, 4000)
+      : "You are a warm, concise voice assistant. Reply in one or two short sentences unless asked for more.";
+
+  const apiKey = await resolveGeminiKey(user.id);
+  if (!apiKey) {
+    return res.status(402).json({
+      error: "no_ai_provider",
+      message: "Add a Gemini API key in Settings or upgrade to Pro.",
+    });
+  }
+
+  try {
+    const { GoogleGenAI, Modality } = await import("@google/genai");
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: { apiVersion: "v1alpha" },
+    });
+    const modelPath = model.startsWith("models/") ? model : `models/${model}`;
+    const nowMs = Date.now();
+    const token = await ai.authTokens.create({
+      config: {
+        uses: 1,
+        expireTime: new Date(nowMs + 30 * 60_000).toISOString(),
+        newSessionExpireTime: new Date(nowMs + 60_000).toISOString(),
+        liveConnectConstraints: {
+          model: modelPath,
+          config: {
+            responseModalities: [Modality.AUDIO],
+            speechConfig: {
+              voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
+            },
+            systemInstruction: { parts: [{ text: systemInstruction }] },
+          },
+        },
+      },
+    });
+    const tokenName = (token as { name?: string }).name;
+    if (!tokenName) throw new Error("token_mint_failed");
+    return res.status(200).json({
+      token: tokenName,
+      model: modelPath,
+      voice,
+      wsUrl:
+        "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained",
+      inputSampleRate: 16000,
+      outputSampleRate: 24000,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "mint_failed";
+    console.error("[live-session] mint failed", msg);
+    return res.status(502).json({ error: "live_mint_failed", message: msg });
+  }
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 export default withAuth(
@@ -1133,6 +1219,9 @@ export default withAuth(
       complete: 30,
       transcribe: 10,
       "extract-file": 20,
+      // Live session mints are expensive — cap tight so a runaway client
+      // can't burn through Gemini quota in one minute.
+      "live-session": 12,
       // List extraction is heavier (file extract + LLM call). Lower
       // limit so a runaway client can't drain quota in one minute.
       "extract-list-from-file": 6,
@@ -1141,6 +1230,8 @@ export default withAuth(
     if (actionLimit && !(await rateLimit(req, actionLimit, 60_000, action))) {
       return res.status(429).json({ error: "Too many requests", action });
     }
+
+    if (action === "live-session") return handleLiveSession(req, res, user);
 
     if (action === "transcribe") return handleTranscribe(req, res);
 
