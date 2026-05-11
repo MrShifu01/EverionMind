@@ -1,4 +1,4 @@
-import { useState, useEffect, useSyncExternalStore, lazy, Suspense } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { supabase } from "../lib/supabase";
 import { getCachedEmail, setCachedEmail } from "../lib/userEmailCache";
 import { useBrain } from "../context/BrainContext";
@@ -20,8 +20,6 @@ const BillingTab = lazy(() => import("../components/settings/BillingTab"));
 const AdminTab = lazy(() => import("../components/settings/AdminTab"));
 const SecurityTab = lazy(() => import("../components/settings/SecurityTab"));
 import SettingsRow, { SettingsButton, SettingsExpand } from "../components/settings/SettingsRow";
-import { authFetch } from "../lib/authFetch";
-import { getDecisionCount } from "../lib/learningEngine";
 
 // Skeleton shown while a tab chunk is fetching. Sized roughly to a typical
 // settings tab so the layout doesn't jump when content arrives.
@@ -182,129 +180,6 @@ function EmptyState({ message }: { message: string }) {
     >
       {message}
     </p>
-  );
-}
-
-interface AuditFlag {
-  type: string;
-  reason?: string;
-}
-
-function BrainAuditRow({ brainId }: { brainId: string }) {
-  type AuditState =
-    | { status: "idle" }
-    | { status: "loading" }
-    | { status: "done"; flagged: number; entries: Record<string, AuditFlag[] | null> }
-    | { status: "error"; message: string };
-
-  const [state, setState] = useState<AuditState>({ status: "idle" });
-
-  async function runAudit() {
-    setState({ status: "loading" });
-    try {
-      const r = await authFetch("/api/audit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brain_id: brainId }),
-      });
-      const raw = await r.text();
-      if (!r.ok) {
-        setState({ status: "error", message: `Audit endpoint returned ${r.status}.` });
-        return;
-      }
-      let parsed: { flagged: number; entries: Record<string, AuditFlag[] | null> };
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        setState({ status: "error", message: "Audit response was malformed." });
-        return;
-      }
-      setState({ status: "done", flagged: parsed.flagged, entries: parsed.entries });
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      setState({ status: "error", message });
-    }
-  }
-
-  const showExpand = state.status === "done" || state.status === "error";
-
-  return (
-    <>
-      <SettingsRow label="Quality audit" hint="ai analysis of your 25 newest entries.">
-        <SettingsButton onClick={runAudit} disabled={state.status === "loading"}>
-          {state.status === "loading" ? "Running…" : "Run audit"}
-        </SettingsButton>
-      </SettingsRow>
-      <SettingsExpand open={showExpand}>
-        {state.status === "done" && (
-          <>
-            <p className="f-sans" style={{ fontSize: 13, color: "var(--ink)", margin: 0 }}>
-              {state.flagged === 0
-                ? "No issues found."
-                : `${state.flagged} entr${state.flagged === 1 ? "y" : "ies"} flagged. Run again after fixing entries to verify.`}
-            </p>
-            {Object.entries(state.entries).map(([id, flags]) =>
-              flags?.length ? (
-                <div
-                  key={id}
-                  className="f-sans"
-                  style={{
-                    background: "var(--surface-low)",
-                    border: "1px solid var(--line-soft)",
-                    padding: 10,
-                    borderRadius: 8,
-                    fontSize: 12,
-                    color: "var(--ink-soft)",
-                  }}
-                >
-                  <p style={{ margin: 0, fontFamily: "var(--f-mono)", opacity: 0.5, fontSize: 11 }}>
-                    {id}
-                  </p>
-                  {flags.map((f, i) => (
-                    <p key={i} style={{ margin: "2px 0 0" }}>
-                      <span style={{ fontWeight: 600, color: "var(--ink)" }}>{f.type}</span>
-                      {f.reason ? ` — ${f.reason}` : ""}
-                    </p>
-                  ))}
-                </div>
-              ) : null,
-            )}
-          </>
-        )}
-        {state.status === "error" && (
-          <p className="f-sans" style={{ fontSize: 13, color: "var(--blood)", margin: 0 }}>
-            {state.message}
-          </p>
-        )}
-      </SettingsExpand>
-    </>
-  );
-}
-
-function subscribeToFocus(onChange: () => void): () => void {
-  window.addEventListener("focus", onChange);
-  return () => window.removeEventListener("focus", onChange);
-}
-
-function BrainLearningRow({ brainId }: { brainId: string }) {
-  // localStorage-backed counter; useSyncExternalStore keeps the read declarative
-  // (no setState-in-effect), re-runs on brainId change, and refreshes on focus.
-  const getSnapshot = () => getDecisionCount(brainId);
-  const count = useSyncExternalStore(subscribeToFocus, getSnapshot, getSnapshot);
-
-  const hint =
-    count === 0
-      ? "no decisions recorded yet. your edits to titles, types, and tags will teach the ai your preferences."
-      : count < 10
-        ? `${10 - count} more until summarisation kicks in.`
-        : "chat and capture now adapt to your patterns.";
-
-  return (
-    <SettingsRow label="Brain learning" hint={hint} last>
-      <span className="f-sans" style={{ fontSize: 14, color: "var(--ink)" }}>
-        {count} {count === 1 ? "decision" : "decisions"}
-      </span>
-    </SettingsRow>
   );
 }
 
@@ -546,8 +421,6 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
                 {activeBrain ? (
                   <Suspense fallback={<TabLoading />}>
                     <BrainTab activeBrain={activeBrain} onRefreshBrains={refresh} />
-                    <BrainAuditRow brainId={activeBrain.id} />
-                    <BrainLearningRow brainId={activeBrain.id} />
                     <SubSection title="Data" subtitle="imports, exports, and your entry archive." />
                     <DataTab brainId={activeBrain.id} activeBrain={activeBrain} />
                     <SubSection title="AI" subtitle="model providers and enrichment pipeline." />
