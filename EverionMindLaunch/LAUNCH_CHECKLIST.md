@@ -460,17 +460,7 @@ App audit on 2026-04-29 found ~298 hand-rolled UI instances across 49+ files wit
 
 ## P2 — Post-launch backlog
 
-### Shared brains — phase 2+ (deferred from 2026-04-28 brainstorm)
-
-Phase 1 (solo multi-brain plumbing) shipped behind flag `multiBrain`. Spec: `docs/superpowers/specs/2026-04-28-shared-brains-design.md`. Decisions already locked, implementation deferred:
-
-- [ ] **Phase 2: invites + members** — `brain_members`, `brain_invites` tables. POST `/api/user-data?resource=brains&action=invite` (email + link). Email-redemption flow via Resend (signup link → auto-join on first login). Member-list view in Settings → Brains tab. Owner can revoke invites.
-- [ ] **Phase 2: roles** — owner / member / observer. Member = wiki-style edit any (locked: brainstorm Q3 = B). Observer = read-only.
-- [ ] **Phase 2: RLS for shared access** — replace `brains_owner_all` with policies that grant SELECT to members/observers, INSERT/UPDATE/DELETE on entries to members + owner only. Service-role bypass for system jobs unchanged.
-- [ ] **Phase 2: audit-log events** — `brain_invited`, `brain_joined`, `brain_member_removed`, `brain_role_changed` on the existing `audit_log` table (migration 053).
-- [ ] **Phase 3: full management UX** — transfer ownership, delete brain with member confirmation broadcast, "leave brain" for members.
-- [ ] **Phase 3: brain-level activity feed** — see who added/edited what, when (read from audit_log).
-- [ ] **Phase 4: discovery / public brains** — out of scope for 2026; only revisit if community use case re-emerges.
+> **Moved 2026-05-11.** Shared-brains Phase 2-4 and Enrichment Phase 2B+3 lifted into [`post-launch-backlog.md`](post-launch-backlog.md) so they stop counting against the active sprint. They remain real, scoped work — just deferred past V0. Promote individual items back into this checklist when the trigger lands.
 
 ### Enrichment pipeline — Phase 2A shipped, Phase 2B+3 deferred (2026-05-06)
 
@@ -496,21 +486,7 @@ the higher-leverage async work below.
   steps. (6) `metadata.ai_summary` stamped on Gmail entries; card +
   DetailModal prefer it over thin scan-time content. (7) Auto-accepted
   Gmail entries trigger extract+enrich at scan time.
-- [ ] **Phase 2B — async capture / fire-fast (P2 deferred).** Switch
-  capture/llm/mcp/v1 from `await enrichInline` to fire-fast — entry
-  returns `state='pending'` instantly, worker drains within ~1min.
-  Trade: capture latency drops from 3-5s to <200ms, but UI shows red
-  P/I/C chips for ~30-60s post-capture (need Supabase realtime
-  subscription to flip when worker completes). **Trigger:** when
-  capture latency or function concurrency limits become user-visible.
-  Probably ~3000-5000 active users.
-- [ ] **Phase 3 — Vercel Queues / Inngest migration (P2 deferred).**
-  When the cron worker can't keep up (~10k+ active users): move from
-  cron-driven sweep to event-driven worker, per-user round-robin
-  scheduling, step-level durability + exponential backoff. Vercel
-  Queues (Beta) is lowest-friction; Inngest is best-in-class for
-  workflow durability. Cost ~$50-200/mo. Triggered by p95 cron drain
-  time exceeding 1h.
+> Phase 2B (fire-fast capture) and Phase 3 (Vercel Queues / Inngest migration) moved to [`post-launch-backlog.md`](post-launch-backlog.md) on 2026-05-11. Triggered by scale (3-5k active users for 2B; 10k+ for Phase 3).
 
 ### Gmail pattern rules — removed (2026-05-09)
 

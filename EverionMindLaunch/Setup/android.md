@@ -64,44 +64,36 @@ RC uses this to validate Play receipts and read product info.
 This is what signs your app for upload to Play. Different from Play's own signing key (which they manage post-upload).
 
 ```bash
-# From the android/ directory of your Capacitor project
-cd android/app
-keytool -genkey -v -keystore release.keystore \
+# From the project root
+cd android
+keytool -genkey -v -keystore everion-release.jks \
   -keyalg RSA -keysize 2048 -validity 10000 \
-  -alias everionmind
+  -alias everion
 ```
 
 - [ ] Set a strong **keystore password** — save in 1Password under `Everion Mind / Android upload keystore`
 - [ ] Set a strong **key password** (can be same as keystore password)
 - [ ] Fill in the certificate info (Common Name = `Everion Mind`, etc.)
-- [ ] **The `release.keystore` file is irreplaceable** — back it up to a secure location (1Password attachments, encrypted backup, etc.). If you lose it, you can never publish updates to this app.
+- [ ] **The `everion-release.jks` file is irreplaceable** — back it up to a secure location (1Password attachments, encrypted backup, etc.). If you lose it, you can never publish updates to this app.
 
 ## 6. Configure Gradle to use the keystore
 
-In `android/app/build.gradle`:
+`android/app/build.gradle` already reads its signing config from `android/keystore.properties` (gitignored). The template lives at `android/keystore.properties.example`. The mechanism: build.gradle calls `keystoreProperties.load(...)` and falls back to debug signing when the file is missing, so `./gradlew assembleDebug` keeps working in CI without secrets.
 
-```gradle
-android {
-    signingConfigs {
-        release {
-            keyAlias 'everionmind'
-            keyPassword System.getenv('ANDROID_KEY_PASSWORD')
-            storeFile file('release.keystore')
-            storePassword System.getenv('ANDROID_STORE_PASSWORD')
-        }
-    }
-    buildTypes {
-        release {
-            signingConfig signingConfigs.release
-            // ... rest of release config
-        }
-    }
-}
+Copy the template and fill it in:
+
+```bash
+cp android/keystore.properties.example android/keystore.properties
+# Edit android/keystore.properties:
+#   storeFile=everion-release.jks
+#   storePassword=<keystore password>
+#   keyAlias=everion
+#   keyPassword=<key password>
 ```
 
-- [ ] Add `android/app/release.keystore` to `.gitignore` (NEVER commit this file)
-- [ ] Add `ANDROID_KEY_PASSWORD` + `ANDROID_STORE_PASSWORD` to your local `.env` (also git-ignored) and to Vercel if CI builds AABs
-- [ ] Test build: `cd android && ./gradlew bundleRelease` should produce `android/app/build/outputs/bundle/release/app-release.aab`
+- [ ] Both `android/keystore.properties` and the `.jks` file are already in `android/.gitignore` (verified 2026-05-11). Confirm before running `git add` after this step.
+- [ ] Test build: `cd android && ./gradlew bundleRelease` should produce `android/app/build/outputs/bundle/release/app-release.aab`.
+- [ ] If you build AABs in GitHub Actions later: stage `keystore.properties` and the `.jks` via base64-encoded repo secrets (`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PROPS_BASE64`), decode at job start. Do **not** use `ANDROID_KEY_PASSWORD` / `ANDROID_STORE_PASSWORD` env vars — build.gradle no longer reads them.
 
 ## 7. First AAB upload to Internal Testing
 
@@ -138,16 +130,19 @@ Android manifest changes Capacitor doesn't auto-add — confirm these are in `an
 
 For invite emails that open the app instead of a browser.
 
-- [ ] In `AndroidManifest.xml` add an intent filter on the main activity:
+- [x] **Intent filter already shipped** in `android/app/src/main/AndroidManifest.xml` (lines 36-43). Targets `everionmind.com` with `/invite/`, `/share/`, `/auth/callback` path prefixes. `autoVerify="false"` until the assetlinks fingerprint below is real — flip to `"true"` once Play App Signing returns the production SHA256:
   ```xml
-  <intent-filter android:autoVerify="true">
+  <intent-filter android:autoVerify="false">
       <action android:name="android.intent.action.VIEW" />
       <category android:name="android.intent.category.DEFAULT" />
       <category android:name="android.intent.category.BROWSABLE" />
-      <data android:scheme="https" android:host="everion.smashburgerbar.co.za" />
+      <data android:scheme="https" android:host="everionmind.com" android:pathPrefix="/invite/" />
+      <data android:scheme="https" android:host="everionmind.com" android:pathPrefix="/share/" />
+      <data android:scheme="https" android:host="everionmind.com" android:pathPrefix="/auth/callback" />
   </intent-filter>
   ```
-- [ ] Host the **assetlinks** JSON at `https://everion.smashburgerbar.co.za/.well-known/assetlinks.json`:
+  > **Host note:** the shipped manifest targets `everionmind.com` (the planned production domain), not the current beta host `everion.smashburgerbar.co.za`. If the brand-name decision moves the production domain, update both this manifest block and the assetlinks file URL below in a single pass.
+- [ ] Host the **assetlinks** JSON at `https://everionmind.com/.well-known/assetlinks.json` (matches the manifest host). The file template already lives at `public/.well-known/assetlinks.json` with a placeholder `REPLACE_WITH_PRODUCTION_KEYSTORE_SHA256_FINGERPRINT` — replace once Play App Signing returns the real fingerprint from step 8:
   ```json
   [{
     "relation": ["delegate_permission/common.handle_all_urls"],

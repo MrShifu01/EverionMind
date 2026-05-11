@@ -246,7 +246,11 @@ function parseTasksFromContent(relPath, content, mtime) {
   const tasks = [];
   const lines = content.split(/\r?\n/);
   const source = sourceLabelFor(relPath);
-  const archived = relPath.includes("/archive/");
+  // Files under /archive/ are explicitly historical. post-launch-backlog.md
+  // holds work that is real but deferred past V0 — dashboard treats it like
+  // archived (hidden from "All / Open / Done" views, visible when filtering
+  // by source) so it stops inflating the active task count.
+  const archived = relPath.includes("/archive/") || /(?:^|\/)post-launch-backlog\.md$/i.test(relPath);
   for (let i = 0; i < lines.length; i++) {
     const m = CHECKBOX_RE.exec(lines[i]);
     if (!m) continue;

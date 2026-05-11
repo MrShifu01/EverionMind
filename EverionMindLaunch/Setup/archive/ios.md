@@ -1,3 +1,11 @@
+# iOS setup runbook — DEFERRED to Phase 6 (post-launch)
+
+> **STATUS: DEFERRED 2026-05-11.** iOS submission is Phase 6 — explicitly post-launch per `CLAUDE.md` and the `Roadmap/beta-phase.md` Android-first decision (2026-05-05). The 53 manual items in this file are real future work, not stale. They just shouldn't count against the active pre-launch sprint.
+>
+> File moved to `Setup/archive/` so the dashboard hides it from default task views. Promote individual items back into `LAUNCH_CHECKLIST.md` when the iOS sprint begins (Android needs 30 days of stable production data and zero S1 incidents first — see `LAUNCH_CHECKLIST.md § Post-launch — iOS launch sprint`).
+
+---
+
 # iOS setup runbook
 
 Apple Developer + App Store Connect + Xcode signing. The Capacitor wrap is shipped (`capacitor.config.ts`, bundle id `com.everionmind.app`). This is the operator-side Apple work needed before you can build, ship to TestFlight, or publish to the App Store.

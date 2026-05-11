@@ -175,11 +175,7 @@ Target: **value demonstrated in under 60 seconds.** Not a tour. A demo.
 
 ### What to build
 
-- [ ] **Shareable Insight Cards.** "Share this insight" button on AI responses. OG-image-ready card (quote + brain logo + `everion.app`). Copy-to-clipboard + direct share to X, LinkedIn, WhatsApp. Organic acquisition engine — users share AI insights that make them look smart.
-- [ ] **Weekly Email Digest.** Sunday: "Your brain this week — 12 captures, 3 patterns, 1 action suggested." Links back to the Feed. Reactivates dormant users. Use Resend.
-- [ ] **Push Notifications (streak reminders).** "Don't break your 7-day streak." Respect quiet hours. Dismissible. Opt-out in Settings.
-- [ ] **Chat Feedback v1.** Thumbs up/down on every AI response. `chat_feedback` table with question embedding. Feeds top-3 thumbs-up examples into next chat as few-shot. Also feeds Layer 1 prompt edits.
-- [ ] **Prompt Improvement Layer 1.** Weekly review of thumbs-down responses. Edit CAPTURE + CHAT prompts based on actual failure modes.
+> Items moved 2026-05-11 → [`post-launch-backlog.md § Month 1-2`](post-launch-backlog.md#month-1-2-features-from-roadmap--month-1-2). Shareable Insight Cards, Weekly Email Digest, Push streak reminders, Chat Feedback v1, Prompt Improvement Layer 1.
 
 ### Acquisition channels (pick 2, commit 4 weeks each)
 
@@ -279,22 +275,7 @@ PH visitors aren't random — they're earned. Six levers, ranked by ROI. **Tacti
 
 **Starting point:** 200–500 paying users, $1–3K MRR, clear power-user picture.
 
-### Feature priorities (in order)
-
-1. [ ] **Unhide multi-brain for paying users.** Remove `ENABLE_MULTI_BRAIN` flag for Starter/Pro. Reuses already-built work. Differentiates Starter/Pro from Free. Unlocks the **shared brains viral loop** — strongest viral mechanic. Only ships now because single-brain retention is proven.
-2. [ ] **Finance v0.1 — `finance` entry type.** Add `finance` to `CANONICAL_TYPES`. Parser recognises "spent R450 on groceries". Smallest surface, highest daily-use lift.
-3. [ ] **Finance v0.2 — Dashboard view.** Top cards: month income / expenses / net / savings rate. Category breakdown donut, net-worth line chart. Client-side aggregation from entries.
-4. [ ] **Finance v0.3 — Budgets.** Category budgets with progress bars + warnings.
-5. [ ] **Community Brain v0.1 — read-only seed.** Hard-coded "Everion Community" brain. Every user auto-joins as reader. Seed with ~200 example entries. Solves Day-1 emptiness for new users.
-6. [ ] **Entry Enrichment v0.1 — manual ✨ button.** Google Places + Wikipedia + Gemini grounded fallback. User-triggered, reviewable, never silent. Build `src/lib/enrich/` router.
-7. [ ] **Concept Graph re-introduction at 50+ entries.** Only unlock at 50. "Your brain is growing — see the connections." Reward in the habit loop, not a default nav item. Confidence labels (EXTRACTED / INFERRED), god-node view, surprising connections.
-
-### Infrastructure milestones
-
-- [ ] At 500 paying users: upgrade Supabase compute (Small, +$15/mo).
-- [ ] Watch Vercel bandwidth — 1TB cap approaching.
-- [ ] Enable Semantic Caching for `/v1/context` once latency tail shows repeat queries.
-- [ ] Vercel Hobby → Pro at public launch (already on the launch checklist). Pro enables hourly cron execution so per-user `daily_time` + `daily_timezone` preferences actually fire.
+> Feature roster + infra milestones moved 2026-05-11 → [`post-launch-backlog.md § Month 3-6`](post-launch-backlog.md#month-3-6-features-from-roadmap--month-3-6). Multi-brain unlock for paid, Finance v0.1-v0.3, Community Brain v0.1, Entry Enrichment v0.1, Concept Graph re-introduction at 50+ entries. Infra: Supabase compute upgrade at 500 paid, Vercel bandwidth watch, Semantic Caching for /v1/context.
 
 ---
 
@@ -302,25 +283,7 @@ PH visitors aren't random — they're earned. Six levers, ranked by ROI. **Tacti
 
 **Target:** $10K MRR. Only reachable if retention math holds and one acquisition channel is repeatable.
 
-### Features
-
-- [ ] **REST Gateway.** `em_*` API keys, `/v1/context`, `/v1/answer`, `/v1/ingest`. Enables Everion as a second-brain backend for ChatGPT, Claude Desktop, custom agents. **The developer-audience moat.**
-- [ ] **Usage Tracking.** `api_usage` table, dashboard tab. Depends on REST Gateway.
-- [ ] **JS + Python SDKs.** Thin wrappers, npm + PyPI.
-- [ ] **Finance v0.4 — RAG-aware finance chat.** Intent classifier routes finance questions through structured tool (`{kind, category, from, to, agg: "sum"}`) before LLM. "How much did I spend on groceries in March?" → exact number + NL explanation. **The "wow" demo.**
-- [ ] **Finance v0.5 — Recurring auto-generation.** Ghost entries for salary / rent / subscriptions, upgraded to real on date.
-- [ ] **Entry Enrichment v0.2–v0.6.** Books / TMDB + Discovery queries ("what series would I enjoy?" → TMDB Discover + LLM ranking + Save-to-brain). Most user-visible enrichment payoff.
-- [ ] **Community Brain v0.2–v0.4.** User-created community brains, contributor role, voting, moderation.
-- [ ] **Prompt Self-Improvement Layer 2** (~50 active users). Per-user preference blob injected into system prompts.
-- [ ] **Prompt Self-Improvement Layer 3** (~500 active users). Global correction-pattern analysis, weekly prompt-diff with human-in-the-loop review.
-- [ ] **External integrations.** vCard contact import (zero OAuth, already shipped) is the current integration surface. No third-party OAuth planned for v1.
-- [ ] **Entry Chunking.** Split long entries into overlapping chunks, dual-embed, dedupe in retrieval. Kicks in when power users start storing SOPs/documents.
-
-### Growth loops to harden
-
-- [ ] **Shared brains viral mechanic.** One user invites 5 → each invites 3 → exponential. Instrument invite-to-join conversion.
-- [ ] **Insight card share rate.** Instrument: `share_click / insight_view`. Target 5%. Iterate card copy until hit.
-- [ ] **Referral program.** $5 credit for referrer + referee on Starter upgrade. Only enable once organic share rate > 2%.
+> Feature roster + growth-loop instrumentation moved 2026-05-11 → [`post-launch-backlog.md § Month 6-12`](post-launch-backlog.md#month-6-12-features-from-roadmap--month-6-12). REST Gateway + SDKs, Finance v0.4-v0.5, Entry Enrichment v0.2-v0.6, Community Brain v0.2-v0.4, Prompt Self-Improvement Layers 2+3, Entry Chunking, shared-brains viral mechanic, insight-card share rate, referral program.
 
 ---
 
