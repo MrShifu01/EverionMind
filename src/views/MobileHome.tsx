@@ -3,6 +3,8 @@ import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { useChat } from "../hooks/useChat";
 import { useVoiceMode, useGeminiLive, useGeminiVoice, type VoiceMode } from "../hooks/useVoiceMode";
 import { useGeminiLiveSession } from "../hooks/useGeminiLiveSession";
+import { usePendingVoiceActions } from "../hooks/usePendingVoiceActions";
+import { PendingVoiceActionsBanner } from "../components/PendingVoiceActionsBanner";
 
 interface MobileHomeProps {
   brainId: string | undefined;
@@ -34,6 +36,14 @@ export default function MobileHome({
   const [geminiLiveOn] = useGeminiLive();
   const [geminiVoice] = useGeminiVoice();
   const liveSession = useGeminiLiveSession();
+  // Poll pending voice actions only while the orb is active. Banner is
+  // hidden silently when the list is empty (during the listening/speaking
+  // phase before the model has enqueued anything, and after expiry).
+  const liveSessionActive =
+    liveSession.status === "connecting" ||
+    liveSession.status === "listening" ||
+    liveSession.status === "speaking";
+  const pendingActions = usePendingVoiceActions(liveSessionActive);
 
   const holdTimerRef = useRef<number | null>(null);
   const recordingRef = useRef(false);
@@ -187,6 +197,7 @@ export default function MobileHome({
   const transcribing = status === "transcribing";
   const isAsk = mode === "ask";
   const liveActive = liveSession.status === "listening" || liveSession.status === "speaking";
+  const isSpeaking = liveSession.status === "speaking";
   const liveShow = liveSession.status !== "idle" || !!liveSession.error;
   const animating = listening || chatLoading || liveActive;
   // The orb only shrinks when the user actually taps the chat input. Just
@@ -335,7 +346,11 @@ export default function MobileHome({
               filter: "blur(20px)",
               opacity: animating ? 1 : 0.55,
               transition: "opacity 240ms ease",
-              animation: animating ? "hero-glow 1.6s ease-in-out infinite" : "none",
+              animation: isSpeaking
+                ? "orb-speak-glow 0.9s ease-in-out infinite"
+                : animating
+                  ? "hero-glow 1.6s ease-in-out infinite"
+                  : "none",
             }}
           />
           <span
@@ -345,7 +360,11 @@ export default function MobileHome({
               inset: 0,
               borderRadius: "50%",
               border: "1px solid color-mix(in oklch, var(--ember) 35%, transparent)",
-              animation: animating ? "ring-pulse 1.4s ease-in-out infinite" : "none",
+              animation: isSpeaking
+                ? "ring-pulse 0.6s ease-in-out infinite"
+                : animating
+                  ? "ring-pulse 1.4s ease-in-out infinite"
+                  : "none",
             }}
           />
           <span
@@ -360,6 +379,35 @@ export default function MobileHome({
               transition: "opacity 240ms ease",
             }}
           />
+          {/* Speaking-only: two emanating waves, staggered by 750ms so a
+              ring is always travelling outward while the model talks. */}
+          {isSpeaking && (
+            <>
+              <span
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  borderRadius: "50%",
+                  border: "1.5px solid color-mix(in oklch, var(--ember) 55%, transparent)",
+                  animation: "orb-speak-wave 1.5s ease-out infinite",
+                  pointerEvents: "none",
+                }}
+              />
+              <span
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  borderRadius: "50%",
+                  border: "1.5px solid color-mix(in oklch, var(--ember) 45%, transparent)",
+                  animation: "orb-speak-wave 1.5s ease-out infinite",
+                  animationDelay: "750ms",
+                  pointerEvents: "none",
+                }}
+              />
+            </>
+          )}
           <span
             aria-hidden="true"
             style={{
@@ -428,6 +476,11 @@ export default function MobileHome({
                 closeReason={liveSession.closeReason}
               />
             )}
+            <PendingVoiceActionsBanner
+              pending={pendingActions.pending}
+              onAccept={pendingActions.accept}
+              onReject={pendingActions.reject}
+            />
             <AskPanel
               messages={messages}
               loading={chatLoading}

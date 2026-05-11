@@ -1132,10 +1132,16 @@ const LIVE_VOICES = new Set([
   "Zephyr",
 ]);
 
-// Voice-safe tool subset of CHAT_TOOLS. Skips update/delete/merge (require
-// confirmation, awkward in real-time speech) and persona tools (too complex
-// for first cut). Server-side `?action=tool-exec` enforces this allow-list.
-const VOICE_TOOL_NAMES = new Set([
+// Voice tools — two tiers:
+//
+// Tier 1 (direct, low-risk additive): execute immediately via the same
+// execTool chat uses. Model verbally echoes what it did.
+//
+// Tier 2 (queued, high-risk destructive): NEVER execute directly from
+// voice. Model calls `enqueue_pending_action` instead, which writes a
+// pending row. The app shows a banner; user taps Accept to commit (server
+// then runs the real tool) or Reject to discard. 10-min TTL.
+const VOICE_DIRECT_TOOL_NAMES = new Set([
   "retrieve_memory",
   "search_entries",
   "get_entry",
@@ -1143,11 +1149,58 @@ const VOICE_TOOL_NAMES = new Set([
   "create_entry",
 ]);
 
+const VOICE_QUEUED_TOOL_NAMES = new Set([
+  "update_entry",
+  "delete_entry",
+  "merge_entries",
+  "persona.update_fact",
+  "persona.retire_fact",
+]);
+
+const ENQUEUE_TOOL_NAME = "enqueue_pending_action";
+
+const VOICE_TOOL_NAMES = new Set([...VOICE_DIRECT_TOOL_NAMES, ENQUEUE_TOOL_NAME]);
+
+const ENQUEUE_TOOL_SCHEMA = {
+  name: ENQUEUE_TOOL_NAME,
+  description:
+    "Queue a destructive action (delete, update, merge, persona.update_fact, persona.retire_fact) for the user to confirm with a tap. NEVER call delete_entry / update_entry / merge_entries / persona.update_fact / persona.retire_fact directly in voice — always route them through this tool. After enqueueing, tell the user 'sent to your pending list — tap to confirm.'",
+  parameters: {
+    type: "object",
+    properties: {
+      tool: {
+        type: "string",
+        description:
+          "Which destructive tool to enqueue. One of: update_entry, delete_entry, merge_entries, persona.update_fact, persona.retire_fact.",
+      },
+      args: {
+        type: "object",
+        description: "Arguments object to pass to the underlying tool when the user accepts.",
+      },
+      summary: {
+        type: "string",
+        description:
+          "One short sentence the user will read in the pending banner. Plain language, no jargon. E.g. 'Delete \"Pay rent\"' or 'Update title of \"Acme invoice\" to \"Acme rent invoice\"'.",
+      },
+    },
+    required: ["tool", "args", "summary"],
+  },
+};
+
 const VOICE_SYSTEM_ADDENDUM = `
 You are speaking aloud, not typing. Keep replies SHORT — one or two spoken sentences. Plain words only. No markdown, no asterisks, no bullet points, no code blocks, no headings. No "Sure!" or "Of course!" preambles. Speak naturally.
 
 When the user asks for stored data (numbers, names, codes, addresses), retrieve_memory first, then read the value out plainly.
-When the user says things like "save this", "remember this", "add to my", "make a note that…", call create_entry with a short descriptive title and the literal content.`;
+
+VERBAL ECHO ON SAVES (mandatory): After create_entry, say back what you saved in one short sentence ("saved 'pick up milk tomorrow at five' to your notes"). This catches transcription misfires before they pile up.
+
+DESTRUCTIVE OPS (never call directly in voice):
+- delete_entry, update_entry, merge_entries, persona.update_fact, persona.retire_fact
+- ALWAYS route through enqueue_pending_action with the underlying tool name, its args, and a one-sentence plain-language summary the user will read in their pending list.
+- After enqueueing, say: "sent to your pending list — tap to confirm."
+- NEVER pretend you executed a destructive action. NEVER say "deleted" or "updated" unless the user has already accepted a pending action.
+
+When the user says things like "save this", "remember this", "add to my", "make a note that…", call create_entry with a short descriptive title and the literal content, then echo verbally.`;
 
 async function handleLiveSession(req: ApiRequest, res: ApiResponse, user: AuthedUser) {
   const model = (process.env.GEMINI_LIVE_MODEL || "").trim();
@@ -1187,11 +1240,14 @@ async function handleLiveSession(req: ApiRequest, res: ApiResponse, user: Authed
   const systemInstruction =
     `${SERVER_PROMPTS.CHAT_AGENT}${profilePreamble}${VOICE_SYSTEM_ADDENDUM}`.slice(0, 30000);
 
-  const voiceTools = CHAT_TOOLS.filter((t) => VOICE_TOOL_NAMES.has(t.name)).map((t) => ({
-    name: t.name,
-    description: t.description,
-    parameters: t.parameters,
-  }));
+  const voiceTools = [
+    ...CHAT_TOOLS.filter((t) => VOICE_DIRECT_TOOL_NAMES.has(t.name)).map((t) => ({
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters,
+    })),
+    ENQUEUE_TOOL_SCHEMA,
+  ];
 
   try {
     const { GoogleGenAI, Modality } = await import("@google/genai");
@@ -1272,6 +1328,57 @@ async function handleToolExec(
     res.status(403).json({ error: "forbidden" });
     return;
   }
+
+  // Tier 2: enqueue destructive ops instead of running them.
+  if (name === ENQUEUE_TOOL_NAME) {
+    const innerTool = typeof safeArgs.tool === "string" ? safeArgs.tool : "";
+    const innerArgs =
+      safeArgs.args && typeof safeArgs.args === "object" && !Array.isArray(safeArgs.args)
+        ? safeArgs.args
+        : {};
+    const summary = typeof safeArgs.summary === "string" ? safeArgs.summary.slice(0, 240) : "";
+    if (!VOICE_QUEUED_TOOL_NAMES.has(innerTool)) {
+      res.status(200).json({
+        result: { error: `${innerTool} is not a queueable destructive tool` },
+      });
+      return;
+    }
+    if (!summary) {
+      res.status(200).json({ result: { error: "summary is required" } });
+      return;
+    }
+    const insert = await fetch(`${SB_URL}/rest/v1/pending_voice_actions`, {
+      method: "POST",
+      headers: { ...sbHeaders(), Prefer: "return=representation" },
+      body: JSON.stringify({
+        user_id: user.id,
+        brain_id,
+        tool_name: innerTool,
+        tool_args: innerArgs,
+        summary,
+      }),
+    });
+    if (!insert.ok) {
+      const errBody = await insert.text().catch(() => "");
+      res.status(200).json({
+        result: { error: `enqueue failed HTTP ${insert.status}: ${errBody.slice(0, 200)}` },
+      });
+      return;
+    }
+    const rows: any[] = await insert.json();
+    res.status(200).json({
+      result: {
+        enqueued: true,
+        id: rows[0]?.id,
+        summary,
+        expires_at: rows[0]?.expires_at,
+        message: "Sent to pending list — user must tap to confirm.",
+      },
+    });
+    return;
+  }
+
+  // Tier 1: direct execution.
   try {
     const result = await execTool(name, safeArgs, user.id, brain_id);
     res.status(200).json({ result });
@@ -1280,6 +1387,124 @@ async function handleToolExec(
     console.error("[tool-exec]", name, msg);
     res.status(200).json({ result: { error: msg } });
   }
+}
+
+// ── Pending voice actions: list ──────────────────────────────────────────
+async function handlePendingList(_req: ApiRequest, res: ApiResponse, user: AuthedUser) {
+  const url =
+    `${SB_URL}/rest/v1/pending_voice_actions` +
+    `?user_id=eq.${encodeURIComponent(user.id)}` +
+    `&status=eq.pending` +
+    `&expires_at=gt.${encodeURIComponent(new Date().toISOString())}` +
+    `&order=created_at.desc` +
+    `&select=id,brain_id,tool_name,tool_args,summary,created_at,expires_at`;
+  const r = await fetch(url, { headers: sbHeaders() });
+  if (!r.ok) {
+    res.status(502).json({ error: "fetch_failed", message: `HTTP ${r.status}` });
+    return;
+  }
+  const rows = await r.json();
+  res.status(200).json({ pending: rows });
+}
+
+// ── Pending voice actions: commit (accept or reject) ─────────────────────
+async function handlePendingCommit(req: ApiRequest, res: ApiResponse, user: AuthedUser) {
+  const { id, decision } = bodyObject(req.body) as {
+    id?: unknown;
+    decision?: unknown;
+  };
+  if (typeof id !== "string" || !id) {
+    res.status(400).json({ error: "id_required" });
+    return;
+  }
+  if (decision !== "accept" && decision !== "reject") {
+    res.status(400).json({ error: "decision must be 'accept' or 'reject'" });
+    return;
+  }
+
+  // Fetch + lock-via-status-check. Service role bypasses RLS so we explicitly
+  // filter by user_id to keep one user from resolving another's row.
+  const fetchRes = await fetch(
+    `${SB_URL}/rest/v1/pending_voice_actions` +
+      `?id=eq.${encodeURIComponent(id)}` +
+      `&user_id=eq.${encodeURIComponent(user.id)}` +
+      `&select=id,brain_id,tool_name,tool_args,status,expires_at`,
+    { headers: sbHeaders() },
+  );
+  if (!fetchRes.ok) {
+    res.status(502).json({ error: "fetch_failed" });
+    return;
+  }
+  const rows: any[] = await fetchRes.json();
+  const row = rows[0];
+  if (!row) {
+    res.status(404).json({ error: "not_found" });
+    return;
+  }
+  if (row.status !== "pending") {
+    res.status(409).json({ error: "already_resolved", status: row.status });
+    return;
+  }
+  if (new Date(row.expires_at).getTime() < Date.now()) {
+    // Mark expired so the banner clears it.
+    await fetch(
+      `${SB_URL}/rest/v1/pending_voice_actions?id=eq.${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        headers: { ...sbHeaders(), Prefer: "return=minimal" },
+        body: JSON.stringify({ status: "expired", resolved_at: new Date().toISOString() }),
+      },
+    ).catch(() => {});
+    res.status(410).json({ error: "expired" });
+    return;
+  }
+
+  if (decision === "reject") {
+    await fetch(`${SB_URL}/rest/v1/pending_voice_actions?id=eq.${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { ...sbHeaders(), Prefer: "return=minimal" },
+      body: JSON.stringify({ status: "rejected", resolved_at: new Date().toISOString() }),
+    });
+    res.status(200).json({ ok: true, decision: "reject" });
+    return;
+  }
+
+  // Accept: run the underlying tool with the saved args, then persist the
+  // result alongside the row for auditing. Status flips first so a retry
+  // can't re-execute.
+  const flipRes = await fetch(
+    `${SB_URL}/rest/v1/pending_voice_actions?id=eq.${encodeURIComponent(id)}&status=eq.pending`,
+    {
+      method: "PATCH",
+      headers: { ...sbHeaders(), Prefer: "return=representation" },
+      body: JSON.stringify({ status: "accepted", resolved_at: new Date().toISOString() }),
+    },
+  );
+  if (!flipRes.ok) {
+    res.status(502).json({ error: "flip_failed" });
+    return;
+  }
+  const flipped: any[] = await flipRes.json();
+  if (!flipped[0]) {
+    res.status(409).json({ error: "already_resolved" });
+    return;
+  }
+
+  let result: unknown;
+  try {
+    result = await execTool(row.tool_name, row.tool_args ?? {}, user.id, row.brain_id);
+  } catch (err) {
+    result = { error: err instanceof Error ? err.message : "exec_failed" };
+  }
+
+  // Best-effort save the result for later inspection. Don't block the response.
+  fetch(`${SB_URL}/rest/v1/pending_voice_actions?id=eq.${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { ...sbHeaders(), Prefer: "return=minimal" },
+    body: JSON.stringify({ result }),
+  }).catch(() => {});
+
+  res.status(200).json({ ok: true, decision: "accept", result });
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
@@ -1309,6 +1534,10 @@ export default withAuth(
       // a chatty session could fire one every few seconds. 90/min covers
       // bursts without leaving the door wide open.
       "tool-exec": 90,
+      // Banner polls pending-list a few times per minute while voice is
+      // active; commit fires when the user taps Accept/Reject.
+      "pending-list": 60,
+      "pending-commit": 30,
       // List extraction is heavier (file extract + LLM call). Lower
       // limit so a runaway client can't drain quota in one minute.
       "extract-list-from-file": 6,
@@ -1320,6 +1549,8 @@ export default withAuth(
 
     if (action === "live-session") return handleLiveSession(req, res, user);
     if (action === "tool-exec") return handleToolExec(req, res, user);
+    if (action === "pending-list") return handlePendingList(req, res, user);
+    if (action === "pending-commit") return handlePendingCommit(req, res, user);
 
     if (action === "transcribe") return handleTranscribe(req, res);
 

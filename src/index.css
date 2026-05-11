@@ -321,6 +321,29 @@ html:not(.dark) {
     opacity: 0.9;
   }
 }
+/* Voice "speaking" state — concentric emanating rings + brighter glow.
+   Stacked twice with a 750ms offset so a wave is always travelling. */
+@keyframes orb-speak-wave {
+  0% {
+    transform: scale(0.96);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+}
+@keyframes orb-speak-glow {
+  0%,
+  100% {
+    opacity: 0.8;
+    filter: blur(20px);
+  }
+  50% {
+    opacity: 1;
+    filter: blur(26px);
+  }
+}
 @keyframes fade-up {
   from {
     opacity: 0;
