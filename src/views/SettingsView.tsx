@@ -311,7 +311,7 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
                 hint="how Everion addresses you and tailors its replies."
               />
               <Suspense fallback={<TabLoading />}>
-                <ProfileTab />
+                <ProfileTab onNavigate={onNavigate} />
               </Suspense>
             </SettingsPanel>
 
