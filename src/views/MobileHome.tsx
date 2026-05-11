@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { useChat } from "../hooks/useChat";
-import { useVoiceMode, type VoiceMode } from "../hooks/useVoiceMode";
+import { useVoiceMode, useGeminiLive, useGeminiVoice, type VoiceMode } from "../hooks/useVoiceMode";
+import { useGeminiLiveSession } from "../hooks/useGeminiLiveSession";
 
 interface MobileHomeProps {
   brainId: string | undefined;
@@ -26,16 +27,28 @@ export default function MobileHome({
   const [error, setError] = useState<string | null>(null);
   const [askInput, setAskInput] = useState("");
   const [voiceMode, setVoiceMode] = useVoiceMode();
+  const [geminiLiveOn] = useGeminiLive();
+  const [geminiVoice] = useGeminiVoice();
+  const liveSession = useGeminiLiveSession();
 
   const holdTimerRef = useRef<number | null>(null);
   const recordingRef = useRef(false);
+  const liveActiveRef = useRef(false);
   const voiceTargetRef = useRef<VoiceTarget>(null);
   const voiceModeRef = useRef<VoiceMode>(voiceMode);
+  const liveOnRef = useRef(geminiLiveOn);
+  const liveVoiceRef = useRef(geminiVoice);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     voiceModeRef.current = voiceMode;
   }, [voiceMode]);
+  useEffect(() => {
+    liveOnRef.current = geminiLiveOn;
+  }, [geminiLiveOn]);
+  useEffect(() => {
+    liveVoiceRef.current = geminiVoice;
+  }, [geminiVoice]);
 
   const { messages, loading: chatLoading, send: sendChat, clearHistory } = useChat(brainId);
 
@@ -92,12 +105,18 @@ export default function MobileHome({
     setError(null);
     setPressed(true);
     clearHoldTimer();
+    const useLive = mode === "ask" && liveOnRef.current;
     const targetForHold: VoiceTarget = mode === "ask" ? "chat" : "capture";
     holdTimerRef.current = window.setTimeout(() => {
       holdTimerRef.current = null;
-      recordingRef.current = true;
-      voiceTargetRef.current = targetForHold;
-      void startVoice();
+      if (useLive) {
+        liveActiveRef.current = true;
+        void liveSession.start({ voice: liveVoiceRef.current });
+      } else {
+        recordingRef.current = true;
+        voiceTargetRef.current = targetForHold;
+        void startVoice();
+      }
     }, HOLD_THRESHOLD_MS);
   }
 
@@ -109,6 +128,12 @@ export default function MobileHome({
         // Tap: spring orb back up first, then open modal so the bounce is visible.
         window.setTimeout(() => onOpenCapture(), 220);
       }
+      return;
+    }
+    if (liveActiveRef.current) {
+      liveActiveRef.current = false;
+      setPressed(false);
+      liveSession.stop();
       return;
     }
     if (recordingRef.current) {
@@ -124,6 +149,11 @@ export default function MobileHome({
     setPressed(false);
     if (holdTimerRef.current) {
       clearHoldTimer();
+      return;
+    }
+    if (liveActiveRef.current) {
+      liveActiveRef.current = false;
+      liveSession.stop();
       return;
     }
     if (recordingRef.current) {
@@ -143,7 +173,8 @@ export default function MobileHome({
 
   const transcribing = status === "transcribing";
   const isAsk = mode === "ask";
-  const animating = listening || chatLoading;
+  const liveActive = liveSession.status === "listening" || liveSession.status === "speaking";
+  const animating = listening || chatLoading || liveActive;
   const orbSize = isAsk ? 84 : 168;
   const logoSize = Math.round(orbSize * 0.78);
 
@@ -327,16 +358,26 @@ export default function MobileHome({
         </button>
 
         {isAsk && (
-          <AskPanel
-            messages={messages}
-            loading={chatLoading}
-            input={askInput}
-            onInputChange={setAskInput}
-            onSubmit={submitAsk}
-            onClear={clearHistory}
-            messagesEndRef={messagesEndRef}
-            brainReady={!!brainId}
-          />
+          <>
+            {(liveActive || liveSession.error) && (
+              <LiveBanner
+                status={liveSession.status}
+                error={liveSession.error}
+                userTranscript={liveSession.userTranscript}
+                assistantTranscript={liveSession.assistantTranscript}
+              />
+            )}
+            <AskPanel
+              messages={messages}
+              loading={chatLoading}
+              input={askInput}
+              onInputChange={setAskInput}
+              onSubmit={submitAsk}
+              onClear={clearHistory}
+              messagesEndRef={messagesEndRef}
+              brainReady={!!brainId}
+            />
+          </>
         )}
       </div>
     </div>
@@ -413,6 +454,76 @@ function VoiceModePill({ mode, onChange }: { mode: VoiceMode; onChange: (m: Voic
           </button>
         );
       })}
+    </div>
+  );
+}
+
+function LiveBanner({
+  status,
+  error,
+  userTranscript,
+  assistantTranscript,
+}: {
+  status: "idle" | "connecting" | "listening" | "speaking" | "error";
+  error: string | null;
+  userTranscript: string;
+  assistantTranscript: string;
+}) {
+  const label =
+    status === "connecting"
+      ? "connecting…"
+      : status === "listening"
+        ? "listening"
+        : status === "speaking"
+          ? "speaking"
+          : error
+            ? error
+            : "";
+  return (
+    <div
+      style={{
+        width: "100%",
+        maxWidth: 560,
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+        padding: "10px 14px",
+        background: "var(--surface-high)",
+        border: "1px solid var(--line-soft)",
+        borderRadius: 12,
+        boxShadow: "var(--lift-1)",
+      }}
+    >
+      <div
+        className="f-sans"
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
+          color: error ? "var(--blood)" : "var(--ember)",
+        }}
+      >
+        {label}
+      </div>
+      {userTranscript && (
+        <div className="f-serif" style={{ fontSize: 14, color: "var(--ink)", lineHeight: 1.45 }}>
+          {userTranscript}
+        </div>
+      )}
+      {assistantTranscript && (
+        <div
+          className="f-serif"
+          style={{
+            fontSize: 14,
+            fontStyle: "italic",
+            color: "var(--ink-soft)",
+            lineHeight: 1.45,
+          }}
+        >
+          {assistantTranscript}
+        </div>
+      )}
     </div>
   );
 }
