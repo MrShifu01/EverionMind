@@ -6,7 +6,6 @@
 - ✅ [Notification Bell](bell.md) — `src/components/NotificationBell.tsx`
 - ✅ [Capture pipeline](capture.md) — `CaptureSheet.tsx` + `useCaptureSheetParse.ts` + `api/capture.ts`
 - ✅ [Enrichment pipeline](enrich.md) — `api/_lib/enrich.ts` + `enrichFlags.ts` + PICE chips
-- ✅ [Gmail sync flow](gmail.md) — `api/_lib/gmailScan.ts` + `api/gmail.ts` + staging inbox
 - ✅ [Workflows + cron](cron.md) — `.github/workflows/*.yml` + `handleCronDaily/Hourly`
 - ✅ [Auth + tier + rate](auth.md) — `withAuth`, `app_metadata.is_admin`, tier quotas, Upstash limiter
 
@@ -29,10 +28,6 @@
 ### 8. Vault (encryption + lock + recovery + reveal)
 **Files:** `src/components/VaultRevealModal.tsx` + `src/views/VaultView.tsx` + `src/lib/crypto.ts` + `src/hooks/useVaultOps.ts` + `vault_keys` table + secret entries
 **Why:** Cryptographic surface. Argon2id key derivation, AES-GCM, lock countdown, recovery codes. Get this wrong and user data is unrecoverable. Worth a careful single doc that consolidates the full key lifecycle.
-
-### 9. Schedule / Todo placement engine
-**Files:** `src/views/TodoCalendarTab.tsx` (1679 lines) + `TodoView.tsx` + `TodoSomedayTab.tsx` + `src/views/todoUtils.ts` + the Schedule Inspector admin tool
-**Why:** `explainPlacements` decides why entries appear (or don't) on My Day / Week / Calendar. Recurrence rules, exclusions, persona facts as calendar events. Recent migration 054 + cascade tests touched this. The Schedule Inspector exists *because* this logic is complex.
 
 ### 10. Persona pipeline (extraction + hygiene + dedup)
 **Files:** `api/_lib/extractPersonaFacts.ts` + `personaTools.ts` + `personaHygiene.ts` + `buildProfilePreamble.ts`
@@ -113,11 +108,10 @@ If we work through this systematically, the highest-leverage remaining path is:
 
 1. **Memory / retrieval** (Tier 1.1) — the chat-feels-smart layer
 2. **Vault** (Tier 2.8) — security-critical, document while design intent is clear
-3. **Schedule engine** (Tier 2.9) — already has an inspector tool because of complexity
-4. **Persona pipeline** (Tier 2.10) — quietly powerful, easily mis-tuned
+3. **Persona pipeline** (Tier 2.10) — quietly powerful, easily mis-tuned
 
 Each takes ~30 min to write at `bell.md` density. Three more = a
-roughly-complete handbook (Bell + Capture + Enrich + Gmail + Cron + Auth done).
+roughly-complete handbook (Bell + Capture + Enrich + Cron + Auth done).
 
 ---
 

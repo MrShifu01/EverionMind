@@ -19,7 +19,7 @@ This is the activation moment. Everything before it is friction; everything afte
    - `is_personal: true`, `name: "My Brain"`, `owner_id: user.id`
    - User never sees this happen.
 
-3. **OnboardingModal** (`src/components/OnboardingModal.tsx` — TODO confirm path)
+3. **OnboardingModal** (`src/components/OnboardingModal.tsx`)
    - Shown to users with no entries.
    - Currently mostly informational. Doesn't yet ask "what's one thing you're afraid of forgetting?" (the spec from `marketing/seo-marketing-playbook.md` § 16).
    - Skippable.

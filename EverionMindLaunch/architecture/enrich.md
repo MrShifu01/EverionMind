@@ -195,7 +195,6 @@ Two adjacent buttons in the same tab:
 
 | Site | Batch | Why |
 |---|---|---|
-| `api/gmail.ts:253` | 10 | After Gmail scan accepts staged emails as new entries |
 | `api/transfer.ts:140` | 30 | After importing a brain dump |
 | `api/mcp.ts:691` | 10 | MCP `enrichBrain` tool (rate-limited) |
 | `api/entries.ts:543, 931` | varies | Bulk re-enrich endpoints |

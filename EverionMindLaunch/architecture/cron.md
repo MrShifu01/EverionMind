@@ -13,9 +13,8 @@ when, what it does, and how to verify it ran*.
   `cron-hourly.yml`. Both POST to `/api/cron/{daily,hourly}` with a
   bearer `CRON_SECRET`. The endpoint rewrites land in `handleCronDaily`
   / `handleCronHourly` in `api/user-data.ts`.
-- Cron-daily is the heavy fan-out: Gmail scan for every user, enrich-all-
-  brains, persona decay (+ weekly dedup/digest on Sundays), admin summary
-  push + bell row.
+- Cron-daily is the heavy fan-out: enrich-all-brains, persona decay (+
+  weekly dedup/digest on Sundays), admin summary push + bell row.
 - Cron-hourly is the per-user time-aware fan-out: walks every signed-up
   user, checks if "now" matches their stored local-time + IANA timezone
   for daily prompt or weekly nudge, sends push + writes notification.
@@ -78,24 +77,21 @@ Supabase / web-push directly from the runner.
 Single-step curl. `--fail` makes a 500 from the endpoint surface as a
 failed Action run (Vercel Hobby cron silently ate errors — that's why we
 moved off it). `--max-time 600` matches Vercel's 300s function ceiling
-plus headroom — nothing should take that long, but a hung Gmail OAuth
-exchange could.
+plus headroom.
 
-Schedule pinned at 04:00 UTC (06:00 SAST, the project's home timezone)
-so Gmail inbox is populated by morning. Adjust the cron expr if the user
-relocates.
+Schedule pinned at 04:00 UTC (06:00 SAST, the project's home timezone).
+Adjust the cron expr if the user relocates.
 
 ### Endpoint (`handleCronDaily` at `api/user-data.ts:1307`)
 
-Six tasks, each independently best-effort. One failure doesn't block the rest:
+Five tasks, each independently best-effort. One failure doesn't block the rest:
 
 ```
-1. runGmailScanAllUsers()                  → { users, created, errors }
-2. enrichAllBrains()                        → { brains, processed }
-3. runPersonaDecayPass()                    → { scanned, decayed, faded, archived }
-4. runPersonaWeeklyPass()  (Sundays only)   → { dedups_proposed, digests_written }
-5. webpush admin summary  (gated)           → fire-forget push to admin device
-6. insertCronNotification 'cron_summary'    → bell row regardless of VAPID
+1. enrichAllBrains()                        → { brains, processed }
+2. runPersonaDecayPass()                    → { scanned, decayed, faded, archived }
+3. runPersonaWeeklyPass()  (Sundays only)   → { dedups_proposed, digests_written }
+4. webpush admin summary  (gated)           → fire-forget push to admin device
+5. insertCronNotification 'cron_summary'    → bell row regardless of VAPID
 ```
 
 The whole block is wrapped — each task has its own `.catch(e =>
@@ -138,7 +134,7 @@ Notif type: `cron_summary`. Renders in the bell as a generic
 |---|---|
 | Did it actually fire today? | GitHub Actions → "Daily Cron" → check most recent run timestamp |
 | Did it succeed? | Same view — green check; click for the curl response body in logs |
-| Did Gmail/enrich/persona actually do work? | Open the bell on the admin account → look for "Everion · daily cron ✓" with the per-task counts |
+| Did enrich/persona actually do work? | Open the bell on the admin account → look for "Everion · daily cron ✓" with the per-task counts |
 | Did it fire but VAPID is broken? | Look for `cron_summary` row in the bell with no device push received → trigger `test-push.yml` to bisect |
 
 The 04:00 UTC schedule has only ever fired once manually since the
@@ -448,6 +444,5 @@ imported by tests without env. Real values aren't needed (tests mock
   user sets `daily_time: 09:30 IST`, they'll get the push at the 09:00
   IST tick (UTC 03:30 fires at 03:00 UTC) — 30 minutes early.
 - **No idempotency token on cron POSTs**. A workflow re-run fires a
-  duplicate cron pass — Gmail scan dedup catches the email side, but the
-  enrichment / persona decay does extra work. Worth pinning if cron
-  re-runs become routine.
+  duplicate cron pass — enrichment / persona decay does extra work. Worth
+  pinning if cron re-runs become routine.

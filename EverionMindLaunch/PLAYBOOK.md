@@ -15,7 +15,7 @@ Before you do anything else, get a clear picture of what's true today.
 - [ ] Read `ROADMAP.md` — 21-day sprint plan + 12-month timeline
 - [ ] Skim `LAUNCH_CHECKLIST.md` — current to-do (P0/P1/P2)
 - [ ] Skim `BRAINSTORM.md` — priority-scored idea park (raw thinking)
-- [ ] Skim `architecture/INDEX.md` — what each architecture doc covers (auth, capture, cron, enrich, gmail, bell, security, onboarding-flow)
+- [ ] Skim `architecture/INDEX.md` — what each architecture doc covers (auth, capture, cron, enrich, bell, security, onboarding-flow)
 - [ ] Skim `Specs/` — features built or being built (each has a status line)
 - [ ] Skim `Audits/` — open audits (deferred items get lifted into LAUNCH_CHECKLIST)
 
@@ -177,7 +177,6 @@ Launch day is a spike. Retention and growth are the real product.
 - `architecture/capture.md`
 - `architecture/enrich.md`
 - `architecture/cron.md`
-- `architecture/gmail.md`
 - `architecture/bell.md`
 - `architecture/events.md`
 - `architecture/security.md`

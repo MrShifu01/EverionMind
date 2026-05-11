@@ -44,7 +44,7 @@ Nothing else matters until these four are done. Order is fixed.
 
 - [ ] Feature-flag multi-brain. Add `ENABLE_MULTI_BRAIN` env. Hide `BrainSwitcher`, `CreateBrainModal`, invite flows, `SettingsView/BrainTab`. Default single brain.
 - [ ] Disable Vault by default. Move to `Settings > Security`. Replace passphrase modals with inline "unlock vault" link.
-- [ ] Remove from nav: `TodoView`, `RefineView`, `VaultView`, Concept Graph. Tasks become entries with a checkbox in `Memory`. Refine output folds into the Feed. Graph becomes a 50+ entries easter egg.
+- [ ] Remove from nav: `RefineView`, `VaultView`, Concept Graph. Refine output folds into the Feed. Graph becomes a 50+ entries easter egg.
 - [ ] Collapse navigation to: `Feed | Capture | Ask | Memory | Settings`.
 - [ ] Default AI provider to Gemini Flash Lite. Hide provider selector under `Settings > Advanced > AI`. BYOK stays but buried.
 - [ ] Clean `vercel.json` rewrites. Remove legacy aliases (`/api/delete-entry` → `/api/entries`).
@@ -61,7 +61,7 @@ Nothing else matters until these four are done. Order is fixed.
 ### Definition of done
 
 - [ ] Nav at 5 items
-- [ ] Multi-brain, Vault, Todo, Refine, Graph hidden behind flags or removed from nav
+- [ ] Multi-brain, Vault, Refine, Graph hidden behind flags or removed from nav
 - [ ] `user_usage` table migrated
 - [x] LemonSqueezy + RevenueCat checkout + webhooks live ✅ (code; operator config still pending — see LAUNCH_CHECKLIST Billing section)
 - [ ] Upgrade prompt at 90% / 100%
@@ -313,7 +313,7 @@ PH visitors aren't random — they're earned. Six levers, ranked by ROI. **Tacti
 - [ ] **Community Brain v0.2–v0.4.** User-created community brains, contributor role, voting, moderation.
 - [ ] **Prompt Self-Improvement Layer 2** (~50 active users). Per-user preference blob injected into system prompts.
 - [ ] **Prompt Self-Improvement Layer 3** (~500 active users). Global correction-pattern analysis, weekly prompt-diff with human-in-the-loop review.
-- [ ] **External integrations.** vCard contact import first (zero OAuth). Then Google OAuth — plan for 4–6 week scope-verification review for Gmail `readonly`.
+- [ ] **External integrations.** vCard contact import (zero OAuth, already shipped) is the current integration surface. No third-party OAuth planned for v1.
 - [ ] **Entry Chunking.** Split long entries into overlapping chunks, dual-embed, dedupe in retrieval. Kicks in when power users start storing SOPs/documents.
 
 ### Growth loops to harden

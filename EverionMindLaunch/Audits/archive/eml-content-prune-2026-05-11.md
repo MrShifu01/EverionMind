@@ -1,5 +1,28 @@
 # EML Content Prune Audit — 2026-05-11
 
+## Resolution — 2026-05-11
+
+**Addressed in this commit:**
+- `architecture/INDEX.md` — removed Gmail entry from Done list; deleted Tier 2.9 "Schedule / Todo placement engine" section; trimmed suggested-order list + done-set sentence.
+- `architecture/bell.md` — full rewrite. Was 307 lines describing a Gmail-integrated bell with 4 cards + `useStagedCount` hook; now ~165 lines reflecting current 280-line bell with 2 cards (`MergeCard`, `AutoMergedCard`). Legacy `gmail_scan` / `gmail_review` rows still render via catch-all and are noted as legacy.
+- `architecture/cron.md` — stripped `runGmailScanAllUsers` (six → five tasks), Gmail OAuth max-time note, Gmail-inbox-by-morning rationale, Gmail/enrich-or-persona verify row, Gmail-scan-dedup idempotency note.
+- `architecture/enrich.md` — removed `api/gmail.ts:253` row from "Other call-sites of `enrichBrain`" table.
+- `architecture/auth.md` — stripped `api/gmail.ts` 5/min-scan / 3/min-deep-scan reference, dropped "gmail scan" from list of `assertBrainAccess` callers, replaced `gmail-scan:<userId>` suffix example with llm sub-paths, dropped Gmail-scan 5/min from "no rate-limit per-user" bullet.
+- `architecture/onboarding-flow.md` — removed stray `TODO confirm path` annotation.
+- `ROADMAP.md` — removed `TodoView` from nav-removal list + DoD row; rewrote external-integrations bullet (vCard kept, Gmail/Google OAuth removed).
+- `PLAYBOOK.md` — dropped `gmail` from INDEX skim line and from architecture-references list.
+- `LAUNCH_CHECKLIST.md` — stripped Gmail from `T-01`, `A-04`, `E2E-21` lists; deleted E2E-14 / U-02-U-03 / E2E-20 (all entirely Gmail); marked `E2E-21` as `[x]` (this commit satisfies it); deleted "Gmail pattern rules — shipped" subsection (feature was reverted with migration 085).
+
+**Deferred:** none. Every finding in this audit was either addressed in code or N/A (HISTORICAL [x] entries are load-bearing audit trail — kept by design).
+
+**Wontfix:** none.
+
+**Capture.md:** zero Gmail INGESTION mentions remained after the May-2026 trim. Only VCF contact-pipeline references — those refer to the live `src/lib/contactPipeline.ts` / `vcfParser.ts` path and are correct. No edit.
+
+**Roadmap/week-*.md:** all surviving mentions are the user's personal email (`stander.christian@gmail.com`) or cross-client deliverability tests (Gmail/Outlook/Apple Mail INBOXES). No edit.
+
+---
+
 Post-trim audit of the `EverionMindLaunch/` knowledge base. After the May 2026 codebase trim, 140 markdown files across 13 folders carry varying amounts of dead references. This doc plans the prune so a fresh session can execute without re-discovering scope.
 
 ---

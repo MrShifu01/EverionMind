@@ -1,20 +1,17 @@
 # Notification Bell
 
 End-to-end map of the bell icon in the header — where it lives, what feeds
-it, what each card does, how things get cleared. Reflects state as of
-commit `33d3b7d` (2026-04-29).
+it, what each card does, how things get cleared. Reflects state after the
+May 2026 trim that removed the Gmail ingestion subsystem.
 
 ## TL;DR
 
-- One bell, one source of truth (`public.notifications` table). Every entry
-  point — Gmail scan, merge detection, persona hygiene, cron pushes —
-  writes a row there. The client polls / refetches and renders cards.
-- Badge dot lights up when **either** there's an unread notification **or**
-  there are Gmail items waiting in the staging inbox. Two independent
-  sources of "you have something to look at."
-- Clearing is per-row (Dismiss button) or wholesale (Clear all). Some
-  types auto-clear when the underlying state changes (e.g. `gmail_scan`
-  notifications evaporate once the staging inbox is empty).
+- One bell, one source of truth (`public.notifications` table). Merge
+  detection + cron push paths write rows there. The client polls / refetches
+  and renders cards.
+- Badge dot lights up when `unreadCount > 0`. Single signal — read state
+  flips on open.
+- Clearing is per-row (Dismiss button) or wholesale (Clear all).
 
 ---
 
@@ -22,16 +19,15 @@ commit `33d3b7d` (2026-04-29).
 
 | File | Role |
 |---|---|
-| `src/components/NotificationBell.tsx` | The bell + dropdown panel + four card components |
-| `src/hooks/useNotifications.ts` | Fetches, dismisses, marks-read, accepts merges |
-| `src/hooks/useStagedCount.ts` | Polls staged Gmail count for the badge |
-| `src/Everion.tsx:178` | Mounts `useNotifications`, threads handlers into the header |
-| `src/components/DesktopHeader.tsx:234` | Bell render point on desktop |
-| `src/components/MobileHeader.tsx:78` | Bell render point on mobile |
-| `src/MemoryHeader.tsx:78` | Bell render point on the Memory view's standalone header |
-| `api/user-data.ts:1352` (`handleNotifications`) | GET / PATCH / DELETE for the table |
-| `api/_lib/mergeDetect.ts:242` (`storeNotification`) | Insert helper used by gmail/persona/merge paths |
-| `api/user-data.ts:1086` (`insertCronNotification`) | Insert helper used by the three cron sites |
+| `src/components/NotificationBell.tsx` (280 lines) | Bell + dropdown panel + two card components (`MergeCard`, `AutoMergedCard`) |
+| `src/hooks/useNotifications.ts` (116 lines) | Fetches, dismisses, marks-read, accepts merges |
+| `src/Everion.tsx` | Mounts `useNotifications`, threads handlers into the header |
+| `src/components/DesktopHeader.tsx` | Bell render point on desktop |
+| `src/components/MobileHeader.tsx` | Bell render point on mobile |
+| `src/MemoryHeader.tsx` | Bell render point on the Memory view's standalone header |
+| `api/user-data.ts` (`handleNotifications`, line 2861) | GET / PATCH / DELETE for the table |
+| `api/_lib/mergeDetect.ts` (`storeNotification`, line 242) | Insert helper used by merge-detect callsites |
+| `api/user-data.ts` (`insertCronNotification`, line 2309) | Insert helper used by the four cron sites |
 
 ---
 
@@ -42,7 +38,7 @@ Stored in `public.notifications`. Client receives:
 ```ts
 interface AppNotification {
   id: string;
-  type: "merge_suggestion" | "gmail_review" | "auto_merged" | string;
+  type: "merge_suggestion" | "auto_merged" | string;
   title: string;
   body?: string;
   data: Record<string, any>;     // type-specific payload
@@ -52,9 +48,13 @@ interface AppNotification {
 }
 ```
 
-The `type` field drives which card component renders. The string union in
-the type is documentation-only — the table accepts any string, and the
-bell falls back to `AutoMergedCard` for unknown values.
+The `type` field drives which card component renders. The string union is
+documentation-only — the table accepts any string, and the bell falls back
+to `AutoMergedCard` for unknown values.
+
+> Legacy: rows with `type = 'gmail_scan'` or `'gmail_review'` may still
+> exist in production from before the May 2026 trim. They render via the
+> catch-all `AutoMergedCard`. No code path writes new ones.
 
 ---
 
@@ -64,17 +64,13 @@ bell falls back to `AutoMergedCard` for unknown values.
 
 | `type` | Source | Triggered by | Renders as |
 |---|---|---|---|
-| `gmail_scan` | `api/_lib/gmailScan.ts` (5 sites: lines 1888, 1942, 1976, 2004, 2032, 2042) | End of every Gmail scan — manual or cron | `GmailScanCard` |
-| `gmail_review` | (legacy — no live writers found in `api/`) | Older review-modal flow, kept for back-compat | `GmailReviewCard` |
 | `merge_suggestion` | `api/_lib/mergeDetect.ts` | A new entry's similarity to an existing one passes the merge threshold | `MergeCard` |
 | `auto_merged` | `api/_lib/mergeDetect.ts` (high-confidence path) | Auto-merged silently — purely informational | `AutoMergedCard` |
-| `persona_dedup` | `api/_lib/personaHygiene.ts:280` | Weekly persona dedup pass found candidates | `AutoMergedCard` (catch-all) |
-| `persona_digest` | `api/_lib/personaHygiene.ts:305` | Weekly persona digest summary | `AutoMergedCard` (catch-all) |
-| `cron_summary` | `api/user-data.ts` `handleCronDaily` | Daily cron admin summary (gated by `admin_summary_enabled`) | `AutoMergedCard` (catch-all) |
-| `daily_prompt` | `api/user-data.ts` `handleCronHourly` | Per-user daily capture prompt at chosen local time | `AutoMergedCard` (catch-all) |
-| `weekly_nudge` | `api/user-data.ts` `handleCronHourly` | Weekly nudge at chosen local time | `AutoMergedCard` (catch-all) |
+| `cron_summary` | `api/user-data.ts` `handleCronDaily` (line 2840) | Daily cron admin summary (gated by `admin_summary_enabled`) | `AutoMergedCard` (catch-all) |
+| `daily_prompt` | `api/user-data.ts` `handleCronHourly` (line 2460) | Per-user daily capture prompt at chosen local time | `AutoMergedCard` (catch-all) |
+| `weekly_nudge` | `api/user-data.ts` `handleCronHourly` (line 2510) | Weekly nudge at chosen local time | `AutoMergedCard` (catch-all) |
+| `expiry_reminder` | `api/user-data.ts` `handleCronHourly` (line 2689) | Entry's `due_date`/`deadline`/`expiry_date`/`event_date` is N days out where N ∈ user's `expiry_lead_days` (default `[90,30,7,1]`). Fans out to all brain members per `brain_notification_prefs`. Gated by `FEATURE_SHARED_BRAIN_REMINDERS=1`. | `AutoMergedCard` (catch-all) — dedicated `ExpiryCard` deferred. See `Specs/shared-brain-notifications.md`. |
 | `test_push` | `scripts/test-push.mjs` | Admin → Push diagnostics → Send test push | `AutoMergedCard` (catch-all) |
-| `expiry_reminder` | `api/user-data.ts` `handleCronHourly` (expiry fan-out block) | Entry's `due_date`/`deadline`/`expiry_date`/`event_date` is N days out where N ∈ user's `expiry_lead_days` (default `[90,30,7,1]`). Fans out to all brain members per `brain_notification_prefs`. Gated by `FEATURE_SHARED_BRAIN_REMINDERS=1`. | `AutoMergedCard` (catch-all) — dedicated `ExpiryCard` deferred. See `Specs/shared-brain-notifications.md`. |
 
 ### Inserter helpers
 
@@ -82,7 +78,7 @@ Two functions write notifications. They differ in import surface — both do
 the same `POST /rest/v1/notifications`.
 
 ```ts
-// api/_lib/mergeDetect.ts — used by gmail scan, persona hygiene, merge detect
+// api/_lib/mergeDetect.ts — used by merge detect
 storeNotification(userId, type, title, body, data)
 
 // api/user-data.ts — used by cron paths that already have SB_URL/SB_KEY
@@ -99,8 +95,8 @@ State + handlers. Owned by `Everion.tsx`, threaded into the header.
 
 | Trigger | Action |
 |---|---|
-| Mount | `GET /api/notifications` |
-| Window `focus` event | Refetch |
+| Mount (idle-scheduled) | `GET /api/notifications` |
+| Window `focus` event | Refetch (suppressed during clear-all DELETE) |
 | `visibilitychange` → visible | Refetch |
 | `dismiss(id)` | Optimistic remove + `PATCH /api/notifications {id, dismissed:true}` |
 | `markRead(id)` | Optimistic flip + `PATCH /api/notifications {id, read:true}` |
@@ -109,35 +105,22 @@ State + handlers. Owned by `Everion.tsx`, threaded into the header.
 
 `unreadCount` = `notifications.filter(n => !n.read).length`. Drives the dot.
 
-### `useStagedCount` hook (`src/hooks/useStagedCount.ts`)
-
-Independent badge driver for Gmail-staged items.
-
-| Trigger | Action |
-|---|---|
-| Mount | `GET /api/entries?staged=true` |
-| `everion:staged-changed` window event | Refetch |
-
-`GmailStagingInbox.triggerAccept/Reject` fires the event after the PATCH /
-DELETE resolves (post-`fix(gmail-inbox)` commit `9ad2ad2`). Before that fix
-the event fired sync, so the count refresh saw stale server state.
-
-### Bell badge logic (`NotificationBell.tsx:478` after the recent fix)
+### Bell badge logic (`NotificationBell.tsx:174`)
 
 ```ts
-const hasSignal = unreadCount > 0 || stagedCount > 0;
+const hasSignal = unreadCount > 0;
 ```
 
 The dot is ember (`var(--ember)`), 8×8, top-right of the bell button. It
-appears whenever **either** signal is non-zero. `aria-label` joins both:
-`"Notifications · 3 unread · 5 in inbox"`.
+appears whenever there's at least one unread notification. `aria-label`:
+`"Notifications · N unread"`.
 
 ---
 
 ## Cards: rendering and buttons
 
-The dropdown panel iterates `notifications.map(n => ...)`. The `type`
-switch picks one of four card components.
+The dropdown panel iterates `notifications.map(n => ...)`. Only one
+explicit `type` branch — everything else falls through to the catch-all.
 
 ### MergeCard (`type === "merge_suggestion"`)
 
@@ -145,54 +128,27 @@ Displays a side-by-side preview of the new entry vs. the existing one,
 the confidence score, and a list of fields that would be added.
 
 Buttons:
-- **Keep separate** — calls `onDismiss(n.id)` → `dismiss()` → PATCH
+- **Dismiss** — calls `onDismiss(n.id)` → `dismiss()` → PATCH
   `dismissed=true`.
-- **Merge →** — calls `onAcceptMerge(n)` → `acceptMerge(n)` → POSTs
+- **Merge** — calls `onAcceptMerge(n)` → `acceptMerge(n)` → POSTs
   `/api/entries?action=merge_into` with `{target_id}` from `n.data`, then
   dismisses the notification on success.
 
-### GmailScanCard (`type === "gmail_scan"`)
+### AutoMergedCard (catch-all)
 
-Renders an inbox icon, title, body. Has a special "with items" mode
-when `n.data.created > 0`.
+Compact one-line card with title, body, and a single Dismiss button. Used
+for every type other than `merge_suggestion` — `auto_merged`,
+`cron_summary`, `daily_prompt`, `weekly_nudge`, `expiry_reminder`,
+`test_push`, and any legacy types that still have rows in the table
+(`gmail_scan`, `gmail_review`).
 
-Buttons (only when there are items to review):
-- **Dismiss** — calls `onDismiss(n.id)`. Drops the notification but
-  leaves the staged Gmail entries in the inbox (you'd review them via
-  Settings → Gmail Sync → Inbox).
-- **Open inbox** — dispatches `everion:open-gmail-inbox` window event.
-  `Everion.tsx` listens, switches to Settings, then tells `GmailSyncTab`
-  to open its staging modal. Then dismisses the notification.
-
-When `n.data.created === 0` ("No new entries found"), no buttons render —
-the card is informational only and auto-dismissed on bell close (see
-"Auto-dismiss" below).
-
-### GmailReviewCard (`type === "gmail_review"`)
-
-Legacy flow — older Gmail-scan-with-inline-review pattern. No live code
-path inserts this type today. Buttons:
-- **Dismiss** — `onDismiss(n.id)`.
-- **Review** — calls `openGmailReview(n)`, which sets `reviewItems` from
-  `n.data.items` and opens the `GmailScanReviewModal` directly within
-  the bell's portal.
-
-### AutoMergedCard (`type === "auto_merged"` and the catch-all)
-
-Compact one-line card with a moss-green checkmark, title, body, and a
-single ✕ Dismiss button. Used by:
-- `auto_merged` (the intended type)
-- Every other type the bell doesn't have a dedicated card for —
-  `persona_dedup`, `persona_digest`, `cron_summary`, `daily_prompt`,
-  `weekly_nudge`, `test_push`, anything new.
-
-Single button: **✕** — calls `onDismiss(n.id)`.
+Single button: **Dismiss** — calls `onDismiss(n.id)`.
 
 ---
 
 ## How notifications get cleared
 
-Three paths.
+Two paths.
 
 ### 1. Per-row Dismiss
 
@@ -207,55 +163,22 @@ Header button in the dropdown when `notifications.length > 0`. Calls
 `onDismissAll()` → `useNotifications.dismissAll()` → optimistic empty +
 `DELETE /api/notifications` (which is implemented as a bulk PATCH that
 flips every undismissed row to dismissed for that user; supports an
-optional `?type=` filter, currently unused).
-
-### 3. Auto-dismiss
-
-Two mechanisms inside the bell itself:
-
-#### On staging-inbox empty (`NotificationBell.tsx:426`)
-
-```ts
-useEffect(() => {
-  if (stagedCount > 0) return;
-  notifications
-    .filter(n => n.type === "gmail_scan" && (n.data?.created ?? 0) > 0)
-    .forEach(n => onDismiss(n.id));
-}, [stagedCount, notifications, onDismiss]);
-```
-
-When the user has reviewed everything in the Gmail staging inbox,
-`stagedCount` drops to 0 and any `gmail_scan` notifications that had
-items are auto-dismissed — they're stale at that point.
-
-#### On bell close (`handleClose` at line 433)
-
-```ts
-function handleClose() {
-  setOpen(false);
-  notifications
-    .filter(n => n.type === "gmail_scan" && !((n.data?.created ?? 0) > 0))
-    .forEach(n => onDismiss(n.id));
-}
-```
-
-Closing the bell auto-dismisses informational `gmail_scan` notifications
-("No new entries found") — they're noise after the user has seen them
-once. Notifications **with** staged items persist until the inbox-empty
-effect kills them.
+optional `?type=` filter, currently unused). The hook sets a
+`dismissingAllRef` guard so focus/visibility refetches between the
+optimistic empty and the server response don't flash the cleared list back.
 
 ### Mark-read on open
 
-`handleOpen` at line 453 marks all unread notifications as read when the
-user opens the bell. This clears the dot but doesn't dismiss the rows —
-they stay visible until explicitly dismissed.
+`handleOpen` (`NotificationBell.tsx:157`) marks all unread notifications as
+read when the user opens the bell. Clears the dot but doesn't dismiss the
+rows — they stay visible until explicitly dismissed.
 
 ---
 
 ## Server endpoint (`/api/notifications`)
 
-All routed through `api/user-data.ts:1352`-ish via the rewrite at
-`vercel.json:18` (`/api/notifications` → `/api/user-data?resource=notifications`).
+Routed through `api/user-data.ts` via the rewrite at `vercel.json:18`
+(`/api/notifications` → `/api/user-data?resource=notifications`).
 
 | Method | Behavior |
 |---|---|
@@ -270,13 +193,10 @@ their own rows.
 
 ## Recent changes worth knowing
 
-- **Commit `33d3b7d`** (2026-04-29): Cron pushes now also write
-  notifications. Three new types (`cron_summary`, `daily_prompt`,
-  `weekly_nudge`) and one diagnostic type (`test_push`) land in the bell.
-  Helper `insertCronNotification` extracted in `user-data.ts`.
-- **Commit `9ad2ad2`** (2026-04-29): Bell badge now lights on `stagedCount`
-  too, not just `unreadCount`. Fixed swipe gesture stale-state bug and the
-  PATCH/event race that kept the inbox count stuck after accept.
+- **Commit `33d3b7d`** (2026-04-29): Cron pushes also write notifications.
+  Types `cron_summary`, `daily_prompt`, `weekly_nudge` and diagnostic
+  `test_push` land in the bell. Helper `insertCronNotification` extracted in
+  `user-data.ts`.
 - **2026-05-05**: Shared-brain expiry-reminder fan-out plumbing landed
   (gated). New `expiry_reminder` notification type, `brain_notification_prefs`
   table, `expiry_notification_log.brain_id` column, per-brain mute pills in
@@ -284,6 +204,11 @@ their own rows.
   (`FEATURE_SHARED_BRAIN_REMINDERS=1` server, `VITE_FEATURE_SHARED_BRAIN_REMINDERS=1`
   client), notifications remain user-only. See
   `Specs/shared-brain-notifications.md` and `Ops/feature-flags.md`.
+- **May 2026 trim**: Gmail ingestion subsystem removed (`api/_lib/gmailScan.ts`,
+  staging inbox, GmailScanCard/GmailReviewCard, useStagedCount hook). Bell
+  shrank from 478 lines to 280. Badge no longer reads a staging count.
+  Pre-existing `gmail_scan` / `gmail_review` rows still render via the
+  catch-all card.
 
 ---
 
@@ -298,9 +223,5 @@ their own rows.
   refetches on focus / visibility. If a notification arrives while the
   app is open and visible, the badge updates only on the next refetch
   trigger (typically the user clicking back into the tab).
-- `gmail_review` is a dead type — all known writers are gone, but the
-  card component is kept around in case the legacy flow gets restored.
-  Could be removed in a cleanup pass.
-- Auto-dismiss has no undo. If a user dismisses by accident, the row is
-  marked dismissed in the DB and disappears from the GET. There's no UI
-  to recover it short of editing Supabase directly.
+- Dismiss has no undo. Row is marked dismissed in the DB and disappears
+  from the GET. No UI to recover it short of editing Supabase directly.

@@ -67,17 +67,14 @@ Resolution details are prepended to that audit.
 - [ ] **S-02 / A-03** Reduce service-role/RLS bypass on user-scoped entry writes. Minimum viable pass: convert delete/update/transfer paths to user-JWT or RPCs that enforce tenant checks in SQL.
 - [ ] **S-04 / E2E-16** Add DB-backed admin verification and audit-log writes for admin diagnostic endpoints.
 - [ ] **A-02 / S-06** Add audit-log coverage for `/v1/*` and MCP write tools.
-- [ ] **T-01 / E2E-03** Finish hard external timeouts for non-Google Supabase, OAuth, Gmail, OpenAI, Anthropic, OpenRouter, Groq, and webhook fetches.
-- [ ] **A-04 / E2E-02 / E2E-05** Move enrichment to a durable async job path so capture, Gmail scan, v1, MCP, and chat writes return fast and share one queue contract.
+- [ ] **T-01 / E2E-03** Finish hard external timeouts for non-Google Supabase, OAuth, OpenAI, Anthropic, OpenRouter, Groq, and webhook fetches.
+- [ ] **A-04 / E2E-02 / E2E-05** Move enrichment to a durable async job path so capture, v1, MCP, and chat writes return fast and share one queue contract.
 - [ ] **E2E-07** Replace O(all brains) cron enrichment sweeps with pending-work indexing or job-table scanning.
 - [ ] **E2E-10** Decide and implement shared-entry overlay semantics: source-brain metadata by design, or destination-specific enrichment artifacts.
-- [ ] **E2E-14** Make Gmail accept/reject mutation and learning-decision recording a single server action.
-- [ ] **U-02 / U-03** Surface Gmail/Calendar reconnect prompts on repeated token refresh failure.
 - [ ] **E2E-17** Decide whether localStorage prompt learning remains low-trust local UX memory or moves server-side with provenance/reset controls.
 - [ ] **E2E-19** Add named-entity/facts extraction alongside generic concepts for precise personal recall.
-- [ ] **E2E-20** Persist and display Gmail attachment extraction coverage and skipped-file reasons.
-- [ ] **E2E-21** Refresh enrichment, Gmail, and cron architecture docs against current code.
-- [ ] **E2E-22** Add workflow-level tests for capture state, Gmail staged decisions, shared-brain move/share behavior, quota failure, prompt injection, and cron starvation.
+- [x] **E2E-21** Refresh enrichment and cron architecture docs against current code. (Gmail subsystem removed May 2026; remaining docs synced in the post-trim content prune.)
+- [ ] **E2E-22** Add workflow-level tests for capture state, shared-brain move/share behavior, quota failure, prompt injection, and cron starvation.
 
 ---
 
@@ -519,22 +516,13 @@ the higher-leverage async work below.
   workflow durability. Cost ~$50-200/mo. Triggered by p95 cron drain
   time exceeding 1h.
 
-### Gmail pattern rules — shipped (2026-05-06)
+### Gmail pattern rules — removed (2026-05-09)
 
-- [x] **Phase 1+2+3 — scored accept/reject patterns** ✅ commits `c54edaf`
-  + `0986412`. Migration 080. Decoupled accept/reject scores 0–10
-  (Alt 1), 7-day probation, hard-block at score 10, contested-state
-  flagging. Pre-filter at scan saves embedding + classifier costs.
-  Settings UI to view/edit/delete patterns. Probation badge on staging
-  inbox. Full design in `Specs/gmail-pattern-rules.md`.
-- [ ] **Phase 4 — smarter scoring (P2 deferred).** Wilson lower bound
-  (Bayesian confidence) and/or EWMA temporal decay (90-day half-life)
-  layered onto current model. Trigger: when users complain about
-  "rejected this 3 months ago, why is it back?" Centroid drift via EMA
-  on each match would also fit here.
-- [ ] **Phase 4 — UX (P2 deferred).** "Test pattern" diagnostic tool,
-  pattern merge/split affordances when cosine > 0.95 / contested-state
-  patterns surface for splitting.
+The scored accept/reject pattern system (shipped 2026-05-06 in commits
+`c54edaf` + `0986412`, migration 080) was reverted with the rest of the
+Gmail ingestion subsystem in the May 2026 trim. `gmail_pattern_rules`
+table dropped via migration 085. `Specs/gmail-pattern-rules.md` deleted.
+Listed here only for git-history breadcrumbs.
 
 ### Other backlog
 

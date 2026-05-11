@@ -71,8 +71,7 @@ catch: ApiError → status + message, anything else → 500
 
 `opts.methods` defaults to `["POST"]`. `opts.rateLimit` defaults to 30/min;
 pass `false` to skip the outer limit (sub-handlers must call `rateLimit()`
-themselves — pattern used in `api/gmail.ts` for the
-5/min-scan / 3/min-deep-scan inner limits).
+themselves when they need per-sub-action limits).
 
 `opts.cacheControl` is the response header — most endpoints set
 `"no-store"` because the bodies are user-specific. The few exceptions
@@ -231,8 +230,8 @@ async function requireBrainAccess(userId, brainId): Promise<void> {
 role yet — the schema supports multi-owner via `brain_members` (see
 the shared-brains design doc) but this helper only validates ownership.
 
-**Called from every handler that takes `brain_id`** — capture, gmail
-scan, transfer import, MCP tool exposure, llm router. The pattern is:
+**Called from every handler that takes `brain_id`** — capture, transfer
+import, MCP tool exposure, llm router. The pattern is:
 
 ```ts
 if (p_brain_id) await requireBrainAccess(user.id, p_brain_id);
@@ -277,7 +276,7 @@ key = `${ip}:${path}:${suffix?}`
   So `/api/feed?cursor=x` and `/api/feed?cursor=y` share a counter,
   but `/api/feed` and `/api/llm` don't.
 - **Suffix**: optional. Used by handlers that want sub-action limits
-  (Gmail scan: `gmail-scan:<userId>`).
+  (e.g. transcribe vs extract sub-paths inside `/api/llm`).
 
 ### Fail-closed in prod
 
@@ -495,9 +494,8 @@ some queries in the BYOK paths read it instead of joining
 - **No rate-limit per-user** — limiter keys on IP. A user behind a
   shared IP (corporate NAT, mobile carrier-grade NAT) shares a budget
   with their neighbors. For most actions the per-user monthly quota is
-  the real cap; for hot endpoints (Gmail scan: 5/min) the IP limit is
-  the only protection. Worth adding `userId` to the suffix once it
-  matters.
+  the real cap. Worth adding `userId` to the suffix if a hot per-user
+  endpoint shows up.
 - **JWT cache is server-side only** — the client SDK refreshes once an
   hour, so `is_admin` propagation can lag up to 60 minutes for the
   granted user. Acceptable for now (admin grants are rare); a
