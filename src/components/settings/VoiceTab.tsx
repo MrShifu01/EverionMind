@@ -44,7 +44,7 @@ export default function VoiceTab() {
             >
               GEMINI_LIVE_MODEL
             </code>{" "}
-            env var on the server (e.g. <em>gemini-3.1-flash-live</em>).
+            env var on the server (e.g. <em>gemini-3.1-flash-live-preview</em>).
           </>
         }
         last={!liveOn}
