@@ -201,6 +201,20 @@ export default function MobileHome({
   const isConnecting = liveSession.status === "connecting";
   const liveShow = liveSession.status !== "idle" || !!liveSession.error;
   const animating = listening || chatLoading || liveActive || isConnecting;
+
+  // 10s connect timeout — after that the orb deflates and we show
+  // "sorry, connection fell flat". Reset on every transition INTO the
+  // connecting state so retries get a fresh budget.
+  const [connectTimedOut, setConnectTimedOut] = useState(false);
+  useEffect(() => {
+    if (!isConnecting) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on transition out of connecting; the alternative is leaking the timed-out flag into the next session.
+      setConnectTimedOut(false);
+      return;
+    }
+    const id = window.setTimeout(() => setConnectTimedOut(true), 10_000);
+    return () => window.clearTimeout(id);
+  }, [isConnecting]);
   // Compact layout pins the input to the bottom and shrinks the orb so the
   // message list fills the space between. Two triggers:
   //   1. user tapped the text input (typing to chat)
@@ -340,6 +354,15 @@ export default function MobileHome({
             transition:
               "width 620ms cubic-bezier(0.16, 1, 0.3, 1), height 620ms cubic-bezier(0.16, 1, 0.3, 1), transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1)",
             transform: pressed ? "translateY(2px) scale(0.94)" : "translateY(0) scale(1)",
+            // Connecting: bouncing orb (gravity feel) until the WebSocket
+            // setupComplete arrives. Timed-out: orb deflates flat. Both
+            // animations are forwards-fill so the final frame holds until
+            // status changes.
+            animation: connectTimedOut
+              ? "orb-deflate 700ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards"
+              : isConnecting
+                ? "orb-connect-bounce 2.2s ease-in-out infinite"
+                : "none",
             flexShrink: 0,
           }}
         >
@@ -416,36 +439,6 @@ export default function MobileHome({
               />
             </>
           )}
-          {/* Connecting: tri-arc ember spinner around the orb. Three ember
-              arcs separated by transparent gaps rotate at 1.1s, plus a
-              gentle scale pulse on the orb surface so the user knows
-              something is happening between mic permission and the first
-              setupComplete. */}
-          {isConnecting && (
-            <span
-              aria-hidden="true"
-              style={{
-                position: "absolute",
-                inset: -8,
-                borderRadius: "50%",
-                background: `conic-gradient(
-                  from 0deg,
-                  var(--ember) 0deg 70deg,
-                  transparent 70deg 120deg,
-                  var(--ember) 120deg 190deg,
-                  transparent 190deg 240deg,
-                  var(--ember) 240deg 310deg,
-                  transparent 310deg 360deg
-                )`,
-                mask: "radial-gradient(circle, transparent 47%, black 49%, black 50%, transparent 52%)",
-                WebkitMask:
-                  "radial-gradient(circle, transparent 47%, black 49%, black 50%, transparent 52%)",
-                animation: "orb-connect-spin 1.1s linear infinite",
-                pointerEvents: "none",
-                opacity: 0.9,
-              }}
-            />
-          )}
           <span
             aria-hidden="true"
             style={{
@@ -486,6 +479,61 @@ export default function MobileHome({
             />
           </span>
         </button>
+
+        {/* Connecting progress bar — slim ember bar that fills 0→100% over
+            5s with ease-out, so it feels fast at first then slows ("almost
+            there…"). After 10s the parent flips to the deflated state and
+            the bar is replaced by the "sorry, connection fell flat" text. */}
+        {(isConnecting || connectTimedOut) && (
+          <div
+            aria-live="polite"
+            style={{
+              width: 200,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 8,
+              marginTop: 4,
+            }}
+          >
+            <div
+              style={{
+                width: "100%",
+                height: 3,
+                borderRadius: 999,
+                background: "color-mix(in oklch, var(--ember) 12%, transparent)",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  height: "100%",
+                  width: connectTimedOut ? "100%" : 0,
+                  background: connectTimedOut ? "var(--blood)" : "var(--ember)",
+                  borderRadius: 999,
+                  animation: connectTimedOut
+                    ? "none"
+                    : "orb-connect-progress 5s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+                  transition: "background 240ms ease",
+                }}
+              />
+            </div>
+            <div
+              className="f-serif"
+              style={{
+                fontSize: 12,
+                fontStyle: "italic",
+                color: connectTimedOut ? "var(--blood)" : "var(--ink-faint)",
+                textAlign: "center",
+                lineHeight: 1.35,
+                minHeight: 16,
+                transition: "color 240ms ease",
+              }}
+            >
+              {connectTimedOut ? "sorry, connection fell flat — tap orb to retry" : "connecting…"}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Bottom zone: voice/chat surfaces. Lives OUTSIDE the centered top

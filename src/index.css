@@ -344,23 +344,73 @@ html:not(.dark) {
     filter: blur(26px);
   }
 }
-/* Voice "connecting" state — fast tri-arc spinner around the orb. The
-   conic gradient draws three ember arcs separated by gaps; the whole
-   ring rotates so the gaps sweep around like a loading indicator. */
-@keyframes orb-connect-spin {
-  to {
-    transform: rotate(360deg);
+/* Voice "connecting" state — orb bounces with decaying amplitude (real
+   gravity feel) while the WebSocket handshake happens. Per-keyframe
+   timing functions: ease-out rising (decelerates against gravity),
+   ease-in falling (accelerates under gravity). Three full bounces then
+   a tiny settle bounce in a single 2.2s cycle, loops indefinitely. */
+@keyframes orb-connect-bounce {
+  0% {
+    transform: translateY(0);
+    animation-timing-function: ease-out;
+  }
+  18% {
+    transform: translateY(-56px);
+    animation-timing-function: ease-in;
+  }
+  36% {
+    transform: translateY(0);
+    animation-timing-function: ease-out;
+  }
+  52% {
+    transform: translateY(-34px);
+    animation-timing-function: ease-in;
+  }
+  66% {
+    transform: translateY(0);
+    animation-timing-function: ease-out;
+  }
+  78% {
+    transform: translateY(-16px);
+    animation-timing-function: ease-in;
+  }
+  88% {
+    transform: translateY(0);
+    animation-timing-function: ease-out;
+  }
+  95% {
+    transform: translateY(-6px);
+    animation-timing-function: ease-in;
+  }
+  100% {
+    transform: translateY(0);
   }
 }
-@keyframes orb-connect-pulse {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 0.85;
+/* Progress bar fill — 0→100% over 5s with ease-out so the bar moves
+   quickly then slows, matching the "almost there…" feeling. Held at
+   100% until React swaps in the timed-out state. */
+@keyframes orb-connect-progress {
+  0% {
+    width: 0%;
   }
-  50% {
-    transform: scale(1.04);
+  100% {
+    width: 100%;
+  }
+}
+/* 10s timeout — orb squashes vertically, drifts down, fades. "Sorry,
+   connection fell flat." */
+@keyframes orb-deflate {
+  0% {
+    transform: translateY(0) scaleY(1) scaleX(1);
     opacity: 1;
+  }
+  60% {
+    transform: translateY(8px) scaleY(0.55) scaleX(1.18);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(14px) scaleY(0.4) scaleX(1.25);
+    opacity: 0.65;
   }
 }
 @keyframes fade-up {
