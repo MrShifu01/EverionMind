@@ -112,21 +112,18 @@ export default function LoadingScreen(): JSX.Element {
               alignItems: "center",
               justifyContent: "center",
               boxShadow: "var(--lift-2)",
+              overflow: "hidden",
             }}
           >
-            <svg
-              width="44"
-              height="44"
-              fill="none"
-              stroke="var(--ember)"
-              strokeWidth="1.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              viewBox="0 0 24 24"
-            >
-              <rect x="9" y="3" width="6" height="12" rx="3" />
-              <path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8" />
-            </svg>
+            <img
+              src="/logoNew.webp"
+              width={131}
+              height={131}
+              alt=""
+              aria-hidden="true"
+              decoding="async"
+              style={{ objectFit: "contain", display: "block" }}
+            />
           </span>
         </div>
 
