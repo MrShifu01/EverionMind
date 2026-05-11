@@ -200,10 +200,14 @@ export default function MobileHome({
   const isSpeaking = liveSession.status === "speaking";
   const liveShow = liveSession.status !== "idle" || !!liveSession.error;
   const animating = listening || chatLoading || liveActive;
-  // The orb only shrinks when the user actually taps the chat input. Just
-  // toggling to Ask leaves it big — that's what the user expects visually
-  // because the mode change shouldn't move the brand mark around.
-  const compact = isAsk && inputFocused;
+  // Compact layout pins the input to the bottom and shrinks the orb so the
+  // message list fills the space between. Two triggers:
+  //   1. user tapped the text input (typing to chat)
+  //   2. there are already messages in this session (continuing a thread)
+  // Without (2), a returning Ask session with prior messages centred the
+  // orb + input mid-screen with a gap below — input wasn't reachable at
+  // the bottom of the viewport.
+  const compact = isAsk && (inputFocused || messages.length > 0);
   const orbSize = compact ? 84 : 168;
   const logoSize = Math.round(orbSize * 0.78);
   const askLiveCopy =

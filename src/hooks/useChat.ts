@@ -178,9 +178,26 @@ export function useChat(brainId: string | undefined) {
   }, []);
 
   const clearHistory = useCallback(() => {
-    if (!brainId) return;
     setMessages([]);
-    localStorage.removeItem(storageKey(brainId));
+    // Defensively clear the active brain's key AND any stale chat_history_*
+    // keys. The early-return on missing brainId left state cleared but
+    // localStorage intact, so a refresh repopulated the chat with the
+    // same rows the user thought were gone.
+    if (brainId) {
+      try {
+        localStorage.removeItem(storageKey(brainId));
+      } catch {
+        /* private mode / quota — non-fatal */
+      }
+    }
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith("chat_history_")) localStorage.removeItem(k);
+      }
+    } catch {
+      /* ignore */
+    }
   }, [brainId]);
 
   return { messages, loading, pendingAction, send, confirm, cancel, clearHistory };
