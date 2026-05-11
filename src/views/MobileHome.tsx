@@ -26,6 +26,10 @@ export default function MobileHome({
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [askInput, setAskInput] = useState("");
+  // Orb stays centred + big in Ask mode until the user taps the text
+  // input. That focus → orb shrinks + moves up so the chat panel can
+  // unfold. Tapping outside the input shrinks it back.
+  const [inputFocused, setInputFocused] = useState(false);
   const [voiceMode, setVoiceMode] = useVoiceMode();
   const [geminiLiveOn] = useGeminiLive();
   const [geminiVoice] = useGeminiVoice();
@@ -92,6 +96,14 @@ export default function MobileHome({
     }
   }, [messages, chatLoading, mode]);
 
+  // Wrap setMode so toggling back to Add (or away from Ask) resets the
+  // focus latch — the next Ask entry should open with the orb big again
+  // even if the textarea was focused last time.
+  const setModeAndResetFocus = useCallback((next: "add" | "ask") => {
+    setMode(next);
+    setInputFocused(false);
+  }, []);
+
   function clearHoldTimer() {
     if (holdTimerRef.current) {
       window.clearTimeout(holdTimerRef.current);
@@ -104,23 +116,32 @@ export default function MobileHome({
     (e.target as Element).setPointerCapture?.(e.pointerId);
     setError(null);
     setPressed(true);
+    // Ask + Live = tap-to-toggle: no hold timer, no STT path. The toggle
+    // itself fires on pointer-up so the press animation still shows.
+    if (mode === "ask" && liveOnRef.current) return;
     clearHoldTimer();
-    const useLive = mode === "ask" && liveOnRef.current;
     const targetForHold: VoiceTarget = mode === "ask" ? "chat" : "capture";
     holdTimerRef.current = window.setTimeout(() => {
       holdTimerRef.current = null;
-      if (useLive) {
-        liveActiveRef.current = true;
-        void liveSession.start({ voice: liveVoiceRef.current });
-      } else {
-        recordingRef.current = true;
-        voiceTargetRef.current = targetForHold;
-        void startVoice();
-      }
+      recordingRef.current = true;
+      voiceTargetRef.current = targetForHold;
+      void startVoice();
     }, HOLD_THRESHOLD_MS);
   }
 
   function onPointerUp() {
+    // Ask + Live = tap-to-toggle.
+    if (mode === "ask" && liveOnRef.current) {
+      setPressed(false);
+      if (liveActiveRef.current || liveSession.status === "connecting") {
+        liveActiveRef.current = false;
+        liveSession.stop();
+      } else {
+        liveActiveRef.current = true;
+        void liveSession.start({ voice: liveVoiceRef.current });
+      }
+      return;
+    }
     if (holdTimerRef.current) {
       clearHoldTimer();
       setPressed(false);
@@ -128,12 +149,6 @@ export default function MobileHome({
         // Tap: spring orb back up first, then open modal so the bounce is visible.
         window.setTimeout(() => onOpenCapture(), 220);
       }
-      return;
-    }
-    if (liveActiveRef.current) {
-      liveActiveRef.current = false;
-      setPressed(false);
-      liveSession.stop();
       return;
     }
     if (recordingRef.current) {
@@ -147,13 +162,11 @@ export default function MobileHome({
 
   function onPointerCancel() {
     setPressed(false);
+    // Don't stop the Live session on pointer cancel — it's tap-to-toggle,
+    // user explicitly wants the session running until the next tap.
+    if (mode === "ask" && liveOnRef.current) return;
     if (holdTimerRef.current) {
       clearHoldTimer();
-      return;
-    }
-    if (liveActiveRef.current) {
-      liveActiveRef.current = false;
-      liveSession.stop();
       return;
     }
     if (recordingRef.current) {
@@ -176,8 +189,20 @@ export default function MobileHome({
   const liveActive = liveSession.status === "listening" || liveSession.status === "speaking";
   const liveShow = liveSession.status !== "idle" || !!liveSession.error;
   const animating = listening || chatLoading || liveActive;
-  const orbSize = isAsk ? 84 : 168;
+  // The orb only shrinks when the user actually taps the chat input. Just
+  // toggling to Ask leaves it big — that's what the user expects visually
+  // because the mode change shouldn't move the brand mark around.
+  const compact = isAsk && inputFocused;
+  const orbSize = compact ? 84 : 168;
   const logoSize = Math.round(orbSize * 0.78);
+  const askLiveCopy =
+    isAsk && geminiLiveOn
+      ? liveActive || liveSession.status === "connecting"
+        ? "tap orb to end conversation"
+        : "tap orb to talk · or type below"
+      : isAsk
+        ? "hold orb to ask by voice · or type below"
+        : "";
 
   return (
     <div
@@ -199,7 +224,7 @@ export default function MobileHome({
         }
       `}</style>
 
-      <ModeToggle mode={mode} onChange={setMode} listening={listening} />
+      <ModeToggle mode={mode} onChange={setModeAndResetFocus} listening={listening} />
 
       <div
         style={{
@@ -207,44 +232,58 @@ export default function MobileHome({
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          justifyContent: isAsk ? "flex-start" : "center",
-          gap: isAsk ? 16 : 28,
-          paddingTop: isAsk ? 28 : 0,
+          justifyContent: compact ? "flex-start" : "center",
+          gap: compact ? 16 : 28,
+          paddingTop: compact ? 28 : 0,
           minHeight: 0,
+          transition:
+            "gap 520ms cubic-bezier(0.16, 1, 0.3, 1), padding-top 520ms cubic-bezier(0.16, 1, 0.3, 1)",
         }}
       >
-        {!isAsk && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 10,
+            opacity: compact ? 0 : 1,
+            transform: compact ? "translateY(-4px) scale(0.98)" : "translateY(0) scale(1)",
+            pointerEvents: compact ? "none" : "auto",
+            // Slow + smooth — crossfade between Add prompt, Ask prompt, and
+            // hidden-while-typing. 480ms feels considered without dragging.
+            transition:
+              "opacity 480ms cubic-bezier(0.16, 1, 0.3, 1), transform 480ms cubic-bezier(0.16, 1, 0.3, 1)",
+            // Stop the row from collapsing height-wise when faded so the
+            // orb doesn't shift as a side-effect of the text disappearing.
+            height: compact ? 0 : "auto",
+            overflow: "hidden",
+          }}
+        >
           <div
+            className="f-serif"
+            aria-live="polite"
             style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 10,
+              fontSize: 16,
+              fontStyle: "italic",
+              color: error ? "var(--blood)" : "var(--ink-soft)",
+              letterSpacing: "-0.005em",
+              textAlign: "center",
+              minHeight: 24,
+              transition: "color 320ms ease",
             }}
           >
-            <div
-              className="f-serif"
-              aria-live="polite"
-              style={{
-                fontSize: 16,
-                fontStyle: "italic",
-                color: error ? "var(--blood)" : "var(--ink-soft)",
-                letterSpacing: "-0.005em",
-                textAlign: "center",
-                minHeight: 24,
-              }}
-            >
-              {error
-                ? error
-                : transcribing
-                  ? "transcribing…"
-                  : listening
-                    ? "recording — release to send"
+            {error
+              ? error
+              : transcribing
+                ? "transcribing…"
+                : listening
+                  ? "recording — release to send"
+                  : isAsk
+                    ? askLiveCopy
                     : "Tap to add, hold to record"}
-            </div>
-            <VoiceModePill mode={voiceMode} onChange={setVoiceMode} />
           </div>
-        )}
+          {!isAsk && <VoiceModePill mode={voiceMode} onChange={setVoiceMode} />}
+        </div>
 
         <button
           type="button"
@@ -252,7 +291,11 @@ export default function MobileHome({
             listening
               ? "Recording — release to send"
               : isAsk
-                ? "Hold to ask by voice"
+                ? geminiLiveOn
+                  ? liveActive || liveSession.status === "connecting"
+                    ? "Tap to end voice conversation"
+                    : "Tap to start voice conversation"
+                  : "Hold to ask by voice"
                 : "Tap to capture, hold to record"
           }
           onPointerDown={onPointerDown}
@@ -359,7 +402,19 @@ export default function MobileHome({
         </button>
 
         {isAsk && (
-          <>
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 560,
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+              flex: compact ? 1 : 0,
+              minHeight: 0,
+              opacity: 1,
+              animation: "mh-ask-in 440ms cubic-bezier(0.16, 1, 0.3, 1)",
+            }}
+          >
             {liveShow && (
               <LiveBanner
                 status={liveSession.status}
@@ -380,10 +435,13 @@ export default function MobileHome({
               onInputChange={setAskInput}
               onSubmit={submitAsk}
               onClear={clearHistory}
+              onFocus={() => setInputFocused(true)}
+              onBlur={() => setInputFocused(false)}
               messagesEndRef={messagesEndRef}
               brainReady={!!brainId}
+              expanded={compact}
             />
-          </>
+          </div>
         )}
       </div>
     </div>
@@ -664,8 +722,11 @@ function AskPanel({
   onInputChange,
   onSubmit,
   onClear,
+  onFocus,
+  onBlur,
   messagesEndRef,
   brainReady,
+  expanded,
 }: {
   messages: Array<{ role: "user" | "assistant"; content: string; ts: string }>;
   loading: boolean;
@@ -673,8 +734,11 @@ function AskPanel({
   onInputChange: (v: string) => void;
   onSubmit: (e: React.FormEvent) => void;
   onClear: () => void;
+  onFocus: () => void;
+  onBlur: () => void;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   brainReady: boolean;
+  expanded: boolean;
 }) {
   const canSend = input.trim().length > 0 && !loading && brainReady;
   const hasMessages = messages.length > 0;
@@ -682,16 +746,14 @@ function AskPanel({
     <div
       style={{
         width: "100%",
-        maxWidth: 560,
         display: "flex",
         flexDirection: "column",
         gap: 12,
-        flex: 1,
+        flex: expanded ? 1 : 0,
         minHeight: 0,
-        animation: "mh-ask-in 440ms cubic-bezier(0.16, 1, 0.3, 1)",
       }}
     >
-      {hasMessages && (
+      {expanded && hasMessages && (
         <div
           style={{
             display: "flex",
@@ -743,13 +805,17 @@ function AskPanel({
       )}
       <div
         style={{
-          flex: 1,
+          flex: expanded ? 1 : 0,
           minHeight: 0,
-          overflowY: "auto",
+          maxHeight: expanded ? "100%" : 0,
+          overflowY: expanded ? "auto" : "hidden",
           display: "flex",
           flexDirection: "column",
           gap: 10,
-          padding: "8px 4px",
+          padding: expanded ? "8px 4px" : "0 4px",
+          opacity: expanded ? 1 : 0,
+          transition:
+            "max-height 520ms cubic-bezier(0.16, 1, 0.3, 1), opacity 360ms ease, padding 320ms ease",
         }}
       >
         {messages.length === 0 && !loading && (
@@ -822,6 +888,8 @@ function AskPanel({
         <textarea
           value={input}
           onChange={(e) => onInputChange(e.target.value)}
+          onFocus={onFocus}
+          onBlur={onBlur}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
