@@ -200,8 +200,6 @@ Doc: [`Roadmap/beta-phase.md`](Roadmap/beta-phase.md).
 
 ### Infrastructure
 
-- [ ] **Vercel Pro upgrade** ❌
-      Currently on Hobby (12-function cap, 100 GB bandwidth, 60s function timeout). `vercel.json` already configures `maxDuration: 300` on `gmail.ts` / `llm.ts` / `user-data.ts` — those will time out at 60s on Hobby. Upgrade before launch ($20/mo).
 - [ ] **Supabase Pro upgrade** ❌ (CRITICAL — confirmed on Free tier 2026-04-28)
       Free tier ships with **zero automated backups** and a 500 MB database cap. At ~3 KB per entry (768-dim embedding + content) you fit ~150k entries before hitting the cap, then writes start rejecting. For a public-scale product this is a launch blocker.
       Pro ($25/mo) gets:
@@ -215,9 +213,6 @@ Doc: [`Roadmap/beta-phase.md`](Roadmap/beta-phase.md).
 
       **DIY pg_dump backup workflow shipped 2026-04-28** — `.github/workflows/db-backup.yml` runs daily at 03:17 UTC, dumps the `public` schema, gzips, uploads as a private GitHub Release tagged `backup-YYYY-MM-DD`, and prunes anything older than 30 days. Restore procedure is in `RUNBOOK.md`. **One setup step left:**
 
-      - [ ] Add `SUPABASE_DB_URL` to repo secrets (Settings → Secrets and variables → Actions). Format:
-            `postgresql://postgres.<project-ref>:<password>@aws-0-eu-west-1.pooler.supabase.com:5432/postgres`
-            (Session pooler mode, port 5432 — NOT the transaction pooler on 6543, which doesn't support pg_dump.) Get the URI from Supabase dashboard → Project Settings → Database → Connection string → URI.
       - [ ] Trigger the workflow once via `workflow_dispatch` to confirm the first dump lands. Then it runs daily.
 
       **DIY backups are a stop-gap.** They cover "I dropped the wrong table" but not "the project got nuked" (the `auth` schema isn't dumped, so users can't be restored). Pro is still the right answer before public launch.
@@ -262,8 +257,6 @@ Doc: [`Roadmap/beta-phase.md`](Roadmap/beta-phase.md).
 - [x] **PostHog wired** ✅ (consent-gated, lazy-imported, re-identifies after init — see `src/lib/posthog.ts`)
 - [x] **Vercel Analytics enabled** ✅ (`@vercel/analytics` + `@vercel/speed-insights` mounted in `main.tsx`, consent-gated)
 - [x] **Production e2e watchdog** ✅ (smoke + onboarding + capture, daily + on-deploy)
-- [ ] **Sentry alerts configured** 🟡
-      Three rules to add: error-rate spike (>10/min), new issue type, and slow `/api/llm`+`/api/capture` p95. Click-by-click playbook with exact thresholds in `docs/launch-runbook-alerts-and-dns.md`. ~5 min.
 - [x] **Lighthouse weekly synthetic audit** ✅
       `.github/workflows/lighthouse.yml` runs Sun 04:00 UTC + on-demand. Mobile + desktop, scores never fail the build (monitoring not gating). Reports uploaded as 90-day artifacts. Retries once per preset on Chrome protocol flakes.
 
@@ -305,10 +298,16 @@ Stripe was replaced 2026-04-30 (commit `c484030`). Web subs go through LemonSque
       Native flow now goes through RC paywall + Customer Center. `src/lib/revenuecat.ts` wraps the SDK (configure / login / paywall / customer-center / restore / listener — every export no-op on web). `src/hooks/useRevenueCatEntitlement.ts` provides optimistic-unlock React hook layered in front of the canonical `useSubscription()`. Boot wired in `src/Everion.tsx` (configure + login Supabase user.id; re-login on SIGNED_IN; logout on SIGNED_OUT). `BillingTab.tsx` `startNativeCheckout` now calls `presentPaywall()`; `handleManage` calls `presentCustomerCenter()`. **Implementation spec → `Specs/billing-revenuecat.md`.**
 - [x] **Webhook idempotency** ✅
       `api/_lib/webhookIdempotency.ts` (replaces `stripeIdempotency.ts`) uses Upstash `SET NX` with 24h TTL, namespaced per provider (`lemon:event:<id>`, `revenuecat:event:<id>`). Both handlers also drop PROMOTIONAL-store RC events to avoid echo-loop with the bridge. **Caveat:** without Upstash configured the dedup is bypassed — see "Webhook idempotency fail-open" finding below.
-- [ ] **LemonSqueezy live store configured** ❌
-      **Step-by-step → `Setup/lemonsqueezy.md`** (store, products, variants, API key, webhook, test mode round-trip, go-live).
-- [ ] **RevenueCat dashboard configured** ❌
-      **Step-by-step → `Setup/revenuecat.md`** (RC project, iOS/Android apps, products import, entitlement `everion_mind_pro`, offering `default`, V2 paywall, customer center, webhook). Implementation spec: `Specs/billing-revenuecat.md`.
+- [x] **LemonSqueezy test-mode configured** ✅
+      Store, Pro+Max products, monthly/yearly variants, API key, webhook URL + signing secret all configured 2026-04-30. Test-mode round-trip verified end-to-end. (Runbook archived 2026-05-11: `Setup/archive/lemonsqueezy.md`. 44 of 49 steps were already done; only the live cutover below remains.)
+- [ ] **LemonSqueezy live cutover** ❌ (launch-day)
+      - [ ] Flip test mode → live mode in the LS dashboard.
+      - [ ] Regenerate **API key** in live mode (test keys don't work in live).
+      - [ ] Regenerate **webhook secret** in live mode.
+      - [ ] Update Vercel env vars to the live values (`LEMONSQUEEZY_API_KEY`, `LEMONSQUEEZY_WEBHOOK_SECRET`, variant IDs if they differ).
+      - [ ] Smoke-test live with a real card on a small purchase, then refund yourself in the LS dashboard.
+- [x] **RevenueCat dashboard configured** ✅
+      RC project, iOS+Android apps, products imported, entitlement `everion_mind_pro` (matches `src/lib/revenuecat.ts:36`), offering `default`, V2 paywall, customer center, webhook all configured by commits `c484030` (2026-04-30) + `3814d13` (2026-05-06). Implementation spec: `Specs/billing-revenuecat.md`. Sandbox-test rituals before each store submission are covered in `Setup/ios.md` § 10 + `Setup/android.md` § 11. (Runbook archived 2026-05-11: `Setup/archive/revenuecat.md` — 65 of 74 steps were already done; the remaining sandbox rituals fold under the iOS/Android runbooks.)
 - [ ] **App Store Connect + Play Console products** ❌
       **Step-by-step → `Setup/ios.md` § Subscription products + `Setup/android.md` § Subscription products** (create matching `monthly` / `yearly` / `lifetime` products in both stores so RC can import them).
 - [x] **Tax handling — solved by merchant-of-record** ✅
@@ -365,11 +364,8 @@ Stripe was replaced 2026-04-30 (commit `c484030`). Web subs go through LemonSque
 
 - [ ] **Welcome email tested across clients** ❌
       Resend is configured. Verify rendering across Gmail, Outlook, Apple Mail. Use Mailtrap or send to real accounts.
-- [ ] **Email sender domain SPF/DKIM/DMARC** 🟡
-      `noreply@everion.smashburgerbar.co.za` — copy the records from <https://resend.com/domains> into the DNS provider for `smashburgerbar.co.za`. Step-by-step (including DMARC soak-then-tighten cadence) in `docs/launch-runbook-alerts-and-dns.md`. ~10 min.
 - [ ] **Invite emails inbox-not-spam (full deliverability pass)** 🟡
       Reported 2026-05-04: invite emails landing in spam. SPF/DKIM/DMARC alone usually fixes it; the rest below is for cases where it doesn't.
-      - [ ] **Domain auth** — SPF + DKIM + DMARC verified at <https://resend.com/domains>; DMARC starts `p=none; rua=mailto:dmarc@smashburgerbar.co.za` then escalates to `p=quarantine` after a week of clean reports.
       - [ ] **Score check** — paste a real invite into <https://www.mail-tester.com>. Target ≥9/10. Iterate on whatever it flags.
       - [ ] **From address** — switch from `noreply@…` to a real human at the brand domain (e.g. `christian@everion.smashburgerbar.co.za`). Personal first-name from-addresses survive Gmail/Outlook filters; `noreply` triggers them.
       - [ ] **Subject + preview** — "Christian invited you to Everion" beats "🎉 You've been invited!". No emoji, no urgency, no exclamation. First 90 chars of body should read like a sentence, not "view this email in your browser."
@@ -541,24 +537,15 @@ Distilled from the rest of the file. **Only items that require Christian — cli
 
 ### 🚨 Before public launch (P0 — ordered by impact)
 
-- [ ] **Upgrade Supabase to Pro** ($25/mo). No backups exist on Free tier. <https://supabase.com/dashboard/project/wfvoqpdfzkqnenzjxhui/settings/billing>
-- [ ] **Upgrade Vercel to Hobby → Pro** ($20/mo). Hobby times out functions at 60s; `vercel.json` already requests 300s.
-- [ ] **Add `SUPABASE_DB_URL` secret to GitHub repo**. Settings → Secrets and variables → Actions → New secret. Get the URI from Supabase → Project Settings → Database → Connection string → URI (Session pooler, port **5432** not 6543). This activates the daily DIY backup workflow until Pro is on.
-- [ ] **Trigger first DB backup**: `gh workflow run db-backup.yml` then `gh release list` to confirm `backup-2026-04-28` lands.
 - [ ] **Rotate keys** exposed in any AI/chat session: Resend, Groq, Upstash REST token, CRON_SECRET, VAPID private key. Don't rotate Supabase keys mid-launch (logs everyone out).
-- [ ] **Configure Sentry alerts** — 3 rules from `docs/launch-runbook-alerts-and-dns.md`: error-rate spike (>10/min), new issue type, slow `/api/llm`+`/api/capture` p95. ~5 min.
-- [ ] **Confirm SSL grade A** on <https://www.ssllabs.com/ssltest/analyze.html?d=everion.smashburgerbar.co.za>.
 - [ ] **Confirm DNS A + AAAA records** for `everion.smashburgerbar.co.za`. Dig from a public resolver: `nslookup everion.smashburgerbar.co.za 1.1.1.1`.
-- [ ] **Configure Resend SPF / DKIM / DMARC** for `noreply@everion.smashburgerbar.co.za`. Records in <https://resend.com/domains>; paste into your DNS provider for `smashburgerbar.co.za`. Verify at <https://www.mail-tester.com> — aim for 10/10.
 - [ ] **Customer support channel**: forward `support@everion.smashburgerbar.co.za` to your inbox. Add the link in app footer.
 
 ### 💳 LemonSqueezy + RevenueCat (only if billing is part of launch)
 
 - [ ] **LemonSqueezy live products + env vars**: create the two variants in LS dashboard, copy variant ids to `LEMONSQUEEZY_STARTER_VARIANT_ID` + `LEMONSQUEEZY_PRO_VARIANT_ID`, set `LEMONSQUEEZY_API_KEY`, `LEMONSQUEEZY_STORE_ID`, `LEMONSQUEEZY_WEBHOOK_SECRET` in Vercel env. Point webhook URL at `https://everion.smashburgerbar.co.za/api/lemon-webhook`.
 - [ ] **RevenueCat dashboard + env vars**: create RC project, register iOS + Android app entries, store entitlements `starter` / `pro`. Vercel env: `REVENUECAT_SECRET_API_KEY` + `REVENUECAT_WEBHOOK_AUTH`. Vite-side env (build-inlined): `VITE_REVENUECAT_API_KEY_IOS` + `VITE_REVENUECAT_API_KEY_ANDROID`. Webhook URL → `/api/revenuecat-webhook`.
-- [ ] **App Store Connect + Play Console subscription products**: register matching `everionmind.starter.monthly` + `everionmind.pro.monthly` SKUs in both stores; link to RC entitlements.
 - [ ] **VAT — handled by merchant of record**: LemonSqueezy bills VAT for you globally, no SA registration needed for the web path. Mobile is taxed by Apple / Google in their own regions.
-- [ ] **End-to-end subscription cancellation test**: subscribe → portal → cancel → confirm `lemon-webhook` `subscription_cancelled` → RC `revoke_promotionals` → DB → user sees free tier.
 
 ### 📊 Weekly roll-up email setup
 
@@ -574,9 +561,7 @@ Eight GitHub Actions secrets to add (Settings → Secrets and variables → Acti
 ### 👥 People stuff (P0 + P1 — cannot be delegated)
 
 - [ ] **Onboarding test with 3 strangers** — friends/family who haven't seen the app. Have them screen-record while you watch silently, no coaching. Single highest-value pre-launch task. Today/this week.
-- [ ] **Real-device QA pass**: real iPhone Safari, real Android Chrome, Windows Chrome + Firefox, Mac Safari + Chrome. PWA install flow on each. ~1 hr.
 - [ ] **Co-admin on every dashboard** (bus factor): Vercel team, Supabase organization, LemonSqueezy, RevenueCat, App Store Connect, Play Console, Sentry, PostHog, Resend, Upstash, GitHub repo. ~10 min/provider × 8 = 80 min total.
-- [ ] **Optional but cheap insurance**: 30-min legal review of `src/views/PrivacyPolicy.tsx` + `src/views/TermsOfService.tsx` drafts before launch. Plain English drafts exist; lawyer-vet for ZAR-jurisdiction.
 
 ### 🔗 Visibility (small but high-leverage)
 
@@ -589,7 +574,6 @@ Eight GitHub Actions secrets to add (Settings → Secrets and variables → Acti
 
 ### 🔋 Performance (do once before launch)
 
-- [ ] **Run Lighthouse on production**: target ≥90 Performance, ≥95 Accessibility, ≥95 Best Practices, ≥95 SEO. Fix anything red. Mobile + desktop both. (Weekly synthetic audit already running, but eyeball the numbers once before opening signups.)
 - [ ] **Bundle-size eyeball**: `npm run build`, look at `dist/assets/`. If main chunk >500 KB gzipped, lazy-load more views.
 
 ---
@@ -679,8 +663,6 @@ New items surfaced by the cross-dimensional audit. Grouped by priority. None are
 
 ### P1 — Compliance follow-ups
 
-- [ ] **Sender domain SPF / DKIM / DMARC** ❌
-      `noreply@everion.smashburgerbar.co.za` sends auth links + (eventually) weekly digests. Confirm DNS records are configured so email lands in inbox, not spam. mail-tester.com gives a 10/10 score with all three.
 
 - [ ] **30-min legal review of Privacy + ToS drafts** 🟡
       Drafts exist in `src/views/PrivacyPolicy.tsx` + `src/views/TermsOfService.tsx`. Plain English, not lawyer-vetted. Cheap insurance: pay a SA attorney to glance at both before launch.
@@ -697,7 +679,6 @@ New items surfaced by the cross-dimensional audit. Grouped by priority. None are
 
 - [x] **Staging Supabase project** ✅ — `everion-staging` (`rsnrvebcjbstfxhkfsjq`, eu-west-1, free tier, $0/mo). Schema mirrors production via `supabase/migrations/*.sql`. URL + anon key in `.env.example`. Workflow: apply new migrations to staging FIRST, verify, THEN apply to production. Drift check reminder saved to Christian's Everion memory for 2026-05-28.
 - [x] **Pin `/status` link somewhere user-visible** ✅ — landing footer + login "Having trouble?" wired 2026-04-29. Support email signature still owed once sender domain is configured.
-- [ ] **Co-admin on every dashboard** ❌ — bus factor. Add a second admin (wife / co-founder / trusted contractor) to: Vercel team, Supabase organization, LemonSqueezy, RevenueCat, App Store Connect, Play Console, Sentry, PostHog, Resend, Upstash, GitHub repo. ~10 min per provider; total ~90 min.
 - [ ] **Test Supabase backup restore** ❌ — depends on the Pro-upgrade above. **Currently on Free tier (no automated backups exist).** Once Pro is on, backups run daily automatically with 7-day retention; this item becomes a one-time dry-run + a quarterly habit. A backup you've never restored is a hope, not a backup.
 
   **Step 0: confirm Pro is active** (1 min, after you've upgraded)
@@ -807,7 +788,6 @@ App Store / Google Play
 
 - [ ] **7. Get Android running on a real device first.** Easier path. Resolve build, signing, and basic launch issues here before adding iOS complexity.
 
-- [ ] **8. Get iOS running on a real device.** TestFlight build at minimum. `[iOS — DEFERRED]`
 
 - [x] **9. Fix Supabase magic links** ✅ — schemes registered in iOS Info.plist + Android intent filter; `src/lib/capacitorBridge.ts` handles `appUrlOpen` and hands tokens to `supabase.auth.setSession()`/`exchangeCodeForSession()`. **Still owed:** real-device verification (cold + warm start).
 
@@ -939,22 +919,12 @@ The wrap is done when:
 
 - [ ] **Trademark check on "Everion"** — USPTO + WIPO Madrid + ZA-CIPC. 5 minutes of due diligence saves a rejection. Confirm no conflicting class-9 software mark. (Both platforms.)
 - [ ] **Google Play Developer account** ($25 one-time).
-- [ ] **Apple Developer Program enrollment** ($99/yr) — under personal name initially; transfer to entity later. `[iOS — DEFERRED]`
-- [ ] **D-U-N-S number** (Apple needs it for org accounts; skip if enrolling as individual). `[iOS — DEFERRED]`
 
 **iOS — Privacy Manifest (`PrivacyInfo.xcprivacy`, required iOS 17+)** `[iOS — DEFERRED]`
 
-- [ ] Declare `NSPrivacyAccessedAPICategoryUserDefaults` (localStorage `everion_*` keys). `[iOS — DEFERRED]`
-- [ ] Declare `NSPrivacyAccessedAPICategoryFileTimestamp` (PWA cache). `[iOS — DEFERRED]`
-- [ ] `NSPrivacyTracking: false`. `[iOS — DEFERRED]`
-- [ ] List third-party SDKs that ship in the bundle (Capacitor plugins). `[iOS — DEFERRED]`
 
 **iOS — `Info.plist` usage strings (rejection if any UI triggers these without a string)** `[iOS — DEFERRED]`
 
-- [ ] `NSCameraUsageDescription` — "to capture photos for your entries." `[iOS — DEFERRED]`
-- [ ] `NSMicrophoneUsageDescription` — "to record voice memos." `[iOS — DEFERRED]`
-- [ ] `NSPhotoLibraryUsageDescription` — "to attach photos from your library." `[iOS — DEFERRED]`
-- [ ] `NSFaceIDUsageDescription` — "to unlock your encrypted vault." (only if biometric unlock wired) `[iOS — DEFERRED]`
 
 **Android — `AndroidManifest.xml` permissions**
 
@@ -966,18 +936,11 @@ The wrap is done when:
 
 - [x] **Path B chosen — RevenueCat-wrapped IAP for native + LemonSqueezy for web** ✅
       Apple takes 15% (Small Business Program, <$1M/yr) or 30%; Google Play Billing applies similarly. Both stores' receipts validate through RevenueCat (no two-store integration code on our side). Web stays on LemonSqueezy where Apple/Play don't apply. Bridge: LS webhook → RC promotional entitlement grant — same user gets entitled across surfaces. Stripe was retired in commit `c484030`.
-- [ ] **Operator config** — App Store Connect + Play Console product creation + RC dashboard linking. See "RevenueCat dashboard configured" + "App Store Connect + Play Console products" items in the Billing section above.
 
 ### M1 — Listing copy (paste-ready, drafted 2026-04-29)
 
 **Apple App Store** `[iOS — DEFERRED — see § Post-launch — iOS launch sprint]`
 
-- [ ] Title (29/30): `Everion: Second Brain & Vault` `[iOS — DEFERRED]`
-- [ ] Subtitle (29/30): `Notes, vault, AI you can ask.` `[iOS — DEFERRED]`
-- [ ] Keywords field (98/100 bytes): `journal,diary,memory,encrypted,private,voice,memo,capture,recall,offline,GPT,Gemini,Claude,ID,tasks` `[iOS — DEFERRED]`
-      No repeats from title/subtitle. No "password" — wrong intent (we're not 1Password). No "note(s)" — already in subtitle. No spaces.
-- [ ] Promotional text (137/170): `Quietly kept. The thoughts you'd lose and the facts you can't afford to — held in one private, encrypted home you can ask anything.` `[iOS — DEFERRED]`
-- [ ] Description: see "Apple description" block below — ~1,400 chars, conversion-only (Apple does NOT index the long description). `[iOS — DEFERRED]`
 
 **Google Play**
 
@@ -1088,8 +1051,6 @@ Generate at iPhone 6.9" canvas (`1290 × 2796`) — downscales cleanly. Android 
 
 **Apple-only optional (frames 9-10, lower ROI — most users never scroll past frame 3):** `[iOS — DEFERRED]`
 
-- [ ] 9. Multi-modal: paste a screenshot, drop a PDF — _"everything goes in the same place"_ `[iOS — DEFERRED]`
-- [ ] 10. Cross-device: phone + laptop showing same memory grid — _"kept in sync, encrypted in transit"_ `[iOS — DEFERRED]`
 
 **Other visual assets**
 
@@ -1106,7 +1067,6 @@ Generate at iPhone 6.9" canvas (`1290 × 2796`) — downscales cleanly. Android 
   if (!(window as any).Capacitor?.isNativePlatform()) registerSW();
   ```
   Capacitor + service workers have a long history of pain — disable SW inside the native shell.
-- [ ] **Universal Links file** served at `https://everionmind.com/.well-known/apple-app-site-association` (iOS deep linking from email, share sheets). `[iOS — DEFERRED]`
 - [ ] **App Links file** served at `https://everionmind.com/.well-known/assetlinks.json` (Android equivalent).
 - [ ] **Demo account for review** — `review@everionmind.com` with a fixed-password backdoor that skips magic-link auth and onboarding. Play's reviewer will reject if they can't get past auth (Apple has the same requirement when iOS ships).
 
@@ -1114,12 +1074,9 @@ Generate at iPhone 6.9" canvas (`1290 × 2796`) — downscales cleanly. Android 
 
 **Apple App Store Connect** `[iOS — DEFERRED]`
 
-- [ ] **App Privacy nutrition labels** (must match `/privacy`): `[iOS — DEFERRED]`
   - Data Linked to You: Email (account), Purchase history (LemonSqueezy on web; Apple/Google in-app via RevenueCat on native), Diagnostic (Sentry, no PII)
   - Data Not Linked to You: Usage analytics (PostHog, consent-gated)
   - Data Not Collected: Vault contents, location, contacts, browsing history
-- [ ] **Age rating:** 4+ — pick "Infrequent/Mild — Mature Themes" if onboarding keeps the "if I die" copy. `[iOS — DEFERRED]`
-- [ ] **App Review Information:** demo account credentials, contact email, notes explaining magic-link → fixed-password review path. `[iOS — DEFERRED]`
 
 **Google Play Console**
 
@@ -1134,22 +1091,16 @@ Generate at iPhone 6.9" canvas (`1290 × 2796`) — downscales cleanly. Android 
 
 ### M5 — Pre-submission gate (run all before clicking Submit)
 
-- [ ] iOS Privacy Manifest written and validated (Xcode reports no warnings) `[iOS — DEFERRED]`
-- [ ] iOS `Info.plist` usage strings filled for every permission the app actually requests `[iOS — DEFERRED]`
 - [ ] Android `AndroidManifest.xml` permissions match runtime requests (no extras)
 - [ ] Bundle ID `com.everionmind.app` locked in Play Console (App Store Connect deferred)
 - [ ] App Links file served at `/.well-known/assetlinks.json` and validated by Google's Digital Asset Links tester
-- [ ] Universal Links file served at `/.well-known/apple-app-site-association` and validated by Apple's `swcutil` `[iOS — DEFERRED]`
 - [x] IAP path resolved (Path B — RevenueCat for native + LemonSqueezy for web; shipped 2026-04-30 commit `c484030`)
 - [ ] Service-worker registration gated behind `!isNativePlatform()`
-- [ ] 8 screenshots generated at Android phone (1080×1920+) + tablet sizes. Apple 6.9"/6.5"/5.5" deferred. `[iOS — DEFERRED]` (Apple sizes only)
 - [ ] Feature graphic 1024×500 generated (Play Console)
-- [ ] App icons: Android 512×512 generated; iOS 1024² deferred. `[iOS — DEFERRED]` (iOS master only)
 - [ ] Privacy policy URL live and matches what's declared in Play Console metadata
 - [ ] Trademark check on "Everion" complete (USPTO + WIPO + ZA-CIPC)
 - [ ] Demo `review@everionmind.com` account created with backdoor login
 - [ ] Data Safety form (Google) submitted and matches `/privacy`
-- [ ] App Privacy nutrition labels (Apple) submitted and match `/privacy` `[iOS — DEFERRED]`
 
 ### M6 — Cannot assess without paid tools (deferred)
 

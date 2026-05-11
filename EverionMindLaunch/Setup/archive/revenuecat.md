@@ -1,3 +1,13 @@
+# RevenueCat setup runbook — ARCHIVED 2026-05-11
+
+> **STATUS: ARCHIVED.** Integration shipped 2026-04-30 (commit `c484030`) and 2026-05-06 (commit `3814d13`); RC dashboard configured. 65 of 74 steps in this file were already done by the time the dashboard parsed it.
+>
+> Remaining live work folds elsewhere: sandbox-test rituals before each store submission live in `Setup/ios.md` § 10 and `Setup/android.md` § 11. The implementation spec is `Specs/billing-revenuecat.md` — that's the canonical doc going forward.
+>
+> Kept for historical reference in case a future operator needs to re-bootstrap the RC dashboard from scratch.
+
+---
+
 # RevenueCat setup runbook
 
 Mobile IAP provider — wraps Apple StoreKit + Google Play Billing. Code is shipped (`src/lib/revenuecat.ts`, `src/hooks/useRevenueCatEntitlement.ts`, `api/user-data.ts:handleRevenueCatWebhook`, paywall + customer center wired in `BillingTab.tsx`). This is the operator-side dashboard work.

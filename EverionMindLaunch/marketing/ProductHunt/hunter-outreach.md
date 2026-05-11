@@ -8,14 +8,14 @@
 
 ## Candidate criteria
 
-A good hunter for Everion Mind has at least 3 of these:
+A good hunter for Everion Mind has at least 3 of these (these are *selection criteria*, not tasks — looking for the candidate, not ticking them off):
 
-- [ ] **PH karma rank** in the top ~500 (visible on their profile). They've posted launches that ranked top 10.
-- [ ] **Hunted PKM/note-taking apps before** — Reflect, Mem, Notion, Tana, Obsidian, Capacities, Heptabase, Roam, Logseq, Saga, Anytype.
-- [ ] **Engaged audience** ≥ 5K Twitter followers / ≥ 10K newsletter / ≥ 20K LinkedIn. Not a vanity number — comments on their posts > 5% of follower count.
-- [ ] **Active in PKM discourse** — tweets/blogs about second brains, Zettelkasten, journaling, knowledge work.
-- [ ] **Has hunted a launch in the last 90 days.** Inactive hunters' followers stop opening their notifications.
-- [ ] **Hunter ≠ direct competitor founder.** Don't ask the Mem founder to hunt Everion. Asking the Mem *user community* curator is fine.
+- **PH karma rank** in the top ~500 (visible on their profile). They've posted launches that ranked top 10.
+- **Hunted PKM/note-taking apps before** — Reflect, Mem, Notion, Tana, Obsidian, Capacities, Heptabase, Roam, Logseq, Saga, Anytype.
+- **Engaged audience** ≥ 5K Twitter followers / ≥ 10K newsletter / ≥ 20K LinkedIn. Not a vanity number — comments on their posts > 5% of follower count.
+- **Active in PKM discourse** — tweets/blogs about second brains, Zettelkasten, journaling, knowledge work.
+- **Has hunted a launch in the last 90 days.** Inactive hunters' followers stop opening their notifications.
+- **Hunter ≠ direct competitor founder.** Don't ask the Mem founder to hunt Everion. Asking the Mem *user community* curator is fine.
 
 ## Where to find them
 

@@ -1,3 +1,13 @@
+# LemonSqueezy setup runbook — ARCHIVED 2026-05-11
+
+> **STATUS: ARCHIVED.** Integration shipped 2026-04-30 (commit `c484030`); test-mode round-trip completed. 44 of 49 steps in this file were already done by the time the dashboard parsed it — the file was inflating the active task count without serving as a runbook.
+>
+> The live-mode cutover (originally § 8 of this doc) was lifted into `LAUNCH_CHECKLIST.md` § P0 / Billing as a 5-step launch-day block. **Go there for the remaining work.**
+>
+> Kept for historical reference in case a future operator needs to re-bootstrap the LS dashboard from scratch.
+
+---
+
 # LemonSqueezy setup runbook
 
 Web subscription provider. Merchant of record — handles VAT, sales tax, chargebacks. Code is shipped (`api/_lib/lemonsqueezy.ts`, `api/user-data.ts:handleLemonCheckout` / `handleLemonWebhook` / `handleLemonPortal`). This runbook is the operator-side dashboard work.

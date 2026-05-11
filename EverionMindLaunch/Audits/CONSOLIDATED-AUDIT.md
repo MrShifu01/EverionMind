@@ -1310,7 +1310,7 @@ High-confidence fixes implemented now:
 
 Deferred and intentionally still unchecked:
 
-- [ ] **Full LLM boundary migration** â€” direct `googleAiFetch()` generation paths still exist in Gmail/persona distillation, persona extraction, Gmail scan, feedback, and retrieval. These should be migrated in small batches because some are embeddings/model-listing paths and some use fallback-model behavior that needs preserved semantics.
+- [ ] **Full LLM boundary migration** — direct `googleAiFetch()` generation paths still exist in persona extraction, feedback, and retrieval. (Gmail distillation + scan paths previously listed here were removed with the Gmail subsystem in commit `eba3299`.) These should be migrated in small batches because some are embeddings/model-listing paths and some use fallback-model behavior that needs preserved semantics.
 - [ ] **Full `withRoute({ auth, rateLimit, headers, dispatch })` API** â€” phase 1 extracted the shared boundary inside `withAuth.ts`; the next step is a public/data-driven route wrapper and endpoint-by-endpoint adoption.
 - [ ] **Resource dispatch extraction** â€” `api/user-data.ts`, `api/entries.ts`, and `api/mcp.ts` still need internal handler-module extraction under `api/_lib/handlers/` without adding top-level Vercel functions.
 - [ ] **Vault security orchestrator** â€” still needs an RFC and test-first implementation because it changes PIN/biometric/recovery state ownership.
@@ -5322,13 +5322,13 @@ These are **blocking** for the public-launch gate. None are large lifts individu
 - [ ] **Fix brain_vault_grants leak** â€” always AND `user_id=eq.<caller>` (`api/user-data.ts:1665`).
 - [ ] **Block type=secret on /v1/update** (`api/v1.ts:260`).
 - [ ] **Strip vault entries from shared-entry overlay** (`api/entries.ts:175`).
-- [ ] **Bound Gmail scan concurrency** to 4 with `mapWithConcurrency` (`api/_lib/gmailScan.ts:2309`).
-- [ ] **Await auto-accept enrichment** instead of fire-and-forget IIFEs (`api/_lib/gmailScan.ts:1466,1821`).
+- [x] ~~**Bound Gmail scan concurrency** to 4 with `mapWithConcurrency` (`api/_lib/gmailScan.ts:2309`).~~ — WONTFIX: Gmail subsystem removed in commit `eba3299` (2026-05-11).
+- [x] ~~**Await auto-accept enrichment** instead of fire-and-forget IIFEs (`api/_lib/gmailScan.ts:1466,1821`).~~ — WONTFIX: code path removed in commit `eba3299`.
 - [ ] **Paginate `enrichAllBrains`** with `&limit=1000&order=id` cursor (`api/_lib/enrich.ts:1855`).
-- [ ] **Bound `persistMatches` Gemini fan-out** to 3 with `mapWithConcurrency` (`api/_lib/gmailScan.ts:1281`).
+- [x] ~~**Bound `persistMatches` Gemini fan-out** to 3 with `mapWithConcurrency` (`api/_lib/gmailScan.ts:1281`).~~ — WONTFIX: code path removed in commit `eba3299`.
 - [ ] **Extract `isAdminUser`** to a single shared module.
 - [ ] **Reduce JWT cache TTL** from 30s to 5â€“10s (`api/_lib/verifyAuth.ts:7`).
-- [ ] **Fix Anthropic-fallback paths** in `gmailScan.ts:906` and `gmail.ts:53` â€” route through `callAI` so Gemini-managed users get the deep-extract path.
+- [x] ~~**Fix Anthropic-fallback paths** in `gmailScan.ts:906` and `gmail.ts:53` — route through `callAI` so Gemini-managed users get the deep-extract path.~~ — WONTFIX: both files deleted in commit `eba3299`.
 - [ ] **Fix open-redirect risk** in lemon-checkout `successUrl` â€” use allowlisted origin, not request `host` (`api/user-data.ts:2939`).
 
 ## High-priority hardening (fix during the next 2â€“4 weeks)
@@ -5337,7 +5337,7 @@ These are **blocking** for the public-launch gate. None are large lifts individu
 - [ ] Stop echoing the raw `em_*` API key as the OAuth `access_token` â€” issue a short-lived JWT (`api/mcp.ts:557`).
 - [ ] Replace `_cache` in `search.ts` with a sized LRU mirroring `verifyAuth.ts` eviction.
 - [ ] Bound `handleEmptyTrash` and `handleBulkPatch` with chunked deletes + AbortController.
-- [ ] Fix `upsertGmailContact` race (cache misses on concurrent same-sender scans).
+- [x] ~~Fix `upsertGmailContact` race (cache misses on concurrent same-sender scans).~~ — WONTFIX: function deleted with the Gmail subsystem in commit `eba3299`.
 - [ ] Audit-log writes for `merge_into` action â€” currently bypassed, breaks merge-undo invariant.
 - [ ] `runGeminiBatch` in `handleAudit` to use `callAI()` retry path, respect BYOK.
 - [ ] Centralise all `SB_HDR` / `hdrs()` factories into the existing `sbHeaders.ts` (5+ duplicates).
