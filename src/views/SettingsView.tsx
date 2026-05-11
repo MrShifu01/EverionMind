@@ -18,6 +18,7 @@ const ProfileTab = lazy(() => import("../components/settings/ProfileTab"));
 const BillingTab = lazy(() => import("../components/settings/BillingTab"));
 const AdminTab = lazy(() => import("../components/settings/AdminTab"));
 const SecurityTab = lazy(() => import("../components/settings/SecurityTab"));
+const VoiceTab = lazy(() => import("../components/settings/VoiceTab"));
 import SettingsRow, { SettingsButton, SettingsExpand } from "../components/settings/SettingsRow";
 
 // Skeleton shown while a tab chunk is fetching. Sized roughly to a typical
@@ -38,10 +39,11 @@ function TabLoading() {
   );
 }
 
-type SectionId = "personal" | "account" | "brain" | "connections" | "privacy" | "admin";
+type SectionId = "personal" | "voice" | "account" | "brain" | "connections" | "privacy" | "admin";
 
 const BASE_SECTIONS: { id: SectionId; label: string }[] = [
   { id: "personal", label: "Persona" },
+  { id: "voice", label: "Voice" },
   { id: "account", label: "Account" },
   { id: "brain", label: "Brain" },
   { id: "connections", label: "Connections" },
@@ -54,6 +56,7 @@ const BASE_SECTIONS: { id: SectionId; label: string }[] = [
 const URL_ALIASES: Record<string, SectionId> = {
   appearance: "personal",
   profile: "personal",
+  voice: "voice",
   account: "account",
   billing: "account",
   brain: "brain",
@@ -360,6 +363,15 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
                 <SectionHeader title="Persona" />
                 <Suspense fallback={<TabLoading />}>
                   <ProfileTab />
+                </Suspense>
+              </div>
+            )}
+
+            {visited.has("voice") && (
+              <div style={{ display: section === "voice" ? "block" : "none" }}>
+                <SectionHeader title="Voice" />
+                <Suspense fallback={<TabLoading />}>
+                  <VoiceTab />
                 </Suspense>
               </div>
             )}
