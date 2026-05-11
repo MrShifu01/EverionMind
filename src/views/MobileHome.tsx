@@ -1,35 +1,63 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { useChat } from "../hooks/useChat";
+import { useVoiceMode, type VoiceMode } from "../hooks/useVoiceMode";
 
 interface MobileHomeProps {
   brainId: string | undefined;
   onOpenCapture: () => void;
   onOpenCaptureWith: (text: string) => void;
+  onCaptureRaw: (text: string) => void;
 }
+
+type VoiceTarget = "capture" | "chat" | null;
 
 const HOLD_THRESHOLD_MS = 250;
 
-export default function MobileHome({ brainId, onOpenCapture, onOpenCaptureWith }: MobileHomeProps) {
+export default function MobileHome({
+  brainId,
+  onOpenCapture,
+  onOpenCaptureWith,
+  onCaptureRaw,
+}: MobileHomeProps) {
   const [mode, setMode] = useState<"add" | "ask">("add");
   const [pressed, setPressed] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [askInput, setAskInput] = useState("");
+  const [voiceMode, setVoiceMode] = useVoiceMode();
 
-  const pendingOpenRef = useRef(false);
   const holdTimerRef = useRef<number | null>(null);
   const recordingRef = useRef(false);
+  const voiceTargetRef = useRef<VoiceTarget>(null);
+  const voiceModeRef = useRef<VoiceMode>(voiceMode);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    voiceModeRef.current = voiceMode;
+  }, [voiceMode]);
+
+  const { messages, loading: chatLoading, send: sendChat, clearHistory } = useChat(brainId);
 
   const handleTranscript = useCallback(
     (text: string) => {
-      if (!pendingOpenRef.current) return;
-      pendingOpenRef.current = false;
-      if (text.trim()) onOpenCaptureWith(text);
-      else onOpenCapture();
+      const target = voiceTargetRef.current;
+      voiceTargetRef.current = null;
+      const t = text.trim();
+      if (!t) {
+        if (target === "capture") onOpenCapture();
+        return;
+      }
+      if (target === "chat") {
+        void sendChat(t);
+        return;
+      }
+      if (target === "capture") {
+        if (voiceModeRef.current === "auto") onCaptureRaw(t);
+        else onOpenCaptureWith(t);
+      }
     },
-    [onOpenCapture, onOpenCaptureWith],
+    [onCaptureRaw, onOpenCapture, onOpenCaptureWith, sendChat],
   );
 
   const { listening, startVoice, stopRecording } = useVoiceRecorder({
@@ -38,8 +66,6 @@ export default function MobileHome({ brainId, onOpenCapture, onOpenCaptureWith }
     onError: setError,
     onLoading: () => {},
   });
-
-  const { messages, loading: chatLoading, send: sendChat, clearHistory } = useChat(brainId);
 
   useEffect(() => {
     return () => {
@@ -63,30 +89,35 @@ export default function MobileHome({ brainId, onOpenCapture, onOpenCaptureWith }
   function onPointerDown(e: React.PointerEvent) {
     e.preventDefault();
     (e.target as Element).setPointerCapture?.(e.pointerId);
-    if (mode === "ask") return;
     setError(null);
     setPressed(true);
     clearHoldTimer();
+    const targetForHold: VoiceTarget = mode === "ask" ? "chat" : "capture";
     holdTimerRef.current = window.setTimeout(() => {
       holdTimerRef.current = null;
       recordingRef.current = true;
-      pendingOpenRef.current = true;
+      voiceTargetRef.current = targetForHold;
       void startVoice();
     }, HOLD_THRESHOLD_MS);
   }
 
   function onPointerUp() {
-    setPressed(false);
-    if (mode === "ask") return;
     if (holdTimerRef.current) {
       clearHoldTimer();
-      onOpenCapture();
+      setPressed(false);
+      if (mode === "add") {
+        // Tap: spring orb back up first, then open modal so the bounce is visible.
+        window.setTimeout(() => onOpenCapture(), 220);
+      }
       return;
     }
     if (recordingRef.current) {
       recordingRef.current = false;
+      setPressed(false);
       stopRecording();
+      return;
     }
+    setPressed(false);
   }
 
   function onPointerCancel() {
@@ -97,7 +128,7 @@ export default function MobileHome({ brainId, onOpenCapture, onOpenCaptureWith }
     }
     if (recordingRef.current) {
       recordingRef.current = false;
-      pendingOpenRef.current = false;
+      voiceTargetRef.current = null;
       stopRecording();
     }
   }
@@ -146,40 +177,50 @@ export default function MobileHome({ brainId, onOpenCapture, onOpenCaptureWith }
           alignItems: "center",
           justifyContent: isAsk ? "flex-start" : "center",
           gap: isAsk ? 16 : 28,
-          paddingTop: isAsk ? 8 : 0,
+          paddingTop: isAsk ? 28 : 0,
           minHeight: 0,
         }}
       >
         {!isAsk && (
           <div
-            className="f-serif"
-            aria-live="polite"
             style={{
-              fontSize: 16,
-              fontStyle: "italic",
-              color: error ? "var(--blood)" : "var(--ink-soft)",
-              letterSpacing: "-0.005em",
-              textAlign: "center",
-              minHeight: 24,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 10,
             }}
           >
-            {error
-              ? error
-              : transcribing
-                ? "transcribing…"
-                : listening
-                  ? "recording — release to send"
-                  : "Tap to add, hold to record"}
+            <div
+              className="f-serif"
+              aria-live="polite"
+              style={{
+                fontSize: 16,
+                fontStyle: "italic",
+                color: error ? "var(--blood)" : "var(--ink-soft)",
+                letterSpacing: "-0.005em",
+                textAlign: "center",
+                minHeight: 24,
+              }}
+            >
+              {error
+                ? error
+                : transcribing
+                  ? "transcribing…"
+                  : listening
+                    ? "recording — release to send"
+                    : "Tap to add, hold to record"}
+            </div>
+            <VoiceModePill mode={voiceMode} onChange={setVoiceMode} />
           </div>
         )}
 
         <button
           type="button"
           aria-label={
-            isAsk
-              ? "Ask mode orb"
-              : listening
-                ? "Recording — release to stop"
+            listening
+              ? "Recording — release to send"
+              : isAsk
+                ? "Hold to ask by voice"
                 : "Tap to capture, hold to record"
           }
           onPointerDown={onPointerDown}
@@ -189,7 +230,6 @@ export default function MobileHome({ brainId, onOpenCapture, onOpenCaptureWith }
           data-listening={listening ? "true" : "false"}
           data-pressed={pressed ? "true" : "false"}
           data-mode={mode}
-          disabled={isAsk}
           style={{
             position: "relative",
             width: orbSize,
@@ -197,7 +237,7 @@ export default function MobileHome({ brainId, onOpenCapture, onOpenCaptureWith }
             padding: 0,
             background: "transparent",
             border: "none",
-            cursor: isAsk ? "default" : "pointer",
+            cursor: "pointer",
             touchAction: "none",
             WebkitTapHighlightColor: "transparent",
             WebkitTouchCallout: "none",
@@ -306,6 +346,76 @@ export default function MobileHome({ brainId, onOpenCapture, onOpenCaptureWith }
 const TOGGLE_BTN_WIDTH = 78;
 const TOGGLE_BTN_HEIGHT = 34;
 const TOGGLE_PADDING = 3;
+
+const VOICE_PILL_W = 56;
+const VOICE_PILL_H = 22;
+const VOICE_PILL_PAD = 2;
+
+function VoiceModePill({ mode, onChange }: { mode: VoiceMode; onChange: (m: VoiceMode) => void }) {
+  const thumbX = mode === "preview" ? 0 : VOICE_PILL_W;
+  return (
+    <div
+      role="tablist"
+      aria-label="Voice capture mode"
+      style={{
+        position: "relative",
+        display: "inline-flex",
+        padding: VOICE_PILL_PAD,
+        background: "var(--surface-low)",
+        border: "1px solid var(--line-soft)",
+        borderRadius: 999,
+      }}
+    >
+      <span
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          top: VOICE_PILL_PAD,
+          left: VOICE_PILL_PAD,
+          width: VOICE_PILL_W,
+          height: VOICE_PILL_H,
+          borderRadius: 999,
+          background: "var(--surface-high)",
+          boxShadow: "var(--lift-1)",
+          transform: `translateX(${thumbX}px)`,
+          transition: "transform 360ms cubic-bezier(0.16, 1, 0.3, 1)",
+        }}
+      />
+      {(["preview", "auto"] as const).map((m) => {
+        const active = mode === m;
+        return (
+          <button
+            key={m}
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(m)}
+            className="press"
+            style={{
+              position: "relative",
+              width: VOICE_PILL_W,
+              height: VOICE_PILL_H,
+              minHeight: VOICE_PILL_H,
+              borderRadius: 999,
+              fontFamily: "var(--f-sans)",
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: "0.02em",
+              background: "transparent",
+              color: active ? "var(--ink)" : "var(--ink-faint)",
+              border: "none",
+              cursor: "pointer",
+              textTransform: "capitalize",
+              transition: "color 320ms cubic-bezier(0.16, 1, 0.3, 1)",
+              zIndex: 1,
+            }}
+          >
+            {m}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function ModeToggle({
   mode,
