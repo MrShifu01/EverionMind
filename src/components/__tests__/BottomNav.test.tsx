@@ -82,7 +82,7 @@ describe("BottomNav — FAB capture action", () => {
     expect(memBtn).toHaveAttribute("aria-current", "page");
   });
 
-  it("hides Chat and Schedule when their flags are off", () => {
+  it("hides Chat when its flag is off", () => {
     render(
       <BottomNav
         activeView="memory"
@@ -92,20 +92,18 @@ describe("BottomNav — FAB capture action", () => {
       />,
     );
     expect(screen.queryByRole("button", { name: /^chat$/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^schedule$/i })).toBeNull();
   });
 
-  it("shows Chat / Schedule when admin flags enable them", () => {
+  it("shows Chat when admin flag enables it", () => {
     render(
       <BottomNav
         activeView="memory"
         onNavigate={vi.fn()}
         onCapture={vi.fn()}
         onOpenMore={vi.fn()}
-        adminFlags={{ chat: true, todos: true }}
+        adminFlags={{ chat: true }}
       />,
     );
     expect(screen.getByRole("button", { name: /^chat$/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^schedule$/i })).toBeInTheDocument();
   });
 });

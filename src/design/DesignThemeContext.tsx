@@ -1,16 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { getAdminFlags, isFeatureEnabled } from "../lib/featureFlags";
 
-export type DesignVariant =
-  | "dusk"
-  | "paper"
-  | "bronze"
-  | "aurora"
-  | "atelier"
-  | "blueprint"
-  | "botanical"
-  | "newsprint"
-  | "zine";
+export type DesignVariant = "bronze";
 export type DesignMode = "light" | "dark";
 
 interface DesignThemeValue {
@@ -21,84 +11,24 @@ interface DesignThemeValue {
   toggleMode: () => void;
 }
 
-const STORAGE_VARIANT = "everion:design:variant";
 const STORAGE_MODE = "everion:design:mode";
 const LEGACY_THEME_KEY = "openbrain_theme";
 
-const VARIANTS: DesignVariant[] = [
-  "dusk",
-  "paper",
-  "bronze",
-  "aurora",
-  "atelier",
-  "blueprint",
-  "botanical",
-  "newsprint",
-  "zine",
-];
 const MODES: DesignMode[] = ["light", "dark"];
 
-const VARIANT_DEFAULT_MODE: Record<DesignVariant, DesignMode> = {
-  dusk: "dark",
-  paper: "light",
-  bronze: "dark",
-  aurora: "light",
-  atelier: "light",
-  blueprint: "light",
-  botanical: "light",
-  newsprint: "light",
-  zine: "light",
-};
-
-// Variants gated behind the `extraThemes` admin flag. If the flag is off but
-// the user has one of these stored (e.g. they enabled the flag, picked
-// `aurora`, then turned the flag off), we snap them back to bronze so the
-// UI doesn't render a theme they can no longer reach in Settings.
-const EXTRA_VARIANTS: DesignVariant[] = [
-  "aurora",
-  "atelier",
-  "blueprint",
-  "botanical",
-  "newsprint",
-  "zine",
-];
-
-function isExtraVariantAllowed(): boolean {
-  try {
-    return isFeatureEnabled("extraThemes", getAdminFlags());
-  } catch {
-    return false;
-  }
-}
-
-function loadVariant(): DesignVariant {
-  const stored = localStorage.getItem(STORAGE_VARIANT);
-  if (stored && (VARIANTS as string[]).includes(stored)) {
-    const v = stored as DesignVariant;
-    if (EXTRA_VARIANTS.includes(v) && !isExtraVariantAllowed()) return "bronze";
-    return v;
-  }
-  return "bronze";
-}
-
-function loadMode(variant: DesignVariant): DesignMode {
+function loadMode(): DesignMode {
   const stored = localStorage.getItem(STORAGE_MODE);
   if (stored && (MODES as string[]).includes(stored)) return stored as DesignMode;
-  // fall back to legacy theme key so existing users keep their preference
   const legacy = localStorage.getItem(LEGACY_THEME_KEY);
   if (legacy === "dark" || legacy === "light") return legacy;
-  return VARIANT_DEFAULT_MODE[variant];
+  return "dark";
 }
 
-const FAMILY_CLASSES = VARIANTS.map((v) => `family-${v}`);
-
-function applyToDocument(variant: DesignVariant, mode: DesignMode) {
+function applyToDocument(mode: DesignMode) {
   const html = document.documentElement;
-  for (const c of FAMILY_CLASSES) html.classList.remove(c);
-  html.classList.add(`family-${variant}`);
+  html.classList.add("family-bronze");
   html.classList.remove("theme-dark", "theme-light");
   html.classList.add(`theme-${mode}`);
-  // Keep legacy shadcn/Tailwind hooks in sync — they still gate some styles
   html.classList.toggle("dark", mode === "dark");
   html.classList.toggle("light", mode === "light");
   html.setAttribute("data-theme", mode);
@@ -106,19 +36,13 @@ function applyToDocument(variant: DesignVariant, mode: DesignMode) {
   syncThemeColor();
 }
 
-// Read body's resolved background after CSS applies and write it to
-// <meta name="theme-color">. Without this, iOS paints the safe-area chin
-// (status bar + home indicator) in the static colour from index.html, which
-// leaks dark slate over light themes (the bluish strip users see at the
-// bottom of cream-coloured backgrounds). rAF lets the new family- class
-// styles compute before we sample.
+// iOS paints the safe-area chin from index.html's static theme-color
+// until we overwrite it; sample body bg after styles compute.
 function syncThemeColor() {
   if (typeof window === "undefined" || !document.body) return;
   requestAnimationFrame(() => {
     const bg = getComputedStyle(document.body).backgroundColor;
     if (!bg || bg === "rgba(0, 0, 0, 0)") return;
-    // Drop the static media-aware fallbacks once the dynamic tag exists —
-    // otherwise the browser may pick the OS-preference one over ours.
     document
       .querySelectorAll('meta[name="theme-color"][media]')
       .forEach((el) => el.parentNode?.removeChild(el));
@@ -137,36 +61,20 @@ function syncThemeColor() {
 export const DesignThemeCtx = createContext<DesignThemeValue | null>(null);
 
 export function DesignThemeProvider({ children }: { children: ReactNode }) {
-  const [variant, setVariantState] = useState<DesignVariant>(() => loadVariant());
-  const [mode, setModeState] = useState<DesignMode>(() => loadMode(loadVariant()));
+  const [mode, setModeState] = useState<DesignMode>(() => loadMode());
 
   useEffect(() => {
-    applyToDocument(variant, mode);
-    localStorage.setItem(STORAGE_VARIANT, variant);
+    applyToDocument(mode);
     localStorage.setItem(STORAGE_MODE, mode);
-    // keep legacy key in sync so the old ThemeContext persistence still resolves
     localStorage.setItem(LEGACY_THEME_KEY, mode);
-  }, [variant, mode]);
+  }, [mode]);
 
-  // Listen for admin flag changes — if the user disables `extraThemes` while
-  // sitting on one of the gated variants, snap them back to bronze so the
-  // app keeps a reachable theme. Same `storage` event AppearanceTab listens to.
-  useEffect(() => {
-    const handler = () => {
-      if (EXTRA_VARIANTS.includes(variant) && !isExtraVariantAllowed()) {
-        setVariantState("bronze");
-      }
-    };
-    window.addEventListener("storage", handler);
-    return () => window.removeEventListener("storage", handler);
-  }, [variant]);
-
-  const setVariant = useCallback((v: DesignVariant) => setVariantState(v), []);
+  const setVariant = useCallback(() => {}, []);
   const setMode = useCallback((m: DesignMode) => setModeState(m), []);
   const toggleMode = useCallback(() => setModeState((m) => (m === "dark" ? "light" : "dark")), []);
 
   return (
-    <DesignThemeCtx.Provider value={{ variant, mode, setVariant, setMode, toggleMode }}>
+    <DesignThemeCtx.Provider value={{ variant: "bronze", mode, setVariant, setMode, toggleMode }}>
       {children}
     </DesignThemeCtx.Provider>
   );
@@ -179,33 +87,13 @@ export function useDesignTheme(): DesignThemeValue {
 }
 
 export const VARIANT_LABEL: Record<DesignVariant, string> = {
-  dusk: "Dusk / Vellum",
-  paper: "Paper / Ink",
   bronze: "Bronze / Slate",
-  aurora: "Aurora",
-  atelier: "Atelier",
-  blueprint: "Blueprint",
-  botanical: "Botanical",
-  newsprint: "Newsprint",
-  zine: "Zine",
 };
 
 export const VARIANT_BLURB: Record<DesignVariant, string> = {
-  dusk: "warm charcoal at night, ivory by day. ember accent. humanist serif.",
-  paper: "ivory paper, oxblood ink, sharp corners. editorial, book-like.",
   bronze: "cooler slate, brass accent, monumental serif. architectural.",
-  aurora: "pastel risograph. peach + mint on cream. chunky black outlines.",
-  atelier: "bold editorial. warm cream, terracotta accents, dm serif display.",
-  blueprint: "drafting vellum + cyan ink. graph-paper grid. mono labels.",
-  botanical: "sage + clay + oat paper. soft rounded, organic, calm.",
-  newsprint: "newspaper. all-serif. halftone background. printed rules.",
-  zine: "photocopy aesthetic. xerox black + riso red. chunky, hand-cut.",
 };
 
 export function applyInitialDesignTheme() {
-  // Call this in main.tsx so the correct family class is present before React mounts,
-  // preventing a brief flash of legacy theme tokens.
-  const variant = loadVariant();
-  const mode = loadMode(variant);
-  applyToDocument(variant, mode);
+  applyToDocument(loadMode());
 }

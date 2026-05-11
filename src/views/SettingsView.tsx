@@ -13,8 +13,6 @@ const DataTab = lazy(() => import("../components/settings/DataTab"));
 const AITab = lazy(() => import("../components/settings/AITab"));
 const DangerTab = lazy(() => import("../components/settings/DangerTab"));
 const ClaudeCodeTab = lazy(() => import("../components/settings/ClaudeCodeTab"));
-const CalendarSyncTab = lazy(() => import("../components/settings/CalendarSyncTab"));
-const GmailSyncTab = lazy(() => import("../components/settings/GmailSyncTab"));
 const NotificationSettings = lazy(() => import("../components/NotificationSettings"));
 const AppearanceTab = lazy(() => import("../components/settings/AppearanceTab"));
 const ProfileTab = lazy(() => import("../components/settings/ProfileTab"));
@@ -73,8 +71,6 @@ const URL_ALIASES: Record<string, SectionId> = {
 
 function deriveInitialSection(): SectionId {
   const params = new URLSearchParams(window.location.search);
-  if (params.has("calendarConnected") || params.has("calendarError")) return "connections";
-  if (params.has("gmailConnected") || params.has("gmailError")) return "connections";
   const tab = params.get("tab");
   if (tab && URL_ALIASES[tab]) return URL_ALIASES[tab];
   return "personal";
@@ -321,8 +317,6 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
   const [section, setSection] = useState<SectionId>(deriveInitialSection);
   const [email, setEmail] = useState(() => getCachedEmail());
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [calendarOpen, setCalendarOpen] = useState(false);
-  const [gmailOpen, setGmailOpen] = useState(false);
   const [apiOpen, setApiOpen] = useState(false);
   const [visited, setVisited] = useState<Set<SectionId>>(() => new Set([section]));
 
@@ -584,35 +578,7 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
                     <NotificationSettings />
                   </Suspense>
                 </SettingsExpand>
-                <SubSection
-                  title="Integrations"
-                  subtitle="external connections and developer access."
-                />
-                <SettingsRow label="Calendar" hint="sync google calendar events into your brain.">
-                  <SettingsButton onClick={() => setCalendarOpen((o) => !o)}>
-                    {calendarOpen ? "Done" : "Manage"}
-                  </SettingsButton>
-                </SettingsRow>
-                <SettingsExpand open={calendarOpen} keepMounted>
-                  <Suspense fallback={<TabLoading />}>
-                    <CalendarSyncTab />
-                  </Suspense>
-                </SettingsExpand>
-
-                <SettingsRow
-                  label="Gmail"
-                  hint="scan your inbox for invoices, deadlines, and action items."
-                >
-                  <SettingsButton onClick={() => setGmailOpen((o) => !o)}>
-                    {gmailOpen ? "Done" : "Manage"}
-                  </SettingsButton>
-                </SettingsRow>
-                <SettingsExpand open={gmailOpen} keepMounted>
-                  <Suspense fallback={<TabLoading />}>
-                    <GmailSyncTab isAdmin={isAdmin} />
-                  </Suspense>
-                </SettingsExpand>
-
+                <SubSection title="Integrations" subtitle="developer access." />
                 <SettingsRow
                   label="API & developer"
                   hint="generate api tokens for claude code and other clients."

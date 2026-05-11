@@ -20,13 +20,6 @@ interface DesktopSidebarProps {
   entryCount: number;
   onShowCreateBrain: () => void;
   navViews: NavView[];
-  /** Items waiting in the Gmail staging inbox. Renders a small chip on the
-   *  Settings nav so the user knows there's something to review without
-   *  having to open the tab. Updates live via the everion:staged-changed
-   *  window event (see useStagedCount). */
-  inboxCount?: number;
-  /** Search lives in DesktopHeader now; props are accepted but unused so
-   *  existing call-sites and tests don't break. */
   searchInput?: string;
   onSearchChange?: (v: string) => void;
   children?: ReactNode;
@@ -37,7 +30,6 @@ const NAV_ICONS: Record<string, ReactNode> = {
   capture: NavIcon.capture,
   memory: NavIcon.grid,
   chat: NavIcon.chat,
-  todos: NavIcon.todos,
   timeline: NavIcon.timeline,
   vault: NavIcon.vault,
   settings: NavIcon.settings,
@@ -101,7 +93,6 @@ export default function DesktopSidebar({
   pendingCount: _pendingCount,
   onShowCreateBrain: _onShowCreateBrain,
   navViews,
-  inboxCount = 0,
   searchInput: _searchInput,
   onSearchChange: _onSearchChange,
   children,
@@ -302,28 +293,6 @@ export default function DesktopSidebar({
             {NAV_ICONS.settings}
           </span>
           <span style={{ flex: 1 }}>Settings</span>
-          {inboxCount > 0 && (
-            <span
-              aria-label={`${inboxCount} ${inboxCount === 1 ? "item" : "items"} in inbox`}
-              style={{
-                minWidth: 20,
-                height: 20,
-                padding: "0 6px",
-                borderRadius: 999,
-                background: "var(--ember)",
-                color: "var(--ember-ink)",
-                fontFamily: "var(--f-sans)",
-                fontSize: 11,
-                fontWeight: 700,
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                lineHeight: 1,
-              }}
-            >
-              {inboxCount > 99 ? "99+" : inboxCount}
-            </span>
-          )}
         </button>
 
         <button

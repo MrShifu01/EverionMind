@@ -184,9 +184,7 @@ export default function DetailModal({
   const [ignoringEmail, setIgnoringEmail] = useState(false);
   const [ignoreMsg, setIgnoreMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
-  // "Keep this" — promote a non-vault entry to an Important Memory.
-  // Vault entries are blocked from this action client-side AND server-side.
-  const importantMemoriesEnabled = isFeatureEnabled("importantMemories", adminFlags);
+  const importantMemoriesEnabled = false;
   const [keeping, setKeeping] = useState(false);
   const [keepType, setKeepType] = useState<ImportantMemoryType>("fact");
   const [keepTitle, setKeepTitle] = useState(entry.title);

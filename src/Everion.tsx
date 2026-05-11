@@ -17,8 +17,12 @@ import { BackgroundTaskToast } from "./components/BackgroundTaskToast";
 import { BackgroundOpsToast } from "./components/BackgroundOpsToast";
 import { BackgroundOpsProvider } from "./hooks/useBackgroundOps";
 import { useBackgroundCapture } from "./hooks/useBackgroundCapture";
-import { useStagedCount } from "./hooks/useStagedCount";
-import { VirtualGrid, VirtualTimeline } from "./components/EntryList";
+const VirtualGrid = lazy(() =>
+  import("./components/EntryList").then((m) => ({ default: m.VirtualGrid })),
+);
+const VirtualTimeline = lazy(() =>
+  import("./components/EntryList").then((m) => ({ default: m.VirtualTimeline })),
+);
 import BulkActionBar from "./components/BulkActionBar";
 import MergePreviewModal, { type MergePreviewShape } from "./components/MergePreviewModal";
 import OnboardingModal from "./components/OnboardingModal";
@@ -55,7 +59,6 @@ import SkeletonCard from "./components/SkeletonCard";
 import OmniSearch from "./components/OmniSearch";
 import SettingsView from "./views/SettingsView";
 const GraphView = lazy(() => import("./views/GraphView"));
-const GmailStagingInbox = lazy(() => import("./components/settings/GmailStagingInbox"));
 import { usePullToRefresh } from "./hooks/usePullToRefresh";
 import PullToRefreshIndicator from "./components/PullToRefreshIndicator";
 import FloatingCaptureButton from "./components/FloatingCaptureButton";
@@ -63,7 +66,7 @@ import { Button } from "./components/ui/button";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/sonner";
 import { toast } from "sonner";
-import MemoryHeader from "./MemoryHeader";
+const MemoryHeader = lazy(() => import("./MemoryHeader"));
 import CaptureWelcomeScreen from "./CaptureWelcomeScreen";
 import ErrorBoundary from "./ErrorBoundary";
 import ViewError from "./components/ViewError";
@@ -105,13 +108,9 @@ function lazyRetry(fn: () => Promise<any>) {
   );
 }
 
-const TodoView = lazyRetry(() => import("./views/TodoView"));
 const DetailModal = lazyRetry(() => import("./views/DetailModal"));
 const VaultView = lazyRetry(() => import("./views/VaultView"));
-const ImportantMemoriesView = lazyRetry(() => import("./views/ImportantMemoriesView"));
 const ChatView = lazyRetry(() => import("./views/ChatView"));
-const ListsView = lazyRetry(() => import("./views/ListsView"));
-const ContactsView = lazyRetry(() => import("./views/ContactsView"));
 const VaultRevealModal = lazyRetry(() => import("./components/VaultRevealModal"));
 function Loader() {
   return (
@@ -126,10 +125,6 @@ const NAV_VIEWS = [
   { id: "memory", l: "Memory", ic: "▦" },
   { id: "chat", l: "Chat", ic: "💬" },
   { id: "graph", l: "Graph", ic: "✦" },
-  { id: "todos", l: "Schedule", ic: "✓" },
-  { id: "lists", l: "Lists", ic: "≡" },
-  { id: "contacts", l: "Contacts", ic: "◉" },
-  { id: "memories", l: "Important", ic: "★" },
   { id: "vault", l: "Vault", ic: "🔐" },
 ];
 
@@ -284,7 +279,6 @@ function EverionContent({
   );
 
   const allEntries = useMemo(() => [...entries, ...vaultEntries], [entries, vaultEntries]);
-  const stagedCount = useStagedCount();
   const { conceptMap, godNodes } = useConceptGraph();
   const { isDark, toggleTheme } = useTheme();
   const { isAdmin, adminFlags } = useAdminDevMode();
@@ -353,32 +347,12 @@ function EverionContent({
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  // Gmail staging inbox modal — hoisted to app root so HomeView's
-  // InboxTriageCard, the notification bell, and toasts can all open the
-  // Tinder swipe UI directly without bouncing through Settings.
-  const [stagingInboxOpen, setStagingInboxOpen] = useState(false);
-
-  // Pull-to-refresh on the main scroll container. Callback ref pattern
-  // because <div id="main-content"> remounts on view changes via
-  // key={appShell.view}; the hook re-binds when the element identity
-  // changes. Tight scope per view: refreshEntries always (covers Memory,
-  // Schedule, Someday, derived counts), then a custom event so HomeView
-  // and the Gmail tab can refetch their own caches if mounted.
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
   const { pullDistance, refreshing } = usePullToRefresh(scrollEl, async () => {
     void refreshEntries();
     window.dispatchEvent(new CustomEvent("everion:pull-refresh"));
-    // Hold the indicator briefly so the spin reads as deliberate even
-    // if the underlying refetch returns instantly.
     await new Promise((resolve) => setTimeout(resolve, 500));
   });
-  useEffect(() => {
-    function handleOpenGmailInbox() {
-      setStagingInboxOpen(true);
-    }
-    window.addEventListener("everion:open-gmail-inbox", handleOpenGmailInbox);
-    return () => window.removeEventListener("everion:open-gmail-inbox", handleOpenGmailInbox);
-  }, []);
 
   // Index concept names into the search index so grid search finds entries by concept
   useEffect(() => {
@@ -518,7 +492,6 @@ function EverionContent({
         entryCount={entries.length}
         onShowCreateBrain={() => {}}
         navViews={visibleNavViews}
-        inboxCount={stagedCount}
         searchInput={appShell.searchInput}
         onSearchChange={appShell.setSearchInput}
       ></DesktopSidebar>
@@ -626,7 +599,7 @@ function EverionContent({
           >
             <PullToRefreshIndicator pullDistance={pullDistance} refreshing={refreshing} />
             {(appShell.view === "memory" || appShell.view === "timeline") && (
-              <>
+              <Suspense fallback={<Loader />}>
                 <MemoryHeader
                   appShell={appShell}
                   entries={entries}
@@ -901,7 +874,7 @@ function EverionContent({
                     )}
                   </div>
                 )}
-              </>
+              </Suspense>
             )}
 
             {appShell.view === "chat" && ff("chat") && (
@@ -926,35 +899,6 @@ function EverionContent({
                 </Suspense>
               </ErrorBoundary>
             )}
-            {appShell.view === "todos" && ff("todos") && (
-              <ErrorBoundary
-                name="TodoView"
-                fallback={(error, reset) => (
-                  <ViewError view="Schedule" error={error} onReset={reset} />
-                )}
-              >
-                <Suspense fallback={<Loader />}>
-                  <TodoView
-                    entries={entries}
-                    typeIcons={appShell.typeIcons}
-                    activeBrainId={activeBrain?.id}
-                    somedayEnabled={ff("someday")}
-                  />
-                </Suspense>
-              </ErrorBoundary>
-            )}
-            {appShell.view === "memories" && ff("importantMemories") && (
-              <ErrorBoundary
-                name="ImportantMemoriesView"
-                fallback={(error, reset) => (
-                  <ViewError view="Important" error={error} onReset={reset} />
-                )}
-              >
-                <Suspense fallback={<Loader />}>
-                  <ImportantMemoriesView brainId={activeBrain?.id} />
-                </Suspense>
-              </ErrorBoundary>
-            )}
             {appShell.view === "vault" && ff("vault") && (
               <ErrorBoundary
                 name="VaultView"
@@ -973,45 +917,6 @@ function EverionContent({
                 </Suspense>
               </ErrorBoundary>
             )}
-            {appShell.view === "lists" && ff("lists") && (
-              <ErrorBoundary
-                name="ListsView"
-                fallback={(error, reset) => (
-                  <ViewError view="Lists" error={error} onReset={reset} />
-                )}
-              >
-                <Suspense fallback={<Loader />}>
-                  <ListsView
-                    entries={entries}
-                    brainId={activeBrain?.id}
-                    onEntryCreated={handleCreated}
-                    onEntryUpdate={(updated: Entry) =>
-                      setEntries((prev) => prev.map((e) => (e.id === updated.id ? updated : e)))
-                    }
-                    onEntryDelete={(id: string) =>
-                      setEntries((prev) => prev.filter((e) => e.id !== id))
-                    }
-                  />
-                </Suspense>
-              </ErrorBoundary>
-            )}
-            {appShell.view === "contacts" && ff("contacts") && (
-              <ErrorBoundary
-                name="ContactsView"
-                fallback={(error, reset) => (
-                  <ViewError view="Contacts" error={error} onReset={reset} />
-                )}
-              >
-                <Suspense fallback={<Loader />}>
-                  <ContactsView
-                    entries={entries}
-                    brainId={activeBrain?.id}
-                    onEntryCreated={handleCreated}
-                    onSelectEntry={handleEntrySelect}
-                  />
-                </Suspense>
-              </ErrorBoundary>
-            )}
             {appShell.view === "home" && (
               <ErrorBoundary
                 name="HomeView"
@@ -1023,7 +928,6 @@ function EverionContent({
                   brainName={activeBrain?.name}
                   brainId={activeBrain?.id}
                   isPersonalBrain={activeBrain?.is_personal === true}
-                  stagedCount={stagedCount}
                   onNavigate={appShell.setView}
                   onOpenCapture={() => appShell.setShowCapture(true)}
                   onOpenCaptureWith={(text) => appShell.openCapture(text)}
@@ -1187,12 +1091,6 @@ function EverionContent({
           />
           <BackgroundOpsToast />
 
-          {stagingInboxOpen && (
-            <Suspense fallback={null}>
-              <GmailStagingInbox onClose={() => setStagingInboxOpen(false)} />
-            </Suspense>
-          )}
-
           {appShell.showOnboarding && (
             <OnboardingModal
               onComplete={(opts) => {
@@ -1232,7 +1130,6 @@ function EverionContent({
                 appShell.setShowCapture(false);
                 appShell.setView(id);
               }}
-              somedayEnabled={ff("someday")}
             />
           </Suspense>
           {appShell.view !== "capture" && !appShell.showCapture && (

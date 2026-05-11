@@ -1,7 +1,6 @@
 {
   "framework": "vite",
   "functions": {
-    "api/gmail.ts": { "maxDuration": 300 },
     "api/user-data.ts": { "maxDuration": 300 },
     "api/llm.ts": { "maxDuration": 300 },
     "api/capture.ts": { "maxDuration": 30 },
@@ -20,8 +19,6 @@
     { "source": "/api/update-entry", "destination": "/api/entries" },
     { "source": "/api/save-links", "destination": "/api/capture?action=links" },
     { "source": "/api/embed", "destination": "/api/capture?action=embed" },
-    { "source": "/api/calendar-auth", "destination": "/api/calendar?action=auth" },
-    { "source": "/api/gmail-auth", "destination": "/api/gmail?action=auth" },
     { "source": "/api/memory/retrieve", "destination": "/api/memory-api?action=retrieve" },
     { "source": "/api/memory/upcoming", "destination": "/api/memory-api?action=upcoming" },
     { "source": "/api/notifications", "destination": "/api/user-data?resource=notifications" },

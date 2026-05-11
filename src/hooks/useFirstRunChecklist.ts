@@ -3,7 +3,7 @@ import { authFetch } from "../lib/authFetch";
 
 // First-run checklist item identifiers — these double as React keys and CTA
 // targets. Order matters: it determines render order.
-export type ChecklistItemId = "capture5" | "persona" | "gmail" | "calendar" | "vault" | "brain";
+export type ChecklistItemId = "capture5" | "persona" | "vault" | "brain";
 
 export interface ChecklistItem {
   id: ChecklistItemId;
@@ -59,15 +59,11 @@ type DoneFlags = Partial<Record<ChecklistItemId, string>>;
 
 interface RemoteState {
   personaDone: boolean;
-  gmailDone: boolean;
-  calendarDone: boolean;
   vaultDone: boolean;
 }
 
 const EMPTY_REMOTE: RemoteState = {
   personaDone: false,
-  gmailDone: false,
-  calendarDone: false,
   vaultDone: false,
 };
 
@@ -159,22 +155,6 @@ async function loadRemote(): Promise<RemoteState> {
     })
     .catch(() => false);
 
-  const gmailP = authFetch("/api/gmail?action=integration")
-    .then((r) => r?.json?.() ?? null)
-    .then((data) => Boolean(data && (data.id || data.gmail_email)))
-    .catch(() => false);
-
-  const calendarP = authFetch("/api/calendar?action=integrations")
-    .then((r) => r?.json?.() ?? null)
-    .then((data) => {
-      const list = Array.isArray(data) ? data : (data?.integrations ?? []);
-      return Array.isArray(list) && list.length > 0;
-    })
-    .catch(() => false);
-
-  // Vault: server-side check for any encrypted entry. PIN lives in
-  // localStorage and so doesn't survive a fresh device — counting
-  // vault_entries rows is the only cross-device-accurate signal.
   const vaultP = authFetch("/api/user-data?resource=vault_entries")
     .then((r) => r?.json?.() ?? null)
     .then((data) => {
@@ -183,13 +163,8 @@ async function loadRemote(): Promise<RemoteState> {
     })
     .catch(() => false);
 
-  const [personaDone, gmailDone, calendarDone, vaultDone] = await Promise.all([
-    personaP,
-    gmailP,
-    calendarP,
-    vaultP,
-  ]);
-  return { personaDone, gmailDone, calendarDone, vaultDone };
+  const [personaDone, vaultDone] = await Promise.all([personaP, vaultP]);
+  return { personaDone, vaultDone };
 }
 
 async function loadDoneFlags(): Promise<DoneFlags> {
@@ -280,8 +255,6 @@ export function useFirstRunChecklist({
           // baseline, but keep any optimistic local pins from this session.
           const merged: DoneFlags = { ...prev, ...serverFlags };
           if (nextRemote.personaDone && !merged.persona) pinIfNew("persona");
-          if (nextRemote.gmailDone && !merged.gmail) pinIfNew("gmail");
-          if (nextRemote.calendarDone && !merged.calendar) pinIfNew("calendar");
           if (nextRemote.vaultDone && !merged.vault) pinIfNew("vault");
           saveCachedFlags(merged);
           return merged;
@@ -362,20 +335,6 @@ export function useFirstRunChecklist({
       body: "Encrypted store for IDs, codes, bank details. Add your first secret to mark this done.",
       done: stickyDone("vault", remote.vaultDone),
       action: { kind: "navigate", view: "vault" },
-    },
-    {
-      id: "gmail",
-      title: "Connect Gmail",
-      body: "Continuous inbox capture — the killer feature.",
-      done: stickyDone("gmail", remote.gmailDone),
-      action: { kind: "settings", tab: "connections" },
-    },
-    {
-      id: "calendar",
-      title: "Connect Google Calendar",
-      body: "Time-aware recall and reminders.",
-      done: stickyDone("calendar", remote.calendarDone),
-      action: { kind: "settings", tab: "connections" },
     },
     {
       id: "brain",

@@ -16,7 +16,6 @@ const ALL_ITEMS = [
   { id: "memory", label: "Memory", icon: NavIcon.grid, flag: undefined },
   { id: "chat", label: "Chat", icon: NavIcon.chat, flag: "chat" as FeatureFlagKey },
   { id: "_capture_fab", label: "Add", isFAB: true, icon: NavIcon.add, flag: undefined },
-  { id: "todos", label: "Schedule", icon: NavIcon.todos, flag: "todos" as FeatureFlagKey },
   { id: "_more", label: "More", icon: NavIcon.more, flag: undefined },
 ];
 

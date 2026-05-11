@@ -5,15 +5,7 @@
 /* Launch fonts (Fraunces, Inter Tight, JetBrains Mono) are loaded from index.html so discovery happens during HTML parse rather than after CSSOM. */
 
 @import "./design/tokens.css";
-@import "./design/family-dusk.css";
-@import "./design/family-paper.css";
 @import "./design/family-bronze.css";
-@import "./design/family-aurora.css";
-@import "./design/family-atelier.css";
-@import "./design/family-blueprint.css";
-@import "./design/family-botanical.css";
-@import "./design/family-newsprint.css";
-@import "./design/family-zine.css";
 @import "./design/bridge.css";
 
 /* ── Dark mode via class on <html> ── */

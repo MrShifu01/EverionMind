@@ -2,8 +2,6 @@ import { useMemo, useState } from "react";
 import type { Entry } from "../types";
 import FirstRunChecklist from "../components/FirstRunChecklist";
 import GreetingHero from "../components/home/GreetingHero";
-import TodayCard from "../components/home/TodayCard";
-import InboxTriageCard from "../components/home/InboxTriageCard";
 import RecentCapturesStrip from "../components/home/RecentCapturesStrip";
 import QuickCaptureChips from "../components/home/QuickCaptureChips";
 
@@ -13,7 +11,6 @@ interface HomeViewProps {
   brainName?: string;
   brainId?: string;
   isPersonalBrain: boolean;
-  stagedCount: number;
   onNavigate: (view: string) => void;
   onOpenCapture: () => void;
   onOpenCaptureWith: (initialText: string) => void;
@@ -27,15 +24,12 @@ export default function HomeView({
   brainName,
   brainId,
   isPersonalBrain,
-  stagedCount,
   onNavigate,
   onOpenCapture,
   onOpenCaptureWith,
   onCreateBrain,
   onSelectEntry,
 }: HomeViewProps) {
-  // Cutoff is captured once on mount — keeps the "this week" tally stable
-  // across re-renders and satisfies the purity rule (no Date.now in render).
   const [cutoff] = useState(() => Date.now() - 7 * 24 * 60 * 60 * 1000);
   const thisWeekCount = useMemo(
     () =>
@@ -63,10 +57,6 @@ export default function HomeView({
         totalCount={entries.length}
         brainName={brainName}
       />
-
-      <TodayCard entries={entries} onNavigate={onNavigate} />
-
-      <InboxTriageCard stagedCount={stagedCount} />
 
       <FirstRunChecklist
         entryCount={entries.length}

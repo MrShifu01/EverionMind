@@ -192,39 +192,6 @@ const enrichRetryFailed: TaskRunner = async (brainId) => {
   return `Retried ${data.reset} · processed ${data.processed} · ${data.remaining} remaining.`;
 };
 
-// ── Gmail ───────────────────────────────────────────────────────────────────
-
-const gmailScan: TaskRunner = async (brainId) => {
-  // brainId may be empty string — Gmail allows null brain.
-  const r = await retryFetch("/api/gmail?action=scan", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ brain_id: brainId || null }),
-  });
-  let data:
-    | { debug?: { tokenRefreshFailed?: boolean }; error?: string; created?: number }
-    | undefined;
-  try {
-    data = await r?.json();
-  } catch {
-    /* non-JSON */
-  }
-  if (data?.debug?.tokenRefreshFailed) {
-    throw new Error("Gmail token expired — disconnect and reconnect.");
-  }
-  if (!r?.ok) throw new Error(data?.error ?? "Scan failed");
-  const created: number = data?.created ?? 0;
-  if (created === 0) return "No new items found.";
-  // Notify any badge listeners that staged count just changed.
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("everion:staged-changed"));
-  }
-  return {
-    result: `${created} new ${created === 1 ? "item" : "items"} flagged for review.`,
-    action: { label: "Review", event: "everion:open-gmail-inbox" },
-  };
-};
-
 // ── Registry ────────────────────────────────────────────────────────────────
 
 export const TASK_RUNNERS: Record<string, TaskRunner> = {
@@ -235,5 +202,4 @@ export const TASK_RUNNERS: Record<string, TaskRunner> = {
   "enrich-run-now": enrichRunNow,
   "enrich-clear-backfill": enrichClearBackfill,
   "enrich-retry-failed": enrichRetryFailed,
-  "gmail-scan": gmailScan,
 };

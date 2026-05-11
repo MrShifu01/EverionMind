@@ -1,7 +1,5 @@
 import { useState, useRef, useEffect } from "react";
 import type { AppNotification } from "../hooks/useNotifications";
-import GmailScanReviewModal from "./settings/GmailScanReviewModal";
-import { useStagedCount } from "../hooks/useStagedCount";
 import { Button } from "./ui/button";
 
 interface Props {
@@ -48,230 +46,6 @@ function MergeCard({
 
   return (
     <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line-soft)" }}>
-      <div
-        className="f-sans"
-        style={{
-          fontSize: 11,
-          fontWeight: 700,
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-          color: "var(--ink-faint)",
-          marginBottom: 8,
-        }}
-      >
-        Possible duplicate · {confidence}% match
-      </div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-        {[source_title, target_title].map((t, i) => (
-          <div
-            key={i}
-            style={{
-              flex: 1,
-              padding: "8px 10px",
-              borderRadius: 8,
-              background: "var(--surface)",
-              border: "1px solid var(--line-soft)",
-              minWidth: 0,
-            }}
-          >
-            <div
-              className="f-sans"
-              style={{ fontSize: 11, color: "var(--ink-faint)", marginBottom: 2 }}
-            >
-              {i === 0 ? "New" : "Existing"}
-            </div>
-            <div
-              className="f-sans"
-              style={{
-                fontSize: 13,
-                fontWeight: 500,
-                color: "var(--ink)",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {t}
-            </div>
-          </div>
-        ))}
-      </div>
-      {addedKeys.length > 0 && (
-        <div
-          className="f-sans"
-          style={{ fontSize: 11, color: "var(--ink-faint)", marginBottom: 10 }}
-        >
-          Would add: {addedKeys.map((k) => k.replace(/_/g, " ")).join(", ")}
-        </div>
-      )}
-      <div style={{ display: "flex", gap: 6 }}>
-        <Button variant="outline" size="sm" className="flex-1" onClick={onDismiss}>
-          Keep separate
-        </Button>
-        <Button size="sm" className="flex-1" onClick={onAccept}>
-          Merge →
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function AutoMergedCard({ n, onDismiss }: { n: AppNotification; onDismiss: () => void }) {
-  return (
-    <div
-      style={{
-        padding: "12px 16px",
-        borderBottom: "1px solid var(--line-soft)",
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 10,
-      }}
-    >
-      <div
-        style={{
-          width: 28,
-          height: 28,
-          borderRadius: "50%",
-          background: "var(--moss-wash, #e8f5e9)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-          marginTop: 1,
-        }}
-      >
-        <svg
-          width="13"
-          height="13"
-          fill="none"
-          stroke="var(--moss, #4caf50)"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          viewBox="0 0 24 24"
-        >
-          <path d="M20 6L9 17l-5-5" />
-        </svg>
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div className="f-sans" style={{ fontSize: 13, fontWeight: 500, color: "var(--ink)" }}>
-          {n.title}
-        </div>
-        <div className="f-sans" style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 2 }}>
-          {n.body}
-        </div>
-      </div>
-      <button
-        onClick={onDismiss}
-        aria-label="Dismiss"
-        className="press"
-        style={{
-          width: 24,
-          height: 24,
-          borderRadius: 4,
-          border: 0,
-          background: "transparent",
-          color: "var(--ink-faint)",
-          cursor: "pointer",
-          flexShrink: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <svg
-          width="12"
-          height="12"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          viewBox="0 0 24 24"
-        >
-          <path d="M6 6l12 12M18 6L6 18" />
-        </svg>
-      </button>
-    </div>
-  );
-}
-
-function GmailScanCard({
-  n,
-  onDismiss,
-  onOpenInbox,
-}: {
-  n: AppNotification;
-  onDismiss: () => void;
-  onOpenInbox: () => void;
-}) {
-  const created = (n.data?.created ?? 0) as number;
-  const hasItems = created > 0;
-  return (
-    <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--line-soft)" }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-        <div
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: "50%",
-            background: hasItems ? "var(--ember-wash)" : "var(--surface)",
-            border: hasItems ? "none" : "1px solid var(--line-soft)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-            marginTop: 1,
-          }}
-        >
-          <svg
-            width="12"
-            height="12"
-            fill="none"
-            stroke={hasItems ? "var(--ember)" : "var(--ink-faint)"}
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            viewBox="0 0 24 24"
-          >
-            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-            <path d="M22 6l-10 7L2 6" />
-          </svg>
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="f-sans" style={{ fontSize: 13, fontWeight: 500, color: "var(--ink)" }}>
-            {n.title}
-          </div>
-          <div className="f-sans" style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 2 }}>
-            {n.body}
-          </div>
-        </div>
-      </div>
-      {hasItems && (
-        <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-          <Button variant="outline" size="sm" className="flex-1" onClick={onDismiss}>
-            Dismiss
-          </Button>
-          <Button size="sm" className="flex-1" onClick={onOpenInbox}>
-            Open inbox
-          </Button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function GmailReviewCard({
-  n,
-  onDismiss,
-  onReview,
-}: {
-  n: AppNotification;
-  onDismiss: () => void;
-  onReview: () => void;
-}) {
-  const { count } = n.data;
-  return (
-    <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line-soft)" }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
         <div
           style={{
@@ -296,25 +70,60 @@ function GmailReviewCard({
             strokeLinejoin="round"
             viewBox="0 0 24 24"
           >
-            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-            <path d="M22 6l-10 7L2 6" />
+            <path d="M12 4v16M4 12h16" />
           </svg>
         </div>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div className="f-sans" style={{ fontSize: 13, fontWeight: 500, color: "var(--ink)" }}>
-            {n.title}
+            Suggested merge
           </div>
           <div className="f-sans" style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 2 }}>
-            {n.body}
+            “{source_title}” into “{target_title}”
+            {typeof confidence === "number" && (
+              <span style={{ marginLeft: 6, opacity: 0.7 }}>· {Math.round(confidence * 100)}%</span>
+            )}
           </div>
+          {addedKeys.length > 0 && (
+            <div
+              className="f-sans"
+              style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 4 }}
+            >
+              adds: {addedKeys.join(", ")}
+            </div>
+          )}
         </div>
       </div>
       <div style={{ display: "flex", gap: 6 }}>
         <Button variant="outline" size="sm" className="flex-1" onClick={onDismiss}>
-          Accept all
+          Dismiss
         </Button>
-        <Button size="sm" className="flex-1" onClick={onReview}>
-          Review {count} items
+        <Button size="sm" className="flex-1" onClick={onAccept}>
+          Merge
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function AutoMergedCard({ n, onDismiss }: { n: AppNotification; onDismiss: () => void }) {
+  return (
+    <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--line-soft)" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="f-sans" style={{ fontSize: 13, fontWeight: 500, color: "var(--ink)" }}>
+            {n.title}
+          </div>
+          {n.body && (
+            <div
+              className="f-sans"
+              style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 2 }}
+            >
+              {n.body}
+            </div>
+          )}
+        </div>
+        <Button variant="link" size="xs" onClick={onDismiss} className="px-0">
+          Dismiss
         </Button>
       </div>
     </div>
@@ -330,35 +139,12 @@ export default function NotificationBell({
   onAcceptMerge,
 }: Props) {
   const [open, setOpen] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ScanResultItem is defined inside GmailSyncTab; importing it here would create a cycle. Items pass through opaque to GmailScanReviewModal which re-types.
-  const [reviewItems, setReviewItems] = useState<any[] | null>(null);
-  const [reviewNotifId, setReviewNotifId] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const stagedCount = useStagedCount();
-
-  // Auto-dismiss "Gmail scan finished — Staged N clusters" notifications
-  // once the staging inbox is empty. The user has reviewed everything; the
-  // prompt-to-review is stale. Only fires for notifs that promised items
-  // (data.created > 0); pure-informational ones ("No new entries") stay
-  // until the bell is closed.
-  useEffect(() => {
-    if (stagedCount > 0) return;
-    notifications
-      .filter((n) => n.type === "gmail_scan" && ((n.data?.created ?? 0) as number) > 0)
-      .forEach((n) => onDismiss(n.id));
-  }, [stagedCount, notifications, onDismiss]);
 
   function handleClose() {
     setOpen(false);
-    // Auto-dismiss informational scan notifications with nothing to review.
-    // The ones with staged items persist — the staged-count watcher above
-    // dismisses them once the user actually reviews the inbox.
-    notifications
-      .filter((n) => n.type === "gmail_scan" && !(((n.data?.created ?? 0) as number) > 0))
-      .forEach((n) => onDismiss(n.id));
   }
 
-  // Close on outside click
   useEffect(() => {
     if (!open) return;
     function handle(e: MouseEvent) {
@@ -366,7 +152,6 @@ export default function NotificationBell({
     }
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleClose is recreated each render but only reads from `open`; pulling it in causes the listener to be torn down and reattached every notification refresh, which fights mousedown timing.
   }, [open, notifications]);
 
   function handleOpen() {
@@ -375,25 +160,9 @@ export default function NotificationBell({
       return;
     }
     setOpen(true);
-    // Mark all as read when opening
     notifications.filter((n) => !n.read).forEach((n) => onMarkRead(n.id));
   }
 
-  function openGmailReview(n: AppNotification) {
-    setReviewItems(n.data.items ?? []);
-    setReviewNotifId(n.id);
-    setOpen(false);
-  }
-
-  function openGmailInbox(n: AppNotification) {
-    // Opens the Tinder swipe modal directly — listener lives at app root.
-    window.dispatchEvent(new CustomEvent("everion:open-gmail-inbox"));
-    setOpen(false);
-    onDismiss(n.id);
-  }
-
-  // Clear all + close — user explicitly asked to clear, no reason to leave
-  // the panel open showing "All caught up." they then have to close manually.
   function handleClearAll() {
     onDismissAll();
     setOpen(false);
@@ -402,15 +171,9 @@ export default function NotificationBell({
   return (
     <div ref={panelRef} style={{ position: "relative" }}>
       {(() => {
-        // The dot lights up when there's something for the user to act on —
-        // either an unread notification OR Gmail items waiting in the staging
-        // inbox. Previously the bell only watched notifications, so a scan
-        // that staged 5 emails without writing a notif row left the bell
-        // empty even though the inbox chip showed (5).
-        const hasSignal = unreadCount > 0 || stagedCount > 0;
+        const hasSignal = unreadCount > 0;
         const ariaLabelParts: string[] = ["Notifications"];
         if (unreadCount > 0) ariaLabelParts.push(`${unreadCount} unread`);
-        if (stagedCount > 0) ariaLabelParts.push(`${stagedCount} in inbox`);
         return (
           <button
             onClick={handleOpen}
@@ -467,7 +230,6 @@ export default function NotificationBell({
             zIndex: "var(--z-toast)",
           }}
         >
-          {/* Header */}
           <div
             style={{
               padding: "12px 16px 10px",
@@ -508,43 +270,10 @@ export default function NotificationBell({
                   />
                 );
               }
-              if (n.type === "gmail_scan") {
-                return (
-                  <GmailScanCard
-                    key={n.id}
-                    n={n}
-                    onDismiss={() => onDismiss(n.id)}
-                    onOpenInbox={() => openGmailInbox(n)}
-                  />
-                );
-              }
-              if (n.type === "gmail_review") {
-                return (
-                  <GmailReviewCard
-                    key={n.id}
-                    n={n}
-                    onDismiss={() => onDismiss(n.id)}
-                    onReview={() => openGmailReview(n)}
-                  />
-                );
-              }
-              // auto_merged + catch-all
               return <AutoMergedCard key={n.id} n={n} onDismiss={() => onDismiss(n.id)} />;
             })
           )}
         </div>
-      )}
-
-      {/* Gmail review modal spawned from notification */}
-      {reviewItems && reviewItems.length > 0 && (
-        <GmailScanReviewModal
-          items={reviewItems}
-          onClose={() => {
-            setReviewItems(null);
-            if (reviewNotifId) onDismiss(reviewNotifId);
-            setReviewNotifId(null);
-          }}
-        />
       )}
     </div>
   );
