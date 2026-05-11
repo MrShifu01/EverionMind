@@ -10,11 +10,7 @@ interface MobileHomeProps {
 
 const HOLD_THRESHOLD_MS = 250;
 
-export default function MobileHome({
-  brainId,
-  onOpenCapture,
-  onOpenCaptureWith,
-}: MobileHomeProps) {
+export default function MobileHome({ brainId, onOpenCapture, onOpenCaptureWith }: MobileHomeProps) {
   const [mode, setMode] = useState<"add" | "ask">("add");
   const [pressed, setPressed] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -200,7 +196,9 @@ export default function MobileHome({
             cursor: isAsk ? "default" : "pointer",
             touchAction: "none",
             WebkitTapHighlightColor: "transparent",
+            WebkitTouchCallout: "none",
             userSelect: "none",
+            WebkitUserSelect: "none",
             transition:
               "width 360ms cubic-bezier(0.22, 1, 0.36, 1), height 360ms cubic-bezier(0.22, 1, 0.36, 1), transform 140ms ease",
             transform: pressed ? "translateY(2px) scale(0.94)" : "translateY(0) scale(1)",
@@ -266,12 +264,20 @@ export default function MobileHome({
               alt=""
               aria-hidden="true"
               decoding="async"
-              style={{
-                objectFit: "contain",
-                display: "block",
-                transition:
-                  "width 360ms cubic-bezier(0.22, 1, 0.36, 1), height 360ms cubic-bezier(0.22, 1, 0.36, 1)",
-              }}
+              draggable={false}
+              style={
+                {
+                  objectFit: "contain",
+                  display: "block",
+                  pointerEvents: "none",
+                  userSelect: "none",
+                  WebkitUserSelect: "none",
+                  WebkitTouchCallout: "none",
+                  WebkitUserDrag: "none",
+                  transition:
+                    "width 360ms cubic-bezier(0.22, 1, 0.36, 1), height 360ms cubic-bezier(0.22, 1, 0.36, 1)",
+                } as React.CSSProperties
+              }
             />
           </span>
         </button>
