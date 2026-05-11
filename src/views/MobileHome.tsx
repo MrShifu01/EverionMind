@@ -174,6 +174,7 @@ export default function MobileHome({
   const transcribing = status === "transcribing";
   const isAsk = mode === "ask";
   const liveActive = liveSession.status === "listening" || liveSession.status === "speaking";
+  const liveShow = liveSession.status !== "idle" || !!liveSession.error;
   const animating = listening || chatLoading || liveActive;
   const orbSize = isAsk ? 84 : 168;
   const logoSize = Math.round(orbSize * 0.78);
@@ -359,12 +360,17 @@ export default function MobileHome({
 
         {isAsk && (
           <>
-            {(liveActive || liveSession.error) && (
+            {liveShow && (
               <LiveBanner
                 status={liveSession.status}
                 error={liveSession.error}
                 userTranscript={liveSession.userTranscript}
                 assistantTranscript={liveSession.assistantTranscript}
+                lastEvent={liveSession.lastEvent}
+                chunksOut={liveSession.chunksOut}
+                chunksIn={liveSession.chunksIn}
+                closeCode={liveSession.closeCode}
+                closeReason={liveSession.closeReason}
               />
             )}
             <AskPanel
@@ -463,11 +469,21 @@ function LiveBanner({
   error,
   userTranscript,
   assistantTranscript,
+  lastEvent,
+  chunksOut,
+  chunksIn,
+  closeCode,
+  closeReason,
 }: {
   status: "idle" | "connecting" | "listening" | "speaking" | "error";
   error: string | null;
   userTranscript: string;
   assistantTranscript: string;
+  lastEvent: string;
+  chunksOut: number;
+  chunksIn: number;
+  closeCode: number | null;
+  closeReason: string;
 }) {
   const label =
     status === "connecting"
@@ -476,9 +492,11 @@ function LiveBanner({
         ? "listening"
         : status === "speaking"
           ? "speaking"
-          : error
-            ? error
-            : "";
+          : status === "error"
+            ? "error"
+            : status === "idle"
+              ? "ended"
+              : "";
   return (
     <div
       style={{
@@ -494,18 +512,45 @@ function LiveBanner({
         boxShadow: "var(--lift-1)",
       }}
     >
-      <div
-        className="f-sans"
-        style={{
-          fontSize: 11,
-          fontWeight: 700,
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
-          color: error ? "var(--blood)" : "var(--ember)",
-        }}
-      >
-        {label}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div
+          className="f-sans"
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            color: error ? "var(--blood)" : "var(--ember)",
+          }}
+        >
+          {label}
+        </div>
+        <div
+          className="f-sans"
+          style={{
+            fontSize: 10,
+            color: "var(--ink-faint)",
+            fontFamily: "var(--f-mono)",
+          }}
+        >
+          out {chunksOut} · in {chunksIn}
+          {closeCode !== null ? ` · close ${closeCode}` : ""}
+        </div>
       </div>
+      {(lastEvent || error) && (
+        <div
+          className="f-sans"
+          style={{
+            fontSize: 11,
+            color: error ? "var(--blood)" : "var(--ink-faint)",
+            fontFamily: "var(--f-mono)",
+            wordBreak: "break-all",
+          }}
+        >
+          {error || lastEvent}
+          {closeReason ? ` (${closeReason})` : ""}
+        </div>
+      )}
       {userTranscript && (
         <div className="f-serif" style={{ fontSize: 14, color: "var(--ink)", lineHeight: 1.45 }}>
           {userTranscript}
