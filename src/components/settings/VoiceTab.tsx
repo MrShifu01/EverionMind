@@ -31,7 +31,7 @@ export default function VoiceTab() {
         label="Gemini Live voice"
         hint={
           <>
-            Use Gemini 2.5 Flash native-audio for ultra-low-latency voice replies. Requires{" "}
+            Use Gemini 3.1 Flash Live for ultra-low-latency spoken replies. Requires{" "}
             <code
               style={{
                 fontFamily: "var(--f-mono)",
@@ -44,7 +44,7 @@ export default function VoiceTab() {
             >
               GEMINI_LIVE_MODEL
             </code>{" "}
-            env var on the server (e.g. <em>gemini-2.5-flash-native-audio-preview</em>).
+            env var on the server (e.g. <em>gemini-3.1-flash-live</em>).
           </>
         }
         last={!liveOn}
