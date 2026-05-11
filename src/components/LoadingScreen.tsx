@@ -1,15 +1,23 @@
 import { useEffect, useState, type JSX } from "react";
 
-// Splash shows for at least MIN_DISPLAY_MS, then waits for `ready` to flip
-// true before fading out over FADE_MS. The orb in MobileHome sits at the
-// same screen Y so the dissolve looks like a single continuous orb that
-// just loses its loading surround.
+// Splash mirrors MobileHome's bottom-anchored layout so the orb sits at
+// the SAME screen Y as MobileHome's "Ask" orb. Once the splash fades, the
+// orb element below it appears at the same position, reading visually as
+// a single continuous orb that the home page reveals around. The wordmark
+// fades out shortly before the rest of the home content fades in.
 //
 // `ready` defaults to true so Suspense-fallback usage (main.tsx, App.tsx)
 // dismisses the moment the min-time window elapses — those locations
 // already unmount the fallback when their chunk lands.
-const MIN_DISPLAY_MS = 800;
+//
+// MIN_DISPLAY_MS sized for the orb-drop-bounce keyframe duration (1100ms)
+// + a short post-bounce settle window so the orb isn't caught mid-fall by
+// the fade.
+const MIN_DISPLAY_MS = 1300;
 const FADE_MS = 400;
+const ORB_BOUNCE_MS = 1100;
+const ORB_SIZE = 168;
+const LOGO_SIZE = Math.round(ORB_SIZE * 0.78); // matches MobileHome line 259
 
 interface LoadingScreenProps {
   ready?: boolean;
@@ -52,46 +60,47 @@ export default function LoadingScreen({ ready = true }: LoadingScreenProps): JSX
         background: "var(--bg, var(--color-background))",
         display: "flex",
         flexDirection: "column",
-        // Matches MobileHeader-with-brain-switcher height so the orb lands
-        // at the same screen Y as MobileHome's orb. See MobileHeader.tsx:53.
-        paddingTop: "calc(116px + env(safe-area-inset-top, 0px))",
-        paddingBottom: "calc(48px + env(safe-area-inset-bottom, 0px))",
+        // Mirrors MobileHome's layout: app header (56px) reserved at top,
+        // then flex column that pads 16px around with safe-area-bottom.
+        // The orb sits in the same screen-Y as MobileHome's orb because
+        // both use the same flex column + flex:1 top-spacer pattern.
+        padding:
+          "calc(56px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px))",
         zIndex: "var(--z-loading)",
         opacity: phase === "fading" ? 0 : 1,
         transition: `opacity ${FADE_MS}ms ease-out`,
         pointerEvents: phase === "fading" ? "none" : "auto",
       }}
     >
+      {/* Top spacer pushes orb cluster to the bottom — matches MobileHome
+          line 312 (`flex: 1` spacer). */}
+      <div style={{ flex: 1, minHeight: 0 }} />
+
+      {/* Ask group — same width + centred + column-flex as MobileHome's
+          ask group (line 318). Orb on top, wordmark where the prompt text
+          would be in MobileHome. `marginBottom` reserves the vertical space
+          that MobileHome's AskPanel (input form + chat) occupies, so the
+          orb lands at the same screen-Y as MobileHome's orb on first paint. */}
       <div
         style={{
-          flex: 1,
+          width: "100%",
+          maxWidth: 560,
+          margin: "0 auto",
+          marginBottom: 120,
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          justifyContent: "center",
-          gap: 28,
-          padding: "0 24px",
+          gap: 12,
+          minHeight: 0,
         }}
       >
         <div
-          className="f-serif"
-          style={{
-            fontSize: 16,
-            fontStyle: "italic",
-            color: "var(--ink-soft)",
-            letterSpacing: "-0.005em",
-            textAlign: "center",
-            minHeight: 24,
-          }}
-        >
-          Everion Mind
-        </div>
-
-        <div
           style={{
             position: "relative",
-            width: 168,
-            height: 168,
+            width: ORB_SIZE,
+            height: ORB_SIZE,
+            animation: `orb-drop-bounce ${ORB_BOUNCE_MS}ms both`,
+            willChange: "transform, opacity",
           }}
         >
           <span
@@ -138,8 +147,8 @@ export default function LoadingScreen({ ready = true }: LoadingScreenProps): JSX
           >
             <img
               src="/logoNew.webp"
-              width={131}
-              height={131}
+              width={LOGO_SIZE}
+              height={LOGO_SIZE}
               alt=""
               aria-hidden="true"
               decoding="async"
@@ -148,33 +157,23 @@ export default function LoadingScreen({ ready = true }: LoadingScreenProps): JSX
           </span>
         </div>
 
+        {/* "Everion Mind" wordmark sits where MobileHome's prompt text
+            would be. Fades in once the orb has settled, then fades out
+            when the splash starts dismissing. */}
         <div
+          className="f-serif"
           style={{
-            minHeight: 34,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
+            fontSize: 18,
+            fontStyle: "italic",
+            color: "var(--ink-soft)",
+            letterSpacing: "-0.005em",
+            textAlign: "center",
+            minHeight: 26,
+            opacity: 0,
+            animation: "loading-meta-in 380ms 800ms ease-out forwards",
           }}
         >
-          <div
-            style={{
-              height: 1,
-              width: 112,
-              overflow: "hidden",
-              borderRadius: 999,
-              background: "var(--color-outline-variant, var(--line-soft))",
-            }}
-          >
-            <div
-              style={{
-                height: "100%",
-                width: "50%",
-                borderRadius: 999,
-                background: "var(--ember)",
-                animation: "loading-sweep 1.4s cubic-bezier(0.16, 1, 0.3, 1) infinite",
-              }}
-            />
-          </div>
+          Everion Mind
         </div>
       </div>
     </div>
