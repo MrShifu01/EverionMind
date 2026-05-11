@@ -104,24 +104,18 @@ export default function LoadingScreen({ ready = true }: LoadingScreenProps): JSX
         }}
       >
         <motion.div
-          // Persistent orb element — main.tsx's <LayoutGroup> spans the
-          // Suspense boundary, so when LoadingScreen unmounts and
-          // MobileHome's orb (same layoutId) mounts, framer interpolates
-          // the position + size between the two. The fall-from-above
-          // spring only runs on this initial mount; the cross-view
-          // travel uses framer's automatic layout interpolation.
-          layoutId="brain-orb"
-          initial={reduceMotion ? { y: 0, opacity: 1 } : { y: "-110vh", opacity: 0 }}
+          // Falls in from above with a soft spring. Cross-view continuity
+          // (LoadingScreen → MobileHome) is handled by position-alignment
+          // (both orbs render at the same screen Y in their respective
+          // layouts), NOT by layoutId — Framer's layout reconciler was
+          // hijacking the orb-fall spring and resolving in ~300ms instead
+          // of running the full ~900ms drop. Position alignment is
+          // visually equivalent and doesn't fight the fall animation.
+          initial={reduceMotion ? { y: 0, opacity: 1 } : { y: -360, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{
             y: orbSpring,
-            opacity: { duration: reduceMotion ? 0 : 0.15, ease: "easeOut" },
-            // Layout transition (cross-view travel) uses a snappier spring
-            // so the orb settles into MobileHome quickly rather than
-            // dragging through a slow interpolation.
-            layout: reduceMotion
-              ? { duration: 0 }
-              : { type: "spring", mass: 0.7, stiffness: 180, damping: 22 },
+            opacity: { duration: reduceMotion ? 0 : 0.2, ease: "easeOut" },
           }}
           style={{
             position: "relative",

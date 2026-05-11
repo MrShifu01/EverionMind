@@ -327,21 +327,17 @@ export default function MobileHome({
           minHeight: 0,
         }}
       >
-        {/* Persistent orb — the layoutId match with LoadingScreen's orb
-            makes framer interpolate the orb's position + size from the
-            splash location into this bottom-anchored slot on the boot
-            handoff. The button keeps its own press transform + connect
-            animations inside the wrapper so layout reconciliation doesn't
-            fight per-interaction motion. */}
-        <motion.div
-          layoutId="brain-orb"
+        {/* Orb button — position-aligned with LoadingScreen's orb so the
+            LoadingScreen → MobileHome handoff reads as visual continuity.
+            The earlier layoutId="brain-orb" wrapper was removed because
+            Framer's layout reconciler was hijacking LoadingScreen's
+            fall-from-above spring, resolving the drop in ~300ms instead
+            of the intended ~900ms. */}
+        <div
           style={{
             width: orbSize,
             height: orbSize,
             flexShrink: 0,
-          }}
-          transition={{
-            layout: { type: "spring", mass: 0.7, stiffness: 180, damping: 22 },
           }}
         >
           <button
@@ -503,7 +499,7 @@ export default function MobileHome({
               />
             </span>
           </button>
-        </motion.div>
+        </div>
 
         {/* Connecting progress bar — slim ember bar that fills 0→100% over
             5s with ease-out, so it feels fast at first then slows ("almost
