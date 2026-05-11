@@ -66,6 +66,7 @@ export default function AITab({ activeBrain, isAdmin }: Props) {
   const enriching = activeBrain?.id ? ops.isRunning("enrich-run-now", activeBrain.id) : false;
   const clearing = activeBrain?.id ? ops.isRunning("enrich-clear-backfill", activeBrain.id) : false;
   const retrying = activeBrain?.id ? ops.isRunning("enrich-retry-failed", activeBrain.id) : false;
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [byokOpen, setByokOpen] = useState(false);
 
   // Admin-only diagnostic state
@@ -145,6 +146,7 @@ export default function AITab({ activeBrain, isAdmin }: Props) {
       <SettingsRow
         label="Auto-enrichment"
         hint="entries are enriched automatically after capture. cards show a pulsing dot while processing."
+        last={!advancedOpen}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <StatusDot on />
@@ -153,56 +155,68 @@ export default function AITab({ activeBrain, isAdmin }: Props) {
           </SettingsButton>
         </div>
       </SettingsRow>
-      {isAdmin && adminPrefs.showAIDiagnostics && (
-        <>
-          <SettingsRow
-            label="Diagnostics"
-            hint="server-side enrichment state. only visible to you."
-          >
-            <SettingsButton onClick={() => setDiagOpen((v) => !v)}>
-              {diagOpen ? "Hide" : "Show"}
-            </SettingsButton>
-          </SettingsRow>
-          <SettingsExpand open={diagOpen}>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              <SettingsButton onClick={refreshDebug} disabled={debugLoading}>
-                {debugLoading ? "Refreshing…" : "Refresh"}
-              </SettingsButton>
-              <SettingsButton onClick={clearBackfill} disabled={clearing || !activeBrain?.id}>
-                {clearing ? "Clearing…" : "Clear backfill flags"}
-              </SettingsButton>
-              {(debug?.counts.failed_embedding ?? 0) > 0 && (
-                <SettingsButton
-                  onClick={retryFailedEmbeddings}
-                  disabled={retrying || !activeBrain?.id}
-                >
-                  {retrying
-                    ? "Retrying…"
-                    : `Retry ${debug?.counts.failed_embedding ?? 0} failed embedding${(debug?.counts.failed_embedding ?? 0) === 1 ? "" : "s"}`}
-                </SettingsButton>
-              )}
-            </div>
-            {debugError && (
-              <p className="f-sans" style={{ fontSize: 12, color: "var(--blood)", margin: 0 }}>
-                {debugError}
-              </p>
-            )}
-            {debug && <DebugView debug={debug} />}
-          </SettingsExpand>
-        </>
-      )}
 
-      <SettingsRow
-        label="Bring your own keys"
-        hint="optional — connect anthropic, openai, gemini, or groq with your own api key."
-        last={!byokOpen}
-      >
-        <SettingsButton onClick={() => setByokOpen((v) => !v)}>
-          {byokOpen ? "Done" : "Manage"}
+      {/* Advanced AI — diagnostics + BYO keys. Both are power-user
+          surfaces; collapsing them by default keeps the AI section
+          readable for the 90% of users who never touch either. */}
+      <SettingsRow label="Advanced" hint="bring your own keys + diagnostics." last={!advancedOpen}>
+        <SettingsButton onClick={() => setAdvancedOpen((v) => !v)}>
+          {advancedOpen ? "Done" : "Open"}
         </SettingsButton>
       </SettingsRow>
-      <SettingsExpand open={byokOpen} last>
-        <ProvidersTab activeBrain={activeBrain} />
+      <SettingsExpand open={advancedOpen} last>
+        <SettingsRow
+          label="Bring your own keys"
+          hint="optional — connect anthropic, openai, gemini, or groq with your own api key."
+          last={!byokOpen}
+        >
+          <SettingsButton onClick={() => setByokOpen((v) => !v)}>
+            {byokOpen ? "Done" : "Manage"}
+          </SettingsButton>
+        </SettingsRow>
+        <SettingsExpand open={byokOpen} last={!(isAdmin && adminPrefs.showAIDiagnostics)}>
+          <ProvidersTab activeBrain={activeBrain} />
+        </SettingsExpand>
+
+        {isAdmin && adminPrefs.showAIDiagnostics && (
+          <>
+            <SettingsRow
+              label="Diagnostics"
+              hint="server-side enrichment state. only visible to you."
+              last={!diagOpen}
+            >
+              <SettingsButton onClick={() => setDiagOpen((v) => !v)}>
+                {diagOpen ? "Hide" : "Show"}
+              </SettingsButton>
+            </SettingsRow>
+            <SettingsExpand open={diagOpen} last>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                <SettingsButton onClick={refreshDebug} disabled={debugLoading}>
+                  {debugLoading ? "Refreshing…" : "Refresh"}
+                </SettingsButton>
+                <SettingsButton onClick={clearBackfill} disabled={clearing || !activeBrain?.id}>
+                  {clearing ? "Clearing…" : "Clear backfill flags"}
+                </SettingsButton>
+                {(debug?.counts.failed_embedding ?? 0) > 0 && (
+                  <SettingsButton
+                    onClick={retryFailedEmbeddings}
+                    disabled={retrying || !activeBrain?.id}
+                  >
+                    {retrying
+                      ? "Retrying…"
+                      : `Retry ${debug?.counts.failed_embedding ?? 0} failed embedding${(debug?.counts.failed_embedding ?? 0) === 1 ? "" : "s"}`}
+                  </SettingsButton>
+                )}
+              </div>
+              {debugError && (
+                <p className="f-sans" style={{ fontSize: 12, color: "var(--blood)", margin: 0 }}>
+                  {debugError}
+                </p>
+              )}
+              {debug && <DebugView debug={debug} />}
+            </SettingsExpand>
+          </>
+        )}
       </SettingsExpand>
     </div>
   );
