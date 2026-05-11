@@ -29,6 +29,7 @@ import UpdatePrompt from "./components/UpdatePrompt";
 // Tree-shaken into the eager chunk; subsequent lazy callers (App.tsx,
 // Everion.tsx) reuse the same module via Vite's deduplication.
 import LoadingScreen from "./components/LoadingScreen";
+import LayoutDiagOverlay from "./components/LayoutDiagOverlay";
 import { initPostHog } from "./lib/posthog";
 import { initCapacitorBridge, hideSplashScreen, isNative } from "./lib/capacitorBridge";
 
@@ -280,6 +281,9 @@ createRoot(document.getElementById("root")!).render(
       <DesignThemeProvider>
         <ThemeProvider>
           <Root />
+          {/* TEMP diagnostic — gated by localStorage flag. Remove once
+              the focus-shoots-above-screen bug is fixed and verified. */}
+          <LayoutDiagOverlay />
         </ThemeProvider>
       </DesignThemeProvider>
     </ErrorBoundary>
