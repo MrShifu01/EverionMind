@@ -344,6 +344,25 @@ html:not(.dark) {
     filter: blur(26px);
   }
 }
+/* Voice "connecting" state — fast tri-arc spinner around the orb. The
+   conic gradient draws three ember arcs separated by gaps; the whole
+   ring rotates so the gaps sweep around like a loading indicator. */
+@keyframes orb-connect-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes orb-connect-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 1;
+  }
+}
 @keyframes fade-up {
   from {
     opacity: 0;

@@ -26,24 +26,14 @@ interface PendingAction {
 }
 
 const HISTORY_LIMIT = 30;
-const storageKey = (brainId: string) => `chat_history_${brainId}`;
 
-function loadHistory(brainId: string): ChatMessage[] {
-  try {
-    const raw = localStorage.getItem(storageKey(brainId));
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-}
-
-function saveHistory(brainId: string, messages: ChatMessage[]) {
-  try {
-    localStorage.setItem(storageKey(brainId), JSON.stringify(messages.slice(-100)));
-  } catch {
-    /* storage full — non-fatal */
-  }
+// Chat history is intentionally session-only. Persistence used to live in
+// localStorage under `chat_history_<brainId>`, but it was clutter — voice
+// is the primary surface now, the lingering rows always-in-the-way, and
+// clear-chat had a refresh-restores-them bug. saveHistory + loadHistory
+// are no-ops now; on mount the chat starts blank, on unmount it evaporates.
+function saveHistory(_brainId: string, _messages: ChatMessage[]) {
+  /* no-op — session-only chat */
 }
 
 export function useChat(brainId: string | undefined) {
@@ -54,8 +44,9 @@ export function useChat(brainId: string | undefined) {
 
   useEffect(() => {
     if (!brainId) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- chat history is per-brain in localStorage; reload + reset pending on brain switch.
-    setMessages(loadHistory(brainId));
+    // Session-only chat — reset state on brain switch / fresh mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- brain switch is an external event; resetting message list + pending action belongs in an effect.
+    setMessages([]);
     setPendingAction(null);
   }, [brainId]);
 
@@ -179,17 +170,8 @@ export function useChat(brainId: string | undefined) {
 
   const clearHistory = useCallback(() => {
     setMessages([]);
-    // Defensively clear the active brain's key AND any stale chat_history_*
-    // keys. The early-return on missing brainId left state cleared but
-    // localStorage intact, so a refresh repopulated the chat with the
-    // same rows the user thought were gone.
-    if (brainId) {
-      try {
-        localStorage.removeItem(storageKey(brainId));
-      } catch {
-        /* private mode / quota — non-fatal */
-      }
-    }
+    // Sweep any chat_history_* rows left over from the previous persistent
+    // build so existing installs don't carry stale history forward.
     try {
       for (let i = localStorage.length - 1; i >= 0; i--) {
         const k = localStorage.key(i);
@@ -198,7 +180,7 @@ export function useChat(brainId: string | undefined) {
     } catch {
       /* ignore */
     }
-  }, [brainId]);
+  }, []);
 
   return { messages, loading, pendingAction, send, confirm, cancel, clearHistory };
 }

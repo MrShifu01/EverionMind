@@ -198,8 +198,9 @@ export default function MobileHome({
   const isAsk = mode === "ask";
   const liveActive = liveSession.status === "listening" || liveSession.status === "speaking";
   const isSpeaking = liveSession.status === "speaking";
+  const isConnecting = liveSession.status === "connecting";
   const liveShow = liveSession.status !== "idle" || !!liveSession.error;
-  const animating = listening || chatLoading || liveActive;
+  const animating = listening || chatLoading || liveActive || isConnecting;
   // Compact layout pins the input to the bottom and shrinks the orb so the
   // message list fills the space between. Two triggers:
   //   1. user tapped the text input (typing to chat)
@@ -412,6 +413,36 @@ export default function MobileHome({
               />
             </>
           )}
+          {/* Connecting: tri-arc ember spinner around the orb. Three ember
+              arcs separated by transparent gaps rotate at 1.1s, plus a
+              gentle scale pulse on the orb surface so the user knows
+              something is happening between mic permission and the first
+              setupComplete. */}
+          {isConnecting && (
+            <span
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                inset: -8,
+                borderRadius: "50%",
+                background: `conic-gradient(
+                  from 0deg,
+                  var(--ember) 0deg 70deg,
+                  transparent 70deg 120deg,
+                  var(--ember) 120deg 190deg,
+                  transparent 190deg 240deg,
+                  var(--ember) 240deg 310deg,
+                  transparent 310deg 360deg
+                )`,
+                mask: "radial-gradient(circle, transparent 47%, black 49%, black 50%, transparent 52%)",
+                WebkitMask:
+                  "radial-gradient(circle, transparent 47%, black 49%, black 50%, transparent 52%)",
+                animation: "orb-connect-spin 1.1s linear infinite",
+                pointerEvents: "none",
+                opacity: 0.9,
+              }}
+            />
+          )}
           <span
             aria-hidden="true"
             style={{
@@ -486,7 +517,12 @@ export default function MobileHome({
               onReject={pendingActions.reject}
             />
             <AskPanel
-              messages={messages}
+              // Voice and chat are mutually exclusive in the visual stack:
+              // when a Live session is non-idle the LiveBanner above shows
+              // user/assistant transcripts, so hide the chat message list
+              // to stop the two surfaces overlapping. Input form stays
+              // visible so the user can type to stop voice and switch.
+              messages={liveShow ? [] : messages}
               loading={chatLoading}
               input={askInput}
               onInputChange={setAskInput}
