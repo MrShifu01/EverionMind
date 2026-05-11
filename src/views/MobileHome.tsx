@@ -522,6 +522,31 @@ function VoiceModePill({ mode, onChange }: { mode: VoiceMode; onChange: (m: Voic
   );
 }
 
+// Map raw provider/WebSocket failures to a short, human headline.
+// Detail (raw error + lastEvent + close code) stays visible underneath in a
+// muted line so users can still report specifics without parsing 1008/1006/etc.
+function friendlyLiveError(error: string | null, closeCode: number | null): string | null {
+  if (!error) return null;
+  const raw = error.toLowerCase();
+  // Auth / token mint failures (server-side, before WS opens).
+  if (raw.startsWith("mint:402") || raw.includes("no_ai_provider"))
+    return "Add a Gemini API key in Settings to use voice.";
+  if (raw.startsWith("mint:503") || raw.includes("live_not_configured"))
+    return "Voice isn't enabled on the server yet.";
+  if (raw.startsWith("mint:")) return "Couldn't start voice — server rejected the request.";
+  // Model / config rejected by Google after handshake.
+  if (raw.includes("not found") && raw.includes("bidigeneratecontent"))
+    return "Voice model is unavailable. Update GEMINI_LIVE_MODEL on the server.";
+  // Common WebSocket close codes.
+  if (closeCode === 1008) return "Voice service rejected the request (model or auth).";
+  if (closeCode === 1011) return "Voice service hit an internal error. Try again.";
+  if (closeCode === 1006) return "Voice connection dropped. Tap mic to retry.";
+  if (raw.startsWith("ws_error")) return "Voice connection failed. Check your network and retry.";
+  if (raw.includes("mic_denied") || raw.includes("notallowed"))
+    return "Microphone access denied. Enable it in your browser settings.";
+  return "Voice session failed. Tap mic to try again.";
+}
+
 function LiveBanner({
   status,
   error,
@@ -543,6 +568,7 @@ function LiveBanner({
   closeCode: number | null;
   closeReason: string;
 }) {
+  const friendly = friendlyLiveError(error, closeCode);
   const label =
     status === "connecting"
       ? "connecting…"
@@ -595,14 +621,27 @@ function LiveBanner({
           {closeCode !== null ? ` · close ${closeCode}` : ""}
         </div>
       </div>
+      {friendly && (
+        <div
+          className="f-sans"
+          style={{
+            fontSize: 13,
+            color: "var(--blood)",
+            lineHeight: 1.35,
+          }}
+        >
+          {friendly}
+        </div>
+      )}
       {(lastEvent || error) && (
         <div
           className="f-sans"
           style={{
-            fontSize: 11,
-            color: error ? "var(--blood)" : "var(--ink-faint)",
+            fontSize: 10,
+            color: "var(--ink-faint)",
             fontFamily: "var(--f-mono)",
             wordBreak: "break-all",
+            opacity: 0.75,
           }}
         >
           {error || lastEvent}
