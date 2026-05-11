@@ -53,8 +53,6 @@ export default function BrainSwitcher({ dropUp, compact, cardMode, onPick, hideC
 
   const truncate = (s: string, n: number): string => (s.length > n ? s.slice(0, n - 1) + "…" : s);
 
-  const initial = activeBrain.name.charAt(0).toUpperCase();
-
   return (
     <div style={{ position: "relative", flexShrink: 0, width: cardMode ? "100%" : undefined }}>
       <DropdownMenu>
@@ -98,25 +96,6 @@ export default function BrainSwitcher({ dropUp, compact, cardMode, onPick, hideC
         >
           {cardMode ? (
             <>
-              <div
-                aria-hidden="true"
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: "50%",
-                  background: "var(--ember-wash)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontFamily: "var(--f-serif)",
-                  fontSize: 16,
-                  fontWeight: 500,
-                  color: "var(--ember)",
-                  flexShrink: 0,
-                }}
-              >
-                {initial}
-              </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div
                   className="micro"
