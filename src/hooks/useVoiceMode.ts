@@ -40,8 +40,8 @@ export function useVoiceMode(): [VoiceMode, (m: VoiceMode) => void] {
 
 // ── Gemini Live: native-audio dialog voice ─────────────────────────────────
 // Server-side: requires GEMINI_LIVE_MODEL env var on Vercel (e.g.
-// "gemini-2.5-flash-native-audio-preview"). Off by default — user opts in
-// from Settings → Voice.
+// "gemini-3.1-flash-live"). Off by default — user opts in from Settings →
+// Voice.
 
 const LIVE_KEY = "everion_gemini_live.v1";
 
