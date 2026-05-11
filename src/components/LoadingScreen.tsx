@@ -1,48 +1,65 @@
 import { useEffect, useState, type JSX } from "react";
 
-const STUCK_AFTER_MS = 15000;
+// Splash shows for at least MIN_DISPLAY_MS, then waits for `ready` to flip
+// true before fading out over FADE_MS. The orb in MobileHome sits at the
+// same screen Y so the dissolve looks like a single continuous orb that
+// just loses its loading surround.
+//
+// `ready` defaults to true so Suspense-fallback usage (main.tsx, App.tsx)
+// dismisses the moment the min-time window elapses — those locations
+// already unmount the fallback when their chunk lands.
+const MIN_DISPLAY_MS = 800;
+const FADE_MS = 400;
 
-async function nukeAndReload() {
-  try {
-    if ("serviceWorker" in navigator) {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map((r) => r.unregister().catch(() => false)));
-    }
-    if ("caches" in window) {
-      const keys = await caches.keys();
-      await Promise.all(keys.map((k) => caches.delete(k).catch(() => false)));
-    }
-  } catch {
-    /* fall through */
-  }
-  const url = new URL(window.location.href);
-  url.searchParams.set("_sw", Date.now().toString(36));
-  window.location.replace(url.toString());
+interface LoadingScreenProps {
+  ready?: boolean;
 }
 
-export default function LoadingScreen(): JSX.Element {
-  const [stuck, setStuck] = useState(false);
+export default function LoadingScreen({ ready = true }: LoadingScreenProps): JSX.Element | null {
+  // Two independent timers — both flip via setTimeout callbacks (not
+  // synchronous setState in an effect body) so the eslint
+  // react-hooks/set-state-in-effect rule stays happy. `phase` is derived.
+  const [minTimeReached, setMinTimeReached] = useState(false);
+  const [fadeElapsed, setFadeElapsed] = useState(false);
+
   useEffect(() => {
-    const t = setTimeout(() => setStuck(true), STUCK_AFTER_MS);
-    return () => clearTimeout(t);
+    const t = window.setTimeout(() => setMinTimeReached(true), MIN_DISPLAY_MS);
+    return () => window.clearTimeout(t);
   }, []);
+
+  const fadeStarted = minTimeReached && ready;
+
+  useEffect(() => {
+    if (!fadeStarted) return;
+    const t = window.setTimeout(() => setFadeElapsed(true), FADE_MS);
+    return () => window.clearTimeout(t);
+  }, [fadeStarted]);
+
+  const phase: "visible" | "fading" | "gone" = fadeElapsed
+    ? "gone"
+    : fadeStarted
+      ? "fading"
+      : "visible";
+
+  if (phase === "gone") return null;
 
   return (
     <div
+      aria-hidden="true"
       style={{
         position: "fixed",
         inset: 0,
         background: "var(--bg, var(--color-background))",
         display: "flex",
         flexDirection: "column",
-        // Matches MobileHeader's effective height when the brain switcher
-        // is visible (116px base + safe-area-inset-top). multiBrain is
-        // always prodEnabled so the switcher always shows on mobile; if
-        // it's ever flag-gated again, this needs to read --app-header-h
-        // (which MobileHeader writes on mount).
+        // Matches MobileHeader-with-brain-switcher height so the orb lands
+        // at the same screen Y as MobileHome's orb. See MobileHeader.tsx:53.
         paddingTop: "calc(116px + env(safe-area-inset-top, 0px))",
         paddingBottom: "calc(48px + env(safe-area-inset-bottom, 0px))",
         zIndex: "var(--z-loading)",
+        opacity: phase === "fading" ? 0 : 1,
+        transition: `opacity ${FADE_MS}ms ease-out`,
+        pointerEvents: phase === "fading" ? "none" : "auto",
       }}
     >
       <div
@@ -71,7 +88,6 @@ export default function LoadingScreen(): JSX.Element {
         </div>
 
         <div
-          aria-hidden="true"
           style={{
             position: "relative",
             width: 168,
@@ -160,51 +176,6 @@ export default function LoadingScreen(): JSX.Element {
             />
           </div>
         </div>
-
-        {stuck && (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 12,
-              marginTop: 4,
-            }}
-          >
-            <p
-              className="f-sans"
-              style={{
-                fontSize: 13,
-                color: "var(--ink-soft, #888)",
-                margin: 0,
-                textAlign: "center",
-                maxWidth: 260,
-                lineHeight: 1.4,
-              }}
-            >
-              Taking longer than usual.
-            </p>
-            <button
-              type="button"
-              onClick={nukeAndReload}
-              className="press-scale f-sans"
-              style={{
-                height: 36,
-                padding: "0 20px",
-                borderRadius: 999,
-                background: "var(--ember)",
-                color: "var(--ember-ink)",
-                fontSize: 13,
-                fontWeight: 600,
-                border: "none",
-                cursor: "pointer",
-                boxShadow: "var(--shadow-sm)",
-              }}
-            >
-              Force refresh
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
