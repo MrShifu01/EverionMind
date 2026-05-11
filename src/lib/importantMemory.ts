@@ -6,22 +6,6 @@ export type ImportantMemoryType = "fact" | "preference" | "decision" | "obligati
 export type ImportantMemoryStatus = "active" | "retired";
 export type ImportantMemoryCreatedBy = "user" | "system";
 
-export interface ImportantMemory {
-  id: string;
-  brain_id: string;
-  user_id: string;
-  memory_key: string;
-  title: string;
-  summary: string;
-  memory_type: ImportantMemoryType;
-  source_entry_ids: string[];
-  status: ImportantMemoryStatus;
-  created_by: ImportantMemoryCreatedBy;
-  created_at: string;
-  updated_at: string;
-  retired_at: string | null;
-}
-
 export const IMPORTANT_MEMORY_TYPES: ImportantMemoryType[] = [
   "fact",
   "preference",

@@ -27,8 +27,6 @@ export const EVENT = {
   navViewActive: "nav_view_active",
 } as const;
 
-export type EventName = (typeof EVENT)[keyof typeof EVENT];
-
 // Localstorage flag prefix for one-shot events. Per-device, not per-user;
 // PostHog identify ties the device to the user-id for funnel math, so a
 // fresh signup on a fresh device counts again as expected.
