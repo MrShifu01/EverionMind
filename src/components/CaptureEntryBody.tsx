@@ -1,5 +1,5 @@
 import { useRef, type ReactNode } from "react";
-import { IconMic, IconAttach, IconSend, IconX, IconCamera, VoiceWaveform } from "./captureIcons";
+import { IconAttach, IconSend, IconX, IconCamera, VoiceWaveform } from "./captureIcons";
 import { Button } from "./ui/button";
 
 const MOD = typeof navigator !== "undefined" && /Mac/.test(navigator.platform) ? "⌘" : "Ctrl";
@@ -17,7 +17,6 @@ interface EntryStatusInfo {
 
 interface EntryActionHandlers {
   onSave: () => void;
-  onStartVoice: () => void;
   onRemoveFile: (name: string) => void;
   onAttachFiles: (files: File[]) => void;
   onImageFile: (file: File) => void;
@@ -37,7 +36,7 @@ interface Props {
   extracting?: boolean;
   showSavedWhisper: boolean;
   canSave: boolean;
-  somedayActive?: boolean;
+  reminderActive?: boolean;
   statusInfo: EntryStatusInfo;
   handlers: EntryActionHandlers;
   /** Inline "Capturing to {Brain} ⌄" chip rendered above the textarea. */
@@ -55,7 +54,7 @@ export default function CaptureEntryBody({
   extracting = false,
   showSavedWhisper,
   canSave,
-  somedayActive = false,
+  reminderActive = false,
   statusInfo,
   handlers,
   brainPill,
@@ -150,8 +149,8 @@ export default function CaptureEntryBody({
           placeholder={
             listening
               ? "listening… tap stop when done"
-              : somedayActive
-                ? "someday… something for the future, no date"
+              : reminderActive
+                ? "remind me about…"
                 : uploadedFiles.length > 0
                   ? "optional: describe what this is…"
                   : "remember something…"
@@ -324,16 +323,6 @@ export default function CaptureEntryBody({
           <Button
             variant="ghost"
             size="icon"
-            onClick={handlers.onStartVoice}
-            disabled={(loading || extracting) && !listening}
-            aria-label={listening ? "Stop recording" : "Voice note"}
-            style={{ color: listening ? "var(--ember)" : "var(--ink-faint)" }}
-          >
-            <IconMic on={listening} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
             onClick={() => cameraRef.current?.click()}
             disabled={loading || extracting}
             aria-label="Take photo"
@@ -352,10 +341,6 @@ export default function CaptureEntryBody({
           >
             {IconAttach}
           </Button>
-          {/* Vault + Someday were here — they moved into the "Capture as"
-              type pill so the icon row stays focused on input modes (mic /
-              camera / file upload). Removing the icons cleans up the
-              footer and gives the type pill a single source of truth. */}
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -374,8 +359,8 @@ export default function CaptureEntryBody({
               ? "Saving…"
               : extracting
                 ? "Reading file…"
-                : somedayActive
-                  ? "Save to Someday"
+                : reminderActive
+                  ? "Save Reminder"
                   : "Capture"}
           </Button>
         </div>
