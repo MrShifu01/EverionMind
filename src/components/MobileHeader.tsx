@@ -31,7 +31,7 @@ export default function MobileHeader({
   pendingCount: _pendingCount,
   onSearch,
   onOpenMenu,
-  onNavigate: _onNavigate,
+  onNavigate,
   children,
   notifications = [],
   unreadCount = 0,
@@ -43,11 +43,6 @@ export default function MobileHeader({
   const { adminFlags } = useAdminDevMode();
   const showBrainSwitcher = isFeatureEnabled("multiBrain", adminFlags);
 
-  // Publish the header's effective height as a CSS var so other sticky
-  // bars (MemoryHeader's filter row, SettingsView's tabs nav) can use
-  // it as their `top:` offset and sit flush below the header with no
-  // overlap. Includes safe-area inset for notched phones; multibrain
-  // widens the bar with the active-brain card beneath.
   useEffect(() => {
     const root = document.documentElement;
     const baseHeight = showBrainSwitcher ? 116 : 56;
@@ -68,36 +63,52 @@ export default function MobileHeader({
         borderBottom: "1px solid var(--line-soft)",
       }}
     >
-      {/* Outer wrapper carries `.safe-top` (env(safe-area-inset-top)). Don't
-          re-add it here — that double-counts the notch and pushes the brand
-          ~60px below the safe area on devices with a sensor housing. */}
       <header className="flex items-center justify-between gap-2 px-4 py-3">
-        {/* Left: brand */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
-          <img
-            src="/logoNew.webp"
-            width={28}
-            height={28}
-            alt=""
-            aria-hidden="true"
-            decoding="async"
-            style={{ flexShrink: 0, objectFit: "contain", display: "block" }}
-          />
-          <span
-            className="f-serif"
+          <button
+            type="button"
+            onClick={() => onNavigate?.("home")}
+            aria-label="Go to home"
+            className="press"
             style={{
-              fontSize: 18,
-              fontWeight: 450,
-              letterSpacing: "-0.01em",
-              color: "var(--ink)",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              padding: 0,
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              color: "inherit",
+              minWidth: 0,
+              flex: 1,
+              textAlign: "left",
             }}
           >
-            Everion
-          </span>
+            <img
+              src="/logoNew.webp"
+              width={28}
+              height={28}
+              alt=""
+              aria-hidden="true"
+              decoding="async"
+              style={{ flexShrink: 0, objectFit: "contain", display: "block" }}
+            />
+            <span
+              className="f-serif"
+              style={{
+                fontSize: 18,
+                fontWeight: 450,
+                letterSpacing: "-0.01em",
+                color: "var(--ink)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Everion Mind
+            </span>
+          </button>
           {children}
         </div>
 
-        {/* Right: notifications, search, menu */}
         <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
           {onDismissNotification && (
             <NotificationBell

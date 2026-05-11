@@ -39,7 +39,7 @@ export default function MobileHome({ brainId, onOpenCapture, onOpenCaptureWith }
     onLoading: () => {},
   });
 
-  const { messages, loading: chatLoading, send: sendChat } = useChat(brainId);
+  const { messages, loading: chatLoading, send: sendChat, clearHistory } = useChat(brainId);
 
   useEffect(() => {
     return () => {
@@ -130,6 +130,10 @@ export default function MobileHome({ brainId, onOpenCapture, onOpenCaptureWith }
           from { opacity: 0; transform: translateY(12px); }
           to   { opacity: 1; transform: translateY(0); }
         }
+        @keyframes mh-clear-in {
+          from { opacity: 0; transform: translateY(-4px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
       `}</style>
 
       <ModeToggle mode={mode} onChange={setMode} listening={listening} />
@@ -200,7 +204,7 @@ export default function MobileHome({ brainId, onOpenCapture, onOpenCaptureWith }
             userSelect: "none",
             WebkitUserSelect: "none",
             transition:
-              "width 360ms cubic-bezier(0.22, 1, 0.36, 1), height 360ms cubic-bezier(0.22, 1, 0.36, 1), transform 140ms ease",
+              "width 620ms cubic-bezier(0.16, 1, 0.3, 1), height 620ms cubic-bezier(0.16, 1, 0.3, 1), transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1)",
             transform: pressed ? "translateY(2px) scale(0.94)" : "translateY(0) scale(1)",
             flexShrink: 0,
           }}
@@ -275,7 +279,7 @@ export default function MobileHome({ brainId, onOpenCapture, onOpenCaptureWith }
                   WebkitTouchCallout: "none",
                   WebkitUserDrag: "none",
                   transition:
-                    "width 360ms cubic-bezier(0.22, 1, 0.36, 1), height 360ms cubic-bezier(0.22, 1, 0.36, 1)",
+                    "width 620ms cubic-bezier(0.16, 1, 0.3, 1), height 620ms cubic-bezier(0.16, 1, 0.3, 1)",
                 } as React.CSSProperties
               }
             />
@@ -289,6 +293,7 @@ export default function MobileHome({ brainId, onOpenCapture, onOpenCaptureWith }
             input={askInput}
             onInputChange={setAskInput}
             onSubmit={submitAsk}
+            onClear={clearHistory}
             messagesEndRef={messagesEndRef}
             brainReady={!!brainId}
           />
@@ -297,6 +302,10 @@ export default function MobileHome({ brainId, onOpenCapture, onOpenCaptureWith }
     </div>
   );
 }
+
+const TOGGLE_BTN_WIDTH = 78;
+const TOGGLE_BTN_HEIGHT = 34;
+const TOGGLE_PADDING = 3;
 
 function ModeToggle({
   mode,
@@ -307,6 +316,7 @@ function ModeToggle({
   onChange: (m: "add" | "ask") => void;
   listening: boolean;
 }) {
+  const thumbX = mode === "add" ? 0 : TOGGLE_BTN_WIDTH;
   return (
     <div
       role="tablist"
@@ -319,17 +329,34 @@ function ModeToggle({
     >
       <div
         style={{
+          position: "relative",
           display: "inline-flex",
-          padding: 3,
+          padding: TOGGLE_PADDING,
           background: "var(--surface-low)",
           border: "1px solid var(--line-soft)",
           borderRadius: 999,
-          gap: 2,
         }}
       >
+        <span
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: TOGGLE_PADDING,
+            left: TOGGLE_PADDING,
+            width: TOGGLE_BTN_WIDTH,
+            height: TOGGLE_BTN_HEIGHT,
+            borderRadius: 999,
+            background: "var(--ember)",
+            boxShadow: listening
+              ? "0 0 0 2px color-mix(in oklch, var(--ember) 50%, transparent), var(--lift-1)"
+              : "var(--lift-1)",
+            transform: `translateX(${thumbX}px)`,
+            transition: "transform 520ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 260ms ease",
+            animation: listening ? "ring-pulse 1.4s ease-in-out infinite" : "none",
+          }}
+        />
         {(["add", "ask"] as const).map((m) => {
           const active = mode === m;
-          const highlight = listening && m === "add";
           return (
             <button
               key={m}
@@ -339,23 +366,20 @@ function ModeToggle({
               className="press"
               style={{
                 position: "relative",
-                padding: "0 22px",
-                height: 34,
-                minHeight: 34,
+                width: TOGGLE_BTN_WIDTH,
+                height: TOGGLE_BTN_HEIGHT,
+                minHeight: TOGGLE_BTN_HEIGHT,
                 borderRadius: 999,
                 fontFamily: "var(--f-sans)",
                 fontSize: 13,
                 fontWeight: 600,
-                background: active ? "var(--ember)" : "transparent",
+                background: "transparent",
                 color: active ? "var(--ember-ink)" : "var(--ink-soft)",
                 border: "none",
                 cursor: "pointer",
                 textTransform: "capitalize",
-                transition: "background 180ms, color 180ms, box-shadow 180ms",
-                boxShadow: highlight
-                  ? "0 0 0 2px color-mix(in oklch, var(--ember) 60%, transparent)"
-                  : "none",
-                animation: highlight ? "ring-pulse 1.4s ease-in-out infinite" : "none",
+                transition: "color 360ms cubic-bezier(0.16, 1, 0.3, 1)",
+                zIndex: 1,
               }}
             >
               {m}
@@ -373,6 +397,7 @@ function AskPanel({
   input,
   onInputChange,
   onSubmit,
+  onClear,
   messagesEndRef,
   brainReady,
 }: {
@@ -381,10 +406,12 @@ function AskPanel({
   input: string;
   onInputChange: (v: string) => void;
   onSubmit: (e: React.FormEvent) => void;
+  onClear: () => void;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   brainReady: boolean;
 }) {
   const canSend = input.trim().length > 0 && !loading && brainReady;
+  const hasMessages = messages.length > 0;
   return (
     <div
       style={{
@@ -395,9 +422,59 @@ function AskPanel({
         gap: 12,
         flex: 1,
         minHeight: 0,
-        animation: "mh-ask-in 340ms cubic-bezier(0.22, 1, 0.36, 1)",
+        animation: "mh-ask-in 440ms cubic-bezier(0.16, 1, 0.3, 1)",
       }}
     >
+      {hasMessages && (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            padding: "0 4px",
+            animation: "mh-clear-in 240ms ease-out",
+          }}
+        >
+          <button
+            type="button"
+            onClick={onClear}
+            aria-label="Clear chat"
+            className="press"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              height: 26,
+              padding: "0 10px 0 8px",
+              borderRadius: 999,
+              background: "var(--surface-high)",
+              border: "1px solid var(--line-soft)",
+              color: "var(--ink-soft)",
+              fontFamily: "var(--f-sans)",
+              fontSize: 11,
+              fontWeight: 500,
+              letterSpacing: "0.01em",
+              cursor: "pointer",
+              boxShadow: "var(--lift-1)",
+              transition: "background 180ms, color 180ms, transform 180ms",
+            }}
+          >
+            <svg
+              width="11"
+              height="11"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+            </svg>
+            clear chat
+          </button>
+        </div>
+      )}
       <div
         style={{
           flex: 1,
