@@ -41,9 +41,6 @@ import MobileHeader from "./components/MobileHeader";
 const captureSheetImport = () => import("./components/CaptureSheet");
 const CaptureSheet = lazy(captureSheetImport);
 function prefetchCaptureSheet() {
-  // requestIdleCallback isn't on iOS Safari (still). Fall back to setTimeout
-  // with a small delay so the prefetch runs after the first useful paint
-  // without blocking the layout commit.
   type Idle = (cb: () => void, opts?: { timeout?: number }) => number;
   const ric: Idle | undefined =
     typeof window !== "undefined"
@@ -128,10 +125,6 @@ const NAV_VIEWS = [
   { id: "graph", l: "Graph", ic: "✦" },
   { id: "vault", l: "Vault", ic: "🔐" },
 ];
-
-// ─── EverionContent ──────────────────────────────────────────────────────────
-// Reads context (BrainContext, EntriesContext, ConceptGraphContext) + receives
-// appShell and the few values that don't belong in any context.
 
 interface EverionContentProps {
   appShell: AppShellState;
@@ -225,7 +218,6 @@ function EverionContent({
   const [selectedVaultEntry, setSelectedVaultEntry] = useState<Entry | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
 
-  // Save errors are transient — surface via sonner instead of inline banner.
   useEffect(() => {
     if (!saveError) return;
     const id = toast.error(saveError, {
@@ -238,11 +230,6 @@ function EverionContent({
     };
   }, [saveError, setSaveError]);
 
-  // Soft-delete undo — replaces the bespoke <UndoToast/> component with a
-  // Sonner action toast. lastAction.type === "delete" means an entry has
-  // been removed from the in-memory list but the DB row hasn't been hard-
-  // deleted yet (commitPendingDelete fires when the toast auto-closes).
-  // 5-second window matches the previous UNDO_TOAST_MUTATE_MS duration.
   useEffect(() => {
     if (!lastAction || lastAction.type !== "delete") return;
     const id = toast("Entry deleted", {
@@ -298,17 +285,13 @@ function EverionContent({
     (v) => !(v.id in FEATURE_FLAGS) || ff(v.id as FeatureFlagKey),
   );
 
-  // If the active view gets disabled, fall back to memory
   useEffect(() => {
     if (appShell.view in FEATURE_FLAGS && !ff(appShell.view as FeatureFlagKey)) {
       appShell.setView("memory");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- ff() and appShell are referentially fresh every render; depending on them would re-run this every render. adminFlags + appShell.view are the actual decision inputs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminFlags, appShell.view, appShell.setView]);
 
-  // PostHog funnel — emit nav_view_active on every view change. Initial
-  // "memory" mount also fires (from === undefined) so the first session
-  // has a clean entry point in the dashboard.
   const prevViewRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     const from = prevViewRef.current;
@@ -318,17 +301,6 @@ function EverionContent({
     }
   }, [appShell.view]);
 
-  // Auto-sync IANA timezone on mount AND on SIGNED_IN. Skip TOKEN_REFRESHED:
-  // Supabase fires that every 5–30 min during a session, which spammed
-  // /api/notification-prefs to the rate-limit ceiling under e2e and produced
-  // 429 noise. The session-scoped sessionStorage gate inside
-  // syncTimezoneIfChanged still handles legit duplicate calls within a
-  // single page load.
-  //
-  // Same effect bootstraps RevenueCat on native platforms: configure once,
-  // then logIn the Supabase user.id so the webhook (api/user-data.ts
-  // handleRevenueCatWebhook) can resolve appUserID → user_profiles row.
-  // No-op on web — that flow uses LemonSqueezy.
   useEffect(() => {
     syncTimezoneIfChanged();
     let revenueCatLoaded = false;
@@ -365,7 +337,6 @@ function EverionContent({
     await new Promise((resolve) => setTimeout(resolve, 500));
   });
 
-  // Index concept names into the search index so grid search finds entries by concept
   useEffect(() => {
     if (!conceptMap) return;
     Object.entries(conceptMap).forEach(([entryId, concepts]) => {
@@ -373,9 +344,6 @@ function EverionContent({
     });
   }, [conceptMap]);
 
-  // Cmd/Ctrl+K opens the capture sheet — matches the keyboard hint shown
-  // on the floating capture button. Cmd/Ctrl+N kept as an alias for muscle
-  // memory. Search now lives on Cmd/Ctrl+/, see OmniSearch.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "n")) {
@@ -385,16 +353,9 @@ function EverionContent({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- appShell as a whole would invalidate this listener every render; only the setter is read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appShell.setShowCapture]);
 
-  // ── Merge session ────────────────────────────────────────────────────────
-  // Lives at this scope so the preview fetch survives a modal close. User
-  // can click "Hide — notify when ready"; the bar reappears, the LLM keeps
-  // generating in this same async scope, and a sonner Review toast fires
-  // the moment the response lands. No server-side draft persistence — a
-  // tab close still kills the request, which is fine: cost is bounded
-  // (one LLM call, ~few seconds typical).
   type MergeSession = {
     ids: string[];
     preview: MergePreviewShape | null;
@@ -426,8 +387,6 @@ function EverionContent({
         }
         const data = (await r.json()) as MergePreviewShape;
         setMergeSession((cur) => {
-          // Stale response — a newer session replaced this one (or it was
-          // cancelled). Drop the result.
           if (!cur || cur.ids !== ids) return cur;
           if (!cur.modalOpen) {
             toast.success("Merge ready to review", {
@@ -457,12 +416,6 @@ function EverionContent({
 
   return (
     <>
-      {/*
-        Skip-to-main-content link — keyboard users can jump past the
-        sidebar/header tree in one Tab. `sr-only` keeps it invisible until
-        focused; `focus:not-sr-only` brings it into view as a styled chip.
-        Counterpart `id="main-content"` is on the view-content wrapper below.
-      */}
       <OfflineBanner isOnline={isOnline} pendingCount={pendingCount} />
       <a
         href="#main-content"
@@ -507,17 +460,6 @@ function EverionContent({
         onSearchChange={appShell.setSearchInput}
       ></DesktopSidebar>
 
-      {/* overflow-x-clip (not -hidden) is critical: -hidden makes the other
-          axis become overflow-y:auto, which silently turns this div into a
-          CSS scroll container. Any position:sticky descendant then binds
-          to this container as its scroll ancestor — but the div has no
-          bounded height, so it never actually scrolls; the body does. The
-          headers ended up "sticking" to a non-scrolling container while
-          the body scrolled past them, making them appear to scroll away
-          on memory + timeline (the only views tall enough to need it).
-          overflow-x:clip clips horizontal overflow without creating a
-          scroll container, so sticky descendants bind to the body and
-          behave correctly. */}
       <div className="app-shell-fixed w-full overflow-x-clip">
         <div className="bg-background flex h-full flex-col overflow-hidden lg:ml-60 lg:max-w-[calc(100vw-240px)]">
           <MobileHeader
@@ -526,7 +468,6 @@ function EverionContent({
             isOnline={isOnline}
             pendingCount={pendingCount}
             onSearch={() =>
-              // OmniSearch listens on Cmd/Ctrl+/ since capture moved to Cmd+K.
               window.dispatchEvent(
                 new KeyboardEvent("keydown", { key: "/", metaKey: true, bubbles: true }),
               )
@@ -982,10 +923,6 @@ function EverionContent({
             )}
           </div>
 
-          {/* BulkActionBar lives OUTSIDE the animate-view-enter wrapper.
-              That wrapper applies a transform which creates a stacking
-              context and breaks `position: fixed` for descendants —
-              the pill ends up pinned to the wrapper, not the viewport. */}
           {(appShell.view === "memory" || appShell.view === "timeline") &&
             appShell.selectMode &&
             appShell.selectedIds.size > 0 && (
@@ -1007,13 +944,6 @@ function EverionContent({
                   }
                 }}
                 onDelete={async (ids: string[]) => {
-                  // One atomic server call. The previous per-id loop did
-                  // optimistic local removal first, then fire-and-forget
-                  // DELETE per row — so a tab close or partial network
-                  // failure left rows missing from the UI but still
-                  // alive in the DB (they reappeared on next session).
-                  // Now: optimistic removal only AFTER the server
-                  // confirms persistence; on failure we roll back.
                   const snapshot = entries.filter((e) => ids.includes(e.id));
                   setEntries((prev) => prev.filter((e) => !ids.includes(e.id)));
                   try {
@@ -1029,8 +959,6 @@ function EverionContent({
                   }
                 }}
                 onMoved={(ids: string[]) => {
-                  // Moved rows leave the active brain; drop them from the
-                  // local list so they don't ghost the Memory grid.
                   const set = new Set(ids);
                   setEntries((prev) => prev.filter((e) => !set.has(e.id)));
                 }}
@@ -1044,10 +972,6 @@ function EverionContent({
               />
             )}
 
-          {/* Merge preview lives at this scope so user can hide the modal
-              while the LLM is generating — see startMerge above. Mounted
-              for the lifetime of the session so local edit state survives
-              hide/show toggles. */}
           {mergeSession && (
             <MergePreviewModal
               ids={mergeSession.ids}
@@ -1059,16 +983,11 @@ function EverionContent({
               onCancel={() => setMergeSession(null)}
               onCommitted={(_mergedId, sourceIds, merged) => {
                 setMergeSession(null);
-                // Drop the sources from the local list AND insert the merged
-                // entry optimistically. Realtime should also surface the
-                // INSERT but it can lag a beat — we don't want the user
-                // staring at a hole in the grid while it catches up.
                 const set = new Set(sourceIds);
                 const mergedEntry = merged as Entry | null;
                 setEntries((prev) => {
                   const filtered = prev.filter((e) => !set.has(e.id));
                   if (!mergedEntry?.id) return filtered;
-                  // Dedup in case realtime beat us to it.
                   if (filtered.some((e) => e.id === mergedEntry.id)) return filtered;
                   return [mergedEntry, ...filtered];
                 });
@@ -1124,8 +1043,6 @@ function EverionContent({
                 if (opts?.nextAction === "vault") {
                   appShell.setView("vault");
                 } else {
-                  // New users land on Home so they see the first-run checklist.
-                  // Existing users skip this branch (showOnboarding is already false).
                   appShell.setView("home");
                 }
               }}
@@ -1192,10 +1109,6 @@ function EverionContent({
   );
 }
 
-// ─── Everion ─────────────────────────────────────────────────────────────────
-// Orchestrates all hooks, provides contexts, and delegates rendering to
-// EverionContent (which calls useConceptGraph inside ConceptGraphProvider).
-
 export default function Everion({ initialShowCapture }: { initialShowCapture?: boolean } = {}) {
   const { brains, activeBrain, setActiveBrain, refresh, loading: brainsLoading } = useBrainHook();
 
@@ -1217,8 +1130,6 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
     if (isOnline) sync();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Pre-warm the CaptureSheet chunk after mount so the first capture tap
-  // doesn't pay chunk download + parse latency. See captureSheetImport above.
   useEffect(() => {
     prefetchCaptureSheet();
   }, []);
@@ -1233,20 +1144,12 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
     refreshCount,
   });
 
-  // Live-updates the chips and wave-dot as the server pipeline finishes
-  // each step. Without this, dataLayer.entries only changes on refresh.
   useEntryRealtime(activeBrain?.id, dataLayer.setEntries);
 
   useEffect(() => {
     patchEntryIdRef.current = dataLayer.patchEntryId;
   }, [dataLayer.patchEntryId]);
 
-  // Multi-brain (post-2026-05-05): owners + members can write; viewers are
-  // read-only. activeBrain.my_role is set by /api/brains based on
-  // brain_members.role for shared brains and 'owner' for owned brains.
-  // Falls back to true when activeBrain is undefined (boot-time, brain
-  // switcher in transit) so the UI stays usable while we wait — the API
-  // then enforces the same check server-side via requireBrainAccess.
   const canWrite = !activeBrain || activeBrain.my_role !== "viewer";
   const { nudge, setNudge } = useNudge({
     entriesLoaded: dataLayer.entriesLoaded,
@@ -1262,20 +1165,6 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
     dismissAll: bgDismissAll,
   } = useBackgroundCapture();
 
-  // Persona facts live in the same `entries` table (so RAG and the concept
-  // graph see them) but they're not "memories" — they belong in About You,
-  // not in the Memory grid/list/timeline. Strip them out at the single
-  // source so every downstream view (filtered, sortedTimeline, Bulk select,
-  // search ranking) automatically excludes them.
-  //
-  // SECURITY: vault entries (type === "secret") are gated strictly on
-  // brain_id === activeBrain.id. The data layer scopes its fetches per
-  // brain, but a stale row briefly held during a brain switch (or a
-  // future merge bug) would otherwise let a secret from one brain render
-  // in another. Vault rows MUST carry a matching brain_id or they don't
-  // render — no NULL-brain fallback. Non-secret entries are fetched
-  // brain-scoped via /api/entries and trusted as-is (some legacy rows
-  // pre-date brain_id and would unfairly disappear under a strict filter).
   const activeBrainIdForFilter = activeBrain?.id;
   const allDisplayEntries = useMemo(() => {
     const merged = [...dataLayer.entries, ...dataLayer.vaultEntries];
@@ -1302,7 +1191,6 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
       if (ids) r = r.filter((e) => ids.has(e.id));
     }
     const result = applyEntryFilters(r, appShell.gridFilters);
-    // When a search is active, override date/pinned sort with relevance ranking
     if (appShell.search) {
       result.sort((a, b) => scoreEntry(b, appShell.search) - scoreEntry(a, appShell.search));
     }
@@ -1350,89 +1238,54 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
     [activeBrain, brains, setActiveBrain, refresh],
   );
 
-  // Block the UI on the brains fetch only when we have nothing to render —
-  // i.e. truly first-ever boot with no cache. With useBrain's localStorage
-  // hydrate, returning users render immediately and the network refresh
-  // updates state in place; any brain-set change after that surfaces in a
-  // single re-render rather than bouncing the whole shell back to a
-  // LoadingScreen for the duration of the round-trip.
-  if (brainsLoading && brains.length === 0)
-    return (
-      <>
-        <LoadingScreen />
-        <Button
-          size="icon-lg"
-          onClick={() => appShell.setShowCapture(true)}
-          aria-label="New entry"
-          className="press-scale fixed bottom-5 left-1/2 z-[60] h-14 w-14 -translate-x-1/2 rounded-full lg:hidden"
-          style={{
-            background: "var(--color-primary)",
-            color: "var(--color-on-primary)",
-            boxShadow: "var(--shadow-lg)",
-          }}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-        </Button>
-      </>
-    );
-
+  const splashReady = !brainsLoading || brains.length > 0;
   return (
-    <EntriesContext.Provider value={entriesValue}>
-      <BrainContext.Provider value={brainValue}>
-        <ConceptGraphProvider activeBrainId={activeBrain?.id}>
-          <BackgroundOpsProvider>
-            <TooltipProvider delayDuration={400}>
-              <Toaster position="bottom-center" />
-              <AppLockGate>
-                <EverionContent
-                  appShell={appShell}
-                  cryptoKey={dataLayer.cryptoKey}
-                  handleVaultUnlock={dataLayer.handleVaultUnlock}
-                  handleCreated={dataLayer.handleCreated}
-                  handleCreatedBulk={dataLayer.handleCreatedBulk}
-                  lastAction={dataLayer.lastAction}
-                  setLastAction={dataLayer.setLastAction}
-                  saveError={dataLayer.saveError}
-                  setSaveError={dataLayer.setSaveError}
-                  handleUndo={dataLayer.handleUndo}
-                  commitPendingDelete={dataLayer.commitPendingDelete}
-                  setEntries={dataLayer.setEntries}
-                  isOnline={isOnline}
-                  pendingCount={pendingCount}
-                  failedOps={failedOps}
-                  clearFailedOps={clearFailedOps}
-                  canWrite={canWrite}
-                  nudge={nudge}
-                  setNudge={setNudge}
-                  bgTasks={bgTasks}
-                  bgProcessFiles={bgProcessFiles}
-                  bgQueueDirectSave={bgQueueDirectSave}
-                  bgDismissTask={bgDismissTask}
-                  bgDismissAll={bgDismissAll}
-                  filtered={filtered}
-                  sortedTimeline={sortedTimeline}
-                  availableEntryTypes={availableEntryTypes}
-                  vaultEntries={dataLayer.vaultEntries}
-                  loadError={dataLayer.loadError}
-                />
-              </AppLockGate>
-            </TooltipProvider>
-          </BackgroundOpsProvider>
-        </ConceptGraphProvider>
-      </BrainContext.Provider>
-    </EntriesContext.Provider>
+    <>
+      <LoadingScreen ready={splashReady} />
+      <EntriesContext.Provider value={entriesValue}>
+        <BrainContext.Provider value={brainValue}>
+          <ConceptGraphProvider activeBrainId={activeBrain?.id}>
+            <BackgroundOpsProvider>
+              <TooltipProvider delayDuration={400}>
+                <Toaster position="bottom-center" />
+                <AppLockGate>
+                  <EverionContent
+                    appShell={appShell}
+                    cryptoKey={dataLayer.cryptoKey}
+                    handleVaultUnlock={dataLayer.handleVaultUnlock}
+                    handleCreated={dataLayer.handleCreated}
+                    handleCreatedBulk={dataLayer.handleCreatedBulk}
+                    lastAction={dataLayer.lastAction}
+                    setLastAction={dataLayer.setLastAction}
+                    saveError={dataLayer.saveError}
+                    setSaveError={dataLayer.setSaveError}
+                    handleUndo={dataLayer.handleUndo}
+                    commitPendingDelete={dataLayer.commitPendingDelete}
+                    setEntries={dataLayer.setEntries}
+                    isOnline={isOnline}
+                    pendingCount={pendingCount}
+                    failedOps={failedOps}
+                    clearFailedOps={clearFailedOps}
+                    canWrite={canWrite}
+                    nudge={nudge}
+                    setNudge={setNudge}
+                    bgTasks={bgTasks}
+                    bgProcessFiles={bgProcessFiles}
+                    bgQueueDirectSave={bgQueueDirectSave}
+                    bgDismissTask={bgDismissTask}
+                    bgDismissAll={bgDismissAll}
+                    filtered={filtered}
+                    sortedTimeline={sortedTimeline}
+                    availableEntryTypes={availableEntryTypes}
+                    vaultEntries={dataLayer.vaultEntries}
+                    loadError={dataLayer.loadError}
+                  />
+                </AppLockGate>
+              </TooltipProvider>
+            </BackgroundOpsProvider>
+          </ConceptGraphProvider>
+        </BrainContext.Provider>
+      </EntriesContext.Provider>
+    </>
   );
 }
