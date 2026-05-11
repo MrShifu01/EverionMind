@@ -59,6 +59,7 @@ import SkeletonCard from "./components/SkeletonCard";
 import OmniSearch from "./components/OmniSearch";
 import SettingsView from "./views/SettingsView";
 const GraphView = lazy(() => import("./views/GraphView"));
+const MobileHome = lazy(() => import("./views/MobileHome"));
 import { usePullToRefresh } from "./hooks/usePullToRefresh";
 import PullToRefreshIndicator from "./components/PullToRefreshIndicator";
 import FloatingCaptureButton from "./components/FloatingCaptureButton";
@@ -128,7 +129,7 @@ const NAV_VIEWS = [
   { id: "vault", l: "Vault", ic: "🔐" },
 ];
 
-// ─── EverionContent ──────────────────────────────────────────────────────────
+// ─── EverionContent ────────────────────────────────────────────
 // Reads context (BrainContext, EntriesContext, ConceptGraphContext) + receives
 // appShell and the few values that don't belong in any context.
 
@@ -281,6 +282,16 @@ function EverionContent({
   const allEntries = useMemo(() => [...entries, ...vaultEntries], [entries, vaultEntries]);
   const { conceptMap, godNodes } = useConceptGraph();
   const { isDark, toggleTheme } = useTheme();
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches,
+  );
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
   const { isAdmin, adminFlags } = useAdminDevMode();
   const ff = (key: FeatureFlagKey) => isFeatureEnabled(key, adminFlags);
   const visibleNavViews = NAV_VIEWS.filter(
@@ -377,7 +388,7 @@ function EverionContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- appShell as a whole would invalidate this listener every render; only the setter is read.
   }, [appShell.setShowCapture]);
 
-  // ── Merge session ────────────────────────────────────────────────────────
+  // ── Merge session ─────────────────────────────────────────────────
   // Lives at this scope so the preview fetch survives a modal close. User
   // can click "Hide — notify when ready"; the bar reappears, the LLM keeps
   // generating in this same async scope, and a sonner Review toast fires
@@ -520,6 +531,7 @@ function EverionContent({
                 new KeyboardEvent("keydown", { key: "/", metaKey: true, bubbles: true }),
               )
             }
+            onOpenMenu={() => setMoreOpen(true)}
             onNavigate={appShell.setView}
             notifications={notifs.notifications}
             unreadCount={notifs.unreadCount}
@@ -917,7 +929,21 @@ function EverionContent({
                 </Suspense>
               </ErrorBoundary>
             )}
-            {appShell.view === "home" && (
+            {appShell.view === "home" && isMobile && (
+              <ErrorBoundary
+                name="MobileHome"
+                fallback={(error, reset) => <ViewError view="Home" error={error} onReset={reset} />}
+              >
+                <Suspense fallback={null}>
+                  <MobileHome
+                    onOpenCapture={() => appShell.setShowCapture(true)}
+                    onOpenCaptureWith={(text) => appShell.openCapture(text)}
+                    onNavigate={appShell.setView}
+                  />
+                </Suspense>
+              </ErrorBoundary>
+            )}
+            {appShell.view === "home" && !isMobile && (
               <ErrorBoundary
                 name="HomeView"
                 fallback={(error, reset) => <ViewError view="Home" error={error} onReset={reset} />}
@@ -1135,7 +1161,7 @@ function EverionContent({
           {appShell.view !== "capture" && !appShell.showCapture && (
             <FloatingCaptureButton onClick={() => appShell.setShowCapture(true)} />
           )}
-          {!appShell.showCapture && (
+          {!appShell.showCapture && !(isMobile && appShell.view === "home") && (
             <BottomNav
               activeView={appShell.view}
               adminFlags={adminFlags}
@@ -1166,7 +1192,7 @@ function EverionContent({
   );
 }
 
-// ─── Everion ─────────────────────────────────────────────────────────────────
+// ─── Everion ────────────────────────────────────────────────────────────
 // Orchestrates all hooks, provides contexts, and delegates rendering to
 // EverionContent (which calls useConceptGraph inside ConceptGraphProvider).
 
