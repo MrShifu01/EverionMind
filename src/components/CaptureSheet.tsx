@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useCaptureSheetParse } from "../hooks/useCaptureSheetParse";
-import VoiceCaptureModal from "./VoiceCaptureModal";
 import { useBrain as useBrainCtx } from "../context/BrainContext";
 import type { Brain, Entry } from "../types";
 import CapturePreviewPanel, { type PreviewState } from "./CapturePreviewPanel";
@@ -31,10 +30,6 @@ interface CaptureSheetProps {
     rawContent?: string;
   }) => void;
   onNavigate?: (id: string) => void;
-  /** Power-feature: when true, show the Someday toggle in the action bar.
-   *  When the user toggles it on, Capture skips AI classification and stores
-   *  the raw text as type="someday" — a no-date GTD inbox item. */
-  somedayEnabled?: boolean;
 }
 
 export default function CaptureSheet({
@@ -48,11 +43,10 @@ export default function CaptureSheet({
   onBackgroundFiles: _onBackgroundFiles,
   onBackgroundSave,
   onNavigate,
-  somedayEnabled = false,
 }: CaptureSheetProps) {
   const [text, setText] = useState("");
   const [activeTab, setActiveTab] = useState<"entry" | "secret" | "list">("entry");
-  const [somedayActive, setSomedayActive] = useState(false);
+  const [reminderActive, setReminderActive] = useState(false);
   const [secretForm, setSecretForm] = useState<SecretForm>({ title: "", content: "" });
   const [secretSaving, setSecretSaving] = useState(false);
   const [secretError, setSecretError] = useState("");
@@ -68,11 +62,6 @@ export default function CaptureSheet({
   // Drag-to-close + entrance animation
   const [dragY, setDragY] = useState(0);
   const [visible, setVisible] = useState(false);
-
-  // Fullscreen voice capture modal state. Mic button opens this instead of
-  // recording inline — the modal owns its own useVoiceRecorder and feeds
-  // the transcript back to setText on close.
-  const [voiceModalOpen, setVoiceModalOpen] = useState(false);
 
   const {
     loading,
@@ -150,7 +139,7 @@ export default function CaptureSheet({
       setVisible(false);
       setText("");
       setActiveTab("entry");
-      setSomedayActive(false);
+      setReminderActive(false);
       setSecretForm({ title: "", content: "" });
       setSecretError("");
       setCaptureBrain(null);
@@ -231,14 +220,12 @@ export default function CaptureSheet({
 
   const handleSave = () => {
     if (activeTab !== "entry") return;
-    if (somedayActive) {
-      // Skip AI classification — raw text saved verbatim as GTD-inbox item.
-      // Someday entries have no date; Schedule action in TodoView later flips
-      // them to type="todo" with metadata.due_date.
+    if (reminderActive) {
+      // Skip AI classification — raw text saved verbatim as a reminder.
       const t = text.trim();
       if (!t) return;
       const title = t.length > 60 ? t.slice(0, 57) + "…" : t;
-      doSave({ title, content: t, type: "someday", tags: [], metadata: {} }, t);
+      doSave({ title, content: t, type: "reminder", tags: [], metadata: {} }, t);
       setText("");
       return;
     }
@@ -275,41 +262,37 @@ export default function CaptureSheet({
     }
   };
 
-  // Single source of truth for which option the type pill should display.
-  // Derived purely from activeTab + somedayActive — there's no captureType
-  // state because "memory" is the only non-tab-driven choice.
   const displayedType: CaptureTypeKey =
     activeTab === "secret"
       ? "vault"
       : activeTab === "list"
         ? "list"
-        : somedayActive
-          ? "someday"
+        : reminderActive
+          ? "reminder"
           : "memory";
 
   const handlePickType = (id: CaptureTypeKey) => {
     if (id === "vault") {
       if (activeTab === "secret") return;
-      if (somedayActive) setSomedayActive(false);
+      if (reminderActive) setReminderActive(false);
       toggleVault();
       return;
     }
-    if (id === "someday") {
-      if (!somedayEnabled || somedayActive) return;
+    if (id === "reminder") {
+      if (reminderActive) return;
       if (activeTab !== "entry") setActiveTab("entry");
-      setSomedayActive(true);
+      setReminderActive(true);
       requestAnimationFrame(() => textareaRef.current?.focus());
       return;
     }
     if (id === "list") {
-      if (somedayActive) setSomedayActive(false);
+      if (reminderActive) setReminderActive(false);
       setActiveTab("list");
       requestAnimationFrame(() => textareaRef.current?.focus());
       return;
     }
-    // memory — plain entry body, AI does the typing.
     if (activeTab !== "entry") setActiveTab("entry");
-    if (somedayActive) setSomedayActive(false);
+    if (reminderActive) setReminderActive(false);
     requestAnimationFrame(() => textareaRef.current?.focus());
   };
 
@@ -395,17 +378,10 @@ export default function CaptureSheet({
               }
             }}
             onPointerDownOutside={(e) => {
-              // Preview-aware: don't dismiss while reviewing.
               if (preview) e.preventDefault();
-              // Voice modal portals to document.body, so clicks inside it
-              // are technically "outside" the Radix DialogContent tree —
-              // without this guard, tapping the stop button would dismiss
-              // CaptureSheet mid-recording.
-              if (voiceModalOpen) e.preventDefault();
             }}
             onInteractOutside={(e) => {
               if (preview) e.preventDefault();
-              if (voiceModalOpen) e.preventDefault();
             }}
             style={{
               background: "var(--surface-high)",
@@ -533,13 +509,7 @@ export default function CaptureSheet({
                     />
                   ) : undefined
                 }
-                typePill={
-                  <CaptureTypePill
-                    captureType={displayedType}
-                    somedayEnabled={somedayEnabled}
-                    onPick={handlePickType}
-                  />
-                }
+                typePill={<CaptureTypePill captureType={displayedType} onPick={handlePickType} />}
                 onSave={handleSaveList}
               />
             ) : (
@@ -552,7 +522,7 @@ export default function CaptureSheet({
                 extracting={extracting}
                 showSavedWhisper={showSavedWhisper}
                 canSave={canSave}
-                somedayActive={somedayActive}
+                reminderActive={reminderActive}
                 brainPill={
                   showBrainPill && brainCtx.brains.length > 1 ? (
                     <CaptureBrainPill
@@ -563,13 +533,7 @@ export default function CaptureSheet({
                     />
                   ) : undefined
                 }
-                typePill={
-                  <CaptureTypePill
-                    captureType={displayedType}
-                    somedayEnabled={somedayEnabled}
-                    onPick={handlePickType}
-                  />
-                }
+                typePill={<CaptureTypePill captureType={displayedType} onPick={handlePickType} />}
                 statusInfo={{
                   status,
                   errorDetail,
@@ -578,7 +542,6 @@ export default function CaptureSheet({
                 }}
                 handlers={{
                   onSave: handleSave,
-                  onStartVoice: () => setVoiceModalOpen(true),
                   onRemoveFile: removeUploadedFile,
                   onAttachFiles: (files) => {
                     handleDocFiles(files).catch((err) => console.error("[docInput]", err));
@@ -599,11 +562,6 @@ export default function CaptureSheet({
           </DialogPrimitive.Content>
         </DialogPrimitive.Portal>
       </DialogPrimitive.Root>
-      <VoiceCaptureModal
-        isOpen={voiceModalOpen}
-        onClose={() => setVoiceModalOpen(false)}
-        onTranscript={(t) => setText((prev) => (prev ? `${prev} ${t}` : t))}
-      />
     </>
   );
 }
@@ -936,20 +894,10 @@ function CaptureBrainPill({ brains, activeBrain, captureBrain, onPick }: Capture
   );
 }
 
-// ── Capture-as type pill ───────────────────────────────────────────────────
-// Sibling to CaptureBrainPill. Driven by the parent's captureType + the
-// vault/someday flags so a single source-of-truth label always reflects
-// the actual save behavior. Picking vault or someday delegates to the
-// existing toggle handlers; the other types set captureType.
-
-// reminder + todo aren't pill options — AI auto-classifies them when the
-// captured text mentions a date or actionable verb. Pinning the type would
-// just hide the AI's better guess.
-export type CaptureTypeKey = "memory" | "list" | "vault" | "someday";
+export type CaptureTypeKey = "memory" | "list" | "vault" | "reminder";
 
 interface CaptureTypePillProps {
   captureType: CaptureTypeKey;
-  somedayEnabled: boolean;
   onPick: (id: CaptureTypeKey) => void;
 }
 
@@ -957,17 +905,17 @@ const TYPE_LABELS: Record<CaptureTypeKey, string> = {
   memory: "Remember",
   list: "list",
   vault: "vault",
-  someday: "someday",
+  reminder: "reminder",
 };
 
-function CaptureTypePill({ captureType, somedayEnabled, onPick }: CaptureTypePillProps) {
-  const allOptions: { id: CaptureTypeKey; hint?: string; disabled?: boolean }[] = [
+function CaptureTypePill({ captureType, onPick }: CaptureTypePillProps) {
+  const allOptions: { id: CaptureTypeKey; hint?: string }[] = [
     { id: "memory", hint: "AI sorts" },
     { id: "list" },
     { id: "vault" },
-    { id: "someday", disabled: !somedayEnabled, hint: somedayEnabled ? undefined : "off" },
+    { id: "reminder" },
   ];
-  const accent = captureType === "vault" || captureType === "someday";
+  const accent = captureType === "vault" || captureType === "reminder";
   return (
     <InlineDropdownPill
       triggerLabel="Capture to"
@@ -978,7 +926,6 @@ function CaptureTypePill({ captureType, somedayEnabled, onPick }: CaptureTypePil
         id: o.id,
         label: TYPE_LABELS[o.id],
         hint: o.hint,
-        disabled: o.disabled,
       }))}
       selectedId={captureType}
       onPick={(id) => onPick(id as CaptureTypeKey)}
