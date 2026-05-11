@@ -244,7 +244,10 @@ export default function MobileHome({
 
       <div
         style={{
-          flex: 1,
+          // Top zone: prompt + orb. flex 1 when idle so the orb sits in
+          // the middle; flex 0 when compact so messages below can claim
+          // the space without the orb staying centred mid-screen.
+          flex: compact ? 0 : 1,
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
@@ -253,7 +256,7 @@ export default function MobileHome({
           paddingTop: compact ? 28 : 0,
           minHeight: 0,
           transition:
-            "gap 520ms cubic-bezier(0.16, 1, 0.3, 1), padding-top 520ms cubic-bezier(0.16, 1, 0.3, 1)",
+            "flex 520ms cubic-bezier(0.16, 1, 0.3, 1), gap 520ms cubic-bezier(0.16, 1, 0.3, 1), padding-top 520ms cubic-bezier(0.16, 1, 0.3, 1)",
         }}
       >
         <div
@@ -483,60 +486,66 @@ export default function MobileHome({
             />
           </span>
         </button>
-
-        {isAsk && (
-          <div
-            style={{
-              width: "100%",
-              maxWidth: 560,
-              display: "flex",
-              flexDirection: "column",
-              gap: 12,
-              flex: compact ? 1 : 0,
-              minHeight: 0,
-              opacity: 1,
-              animation: "mh-ask-in 440ms cubic-bezier(0.16, 1, 0.3, 1)",
-            }}
-          >
-            {liveShow && (
-              <LiveBanner
-                status={liveSession.status}
-                error={liveSession.error}
-                userTranscript={liveSession.userTranscript}
-                assistantTranscript={liveSession.assistantTranscript}
-                lastEvent={liveSession.lastEvent}
-                chunksOut={liveSession.chunksOut}
-                chunksIn={liveSession.chunksIn}
-                closeCode={liveSession.closeCode}
-                closeReason={liveSession.closeReason}
-              />
-            )}
-            <PendingVoiceActionsBanner
-              pending={pendingActions.pending}
-              onAccept={pendingActions.accept}
-              onReject={pendingActions.reject}
-            />
-            <AskPanel
-              // Voice and chat are mutually exclusive in the visual stack:
-              // when a Live session is non-idle the LiveBanner above shows
-              // user/assistant transcripts, so hide the chat message list
-              // to stop the two surfaces overlapping. Input form stays
-              // visible so the user can type to stop voice and switch.
-              messages={liveShow ? [] : messages}
-              loading={chatLoading}
-              input={askInput}
-              onInputChange={setAskInput}
-              onSubmit={submitAsk}
-              onClear={clearHistory}
-              onFocus={() => setInputFocused(true)}
-              onBlur={() => setInputFocused(false)}
-              messagesEndRef={messagesEndRef}
-              brainReady={!!brainId}
-              expanded={compact}
-            />
-          </div>
-        )}
       </div>
+
+      {/* Bottom zone: voice/chat surfaces. Lives OUTSIDE the centered top
+          zone so the form always anchors to the viewport bottom, regardless
+          of whether the orb is centred (idle) or shrunk (compact). When
+          compact, this zone claims flex:1 so messages + banners fill the
+          space between the orb and the form. */}
+      {isAsk && (
+        <div
+          style={{
+            width: "100%",
+            maxWidth: 560,
+            margin: "0 auto",
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+            flex: compact ? 1 : 0,
+            minHeight: 0,
+            opacity: 1,
+            animation: "mh-ask-in 440ms cubic-bezier(0.16, 1, 0.3, 1)",
+          }}
+        >
+          {liveShow && (
+            <LiveBanner
+              status={liveSession.status}
+              error={liveSession.error}
+              userTranscript={liveSession.userTranscript}
+              assistantTranscript={liveSession.assistantTranscript}
+              lastEvent={liveSession.lastEvent}
+              chunksOut={liveSession.chunksOut}
+              chunksIn={liveSession.chunksIn}
+              closeCode={liveSession.closeCode}
+              closeReason={liveSession.closeReason}
+            />
+          )}
+          <PendingVoiceActionsBanner
+            pending={pendingActions.pending}
+            onAccept={pendingActions.accept}
+            onReject={pendingActions.reject}
+          />
+          <AskPanel
+            // Voice and chat are mutually exclusive in the visual stack:
+            // when a Live session is non-idle the LiveBanner above shows
+            // user/assistant transcripts, so hide the chat message list
+            // to stop the two surfaces overlapping. Input form stays
+            // visible so the user can type to stop voice and switch.
+            messages={liveShow ? [] : messages}
+            loading={chatLoading}
+            input={askInput}
+            onInputChange={setAskInput}
+            onSubmit={submitAsk}
+            onClear={clearHistory}
+            onFocus={() => setInputFocused(true)}
+            onBlur={() => setInputFocused(false)}
+            messagesEndRef={messagesEndRef}
+            brainReady={!!brainId}
+            expanded={compact}
+          />
+        </div>
+      )}
     </div>
   );
 }
