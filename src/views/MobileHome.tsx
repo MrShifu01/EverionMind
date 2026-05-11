@@ -271,11 +271,14 @@ export default function MobileHome({
       style={{
         // var(--vvh) is set by the visualViewport effect above — it shrinks
         // when the soft keyboard opens. Falls back to dvh for environments
-        // that don't expose visualViewport (older browsers, tests).
+        // that don't expose visualViewport (older browsers, tests). The
+        // min-height transition eases the form upward when the keyboard
+        // opens instead of snapping.
         minHeight: "calc(var(--vvh, 100dvh) - var(--app-header-h, 56px))",
         display: "flex",
         flexDirection: "column",
         padding: "16px 16px calc(16px + env(safe-area-inset-bottom, 0px))",
+        transition: "min-height 240ms cubic-bezier(0.16, 1, 0.3, 1)",
       }}
     >
       <style>{`
@@ -286,6 +289,17 @@ export default function MobileHome({
         @keyframes mh-clear-in {
           from { opacity: 0; transform: translateY(-4px); }
           to   { opacity: 1; transform: translateY(0); }
+        }
+        /* Banners + message bubbles ease in instead of popping. Subtle —
+           220ms fade + 6-8px slide is enough to read as "appeared" not
+           "snapped in". */
+        @keyframes mh-banner-in {
+          from { opacity: 0; transform: translateY(-6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes mh-bubble-in {
+          from { opacity: 0; transform: translateY(8px) scale(0.98); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
         }
       `}</style>
 
@@ -574,25 +588,33 @@ export default function MobileHome({
         </div>
 
         {/* Voice surfaces — both hide themselves when their content is
-            empty so they don't reserve space in idle Ask. */}
+            empty so they don't reserve space in idle Ask. Each wrapped in
+            a span with mh-banner-in so they fade + slide instead of
+            popping when they appear. */}
         {liveShow && (
-          <LiveBanner
-            status={liveSession.status}
-            error={liveSession.error}
-            userTranscript={liveSession.userTranscript}
-            assistantTranscript={liveSession.assistantTranscript}
-            lastEvent={liveSession.lastEvent}
-            chunksOut={liveSession.chunksOut}
-            chunksIn={liveSession.chunksIn}
-            closeCode={liveSession.closeCode}
-            closeReason={liveSession.closeReason}
-          />
+          <div style={{ width: "100%", animation: "mh-banner-in 260ms ease-out" }}>
+            <LiveBanner
+              status={liveSession.status}
+              error={liveSession.error}
+              userTranscript={liveSession.userTranscript}
+              assistantTranscript={liveSession.assistantTranscript}
+              lastEvent={liveSession.lastEvent}
+              chunksOut={liveSession.chunksOut}
+              chunksIn={liveSession.chunksIn}
+              closeCode={liveSession.closeCode}
+              closeReason={liveSession.closeReason}
+            />
+          </div>
         )}
-        <PendingVoiceActionsBanner
-          pending={pendingActions.pending}
-          onAccept={pendingActions.accept}
-          onReject={pendingActions.reject}
-        />
+        {pendingActions.pending.length > 0 && (
+          <div style={{ width: "100%", animation: "mh-banner-in 260ms ease-out" }}>
+            <PendingVoiceActionsBanner
+              pending={pendingActions.pending}
+              onAccept={pendingActions.accept}
+              onReject={pendingActions.reject}
+            />
+          </div>
+        )}
 
         {/* Chat panel — sits between orb-group and... wait, form is INSIDE
             AskPanel. So the chat messages + form live here. The messages
@@ -601,24 +623,31 @@ export default function MobileHome({
             askGroup; the askGroup itself grows downward as messages
             arrive, and the top spacer above naturally shrinks. */}
         {isAsk && (
-          <AskPanel
-            // Voice and chat are mutually exclusive in the visual stack:
-            // when a Live session is non-idle the LiveBanner above shows
-            // user/assistant transcripts, so hide the chat message list
-            // to stop the two surfaces overlapping. Input form stays
-            // visible so the user can type to stop voice and switch.
-            messages={liveShow ? [] : messages}
-            loading={chatLoading}
-            input={askInput}
-            onInputChange={setAskInput}
-            onSubmit={submitAsk}
-            onClear={clearHistory}
-            onFocus={() => setInputFocused(true)}
-            onBlur={() => setInputFocused(false)}
-            messagesEndRef={messagesEndRef}
-            brainReady={!!brainId}
-            expanded={hasChat}
-          />
+          <div
+            style={{
+              width: "100%",
+              animation: "mh-ask-in 360ms cubic-bezier(0.16, 1, 0.3, 1)",
+            }}
+          >
+            <AskPanel
+              // Voice and chat are mutually exclusive in the visual stack:
+              // when a Live session is non-idle the LiveBanner above shows
+              // user/assistant transcripts, so hide the chat message list
+              // to stop the two surfaces overlapping. Input form stays
+              // visible so the user can type to stop voice and switch.
+              messages={liveShow ? [] : messages}
+              loading={chatLoading}
+              input={askInput}
+              onInputChange={setAskInput}
+              onSubmit={submitAsk}
+              onClear={clearHistory}
+              onFocus={() => setInputFocused(true)}
+              onBlur={() => setInputFocused(false)}
+              messagesEndRef={messagesEndRef}
+              brainReady={!!brainId}
+              expanded={hasChat}
+            />
+          </div>
         )}
       </div>
     </div>
@@ -1056,6 +1085,11 @@ function AskPanel({
               lineHeight: 1.5,
               whiteSpace: "pre-wrap",
               wordBreak: "break-word",
+              // Each new bubble eases in. Reused-key bubbles (i.e. ones
+              // already mounted) won't re-run the animation because
+              // React keeps the DOM node; new ones get the keyframe on
+              // first paint.
+              animation: "mh-bubble-in 280ms cubic-bezier(0.16, 1, 0.3, 1)",
             }}
           >
             {m.content}
@@ -1072,6 +1106,7 @@ function AskPanel({
               fontSize: 14,
               color: "var(--ink-faint)",
               fontStyle: "italic",
+              animation: "mh-bubble-in 280ms cubic-bezier(0.16, 1, 0.3, 1)",
             }}
           >
             thinking…
