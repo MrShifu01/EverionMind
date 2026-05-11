@@ -212,12 +212,34 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
         setLastEvent(e instanceof Error ? `ctx resume failed: ${e.message}` : "ctx resume failed");
       }
 
-      const url = `${cfg.wsUrl}?access_token=${encodeURIComponent(cfg.token)}`;
-      const ws = new WebSocket(url);
+      // Token format is `auth_tokens/AUTHTOKEN_…` — the `/` must stay
+      // literal in the query string per the official SDK behaviour
+      // (see @google/genai BidiGenerateContentConstrained URL build).
+      // URL-encoding it gets the handshake silently rejected by Google
+      // and the iOS Safari WebSocket never fires onopen or onclose.
+      const url = `${cfg.wsUrl}?access_token=${cfg.token}`;
+      let ws: WebSocket;
+      try {
+        ws = new WebSocket(url);
+      } catch (e) {
+        setError(e instanceof Error ? `ws_ctor:${e.message}` : "ws_ctor_failed");
+        setStatus("error");
+        return;
+      }
       wsRef.current = ws;
-      setLastEvent("ws opening…");
+      setLastEvent(`ws opening… rs=${ws.readyState}`);
+      // Connection watchdog — if the socket is still CONNECTING after 8s,
+      // surface that on screen so the user can report it. Without this iOS
+      // Safari can hang silently on a rejected handshake.
+      const wsWatchdog = window.setTimeout(() => {
+        if (ws.readyState === WebSocket.CONNECTING && !stoppedRef.current) {
+          setLastEvent(`ws stuck CONNECTING after 8s (rs=${ws.readyState})`);
+        }
+      }, 8000);
+      const clearWsWatchdog = () => window.clearTimeout(wsWatchdog);
 
       ws.onopen = () => {
+        clearWsWatchdog();
         setLastEvent("ws open, sending setup");
         ws.send(
           JSON.stringify({
@@ -248,6 +270,7 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
       };
 
       ws.onclose = (ev) => {
+        clearWsWatchdog();
         setCloseCode(ev.code);
         setCloseReason(ev.reason || "");
         setLastEvent(`ws closed code=${ev.code}${ev.reason ? ` reason="${ev.reason}"` : ""}`);
