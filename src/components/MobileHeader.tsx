@@ -13,6 +13,7 @@ interface MobileHeaderProps {
   isOnline: boolean;
   pendingCount: number;
   onSearch?: () => void;
+  onOpenMenu?: () => void;
   onNavigate?: (id: string) => void;
   children?: ReactNode;
   notifications?: AppNotification[];
@@ -29,6 +30,7 @@ export default function MobileHeader({
   isOnline: _isOnline,
   pendingCount: _pendingCount,
   onSearch,
+  onOpenMenu,
   onNavigate: _onNavigate,
   children,
   notifications = [],
@@ -134,6 +136,29 @@ export default function MobileHeader({
               </TooltipTrigger>
               <TooltipContent>Search</TooltipContent>
             </Tooltip>
+          )}
+          {onOpenMenu && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={onOpenMenu}
+              aria-label="Menu"
+              style={{ color: "var(--ink-soft)" }}
+            >
+              <svg
+                width="20"
+                height="20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path d="M4 7h16M4 12h16M4 17h16" />
+              </svg>
+            </Button>
           )}
         </div>
       </header>

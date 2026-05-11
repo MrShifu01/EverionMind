@@ -21,12 +21,6 @@ async function nukeAndReload() {
 }
 
 export default function LoadingScreen(): JSX.Element {
-  // Escape hatch — when LoadingScreen sits visible past STUCK_AFTER_MS the
-  // boot is wedged (lazy-chunk hang, frozen auth-js, stuck SW cache). Show
-  // a tap-to-reload affordance so the user isn't forced to force-quit. The
-  // tap clears the SW + caches, then bypasses any cached HTML via a cache-
-  // busting query param. If the boot was about to recover on its own, the
-  // user just sees the prompt for a frame and ignores it.
   const [stuck, setStuck] = useState(false);
   useEffect(() => {
     const t = setTimeout(() => setStuck(true), STUCK_AFTER_MS);
@@ -35,111 +29,134 @@ export default function LoadingScreen(): JSX.Element {
 
   return (
     <div
-      className="fixed inset-0 flex flex-col items-center justify-center"
       style={{
+        position: "fixed",
+        inset: 0,
         background: "var(--bg, var(--color-background))",
-        bottom: "calc(-1 * env(safe-area-inset-bottom, 0px))",
-        minHeight: "calc(100dvh + env(safe-area-inset-bottom, 0px))",
-        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        display: "flex",
+        flexDirection: "column",
+        paddingTop: "calc(56px + env(safe-area-inset-top, 0px))",
+        paddingBottom: "calc(48px + env(safe-area-inset-bottom, 0px))",
         zIndex: "var(--z-loading)",
       }}
     >
-      <div className="synapse-bg" />
-      <div className="grain" />
-
       <div
         style={{
-          position: "relative",
-          zIndex: 1,
+          flex: 1,
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          gap: 32,
+          justifyContent: "center",
+          gap: 28,
+          padding: "0 24px",
         }}
       >
-        {/* Orbital brain orb */}
-        <div style={{ position: "relative", width: 104, height: 104 }}>
-          <div
+        <div
+          className="f-serif"
+          style={{
+            fontSize: 16,
+            fontStyle: "italic",
+            color: "var(--ink-soft)",
+            letterSpacing: "-0.005em",
+            textAlign: "center",
+            minHeight: 24,
+          }}
+        >
+          Everion Mind
+        </div>
+
+        <div
+          aria-hidden="true"
+          style={{
+            position: "relative",
+            width: 168,
+            height: 168,
+          }}
+        >
+          <span
             style={{
               position: "absolute",
-              inset: -10,
-              background:
-                "radial-gradient(circle, color-mix(in oklch, var(--color-primary) 22%, transparent), color-mix(in oklch, var(--color-tertiary) 18%, transparent), transparent 70%)",
-              filter: "blur(16px)",
+              inset: -16,
               borderRadius: "50%",
-              animation: "hero-glow 3s ease-in-out infinite",
+              background:
+                "radial-gradient(circle, color-mix(in oklch, var(--ember) 24%, transparent), color-mix(in oklch, var(--ember) 14%, transparent), transparent 70%)",
+              filter: "blur(20px)",
+              opacity: 0.55,
             }}
           />
-          <div
+          <span
             style={{
               position: "absolute",
               inset: 0,
               borderRadius: "50%",
-              border: "1px solid color-mix(in oklch, var(--color-primary) 25%, transparent)",
-              animation: "ring-pulse 2.6s ease-in-out infinite",
+              border: "1px solid color-mix(in oklch, var(--ember) 35%, transparent)",
             }}
           />
-          <div
+          <span
             style={{
               position: "absolute",
-              inset: -12,
+              inset: -14,
               borderRadius: "50%",
-              border: "1px dashed color-mix(in oklch, var(--color-tertiary) 20%, transparent)",
-              animation: "orbital-spin 18s linear infinite",
+              border: "1px dashed color-mix(in oklch, var(--ember) 22%, transparent)",
+              opacity: 0.4,
             }}
           />
-          <div
-            className="glass-panel"
+          <span
             style={{
-              position: "relative",
-              width: 104,
-              height: 104,
+              position: "absolute",
+              inset: 0,
               borderRadius: "50%",
+              background: "var(--surface-high)",
+              border: "1px solid color-mix(in oklch, var(--ember) 30%, transparent)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              border: "1px solid color-mix(in oklch, var(--color-primary) 20%, transparent)",
+              boxShadow: "var(--lift-2)",
             }}
           >
-            <img
-              src="/logoNew.webp"
-              width={104 * 0.78}
-              height={104 * 0.78}
-              alt=""
-              aria-hidden="true"
-              decoding="async"
-              style={{ objectFit: "contain", display: "block" }}
-            />
-          </div>
+            <svg
+              width="44"
+              height="44"
+              fill="none"
+              stroke="var(--ember)"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              viewBox="0 0 24 24"
+            >
+              <rect x="9" y="3" width="6" height="12" rx="3" />
+              <path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8" />
+            </svg>
+          </span>
         </div>
 
-        {/* Brand */}
-        <h1
-          className="font-headline gradient-text glow-text"
-          style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.04em" }}
-        >
-          Everion Mind
-        </h1>
-
-        {/* Loading bar */}
         <div
           style={{
-            height: 1,
-            width: 112,
-            overflow: "hidden",
-            borderRadius: 999,
-            background: "var(--color-outline-variant)",
+            minHeight: 34,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
           <div
             style={{
-              height: "100%",
-              width: "50%",
+              height: 1,
+              width: 112,
+              overflow: "hidden",
               borderRadius: 999,
-              background: "var(--color-primary)",
-              animation: "loading-sweep 1.4s cubic-bezier(0.16, 1, 0.3, 1) infinite",
+              background: "var(--color-outline-variant, var(--line-soft))",
             }}
-          />
+          >
+            <div
+              style={{
+                height: "100%",
+                width: "50%",
+                borderRadius: 999,
+                background: "var(--ember)",
+                animation: "loading-sweep 1.4s cubic-bezier(0.16, 1, 0.3, 1) infinite",
+              }}
+            />
+          </div>
         </div>
 
         {stuck && (
@@ -149,7 +166,7 @@ export default function LoadingScreen(): JSX.Element {
               flexDirection: "column",
               alignItems: "center",
               gap: 12,
-              marginTop: 8,
+              marginTop: 4,
             }}
           >
             <p
@@ -173,8 +190,8 @@ export default function LoadingScreen(): JSX.Element {
                 height: 36,
                 padding: "0 20px",
                 borderRadius: 999,
-                background: "var(--color-primary)",
-                color: "var(--color-on-primary)",
+                background: "var(--ember)",
+                color: "var(--ember-ink)",
                 fontSize: 13,
                 fontWeight: 600,
                 border: "none",
