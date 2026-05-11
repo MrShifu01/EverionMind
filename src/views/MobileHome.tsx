@@ -327,167 +327,183 @@ export default function MobileHome({
           minHeight: 0,
         }}
       >
-        <button
-          type="button"
-          aria-label={
-            listening
-              ? "Recording — release to send"
-              : isAsk
-                ? geminiLiveOn
-                  ? liveActive || liveSession.status === "connecting"
-                    ? "Tap to end voice conversation"
-                    : "Tap to start voice conversation"
-                  : "Hold to ask by voice"
-                : "Tap to capture, hold to record"
-          }
-          onPointerDown={onPointerDown}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerCancel}
-          onContextMenu={(e) => e.preventDefault()}
-          data-listening={listening ? "true" : "false"}
-          data-pressed={pressed ? "true" : "false"}
-          data-mode={mode}
+        {/* Persistent orb — the layoutId match with LoadingScreen's orb
+            makes framer interpolate the orb's position + size from the
+            splash location into this bottom-anchored slot on the boot
+            handoff. The button keeps its own press transform + connect
+            animations inside the wrapper so layout reconciliation doesn't
+            fight per-interaction motion. */}
+        <motion.div
+          layoutId="brain-orb"
           style={{
-            position: "relative",
             width: orbSize,
             height: orbSize,
-            padding: 0,
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            touchAction: "none",
-            WebkitTapHighlightColor: "transparent",
-            WebkitTouchCallout: "none",
-            userSelect: "none",
-            WebkitUserSelect: "none",
-            transition:
-              "width 620ms cubic-bezier(0.16, 1, 0.3, 1), height 620ms cubic-bezier(0.16, 1, 0.3, 1), transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1)",
-            transform: pressed ? "translateY(2px) scale(0.94)" : "translateY(0) scale(1)",
-            // Connecting: bouncing orb (gravity feel) until the WebSocket
-            // setupComplete arrives. Timed-out: orb deflates flat. Both
-            // animations are forwards-fill so the final frame holds until
-            // status changes.
-            animation: connectTimedOut
-              ? "orb-deflate 700ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards"
-              : isConnecting
-                ? "orb-connect-bounce 2.2s ease-in-out infinite"
-                : "none",
             flexShrink: 0,
           }}
+          transition={{
+            layout: { type: "spring", mass: 0.7, stiffness: 180, damping: 22 },
+          }}
         >
-          <span
-            aria-hidden="true"
+          <button
+            type="button"
+            aria-label={
+              listening
+                ? "Recording — release to send"
+                : isAsk
+                  ? geminiLiveOn
+                    ? liveActive || liveSession.status === "connecting"
+                      ? "Tap to end voice conversation"
+                      : "Tap to start voice conversation"
+                    : "Hold to ask by voice"
+                  : "Tap to capture, hold to record"
+            }
+            onPointerDown={onPointerDown}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerCancel}
+            onContextMenu={(e) => e.preventDefault()}
+            data-listening={listening ? "true" : "false"}
+            data-pressed={pressed ? "true" : "false"}
+            data-mode={mode}
             style={{
-              position: "absolute",
-              inset: -16,
-              borderRadius: "50%",
-              background:
-                "radial-gradient(circle, color-mix(in oklch, var(--ember) 24%, transparent), color-mix(in oklch, var(--ember) 14%, transparent), transparent 70%)",
-              filter: "blur(20px)",
-              opacity: animating ? 1 : 0.55,
-              transition: "opacity 240ms ease",
-              animation: isSpeaking
-                ? "orb-speak-glow 0.9s ease-in-out infinite"
-                : animating
-                  ? "hero-glow 1.6s ease-in-out infinite"
+              position: "relative",
+              width: "100%",
+              height: "100%",
+              padding: 0,
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              touchAction: "none",
+              WebkitTapHighlightColor: "transparent",
+              WebkitTouchCallout: "none",
+              userSelect: "none",
+              WebkitUserSelect: "none",
+              transition: "transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+              transform: pressed ? "translateY(2px) scale(0.94)" : "translateY(0) scale(1)",
+              // Connecting: bouncing orb (gravity feel) until the WebSocket
+              // setupComplete arrives. Timed-out: orb deflates flat. Both
+              // animations are forwards-fill so the final frame holds until
+              // status changes.
+              animation: connectTimedOut
+                ? "orb-deflate 700ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards"
+                : isConnecting
+                  ? "orb-connect-bounce 2.2s ease-in-out infinite"
                   : "none",
-            }}
-          />
-          <span
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              inset: 0,
-              borderRadius: "50%",
-              border: "1px solid color-mix(in oklch, var(--ember) 35%, transparent)",
-              animation: isSpeaking
-                ? "ring-pulse 0.6s ease-in-out infinite"
-                : animating
-                  ? "ring-pulse 1.4s ease-in-out infinite"
-                  : "none",
-            }}
-          />
-          <span
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              inset: -14,
-              borderRadius: "50%",
-              border: "1px dashed color-mix(in oklch, var(--ember) 22%, transparent)",
-              animation: animating ? "orbital-spin 8s linear infinite" : "none",
-              opacity: animating ? 1 : 0.4,
-              transition: "opacity 240ms ease",
-            }}
-          />
-          {/* Speaking-only: two emanating waves, staggered by 750ms so a
-              ring is always travelling outward while the model talks. */}
-          {isSpeaking && (
-            <>
-              <span
-                aria-hidden="true"
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  borderRadius: "50%",
-                  border: "1.5px solid color-mix(in oklch, var(--ember) 55%, transparent)",
-                  animation: "orb-speak-wave 1.5s ease-out infinite",
-                  pointerEvents: "none",
-                }}
-              />
-              <span
-                aria-hidden="true"
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  borderRadius: "50%",
-                  border: "1.5px solid color-mix(in oklch, var(--ember) 45%, transparent)",
-                  animation: "orb-speak-wave 1.5s ease-out infinite",
-                  animationDelay: "750ms",
-                  pointerEvents: "none",
-                }}
-              />
-            </>
-          )}
-          <span
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              inset: 0,
-              borderRadius: "50%",
-              background: "var(--surface-high)",
-              border: "1px solid color-mix(in oklch, var(--ember) 30%, transparent)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: pressed ? "var(--lift-1)" : "var(--lift-2)",
-              transition: "box-shadow 140ms ease",
-              overflow: "hidden",
             }}
           >
-            <img
-              src="/logoNew.webp"
-              width={logoSize}
-              height={logoSize}
-              alt=""
+            <span
               aria-hidden="true"
-              decoding="async"
-              draggable={false}
-              style={
-                {
-                  objectFit: "contain",
-                  display: "block",
-                  pointerEvents: "none",
-                  userSelect: "none",
-                  WebkitUserSelect: "none",
-                  WebkitTouchCallout: "none",
-                  WebkitUserDrag: "none",
-                  transition:
-                    "width 620ms cubic-bezier(0.16, 1, 0.3, 1), height 620ms cubic-bezier(0.16, 1, 0.3, 1)",
-                } as React.CSSProperties
-              }
+              style={{
+                position: "absolute",
+                inset: -16,
+                borderRadius: "50%",
+                background:
+                  "radial-gradient(circle, color-mix(in oklch, var(--ember) 24%, transparent), color-mix(in oklch, var(--ember) 14%, transparent), transparent 70%)",
+                filter: "blur(20px)",
+                opacity: animating ? 1 : 0.55,
+                transition: "opacity 240ms ease",
+                animation: isSpeaking
+                  ? "orb-speak-glow 0.9s ease-in-out infinite"
+                  : animating
+                    ? "hero-glow 1.6s ease-in-out infinite"
+                    : "none",
+              }}
             />
-          </span>
-        </button>
+            <span
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                inset: 0,
+                borderRadius: "50%",
+                border: "1px solid color-mix(in oklch, var(--ember) 35%, transparent)",
+                animation: isSpeaking
+                  ? "ring-pulse 0.6s ease-in-out infinite"
+                  : animating
+                    ? "ring-pulse 1.4s ease-in-out infinite"
+                    : "none",
+              }}
+            />
+            <span
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                inset: -14,
+                borderRadius: "50%",
+                border: "1px dashed color-mix(in oklch, var(--ember) 22%, transparent)",
+                animation: animating ? "orbital-spin 8s linear infinite" : "none",
+                opacity: animating ? 1 : 0.4,
+                transition: "opacity 240ms ease",
+              }}
+            />
+            {/* Speaking-only: two emanating waves, staggered by 750ms so a
+              ring is always travelling outward while the model talks. */}
+            {isSpeaking && (
+              <>
+                <span
+                  aria-hidden="true"
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    borderRadius: "50%",
+                    border: "1.5px solid color-mix(in oklch, var(--ember) 55%, transparent)",
+                    animation: "orb-speak-wave 1.5s ease-out infinite",
+                    pointerEvents: "none",
+                  }}
+                />
+                <span
+                  aria-hidden="true"
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    borderRadius: "50%",
+                    border: "1.5px solid color-mix(in oklch, var(--ember) 45%, transparent)",
+                    animation: "orb-speak-wave 1.5s ease-out infinite",
+                    animationDelay: "750ms",
+                    pointerEvents: "none",
+                  }}
+                />
+              </>
+            )}
+            <span
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                inset: 0,
+                borderRadius: "50%",
+                background: "var(--surface-high)",
+                border: "1px solid color-mix(in oklch, var(--ember) 30%, transparent)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: pressed ? "var(--lift-1)" : "var(--lift-2)",
+                transition: "box-shadow 140ms ease",
+                overflow: "hidden",
+              }}
+            >
+              <img
+                src="/logoNew.webp"
+                width={logoSize}
+                height={logoSize}
+                alt=""
+                aria-hidden="true"
+                decoding="async"
+                draggable={false}
+                style={
+                  {
+                    objectFit: "contain",
+                    display: "block",
+                    pointerEvents: "none",
+                    userSelect: "none",
+                    WebkitUserSelect: "none",
+                    WebkitTouchCallout: "none",
+                    WebkitUserDrag: "none",
+                    transition:
+                      "width 620ms cubic-bezier(0.16, 1, 0.3, 1), height 620ms cubic-bezier(0.16, 1, 0.3, 1)",
+                  } as React.CSSProperties
+                }
+              />
+            </span>
+          </button>
+        </motion.div>
 
         {/* Connecting progress bar — slim ember bar that fills 0→100% over
             5s with ease-out, so it feels fast at first then slows ("almost

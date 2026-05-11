@@ -1,5 +1,6 @@
 import { StrictMode, lazy, Suspense, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { LayoutGroup } from "framer-motion";
 // Vercel telemetry — lazy-imported so it never lands in the first-paint
 // bundle for declined-cookie users (saves ~15 KB gzipped on cold load).
 const SpeedInsights = lazy(() =>
@@ -280,7 +281,14 @@ createRoot(document.getElementById("root")!).render(
     <ErrorBoundary>
       <DesignThemeProvider>
         <ThemeProvider>
-          <Root />
+          {/* LayoutGroup spans the entire boot tree so framer-motion can
+              interpolate elements with the same layoutId across Suspense
+              boundaries — e.g. the persistent orb that travels from the
+              LoadingScreen position into MobileHome's bottom-anchored
+              orb-button position on first paint. */}
+          <LayoutGroup>
+            <Root />
+          </LayoutGroup>
           {/* TEMP diagnostic — gated by localStorage flag. Remove once
               the focus-shoots-above-screen bug is fixed and verified. */}
           <LayoutDiagOverlay />
