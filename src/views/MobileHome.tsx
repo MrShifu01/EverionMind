@@ -296,39 +296,6 @@ export default function MobileHome({
     };
   }, []);
 
-  // ── DIAGNOSTIC HUD (bottom-left, above keyboard) ────────────────
-  const [diag, setDiag] = useState<Record<string, string>>({});
-  useEffect(() => {
-    let raf = 0;
-    const tick = () => {
-      const vv = window.visualViewport;
-      const root = document.documentElement;
-      const main = document.getElementById("main-content");
-      const bronze = document.querySelector(".bronze-screen") as HTMLElement | null;
-      const askInput = document.getElementById("ink-ask") as HTMLInputElement | null;
-      const form = askInput?.closest("form") as HTMLElement | null;
-      setDiag({
-        iH: String(window.innerHeight),
-        vvH: vv ? String(Math.round(vv.height)) : "—",
-        vvT: vv ? String(Math.round(vv.offsetTop)) : "—",
-        vvh: root.style.getPropertyValue("--vvh") || "—",
-        winY: String(Math.round(window.scrollY)),
-        docT: String(Math.round(document.scrollingElement?.scrollTop ?? 0)),
-        mT: main ? String(Math.round(main.scrollTop)) : "—",
-        mOv: main ? getComputedStyle(main).overflow : "—",
-        bH: bronze ? String(Math.round(bronze.getBoundingClientRect().height)) : "—",
-        bT: bronze ? String(Math.round(bronze.getBoundingClientRect().top)) : "—",
-        fT: form ? String(Math.round(form.getBoundingClientRect().top)) : "—",
-        fB: form ? String(Math.round(form.getBoundingClientRect().bottom)) : "—",
-        foc: document.activeElement?.id || document.activeElement?.tagName || "—",
-      });
-      raf = window.requestAnimationFrame(tick);
-    };
-    raf = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(raf);
-  }, []);
-  // ────────────────────────────────────────────────────────────────
-
   // When the Ask input is focused, hide the headline + inkwell stage.
   // Diagnostic confirmed bronze-screen shrinks to vvh (797→443) correctly
   // — but the 220×220 orb overflows the ~90px of remaining flex space and
@@ -399,33 +366,17 @@ export default function MobileHome({
         // env(safe-area-inset-top) so the inkwell header lands BELOW the
         // status bar instead of underneath it. The hidden global MobileHeader
         // used to handle this via .safe-top.
-        padding: `calc(8px + env(safe-area-inset-top, 0px)) 16px 0`,
+        //
+        // Bottom: Ask mode anchors its form via position:absolute so we
+        // zero the padding-bottom (form handles its own home-indicator
+        // clearance). Add mode keeps the VoiceModePill in flex flow, so
+        // we reserve env(safe-area-inset-bottom) here to push it above
+        // the iOS home indicator.
+        padding: `calc(8px + env(safe-area-inset-top, 0px)) 16px ${isAsk ? "0px" : "env(safe-area-inset-bottom, 0px)"}`,
         position: "relative",
         background: "var(--bg)",
       }}
     >
-      {/* HUD — pinned to bronze-screen's top-left, scaled to be readable.
-          bronze-screen tracks vvh, so this stays above the keyboard. */}
-      <div
-        style={{
-          position: "absolute",
-          top: 6,
-          left: 6,
-          zIndex: 9999,
-          padding: "4px 6px",
-          background: "rgba(0,0,0,0.85)",
-          color: "#ffd86b",
-          fontFamily: "ui-monospace, monospace",
-          fontSize: 9,
-          lineHeight: 1.3,
-          borderRadius: 6,
-          pointerEvents: "none",
-          whiteSpace: "pre",
-        }}
-      >
-        {`iH${diag.iH} vvH${diag.vvH} vvT${diag.vvT}\n--vvh${diag.vvh} winY${diag.winY} docT${diag.docT}\nmT${diag.mT} mOv${diag.mOv}\nbT${diag.bT} bH${diag.bH}\nformT${diag.fT} formB${diag.fB}\nfoc:${diag.foc}`}
-      </div>
-
       <div
         style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 4, flexShrink: 0 }}
       >
