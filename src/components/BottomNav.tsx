@@ -64,12 +64,11 @@ function BottomNavInner({
         justifyContent: "space-around",
         background: "var(--surface-low)",
         borderTop: "1px solid var(--line-soft)",
-        // Structural fix (not paint): nav is 56px flush at the screen
-        // edge. No env(safe-area-inset-bottom) padding pushing it up.
-        // iOS overlays its home-indicator pill over the icon row — the
-        // user prefers that to a visible strip below the nav.
-        paddingBottom: 0,
-        height: 56,
+        // --edge-bottom-pad = 0 in PWA standalone (flush at screen edge,
+        // iOS home indicator overlays), env(safe-area-inset-bottom) in a
+        // browser tab (clears the URL/address bar). Defined in index.css.
+        paddingBottom: "var(--edge-bottom-pad, 0px)",
+        height: "calc(56px + var(--edge-bottom-pad, 0px))",
       }}
     >
       {navItems.map((item) => {

@@ -852,6 +852,21 @@ body:has(.app-shell-fixed) {
   overflow: hidden;
 }
 
+/* PWA standalone: no browser chrome below, so the BottomNav + Ask form
+   sit flush at the visible viewport edge (iOS home indicator overlays).
+   Browser tab: leave env(safe-area-inset-bottom) of room so we don't
+   render behind the iOS Safari URL bar / Chrome address bar. The
+   .bottom-nav-mobile and .inkwell-ask-form classes both opt into this
+   pattern via CSS variable --edge-bottom-pad. */
+:root {
+  --edge-bottom-pad: env(safe-area-inset-bottom, 0px);
+}
+@media all and (display-mode: standalone) {
+  :root {
+    --edge-bottom-pad: 0px;
+  }
+}
+
 /* Register --app-header-h as a typed custom property so secondary sticky
    bars (MemoryHeader filter row, SettingsView tabs nav) can use it as
    their `top:` offset and sit flush under the global header. Initial
