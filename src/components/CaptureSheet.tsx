@@ -7,6 +7,7 @@ import CapturePreviewPanel, { type PreviewState } from "./CapturePreviewPanel";
 import CaptureSecretPanel, { type SecretForm } from "./CaptureSecretPanel";
 import CaptureEntryBody from "./CaptureEntryBody";
 import CaptureListBody from "./CaptureListBody";
+import CaptureArticleBody from "./CaptureArticleBody";
 import { Button } from "./ui/button";
 import { isFeatureEnabled } from "../lib/featureFlags";
 import { useAdminDevMode } from "../hooks/useAdminDevMode";
@@ -45,11 +46,13 @@ export default function CaptureSheet({
   onNavigate,
 }: CaptureSheetProps) {
   const [text, setText] = useState("");
-  const [activeTab, setActiveTab] = useState<"entry" | "secret" | "list">("entry");
+  const [activeTab, setActiveTab] = useState<"entry" | "secret" | "list" | "article">("entry");
   const [reminderActive, setReminderActive] = useState(false);
   const [secretForm, setSecretForm] = useState<SecretForm>({ title: "", content: "" });
   const [secretSaving, setSecretSaving] = useState(false);
   const [secretError, setSecretError] = useState("");
+  const [articleUrl, setArticleUrl] = useState("");
+  const [articleBody, setArticleBody] = useState("");
 
   const brainCtx = useBrainCtx(); // keep context subscription warm + give pill access
   const { adminFlags } = useAdminDevMode();
@@ -142,6 +145,8 @@ export default function CaptureSheet({
       setReminderActive(false);
       setSecretForm({ title: "", content: "" });
       setSecretError("");
+      setArticleUrl("");
+      setArticleBody("");
       setCaptureBrain(null);
       resetState();
       setLoading(false);
@@ -216,7 +221,9 @@ export default function CaptureSheet({
       ? text.trim().length > 0 || uploadedFiles.length > 0
       : activeTab === "list"
         ? text.trim().length > 0
-        : secretForm.title.trim().length > 0 && secretForm.content.trim().length > 0;
+        : activeTab === "article"
+          ? articleBody.trim().length > 0
+          : secretForm.title.trim().length > 0 && secretForm.content.trim().length > 0;
 
   const handleSave = () => {
     if (activeTab !== "entry") return;
@@ -249,6 +256,24 @@ export default function CaptureSheet({
     setText("");
   };
 
+  const handleSaveArticle = () => {
+    const body = articleBody.trim();
+    if (!body) return;
+    const payload = buildArticlePayload(articleUrl.trim(), body);
+    doSave(
+      {
+        title: payload.title,
+        content: payload.content,
+        type: "article",
+        tags: [],
+        metadata: payload.metadata,
+      },
+      body,
+    );
+    setArticleUrl("");
+    setArticleBody("");
+  };
+
   const toggleVault = () => {
     if (activeTab === "entry") {
       if (!cryptoKey) {
@@ -267,9 +292,11 @@ export default function CaptureSheet({
       ? "vault"
       : activeTab === "list"
         ? "list"
-        : reminderActive
-          ? "reminder"
-          : "memory";
+        : activeTab === "article"
+          ? "article"
+          : reminderActive
+            ? "reminder"
+            : "memory";
 
   const handlePickType = (id: CaptureTypeKey) => {
     if (id === "vault") {
@@ -289,6 +316,11 @@ export default function CaptureSheet({
       if (reminderActive) setReminderActive(false);
       setActiveTab("list");
       requestAnimationFrame(() => textareaRef.current?.focus());
+      return;
+    }
+    if (id === "article") {
+      if (reminderActive) setReminderActive(false);
+      setActiveTab("article");
       return;
     }
     if (activeTab !== "entry") setActiveTab("entry");
@@ -511,6 +543,27 @@ export default function CaptureSheet({
                 }
                 typePill={<CaptureTypePill captureType={displayedType} onPick={handlePickType} />}
                 onSave={handleSaveList}
+              />
+            ) : activeTab === "article" ? (
+              <CaptureArticleBody
+                url={articleUrl}
+                onUrlChange={setArticleUrl}
+                body={articleBody}
+                onBodyChange={setArticleBody}
+                loading={loading}
+                canSave={canSave}
+                brainPill={
+                  showBrainPill && brainCtx.brains.length > 1 ? (
+                    <CaptureBrainPill
+                      brains={brainCtx.brains}
+                      activeBrain={brainCtx.activeBrain}
+                      captureBrain={captureBrain}
+                      onPick={(b) => setCaptureBrain(b.id === brainCtx.activeBrain?.id ? null : b)}
+                    />
+                  ) : undefined
+                }
+                typePill={<CaptureTypePill captureType={displayedType} onPick={handlePickType} />}
+                onSave={handleSaveArticle}
               />
             ) : (
               <CaptureEntryBody
@@ -894,7 +947,7 @@ function CaptureBrainPill({ brains, activeBrain, captureBrain, onPick }: Capture
   );
 }
 
-export type CaptureTypeKey = "memory" | "list" | "vault" | "reminder";
+export type CaptureTypeKey = "memory" | "list" | "article" | "vault" | "reminder";
 
 interface CaptureTypePillProps {
   captureType: CaptureTypeKey;
@@ -904,6 +957,7 @@ interface CaptureTypePillProps {
 const TYPE_LABELS: Record<CaptureTypeKey, string> = {
   memory: "Remember",
   list: "list",
+  article: "article",
   vault: "vault",
   reminder: "reminder",
 };
@@ -912,6 +966,7 @@ function CaptureTypePill({ captureType, onPick }: CaptureTypePillProps) {
   const allOptions: { id: CaptureTypeKey; hint?: string }[] = [
     { id: "memory", hint: "AI sorts" },
     { id: "list" },
+    { id: "article" },
     { id: "vault" },
     { id: "reminder" },
   ];
@@ -949,4 +1004,38 @@ export function buildListPayload(text: string): {
   const itemTitles = items.map((i) => `- ${i.title}`).join("\n");
   const content = items.length ? `${title}\n\n${itemTitles}` : title;
   return { title, content, metadata: { items, list_v: 1 } };
+}
+
+// Article payload builder. Title comes from the first non-empty line of the
+// pasted body; falls back to URL hostname, then "Untitled article". `url` is
+// stored on metadata so DetailModal's reading view can show a source link.
+export function buildArticlePayload(
+  url: string,
+  body: string,
+): {
+  title: string;
+  content: string;
+  metadata: { url?: string; site?: string; article_v: 1 };
+} {
+  const trimmed = body.trim();
+  const firstLine =
+    trimmed
+      .split("\n")
+      .find((l) => l.trim().length > 0)
+      ?.trim() ?? "";
+  let title = firstLine.slice(0, 200);
+  let site: string | undefined;
+  if (url) {
+    try {
+      site = new URL(url).hostname.replace(/^www\./, "");
+    } catch {
+      // ignore invalid URL — leave site undefined
+    }
+  }
+  if (!title) title = site || "Untitled article";
+  return {
+    title,
+    content: trimmed,
+    metadata: { ...(url ? { url } : {}), ...(site ? { site } : {}), article_v: 1 },
+  };
 }

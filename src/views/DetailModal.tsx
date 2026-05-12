@@ -797,49 +797,106 @@ No explanation, no punctuation, just one word.`,
                   </div>
                 ) : (
                   <>
-                    {/* Body — serif 18/1.65, the redesign's "reading surface".
-                        overflowWrap: "anywhere" handles unbreakable tokens
-                        like long URLs and the `*****…*` divider walls Gmail
-                        statements love — without it pre-wrap preserves
-                        newlines but the wall overflows horizontally and
-                        drags subsequent lines off-screen. minWidth: 0 is the
-                        flex-child escape hatch so this <p> can actually
-                        shrink below its content's intrinsic width. */}
-                    {(() => {
-                      // Prefer the rich AI-generated summary for Gmail entries
-                      // whose raw content is the thin scan-time placeholder
-                      // ("see attached" / cluster-time body excerpt). Editing
-                      // still bound to editContent so when the user clicks Edit
-                      // they see the underlying source-of-truth, not the AI
-                      // paraphrase. Same logic as EntryCard — kept in sync.
-                      const meta = entry.metadata as Record<string, unknown> | undefined;
-                      const isGmail = (meta?.source as string | undefined) === "gmail";
-                      const aiSummary =
-                        isGmail && typeof meta?.ai_summary === "string"
-                          ? (meta.ai_summary as string).trim()
-                          : "";
-                      const aiInsight =
-                        isGmail && typeof meta?.ai_insight === "string"
-                          ? (meta.ai_insight as string).trim()
-                          : "";
-                      const raw = editContent ?? "";
-                      const displayContent = editing
-                        ? raw
-                        : aiSummary && aiSummary.length >= raw.length / 2
-                          ? aiSummary
-                          : aiInsight && raw.length < 200 && aiInsight.length > raw.length
-                            ? aiInsight
-                            : raw;
-                      const truncated =
-                        !showFullText && displayContent.length > CONTENT_PREVIEW_LIMIT
-                          ? displayContent.slice(0, CONTENT_PREVIEW_LIMIT) + "…"
-                          : displayContent;
-                      return (
+                    {/* List type — title-then-bullets, no checkboxes. Items
+                        live in metadata.items[] (list_v=1 schema written by
+                        CaptureSheet.buildListPayload). Falls through to the
+                        standard <p> body when items are absent for any reason
+                        so legacy lists without metadata.items still render. */}
+                    {entry.type === "list" &&
+                    Array.isArray((entry.metadata as Record<string, unknown>)?.items) &&
+                    ((entry.metadata as Record<string, unknown>).items as unknown[]).length > 0 ? (
+                      <ul
+                        className="f-serif"
+                        style={{
+                          margin: 0,
+                          padding: 0,
+                          listStyle: "none",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 8,
+                        }}
+                      >
+                        {(
+                          (entry.metadata as Record<string, unknown>).items as Array<{
+                            title?: string;
+                          }>
+                        ).map((it, i) => (
+                          <li
+                            key={i}
+                            style={{
+                              fontSize: 18,
+                              lineHeight: 1.55,
+                              color: "var(--ink)",
+                              paddingLeft: 18,
+                              position: "relative",
+                              overflowWrap: "anywhere",
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            <span
+                              aria-hidden="true"
+                              style={{
+                                position: "absolute",
+                                left: 0,
+                                top: "0.55em",
+                                width: 6,
+                                height: 6,
+                                borderRadius: "50%",
+                                background: "var(--ember)",
+                                opacity: 0.65,
+                              }}
+                            />
+                            {typeof it?.title === "string" ? it.title : String(it)}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : entry.type === "article" ? (
+                      /* Article reading view — byline strip (site + source
+                         link) above the body. Typography bumped to 17/1.75 and
+                         max-width capped via the parent surface so reading
+                         lines stay comfortable. */
+                      <>
+                        {(() => {
+                          const meta = entry.metadata as Record<string, unknown> | undefined;
+                          const url = typeof meta?.url === "string" ? meta.url : "";
+                          const site = typeof meta?.site === "string" ? meta.site : "";
+                          if (!url && !site) return null;
+                          return (
+                            <div
+                              className="f-sans"
+                              style={{
+                                fontSize: 12,
+                                color: "var(--ink-faint)",
+                                letterSpacing: "0.03em",
+                                marginBottom: 12,
+                                display: "flex",
+                                gap: 10,
+                                alignItems: "center",
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              {site && <span>{site}</span>}
+                              {url && (
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noreferrer noopener"
+                                  style={{
+                                    color: "var(--ember)",
+                                    textDecoration: "none",
+                                  }}
+                                >
+                                  open source ↗
+                                </a>
+                              )}
+                            </div>
+                          );
+                        })()}
                         <p
                           className="f-serif"
                           style={{
-                            fontSize: 18,
-                            lineHeight: 1.65,
+                            fontSize: 17,
+                            lineHeight: 1.75,
                             color: "var(--ink)",
                             margin: 0,
                             whiteSpace: "pre-wrap",
@@ -848,10 +905,70 @@ No explanation, no punctuation, just one word.`,
                             minWidth: 0,
                           }}
                         >
-                          {truncated}
+                          {showFullText
+                            ? (editContent ?? "")
+                            : (editContent ?? "").length > CONTENT_PREVIEW_LIMIT
+                              ? (editContent ?? "").slice(0, CONTENT_PREVIEW_LIMIT) + "…"
+                              : (editContent ?? "")}
                         </p>
-                      );
-                    })()}
+                      </>
+                    ) : (
+                      /* Body — serif 18/1.65, the redesign's "reading surface".
+                        overflowWrap: "anywhere" handles unbreakable tokens
+                        like long URLs and the `*****…*` divider walls Gmail
+                        statements love — without it pre-wrap preserves
+                        newlines but the wall overflows horizontally and
+                        drags subsequent lines off-screen. minWidth: 0 is the
+                        flex-child escape hatch so this <p> can actually
+                        shrink below its content's intrinsic width. */
+                      (() => {
+                        // Prefer the rich AI-generated summary for Gmail entries
+                        // whose raw content is the thin scan-time placeholder
+                        // ("see attached" / cluster-time body excerpt). Editing
+                        // still bound to editContent so when the user clicks Edit
+                        // they see the underlying source-of-truth, not the AI
+                        // paraphrase. Same logic as EntryCard — kept in sync.
+                        const meta = entry.metadata as Record<string, unknown> | undefined;
+                        const isGmail = (meta?.source as string | undefined) === "gmail";
+                        const aiSummary =
+                          isGmail && typeof meta?.ai_summary === "string"
+                            ? (meta.ai_summary as string).trim()
+                            : "";
+                        const aiInsight =
+                          isGmail && typeof meta?.ai_insight === "string"
+                            ? (meta.ai_insight as string).trim()
+                            : "";
+                        const raw = editContent ?? "";
+                        const displayContent = editing
+                          ? raw
+                          : aiSummary && aiSummary.length >= raw.length / 2
+                            ? aiSummary
+                            : aiInsight && raw.length < 200 && aiInsight.length > raw.length
+                              ? aiInsight
+                              : raw;
+                        const truncated =
+                          !showFullText && displayContent.length > CONTENT_PREVIEW_LIMIT
+                            ? displayContent.slice(0, CONTENT_PREVIEW_LIMIT) + "…"
+                            : displayContent;
+                        return (
+                          <p
+                            className="f-serif"
+                            style={{
+                              fontSize: 18,
+                              lineHeight: 1.65,
+                              color: "var(--ink)",
+                              margin: 0,
+                              whiteSpace: "pre-wrap",
+                              overflowWrap: "anywhere",
+                              wordBreak: "break-word",
+                              minWidth: 0,
+                            }}
+                          >
+                            {truncated}
+                          </p>
+                        );
+                      })()
+                    )}
                     {(editContent || "").length > CONTENT_PREVIEW_LIMIT && (
                       <Button
                         variant="link"

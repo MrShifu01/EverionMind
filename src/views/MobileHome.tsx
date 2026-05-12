@@ -299,7 +299,10 @@ export default function MobileHome({
         minHeight: "calc(var(--vvh, 100dvh) - var(--app-header-h, 56px))",
         display: "flex",
         flexDirection: "column",
-        padding: "16px 16px calc(16px + env(safe-area-inset-bottom, 0px))",
+        // Bottom padding bumped 50px so the prompt + voice-mode pill + orb
+        // cluster sit higher in the viewport — previously the orb hugged the
+        // safe-area which felt cramped on small phones.
+        padding: "16px 16px calc(66px + env(safe-area-inset-bottom, 0px))",
         transition: "min-height 240ms cubic-bezier(0.16, 1, 0.3, 1)",
       }}
     >
@@ -621,6 +624,13 @@ export default function MobileHome({
             />
           </motion.div>
         )}
+
+        {/* Add-mode placeholder — reserves the same vertical space that
+            the idle AskPanel input form occupies in Ask mode (~56px), so
+            the orb lands at the SAME screen-Y whether the user is in Ask
+            or Add. Without this, the orb would sit ~56px lower in Add mode
+            because there's no AskPanel below it pushing it up. Invisible. */}
+        {!isAsk && <div style={{ height: 56, width: "100%", flexShrink: 0 }} aria-hidden="true" />}
 
         {/* Chat panel — sits between orb-group and... wait, form is INSIDE
             AskPanel. So the chat messages + form live here. The messages
