@@ -23,6 +23,9 @@ export default defineConfig([
     "icons/**",
     // Capacitor source assets (binary)
     "assets/**",
+    // Design handoff bundle — prototype JSX using UMD globals (React, ReactDOM),
+    // not real source. Kept for reference, never bundled or executed.
+    "Mobile-design/**",
   ]),
   {
     files: ["**/*.{ts,tsx}"],
