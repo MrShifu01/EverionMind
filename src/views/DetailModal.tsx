@@ -3,6 +3,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useEntryEdit } from "../hooks/useEntryEdit";
 import { EntryQuickActions } from "../components/EntryQuickActions";
 import { authFetch } from "../lib/authFetch";
+import { toWaUrl } from "../lib/phone";
 import { trackFirstInsightViewed } from "../lib/events";
 import { CANONICAL_TYPES } from "../types";
 import type { Entry, Brain } from "../types";
@@ -1018,10 +1019,16 @@ No explanation, no punctuation, just one word.`,
                           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                             {fields.map(({ label, value, key }) => {
                               const isEmail = key === "email";
+                              const isWhatsApp = key === "whatsapp" || key === "wa";
                               const isPhone =
-                                key === "phone" || key === "cellphone" || key === "landline";
+                                key === "phone" ||
+                                key === "cellphone" ||
+                                key === "mobile" ||
+                                key === "tel" ||
+                                key === "telephone" ||
+                                key === "landline";
                               const isUrl = key === "url";
-                              const isAccent = isEmail || isPhone || isUrl;
+                              const isAccent = isEmail || isPhone || isWhatsApp || isUrl;
                               const inner = (
                                 <>
                                   <div style={labelStyle}>{label}</div>
@@ -1043,6 +1050,18 @@ No explanation, no punctuation, just one word.`,
                               if (isEmail)
                                 return (
                                   <a key={label} href={`mailto:${value}`} style={chipStyle}>
+                                    {inner}
+                                  </a>
+                                );
+                              if (isWhatsApp)
+                                return (
+                                  <a
+                                    key={label}
+                                    href={toWaUrl(value)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={chipStyle}
+                                  >
                                     {inner}
                                   </a>
                                 );
