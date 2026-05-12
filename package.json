@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "test:retrieval": "tsx --env-file=.env.local scripts/retrieval-eval/run.ts",
     "e2e:clean": "tsx scripts/e2e-clean.ts",
     "typecheck": "tsc --noEmit",
     "knip": "knip",
