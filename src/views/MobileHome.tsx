@@ -275,6 +275,42 @@ export default function MobileHome({
     };
   }, []);
 
+  // ── DIAGNOSTIC OVERLAY (temporary) ──────────────────────────────
+  // Prints live layout numbers in the top-right so we can see what's
+  // actually moving when the keyboard opens. Remove once the jump bug
+  // is fixed.
+  const [diag, setDiag] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      const vv = window.visualViewport;
+      const root = document.documentElement;
+      const main = document.getElementById("main-content");
+      const bronze = document.querySelector(".bronze-screen") as HTMLElement | null;
+      const askInput = document.getElementById("ink-ask") as HTMLInputElement | null;
+      const next: Record<string, string> = {
+        innerH: String(window.innerHeight),
+        vvH: vv ? String(Math.round(vv.height)) : "—",
+        vvTop: vv ? String(Math.round(vv.offsetTop)) : "—",
+        vvScale: vv ? vv.scale.toFixed(2) : "—",
+        cssVvh: root.style.getPropertyValue("--vvh") || "—",
+        bodyScroll: String(Math.round(window.scrollY)),
+        docScroll: String(Math.round(document.scrollingElement?.scrollTop ?? 0)),
+        mainScroll: main ? String(Math.round(main.scrollTop)) : "—",
+        mainOver: main ? getComputedStyle(main).overflow : "—",
+        bronzeTop: bronze ? String(Math.round(bronze.getBoundingClientRect().top)) : "—",
+        bronzeH: bronze ? String(Math.round(bronze.getBoundingClientRect().height)) : "—",
+        inputTop: askInput ? String(Math.round(askInput.getBoundingClientRect().top)) : "—",
+        focused: document.activeElement?.id || document.activeElement?.tagName || "—",
+      };
+      setDiag(next);
+      raf = window.requestAnimationFrame(tick);
+    };
+    raf = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(raf);
+  }, []);
+  // ────────────────────────────────────────────────────────────────
+
   // Live voice now renders its status inline on the home screen — it does
   // NOT pop the chat sheet. Sheet is reserved for actual text-chat history
   // and pending-voice-action confirmations.
@@ -343,6 +379,28 @@ export default function MobileHome({
         background: "var(--bg)",
       }}
     >
+      {/* DIAGNOSTIC OVERLAY — remove once jump bug is fixed */}
+      <div
+        style={{
+          position: "fixed",
+          top: "env(safe-area-inset-top, 0px)",
+          right: 4,
+          zIndex: 9999,
+          padding: "4px 6px",
+          background: "rgba(0,0,0,0.78)",
+          color: "#ffd86b",
+          fontFamily: "ui-monospace, monospace",
+          fontSize: 9,
+          lineHeight: 1.25,
+          borderRadius: 6,
+          pointerEvents: "none",
+          maxWidth: 180,
+          whiteSpace: "pre",
+        }}
+      >
+        {`iH ${diag.innerH} vvH ${diag.vvH}\nvvTop ${diag.vvTop} sc ${diag.vvScale}\n--vvh ${diag.cssVvh}\nbody ${diag.bodyScroll} doc ${diag.docScroll}\nmain sc ${diag.mainScroll} ov ${diag.mainOver}\nbronze t${diag.bronzeTop} h${diag.bronzeH}\ninput t${diag.inputTop}\nfoc ${diag.focused}`}
+      </div>
+
       <div
         style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 4, flexShrink: 0 }}
       >
