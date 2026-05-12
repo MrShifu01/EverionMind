@@ -108,6 +108,8 @@ interface Props {
   accept: string;
   parser: Parser;
   multiple?: boolean;
+  /** If true, also render a "Pick folder" button (webkitdirectory). */
+  allowDirectory?: boolean;
 }
 
 export default function BulkImportPanel({
@@ -118,10 +120,12 @@ export default function BulkImportPanel({
   accept,
   parser,
   multiple = true,
+  allowDirectory = false,
 }: Props) {
   const [progress, setProgress] = useState<Progress | null>(null);
   const [resume, setResume] = useState<ResumeState | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const dirRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -353,10 +357,27 @@ export default function BulkImportPanel({
         className="hidden"
       />
 
+      {allowDirectory && (
+        <input
+          type="file"
+          ref={dirRef}
+          onChange={handleFiles}
+          className="hidden"
+          // Non-standard but supported on Chrome/Edge/Safari/Firefox.
+          // Casts via Record to keep TS happy without polluting React types.
+          {...({ webkitdirectory: "", directory: "" } as Record<string, string>)}
+        />
+      )}
+
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <SettingsButton onClick={() => fileRef.current?.click()} disabled={inFlight}>
           {inFlight ? "Working…" : `Import ${label} notes`}
         </SettingsButton>
+        {allowDirectory && (
+          <SettingsButton onClick={() => dirRef.current?.click()} disabled={inFlight}>
+            Pick folder
+          </SettingsButton>
+        )}
         {inFlight && <SettingsButton onClick={handleCancel}>Cancel</SettingsButton>}
       </div>
 

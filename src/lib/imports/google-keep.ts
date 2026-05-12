@@ -66,9 +66,35 @@ async function convertNote(note: KeepNote): Promise<ImportEntry | null> {
   };
 }
 
+function looksLikeKeepNote(o: unknown): o is KeepNote {
+  if (!o || typeof o !== "object") return false;
+  const r = o as Record<string, unknown>;
+  // Any of the canonical Keep fields is enough — Takeout has used several
+  // shapes over the years (textContent vs textContentHtml, etc.).
+  return (
+    "textContent" in r ||
+    "listContent" in r ||
+    "userEditedTimestampUsec" in r ||
+    "createdTimestampUsec" in r ||
+    "isTrashed" in r ||
+    "isArchived" in r
+  );
+}
+
 export const parseGoogleKeep: Parser = async (files, onProgress, signal) => {
   type Task = { kind: "zip"; zf: JSZip.JSZipObject } | { kind: "file"; file: File };
   const tasks: Task[] = [];
+
+  // Diagnostic counters — surfaced in the error when nothing imports so the
+  // user (and we) see WHY a zip / folder produced 0 entries instead of a
+  // generic "no entries found" dead-end.
+  let totalSeen = 0;
+  let htmlFiles = 0;
+  let jsonFilesSeen = 0;
+  const sampleNames: string[] = [];
+
+  const noteName = (f: File) =>
+    (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
 
   for (const file of Array.from(files)) {
     abortIfNeeded(signal);
@@ -76,27 +102,57 @@ export const parseGoogleKeep: Parser = async (files, onProgress, signal) => {
       const zip = await JSZip.loadAsync(file);
       for (const zf of Object.values(zip.files)) {
         if (zf.dir) continue;
-        if (!zf.name.toLowerCase().endsWith(".json")) continue;
-        // Skip non-Keep JSONs from a multi-product Takeout export.
-        if (!/(?:^|\/)keep\//i.test(zf.name) && !/^[^/]+\.json$/i.test(zf.name)) continue;
+        totalSeen++;
+        if (sampleNames.length < 10) sampleNames.push(zf.name);
+        const lower = zf.name.toLowerCase();
+        if (lower.endsWith(".html") || lower.endsWith(".htm")) {
+          htmlFiles++;
+          continue;
+        }
+        if (!lower.endsWith(".json")) continue;
+        jsonFilesSeen++;
         tasks.push({ kind: "zip", zf });
       }
-    } else if (file.name.toLowerCase().endsWith(".json")) {
+    } else {
+      totalSeen++;
+      const rel = noteName(file);
+      if (sampleNames.length < 10) sampleNames.push(rel);
+      const lower = file.name.toLowerCase();
+      if (lower.endsWith(".html") || lower.endsWith(".htm")) {
+        htmlFiles++;
+        continue;
+      }
+      if (!lower.endsWith(".json")) continue;
+      jsonFilesSeen++;
       tasks.push({ kind: "file", file });
     }
   }
 
   const out: ImportEntry[] = [];
   let processed = 0;
+  let jsonParseErrors = 0;
+  let nonKeepJson = 0;
+  let trashedSkipped = 0;
+  let emptySkipped = 0;
   for (const task of tasks) {
     abortIfNeeded(signal);
     try {
       const text = task.kind === "zip" ? await task.zf.async("text") : await task.file.text();
-      const note: KeepNote = JSON.parse(text);
-      const entry = await convertNote(note);
-      if (entry) out.push(entry);
+      const parsed: unknown = JSON.parse(text);
+      if (!looksLikeKeepNote(parsed)) {
+        nonKeepJson++;
+      } else {
+        const note = parsed as KeepNote;
+        if (note.isTrashed) {
+          trashedSkipped++;
+        } else {
+          const entry = await convertNote(note);
+          if (entry) out.push(entry);
+          else emptySkipped++;
+        }
+      }
     } catch {
-      /* malformed JSON — skip */
+      jsonParseErrors++;
     }
     processed++;
     if (processed % 200 === 0) {
@@ -105,5 +161,22 @@ export const parseGoogleKeep: Parser = async (files, onProgress, signal) => {
     }
   }
   onProgress(tasks.length, tasks.length);
+
+  if (out.length === 0) {
+    const parts: string[] = [];
+    parts.push(`${totalSeen} files seen`);
+    if (htmlFiles > 0)
+      parts.push(
+        `${htmlFiles} HTML — re-export Takeout as JSON (Google Takeout → Keep → "Multiple formats" → JSON)`,
+      );
+    parts.push(`${jsonFilesSeen} JSON`);
+    if (jsonParseErrors > 0) parts.push(`${jsonParseErrors} unreadable`);
+    if (nonKeepJson > 0) parts.push(`${nonKeepJson} non-Keep JSON`);
+    if (trashedSkipped > 0) parts.push(`${trashedSkipped} trashed (skipped)`);
+    if (emptySkipped > 0) parts.push(`${emptySkipped} empty (skipped)`);
+    if (sampleNames.length > 0) parts.push(`sample: ${sampleNames.slice(0, 5).join(", ")}`);
+    throw new Error(`Google Keep: 0 entries extracted. ${parts.join("; ")}.`);
+  }
+
   return out;
 };
