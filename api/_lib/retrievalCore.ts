@@ -253,17 +253,15 @@ export async function retrieveEntries(
   entries = entries.map((e) => ({ ...e, brain_id: brainId }));
   const existingIds = new Set(entries.map((e: any) => e.id));
 
-  // 2. Keyword expand
-  const qTokens = query
-    .trim()
-    .split(/\s+/)
-    .map((w) => w.replace(/[^a-zA-Z0-9]/g, ""))
-    .filter((w) => w.length > 3 && !STOP.has(w.toLowerCase()))
-    .slice(0, 6);
-  if (qTokens.length > 0) {
-    const orFilter = qTokens.map((kw) => `title.ilike.*${kw}*,content.ilike.*${kw}*`).join(",");
+  // 2. Keyword expand — FTS via PostgREST `wfts` (websearch_to_tsquery).
+  // Indexed by entries_search_tsv_gin_idx (migration 087, partial on
+  // type<>'secret' AND deleted_at IS NULL). Replaces the prior ILIKE OR-of-
+  // tokens scan; websearch handles "phrases", OR, -exclude tokens safely
+  // and won't crash on user input.
+  if (query.trim()) {
+    const ftsQuery = encodeURIComponent(query.trim());
     const kwRes = await fetch(
-      `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&type=neq.secret&or=(${encodeURIComponent(orFilter)})&select=id,title,type,tags,content,metadata&limit=10`,
+      `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&type=neq.secret&search_tsv=wfts(english).${ftsQuery}&select=id,title,type,tags,content,metadata&limit=10`,
       { headers: SB_HEADERS },
     );
     if (kwRes.ok) {
@@ -277,7 +275,8 @@ export async function retrieveEntries(
     }
   }
 
-  // 3. Tag sibling expand
+  // 3. Tag sibling expand — FTS over the union of tag tokens lifted
+  // from the top-5 hits. websearch treats `OR` as disjunction.
   const tagTokens = new Set<string>();
   entries.slice(0, 5).forEach((e: any) => {
     (e.tags ?? []).forEach((tag: string) => {
@@ -291,12 +290,9 @@ export async function retrieveEntries(
     });
   });
   if (tagTokens.size > 0) {
-    const orFilter = Array.from(tagTokens)
-      .slice(0, 8)
-      .map((kw) => `title.ilike.*${kw}*`)
-      .join(",");
+    const tagQuery = Array.from(tagTokens).slice(0, 8).join(" OR ");
     const sibRes = await fetch(
-      `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&type=neq.secret&or=(${encodeURIComponent(orFilter)})&select=id,title,type,tags,content,metadata&limit=10`,
+      `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&type=neq.secret&search_tsv=wfts(english).${encodeURIComponent(tagQuery)}&select=id,title,type,tags,content,metadata&limit=10`,
       { headers: SB_HEADERS },
     );
     if (sibRes.ok) {
@@ -446,17 +442,12 @@ export async function retrieveEntriesForUser(
   const brainInList = accessibleIds.slice(0, 50).map((id) => encodeURIComponent(id)).join(",");
   const brainScope = `brain_id=in.(${brainInList})`;
 
-  // 2. Keyword expand
-  const qTokens = query
-    .trim()
-    .split(/\s+/)
-    .map((w) => w.replace(/[^a-zA-Z0-9]/g, ""))
-    .filter((w) => w.length > 3 && !STOP.has(w.toLowerCase()))
-    .slice(0, 6);
-  if (qTokens.length > 0) {
-    const orFilter = qTokens.map((kw) => `title.ilike.*${kw}*,content.ilike.*${kw}*`).join(",");
+  // 2. Keyword expand — FTS via PostgREST `wfts` (websearch_to_tsquery).
+  // See retrieveEntries() for the index + rationale.
+  if (query.trim()) {
+    const ftsQuery = encodeURIComponent(query.trim());
     const kwRes = await fetch(
-      `${SB_URL}/rest/v1/entries?${brainScope}&deleted_at=is.null&type=neq.secret&or=(${encodeURIComponent(orFilter)})&select=id,title,type,tags,content,metadata,brain_id&limit=10`,
+      `${SB_URL}/rest/v1/entries?${brainScope}&deleted_at=is.null&type=neq.secret&search_tsv=wfts(english).${ftsQuery}&select=id,title,type,tags,content,metadata,brain_id&limit=10`,
       { headers: SB_HEADERS },
     );
     if (kwRes.ok) {
@@ -470,7 +461,8 @@ export async function retrieveEntriesForUser(
     }
   }
 
-  // 3. Tag sibling expand
+  // 3. Tag sibling expand — FTS over the union of tag tokens lifted
+  // from the top-5 hits. websearch treats `OR` as disjunction.
   const tagTokens = new Set<string>();
   entries.slice(0, 5).forEach((e: any) => {
     (e.tags ?? []).forEach((tag: string) => {
@@ -484,12 +476,9 @@ export async function retrieveEntriesForUser(
     });
   });
   if (tagTokens.size > 0) {
-    const orFilter = Array.from(tagTokens)
-      .slice(0, 8)
-      .map((kw) => `title.ilike.*${kw}*`)
-      .join(",");
+    const tagQuery = Array.from(tagTokens).slice(0, 8).join(" OR ");
     const sibRes = await fetch(
-      `${SB_URL}/rest/v1/entries?${brainScope}&deleted_at=is.null&type=neq.secret&or=(${encodeURIComponent(orFilter)})&select=id,title,type,tags,content,metadata,brain_id&limit=10`,
+      `${SB_URL}/rest/v1/entries?${brainScope}&deleted_at=is.null&type=neq.secret&search_tsv=wfts(english).${encodeURIComponent(tagQuery)}&select=id,title,type,tags,content,metadata,brain_id&limit=10`,
       { headers: SB_HEADERS },
     );
     if (sibRes.ok) {
