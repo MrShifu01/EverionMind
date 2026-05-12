@@ -69,11 +69,6 @@ function BottomNavInner({
         // browser tab (clears the URL/address bar). Defined in index.css.
         paddingBottom: "var(--edge-bottom-pad, 0px)",
         height: "calc(56px + var(--edge-bottom-pad, 0px))",
-        // DIAGNOSTIC: bright red bottom border (3px) so we can see exactly
-        // where the nav's bottom edge lands relative to the screen edge.
-        // Any space below the red line is the actual layout gap. Remove
-        // once measured.
-        borderBottom: "3px solid #ff3b30",
       }}
     >
       {navItems.map((item) => {

@@ -245,6 +245,36 @@ export default function MobileHome({
     return () => window.clearTimeout(id);
   }, [isConnecting]);
 
+  // ── Live voice "thinking" state ──────────────────────────────────
+  // The Gemini Live session stays in "listening" status between the user
+  // ending their utterance and the model starting its response — there's
+  // no explicit thinking signal. Derive one from transcript growth: when
+  // userTranscript stops growing for >700ms while status is still listening,
+  // we're thinking. Reset on speaking transition.
+  const lastUserTranscriptGrowthRef = useRef(0);
+  const [thinking, setThinking] = useState(false);
+
+  useEffect(() => {
+    lastUserTranscriptGrowthRef.current = Date.now();
+  }, [liveSession.userTranscript]);
+
+  useEffect(() => {
+    const isListening = liveSession.status === "listening";
+    const hasUserText = !!liveSession.userTranscript;
+    if (!isListening || !hasUserText) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- subscribing to live session status to derive a "thinking" pseudo-state the server doesn't expose; resets to false on status transition out of listening or empty user transcript.
+      setThinking(false);
+      return;
+    }
+    const check = () => {
+      const since = Date.now() - lastUserTranscriptGrowthRef.current;
+      setThinking(since > 700);
+    };
+    check();
+    const id = window.setInterval(check, 200);
+    return () => window.clearInterval(id);
+  }, [liveSession.status, liveSession.userTranscript]);
+
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
@@ -337,11 +367,13 @@ export default function MobileHome({
     ? "voice error · tap orb to retry"
     : liveSession.status === "connecting"
       ? "connecting…"
-      : liveSession.status === "listening"
-        ? "connected · listening"
-        : liveSession.status === "speaking"
-          ? "speaking"
-          : null;
+      : thinking
+        ? "thinking…"
+        : liveSession.status === "listening"
+          ? "connected · listening"
+          : liveSession.status === "speaking"
+            ? "speaking"
+            : null;
   const caption = isAsk
     ? liveStatusText
       ? liveStatusText
@@ -451,6 +483,8 @@ export default function MobileHome({
             listening={listening}
             animating={animating}
             isConnecting={isConnecting}
+            isSpeaking={liveSession.status === "speaking"}
+            isThinking={thinking}
             connectTimedOut={connectTimedOut}
             onPointerDown={onPointerDown}
             onPointerUp={onPointerUp}
@@ -920,6 +954,8 @@ function Inkwell({
   listening,
   animating,
   isConnecting,
+  isSpeaking,
+  isThinking,
   connectTimedOut,
   onPointerDown,
   onPointerUp,
@@ -931,6 +967,8 @@ function Inkwell({
   listening: boolean;
   animating: boolean;
   isConnecting: boolean;
+  isSpeaking: boolean;
+  isThinking: boolean;
   connectTimedOut: boolean;
   onPointerDown: (e: React.PointerEvent) => void;
   onPointerUp: () => void;
@@ -1004,9 +1042,13 @@ function Inkwell({
             ? "orb-deflate 700ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards"
             : isConnecting
               ? "orb-connect-bounce 2.2s ease-in-out infinite"
-              : listening
-                ? "inkwell-breathe 1.4s ease-in-out infinite"
-                : "none",
+              : isSpeaking
+                ? "orb-speak-glow 0.9s ease-in-out infinite"
+                : isThinking
+                  ? "inkwell-breathe 1.0s ease-in-out infinite"
+                  : listening
+                    ? "inkwell-breathe 1.4s ease-in-out infinite"
+                    : "none",
         }}
       >
         <span
