@@ -402,16 +402,16 @@ export default function MobileHome({
         </div>
       )}
 
-      {/* Inkwell stage. When the Ask input is focused (keyboard open) the
-          residual flex space is too small for the 220×220 orb — it would
-          overflow and visually paint over the headline + input. Drop the
-          orb entirely while typing. Header + toggle stay at top, input
-          stays at bottom of the visible viewport. */}
+      {/* Inkwell stage. Always flex:1 — that's what pushes the form to the
+          bottom of bronze-screen. When the Ask input is focused (keyboard
+          open) the residual space is too small for the 220×220 orb, so we
+          render nothing inside the container. The empty flex:1 box still
+          claims all remaining space, keeping the form docked to the
+          visible viewport bottom. */}
       <div
         style={{
-          flex: inputFocused ? "0 0 0" : 1,
-          height: inputFocused ? 0 : undefined,
-          display: inputFocused ? "none" : "flex",
+          flex: 1,
+          display: "flex",
           alignItems: "center",
           justifyContent: "center",
           position: "relative",
@@ -419,24 +419,21 @@ export default function MobileHome({
           overflow: "hidden",
         }}
       >
-        <Inkwell
-          mode={mode}
-          pressed={pressed}
-          listening={listening}
-          animating={animating}
-          isConnecting={isConnecting}
-          connectTimedOut={connectTimedOut}
-          onPointerDown={onPointerDown}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerCancel}
-          caption={caption}
-        />
+        {!inputFocused && (
+          <Inkwell
+            mode={mode}
+            pressed={pressed}
+            listening={listening}
+            animating={animating}
+            isConnecting={isConnecting}
+            connectTimedOut={connectTimedOut}
+            onPointerDown={onPointerDown}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerCancel}
+            caption={caption}
+          />
+        )}
       </div>
-
-      {/* When the keyboard is open we have no orb above, so push the input
-          down to fill the remaining space and keep it docked to the bottom
-          of the visible viewport. */}
-      {inputFocused && <div style={{ flex: 1, minHeight: 0 }} aria-hidden />}
 
       {isAsk && !sheetOpen && (
         <form onSubmit={submitAsk} style={{ marginTop: 8, flexShrink: 0 }}>
