@@ -5,20 +5,17 @@ import { useVoiceMode, useGeminiLive, useGeminiVoice, type VoiceMode } from "../
 import { useGeminiLiveSession } from "../hooks/useGeminiLiveSession";
 import { usePendingVoiceActions } from "../hooks/usePendingVoiceActions";
 import { PendingVoiceActionsBanner } from "../components/PendingVoiceActionsBanner";
-import { useBrain } from "../context/BrainContext";
-import { authFetch } from "../lib/authFetch";
 import NotificationBell from "../components/NotificationBell";
 import InkwellBrainPill from "../components/InkwellBrainPill";
 import type { AppNotification } from "../hooks/useNotifications";
-import type { Brain } from "../types";
 
 interface MobileHomeProps {
   brainId: string | undefined;
   onOpenCapture: () => void;
   onOpenCaptureWith: (text: string) => void;
   onCaptureRaw: (text: string) => void;
-  onNavigate?: (id: string) => void;
   onSearch?: () => void;
+  onOpenMenu?: () => void;
   onCreateBrain?: () => void;
   notifications?: AppNotification[];
   unreadCount?: number;
@@ -38,8 +35,8 @@ export default function MobileHome({
   onOpenCapture,
   onOpenCaptureWith,
   onCaptureRaw,
-  onNavigate,
   onSearch,
+  onOpenMenu,
   onCreateBrain,
   notifications = [],
   unreadCount = 0,
@@ -53,7 +50,6 @@ export default function MobileHome({
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [askInput, setAskInput] = useState("");
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [sheetUserDismissed, setSheetUserDismissed] = useState(false);
   const [voiceMode, setVoiceMode] = useVoiceMode();
   const [geminiLiveOn] = useGeminiLive();
@@ -397,7 +393,7 @@ export default function MobileHome({
         style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 4, flexShrink: 0 }}
       >
         <InkwellHeader
-          onMenu={() => setDrawerOpen(true)}
+          onMenu={onOpenMenu}
           onSearch={onSearch}
           notificationBell={
             onDismissNotification ? (
@@ -562,13 +558,18 @@ export default function MobileHome({
       {!isAsk && (
         <div
           style={{
+            // Mirror Ask's absolute-bottom pin so both modes share the
+            // same flex flow (header + headline + flex:1 stage). Without
+            // this the stage is shorter in Add (pill in flow) than Ask
+            // (form absolute), and the orb visibly jumps when toggling.
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: "calc(24px + var(--edge-bottom-pad, 0px))",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
             gap: 6,
-            marginTop: 4,
-            marginBottom: 24,
-            flexShrink: 0,
           }}
         >
           <VoiceModePill mode={voiceMode} onChange={setVoiceMode} />
@@ -608,13 +609,6 @@ export default function MobileHome({
         brainReady={!!brainId}
         pending={pendingActions}
       />
-
-      <InkwellDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        onNavigate={onNavigate}
-        onCreateBrain={onCreateBrain}
-      />
     </div>
   );
 }
@@ -626,7 +620,7 @@ function InkwellHeader({
   onSearch,
   notificationBell,
 }: {
-  onMenu: () => void;
+  onMenu?: () => void;
   onSearch?: () => void;
   notificationBell: React.ReactNode;
 }) {
@@ -641,45 +635,27 @@ function InkwellHeader({
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <HeaderIconButton label="Menu" onClick={onMenu}>
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          >
-            <path d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-        </HeaderIconButton>
-        {/* Matches the global MobileHeader brand: logoNew.webp + serif
-            "Everion Mind" wordmark, so the home header reads the same as
-            every other view. */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <img
-            src="/logoNew.webp"
-            width={28}
-            height={28}
-            alt=""
-            aria-hidden
-            decoding="async"
-            style={{ flexShrink: 0, objectFit: "contain", display: "block" }}
-          />
-          <span
-            className="f-serif"
-            style={{
-              fontSize: 18,
-              fontWeight: 450,
-              letterSpacing: "-0.01em",
-              color: "var(--ink)",
-              whiteSpace: "nowrap",
-            }}
-          >
-            Everion Mind
-          </span>
-        </div>
+        <img
+          src="/logoNew.webp"
+          width={28}
+          height={28}
+          alt=""
+          aria-hidden
+          decoding="async"
+          style={{ flexShrink: 0, objectFit: "contain", display: "block" }}
+        />
+        <span
+          className="f-serif"
+          style={{
+            fontSize: 18,
+            fontWeight: 450,
+            letterSpacing: "-0.01em",
+            color: "var(--ink)",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Everion Mind
+        </span>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         {onSearch && (
@@ -699,6 +675,21 @@ function InkwellHeader({
           </HeaderIconButton>
         )}
         {notificationBell}
+        {onMenu && (
+          <HeaderIconButton label="Menu" onClick={onMenu}>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
+              <path d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </HeaderIconButton>
+        )}
       </div>
     </div>
   );
@@ -1348,542 +1339,5 @@ function ChatSheet({
         </form>
       </div>
     </>
-  );
-}
-
-/* ── Drawer ─────────────────────────────────────────────────────── */
-
-interface DrawerItem {
-  icon: DrawerIconKind;
-  label: string;
-  meta?: string;
-  swatch?: string;
-  viewId?: string;
-  /** Optional SettingsView tab id; routed via ?tab=<id> query param. */
-  settingsTab?: string;
-  onClick?: () => void;
-}
-
-interface DrawerSection {
-  title: string;
-  items: DrawerItem[];
-}
-
-type DrawerIconKind =
-  | "well"
-  | "calendar"
-  | "tag"
-  | "voice"
-  | "photo"
-  | "brain"
-  | "key"
-  | "lock"
-  | "tune"
-  | "user";
-
-function DrawerIcon({ kind }: { kind: DrawerIconKind }) {
-  const props = {
-    width: 16,
-    height: 16,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 1.6,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-  };
-  switch (kind) {
-    case "well":
-      return (
-        <svg {...props}>
-          <ellipse cx="12" cy="9" rx="7" ry="3" />
-          <path d="M5 9c0 5 2 9 7 9s7-4 7-9" />
-        </svg>
-      );
-    case "calendar":
-      return (
-        <svg {...props}>
-          <rect x="4" y="5" width="16" height="16" rx="2" />
-          <path d="M4 10h16M9 3v4M15 3v4" />
-        </svg>
-      );
-    case "tag":
-      return (
-        <svg {...props}>
-          <path d="M3 12 12 3h8v8l-9 9z" />
-          <circle cx="15" cy="8" r="1.2" />
-        </svg>
-      );
-    case "voice":
-      return (
-        <svg {...props}>
-          <rect x="9" y="3" width="6" height="12" rx="3" />
-          <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
-        </svg>
-      );
-    case "photo":
-      return (
-        <svg {...props}>
-          <rect x="3" y="5" width="18" height="14" rx="2" />
-          <circle cx="9" cy="11" r="2" />
-          <path d="m3 18 5-5 4 4 3-3 6 6" />
-        </svg>
-      );
-    case "brain":
-      return (
-        <svg {...props}>
-          <path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 1 5 3 3 0 0 0 4 3V4z" />
-          <path d="M15 4a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-1 5 3 3 0 0 1-4 3V4z" />
-        </svg>
-      );
-    case "key":
-      return (
-        <svg {...props}>
-          <circle cx="8" cy="15" r="4" />
-          <path d="m10.5 13 9-9M16 7l2 2M14 9l2 2" />
-        </svg>
-      );
-    case "lock":
-      return (
-        <svg {...props}>
-          <rect x="5" y="11" width="14" height="10" rx="2" />
-          <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-        </svg>
-      );
-    case "tune":
-      return (
-        <svg {...props}>
-          <path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" />
-          <circle cx="16" cy="6" r="2" />
-          <circle cx="10" cy="12" r="2" />
-          <circle cx="18" cy="18" r="2" />
-        </svg>
-      );
-    case "user":
-      return (
-        <svg {...props}>
-          <circle cx="12" cy="8" r="4" />
-          <path d="M4 21a8 8 0 0 1 16 0" />
-        </svg>
-      );
-  }
-}
-
-function InkwellDrawer({
-  open,
-  onClose,
-  onNavigate,
-  onCreateBrain,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onNavigate?: (id: string) => void;
-  onCreateBrain?: () => void;
-}) {
-  const { activeBrain, brains, setActiveBrain } = useBrain();
-
-  const navigate = (item: DrawerItem) => {
-    if (item.onClick) {
-      onClose();
-      item.onClick();
-      return;
-    }
-    if (!item.viewId) return;
-    if (item.settingsTab) {
-      // SettingsView reads ?tab=<id> on mount. Push the param BEFORE setView
-      // so the remount reads the right tab.
-      const url = new URL(window.location.href);
-      url.searchParams.set("tab", item.settingsTab);
-      window.history.replaceState({}, "", url);
-    }
-    onClose();
-    onNavigate?.(item.viewId);
-  };
-
-  async function pick(brain: Brain) {
-    if (brain.id === activeBrain?.id) {
-      onClose();
-      return;
-    }
-    setActiveBrain(brain);
-    onClose();
-    authFetch("/api/brains?action=set-active", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: brain.id }),
-    }).catch(() => {});
-  }
-
-  const librarySection: DrawerSection = {
-    title: "Library",
-    items: [
-      { icon: "well", label: "Inkwell", viewId: "home" },
-      { icon: "calendar", label: "Memory", viewId: "memory" },
-      { icon: "lock", label: "Vault", viewId: "vault" },
-    ],
-  };
-
-  const settingsSection: DrawerSection = {
-    title: "Settings",
-    items: [
-      { icon: "user", label: "Persona", viewId: "settings", settingsTab: "persona" },
-      { icon: "tune", label: "AI", viewId: "settings", settingsTab: "ai" },
-      { icon: "brain", label: "Brain", viewId: "settings", settingsTab: "brain" },
-      { icon: "key", label: "Notifications", viewId: "settings", settingsTab: "notifications" },
-      { icon: "user", label: "Account", viewId: "settings", settingsTab: "account" },
-      { icon: "tune", label: "Billing", viewId: "settings", settingsTab: "billing" },
-      { icon: "lock", label: "Privacy", viewId: "settings", settingsTab: "privacy" },
-    ],
-  };
-
-  return (
-    <>
-      <div
-        onClick={onClose}
-        aria-hidden
-        style={{
-          position: "absolute",
-          inset: 0,
-          zIndex: 60,
-          background: "color-mix(in oklch, oklch(8% 0.01 250) 60%, transparent)",
-          backdropFilter: "blur(4px)",
-          WebkitBackdropFilter: "blur(4px)",
-          opacity: open ? 1 : 0,
-          pointerEvents: open ? "auto" : "none",
-          transition: "opacity 280ms cubic-bezier(0.4, 0, 0.2, 1)",
-        }}
-      />
-      <aside
-        aria-hidden={!open}
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          bottom: 0,
-          width: "82%",
-          maxWidth: 320,
-          zIndex: 61,
-          transform: open ? "translateX(0)" : "translateX(-101%)",
-          transition: "transform 360ms cubic-bezier(0.16, 1, 0.3, 1)",
-          background: `linear-gradient(180deg,
-            color-mix(in oklch, var(--ember) 14%, var(--surface-high)) 0%,
-            var(--surface-high) 30%,
-            var(--surface) 100%)`,
-          borderRight: "1px solid color-mix(in oklch, var(--ember) 28%, var(--line-soft))",
-          boxShadow: "8px 0 40px oklch(4% 0.01 250 / 0.55)",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          // Reserve iOS status-bar height so the drawer logo + close button
-          // don't sit behind the status bar (same fix MobileHome itself uses).
-          paddingTop: "env(safe-area-inset-top, 0px)",
-          paddingBottom: "env(safe-area-inset-bottom, 0px)",
-        }}
-      >
-        <div
-          aria-hidden
-          style={{
-            position: "absolute",
-            top: -120,
-            right: -120,
-            width: 280,
-            height: 280,
-            borderRadius: "50%",
-            background:
-              "radial-gradient(circle, color-mix(in oklch, var(--ember) 28%, transparent), transparent 65%)",
-            filter: "blur(20px)",
-            pointerEvents: "none",
-          }}
-        />
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "14px 16px 12px",
-            borderBottom: "1px solid color-mix(in oklch, var(--ember) 14%, var(--line-soft))",
-            position: "relative",
-            zIndex: 1,
-          }}
-        >
-          <div className="ink-logo">
-            <span className="ink-logo-mark">
-              <span></span>
-            </span>
-            <span>everion</span>
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Close menu"
-            className="press"
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 8,
-              background: "var(--surface)",
-              border: "1px solid var(--line-soft)",
-              color: "var(--ink-soft)",
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 0,
-            }}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            >
-              <path d="M6 6l12 12M18 6l-12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <nav
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            padding: "8px 8px 12px",
-            position: "relative",
-            zIndex: 1,
-          }}
-        >
-          <DrawerSectionRender section={librarySection} onItemClick={(it) => navigate(it)} />
-
-          <div style={{ marginTop: 14 }}>
-            <div
-              className="f-mono"
-              style={{
-                fontSize: 9,
-                letterSpacing: "0.2em",
-                color: "var(--ink-faint)",
-                textTransform: "uppercase",
-                padding: "4px 12px 6px",
-              }}
-            >
-              Workspaces
-            </div>
-            {brains.map((b) => {
-              const isActive = b.id === activeBrain?.id;
-              return (
-                <button
-                  key={b.id}
-                  onClick={() => void pick(b)}
-                  className="press"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    width: "100%",
-                    padding: "10px 12px",
-                    background: "transparent",
-                    border: "none",
-                    borderRadius: 10,
-                    cursor: "pointer",
-                    color: "var(--ink)",
-                    fontFamily: "var(--f-sans)",
-                    fontSize: 14,
-                    textAlign: "left",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 30,
-                      height: 30,
-                      borderRadius: 9,
-                      background: `color-mix(in oklch, ${ACCENT} 18%, var(--surface-low))`,
-                      border: `1px solid color-mix(in oklch, ${ACCENT} 50%, transparent)`,
-                      color: ACCENT,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <DrawerIcon kind="brain" />
-                  </span>
-                  <span style={{ flex: 1, minWidth: 0 }}>{b.name}</span>
-                  {isActive && (
-                    <span
-                      className="f-mono"
-                      style={{
-                        fontSize: 9,
-                        letterSpacing: "0.16em",
-                        textTransform: "uppercase",
-                        color: "var(--ember)",
-                        padding: "3px 7px",
-                        background: "var(--ember-wash)",
-                        borderRadius: 999,
-                        border: "1px solid color-mix(in oklch, var(--ember) 36%, transparent)",
-                      }}
-                    >
-                      active
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-            {onCreateBrain && (
-              <button
-                onClick={() => {
-                  onClose();
-                  onCreateBrain();
-                }}
-                className="press"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  width: "100%",
-                  padding: "10px 12px",
-                  background: "transparent",
-                  border: "none",
-                  borderRadius: 10,
-                  cursor: "pointer",
-                  color: "var(--ink-soft)",
-                  fontFamily: "var(--f-sans)",
-                  fontSize: 14,
-                  textAlign: "left",
-                }}
-              >
-                <span
-                  style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: 9,
-                    border: "1px dashed var(--line)",
-                    color: "var(--ink-faint)",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 18,
-                    flexShrink: 0,
-                  }}
-                >
-                  +
-                </span>
-                <span>New brain</span>
-              </button>
-            )}
-          </div>
-
-          <DrawerSectionRender
-            section={settingsSection}
-            onItemClick={(it) => navigate(it)}
-            topMargin={14}
-          />
-        </nav>
-
-        <div
-          style={{
-            padding: "10px 14px 14px",
-            borderTop: "1px solid color-mix(in oklch, var(--ember) 14%, var(--line-soft))",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            position: "relative",
-            zIndex: 1,
-          }}
-        >
-          <div
-            className="f-mono"
-            style={{
-              fontSize: 9,
-              letterSpacing: "0.18em",
-              color: "var(--ink-faint)",
-              textTransform: "uppercase",
-            }}
-          >
-            everion mind
-          </div>
-        </div>
-      </aside>
-    </>
-  );
-}
-
-function DrawerSectionRender({
-  section,
-  onItemClick,
-  topMargin = 6,
-}: {
-  section: DrawerSection;
-  onItemClick: (it: DrawerItem) => void;
-  topMargin?: number;
-}) {
-  return (
-    <div style={{ marginTop: topMargin }}>
-      <div
-        className="f-mono"
-        style={{
-          fontSize: 9,
-          letterSpacing: "0.2em",
-          color: "var(--ink-faint)",
-          textTransform: "uppercase",
-          padding: "4px 12px 6px",
-        }}
-      >
-        {section.title}
-      </div>
-      {section.items.map((it, i) => (
-        <button
-          key={i}
-          onClick={() => onItemClick(it)}
-          className="press"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            width: "100%",
-            padding: "10px 12px",
-            background: "transparent",
-            border: "none",
-            borderRadius: 10,
-            cursor: "pointer",
-            color: "var(--ink)",
-            fontFamily: "var(--f-sans)",
-            fontSize: 14,
-            textAlign: "left",
-          }}
-        >
-          <span
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 9,
-              background: "var(--surface-low)",
-              border: "1px solid var(--line-soft)",
-              color: "var(--ink-soft)",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
-          >
-            <DrawerIcon kind={it.icon} />
-          </span>
-          <span style={{ flex: 1 }}>{it.label}</span>
-          {it.meta && (
-            <span
-              className="f-mono"
-              style={{
-                fontSize: 9,
-                letterSpacing: "0.16em",
-                textTransform: "uppercase",
-                color: "var(--ink-faint)",
-              }}
-            >
-              {it.meta}
-            </span>
-          )}
-        </button>
-      ))}
-    </div>
   );
 }

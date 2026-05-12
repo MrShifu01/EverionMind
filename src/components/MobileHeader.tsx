@@ -69,39 +69,6 @@ export default function MobileHeader({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-          {onOpenMenu && (
-            <button
-              type="button"
-              onClick={onOpenMenu}
-              aria-label="Menu"
-              className="press"
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 10,
-                background: "transparent",
-                border: "none",
-                color: "var(--ink-soft)",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-                padding: 0,
-              }}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              >
-                <path d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-          )}
           <button
             type="button"
             onClick={() => onNavigate?.("home")}
@@ -189,6 +156,39 @@ export default function MobileHeader({
               onDismissAll={onDismissAllNotifications ?? (() => {})}
               onAcceptMerge={onAcceptMerge ?? (() => {})}
             />
+          )}
+          {onOpenMenu && (
+            <button
+              type="button"
+              onClick={onOpenMenu}
+              aria-label="Menu"
+              className="press"
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                background: "transparent",
+                border: "none",
+                color: "var(--ink-soft)",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                padding: 0,
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                <path d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
           )}
         </div>
       </header>

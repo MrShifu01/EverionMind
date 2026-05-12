@@ -900,16 +900,12 @@ function EverionContent({
                         handleCreated,
                       );
                     }}
-                    onNavigate={(id) => {
-                      setSelected(null);
-                      appShell.setShowCapture(false);
-                      appShell.setView(id);
-                    }}
                     onSearch={() =>
                       window.dispatchEvent(
                         new KeyboardEvent("keydown", { key: "/", metaKey: true, bubbles: true }),
                       )
                     }
+                    onOpenMenu={() => setMoreOpen(true)}
                     onCreateBrain={() => appShell.setShowCreateBrain(true)}
                     notifications={notifs.notifications}
                     unreadCount={notifs.unreadCount}
