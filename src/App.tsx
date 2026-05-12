@@ -10,7 +10,7 @@ import ErrorBoundary from "./ErrorBoundary";
 import { MemoryProvider } from "./MemoryContext";
 import { ThemeProvider } from "./ThemeContext";
 import OfflineScreen from "./components/OfflineScreen";
-import { Button } from "./components/ui/button";
+import MobileCaptureOrb from "./components/MobileCaptureOrb";
 import type { Session } from "@supabase/auth-js";
 
 // Heavy code paths a first-paint visitor almost never hits — keep them out
@@ -298,7 +298,8 @@ function AppMain({ initialAuthIntent }: AppProps = {}): JSX.Element {
                 outline: "none",
               }}
             />
-            <Button
+            <button
+              type="button"
               onClick={() => {
                 if (earlyCaptureText.trim()) {
                   localStorage.setItem("ob_pending_capture", earlyCaptureText.trim());
@@ -306,47 +307,66 @@ function AppMain({ initialAuthIntent }: AppProps = {}): JSX.Element {
                 setEarlyCapture(false);
                 setEarlyCaptureText("");
               }}
+              className="press"
               style={{
                 marginTop: 12,
                 height: 48,
                 borderRadius: 12,
-                background: "var(--color-primary)",
-                color: "var(--color-on-primary)",
+                background: "var(--ember)",
+                color: "var(--ember-ink)",
                 fontSize: 15,
                 fontWeight: 600,
                 fontFamily: "var(--f-sans)",
+                border: "none",
+                cursor: "pointer",
               }}
             >
               {earlyCaptureText.trim() ? "Save & continue" : "Cancel"}
-            </Button>
+            </button>
           </div>
         ) : (
-          <Button
-            size="icon-lg"
-            onClick={() => setEarlyCapture(true)}
-            aria-label="New entry"
-            className="press-scale fixed bottom-5 left-1/2 z-[60] h-14 w-14 -translate-x-1/2 rounded-full lg:hidden"
-            style={{
-              background: "var(--color-primary)",
-              color: "var(--color-on-primary)",
-              boxShadow: "var(--shadow-lg)",
-            }}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+          <>
+            {/* Loading state — subtle inkwell mark + status text + the
+                same orb we use on every other view. Visual-only so we
+                don't try to wire useVoiceRecorder before auth completes. */}
+            <div
+              style={{
+                position: "fixed",
+                inset: 0,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 18,
+                pointerEvents: "none",
+                background: "var(--bg, #0e0e0e)",
+              }}
             >
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </Button>
+              <div className="ink-logo" style={{ fontSize: 22, opacity: 0.85 }} aria-hidden>
+                <span className="ink-logo-mark">
+                  <span></span>
+                </span>
+                <span>everion</span>
+              </div>
+              <div
+                className="f-mono"
+                style={{
+                  fontSize: 10,
+                  letterSpacing: "0.22em",
+                  textTransform: "uppercase",
+                  color: "var(--ink-faint, #888)",
+                  animation: "hero-glow 2.4s ease-in-out infinite",
+                }}
+              >
+                stirring the ink…
+              </div>
+            </div>
+            <MobileCaptureOrb
+              onOpenCapture={() => setEarlyCapture(true)}
+              visualOnly
+              ariaLabel="New entry"
+            />
+          </>
         )}
       </ThemeProvider>
     );
