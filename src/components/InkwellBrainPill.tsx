@@ -123,120 +123,125 @@ export default function InkwellBrainPill({ onCreateBrain }: Props) {
               top: "calc(100% + 6px)",
               left: "50%",
               transform: "translateX(-50%)",
-              minWidth: 220,
-              background: "var(--surface-high)",
-              border: "1px solid var(--line-soft)",
-              borderRadius: 14,
-              padding: 6,
-              boxShadow: "var(--lift-3)",
               zIndex: 41,
-              animation: "fade-up 180ms ease both",
             }}
           >
-            {sorted.map((b) => {
-              const isActive = b.id === activeBrain.id;
-              return (
-                <button
-                  key={b.id}
-                  type="button"
-                  onClick={() => void pick(b)}
-                  className="press"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    width: "100%",
-                    padding: "8px 8px",
-                    background: isActive ? "var(--ember-wash)" : "transparent",
-                    border: "none",
-                    borderRadius: 8,
-                    color: "var(--ink)",
-                    cursor: "pointer",
-                    fontFamily: "var(--f-sans)",
-                    fontSize: 13,
-                    fontWeight: 500,
-                    textAlign: "left",
-                  }}
-                >
-                  <span
+            <div
+              style={{
+                minWidth: 220,
+                background: "var(--surface-high)",
+                border: "1px solid var(--line-soft)",
+                borderRadius: 14,
+                padding: 6,
+                boxShadow: "var(--lift-3)",
+                animation: "fade-up 180ms ease both",
+              }}
+            >
+              {sorted.map((b) => {
+                const isActive = b.id === activeBrain.id;
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => void pick(b)}
+                    className="press"
                     style={{
-                      width: 22,
-                      height: 22,
-                      borderRadius: "50%",
-                      background: `color-mix(in oklch, ${ACCENT} 22%, var(--surface-low))`,
-                      border: `1px solid color-mix(in oklch, ${ACCENT} 60%, transparent)`,
-                      display: "inline-flex",
+                      display: "flex",
                       alignItems: "center",
-                      justifyContent: "center",
-                      color: ACCENT,
-                      fontSize: 11,
-                      flexShrink: 0,
+                      gap: 10,
+                      width: "100%",
+                      padding: "8px 8px",
+                      background: isActive ? "var(--ember-wash)" : "transparent",
+                      border: "none",
+                      borderRadius: 8,
+                      color: "var(--ink)",
+                      cursor: "pointer",
+                      fontFamily: "var(--f-sans)",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      textAlign: "left",
                     }}
                   >
-                    {b.is_personal ? "●" : "▲"}
-                  </span>
-                  <span style={{ flex: 1, minWidth: 0 }}>{b.name}</span>
-                  {isActive && (
                     <span
-                      className="f-mono"
                       style={{
-                        fontSize: 9,
-                        letterSpacing: "0.16em",
+                        width: 22,
+                        height: 22,
+                        borderRadius: "50%",
+                        background: `color-mix(in oklch, ${ACCENT} 22%, var(--surface-low))`,
+                        border: `1px solid color-mix(in oklch, ${ACCENT} 60%, transparent)`,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
                         color: ACCENT,
-                        textTransform: "uppercase",
+                        fontSize: 11,
+                        flexShrink: 0,
                       }}
                     >
-                      active
+                      {b.is_personal ? "●" : "▲"}
                     </span>
-                  )}
-                </button>
-              );
-            })}
-            {onCreateBrain && (
-              <>
-                <div style={{ height: 1, background: "var(--line-soft)", margin: "4px 6px" }} />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpen(false);
-                    onCreateBrain();
-                  }}
-                  className="press"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    width: "100%",
-                    padding: "8px 8px",
-                    background: "transparent",
-                    border: "none",
-                    borderRadius: 8,
-                    color: "var(--ink-soft)",
-                    cursor: "pointer",
-                    fontFamily: "var(--f-sans)",
-                    fontSize: 13,
-                  }}
-                >
-                  <span
+                    <span style={{ flex: 1, minWidth: 0 }}>{b.name}</span>
+                    {isActive && (
+                      <span
+                        className="f-mono"
+                        style={{
+                          fontSize: 9,
+                          letterSpacing: "0.16em",
+                          color: ACCENT,
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        active
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+              {onCreateBrain && (
+                <>
+                  <div style={{ height: 1, background: "var(--line-soft)", margin: "4px 6px" }} />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      onCreateBrain();
+                    }}
+                    className="press"
                     style={{
-                      width: 22,
-                      height: 22,
-                      borderRadius: "50%",
-                      border: "1px dashed var(--line)",
-                      display: "inline-flex",
+                      display: "flex",
                       alignItems: "center",
-                      justifyContent: "center",
-                      color: "var(--ink-faint)",
-                      fontSize: 14,
-                      lineHeight: 1,
+                      gap: 10,
+                      width: "100%",
+                      padding: "8px 8px",
+                      background: "transparent",
+                      border: "none",
+                      borderRadius: 8,
+                      color: "var(--ink-soft)",
+                      cursor: "pointer",
+                      fontFamily: "var(--f-sans)",
+                      fontSize: 13,
                     }}
                   >
-                    +
-                  </span>
-                  <span>New brain</span>
-                </button>
-              </>
-            )}
+                    <span
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: "50%",
+                        border: "1px dashed var(--line)",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "var(--ink-faint)",
+                        fontSize: 14,
+                        lineHeight: 1,
+                      }}
+                    >
+                      +
+                    </span>
+                    <span>New brain</span>
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </>
       )}
