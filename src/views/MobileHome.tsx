@@ -468,15 +468,21 @@ export default function MobileHome({
         <form
           onSubmit={submitAsk}
           style={{
-            // Absolutely pin to bronze-screen's bottom so iOS never thinks
-            // the form needs scrolling into view — it's already there.
-            // --edge-bottom-pad = 0 in PWA standalone (flush at the screen
-            // edge, home indicator overlays), env(safe-area-inset-bottom)
-            // in a browser tab (clears the URL bar).
-            position: "absolute",
+            // Pin to the VISUAL viewport bottom, not bronze-screen's
+            // bottom. On iOS PWA standalone, 100dvh does not reliably
+            // shrink when the soft keyboard opens, so an
+            // absolute-to-bronze-screen form ends up underneath the
+            // keyboard. --vvh is kept in sync with
+            // window.visualViewport.height by the effect above; the
+            // keyboard's height is therefore (100vh - --vvh), and we
+            // add that to --edge-bottom-pad to lift the form above the
+            // keyboard. When the keyboard is closed, vvh = 100vh so the
+            // extra offset collapses to 0 and the form sits flush.
+            position: "fixed",
             left: 16,
             right: 16,
-            bottom: "var(--edge-bottom-pad, 0px)",
+            bottom: "calc(100vh - var(--vvh, 100vh) + var(--edge-bottom-pad, 0px))",
+            zIndex: 50,
           }}
         >
           <label
