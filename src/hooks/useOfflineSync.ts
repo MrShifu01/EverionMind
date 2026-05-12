@@ -150,7 +150,11 @@ export function useOfflineSync({ onEntryIdUpdate }: UseOfflineSyncOptions = {}) 
             }
             const res = await authFetch(op.url, {
               method: op.method,
-              headers: { "Content-Type": "application/json", ...extraHeaders },
+              headers: {
+                "Content-Type": "application/json",
+                ...extraHeaders,
+                ...(op.headers || {}),
+              },
               body: op.body,
             });
             if (res.ok || res.status === 404) {

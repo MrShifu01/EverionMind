@@ -32,9 +32,35 @@ const STRUCTURED_PHONE_KEYS = [
 
 function detectDefaultCountry(): CountryCode | undefined {
   if (typeof navigator === "undefined") return undefined;
-  const tag = navigator.language || "";
-  const region = tag.split("-")[1];
-  return region && /^[A-Z]{2}$/.test(region) ? (region as CountryCode) : undefined;
+  // Try every locale the browser reports, in priority order — covers users
+  // whose primary language is region-less (e.g. "en") but who have a
+  // regional secondary (e.g. "en-ZA"). navigator.languages is preferred;
+  // fall back to navigator.language.
+  const tags: string[] = [];
+  if (Array.isArray(navigator.languages)) tags.push(...navigator.languages);
+  if (navigator.language) tags.push(navigator.language);
+  for (const tag of tags) {
+    const region = tag.split("-")[1];
+    if (region && /^[A-Z]{2}$/i.test(region)) return region.toUpperCase() as CountryCode;
+  }
+  return undefined;
+}
+
+// Country-of-last-resort tried when the browser locale gives us nothing
+// regional. Ordered by user base — ZA first because the primary user base
+// is South African and SA local-format numbers (0XX-XXX-XXXX) are the most
+// common metadata.whatsapp value. Add more countries as we expand.
+const FALLBACK_COUNTRIES: CountryCode[] = ["ZA"];
+
+function tryParse(raw: string, defaultCountry?: CountryCode) {
+  const primary = parsePhoneNumberFromString(raw, defaultCountry);
+  if (primary?.isValid()) return primary;
+  for (const c of FALLBACK_COUNTRIES) {
+    if (c === defaultCountry) continue;
+    const fallback = parsePhoneNumberFromString(raw, c);
+    if (fallback?.isValid()) return fallback;
+  }
+  return null;
 }
 
 export function extractPhone(entry: Entry, defaultCountry?: CountryCode): string | null {
@@ -46,8 +72,8 @@ export function extractPhone(entry: Entry, defaultCountry?: CountryCode): string
   for (const key of STRUCTURED_PHONE_KEYS) {
     const raw = meta[key];
     if (typeof raw === "string" && raw.trim()) {
-      const parsed = parsePhoneNumberFromString(raw, country);
-      if (parsed?.isValid()) return parsed.number;
+      const parsed = tryParse(raw, country);
+      if (parsed) return parsed.number;
     }
   }
 
@@ -71,9 +97,7 @@ export function toWaUrl(phone: string, defaultCountry?: CountryCode): string {
   // wa.me/<digits> takes E.164 without the leading '+'. Parse so users
   // who type the number with formatting (spaces, parens, dashes) still
   // get a valid link.
-  const parsed = parsePhoneNumberFromString(phone, defaultCountry ?? detectDefaultCountry());
-  if (parsed?.isValid()) {
-    return `https://wa.me/${parsed.number.slice(1)}`;
-  }
+  const parsed = tryParse(phone, defaultCountry ?? detectDefaultCountry());
+  if (parsed) return `https://wa.me/${parsed.number.slice(1)}`;
   return `https://wa.me/${phone.replace(/\D/g, "")}`;
 }

@@ -175,4 +175,7 @@ export interface OfflineOp {
   body: string;
   created_at: string;
   tempId?: string;
+  /** Extra headers to send with the replay (e.g. Idempotency-Key so the
+   *  server can dedupe if the original POST already succeeded). */
+  headers?: Record<string, string>;
 }

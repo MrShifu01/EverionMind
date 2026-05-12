@@ -309,6 +309,12 @@ export function useBackgroundCapture() {
         p_tags: entry.tags || [],
         p_brain_id: brainId,
       });
+      // One idempotency key per save call. Same key is sent on every retry
+      // attempt below AND on the offline-queue replay, so the server's
+      // reserveIdempotency() short-circuits duplicate POSTs — fixes the
+      // bug where a flaky network + retry-on-5xx loop created 3 entries
+      // from one user save.
+      const idempotencyKey = crypto.randomUUID();
 
       // Offline shortcut — don't even attempt the network. Surface the entry
       // immediately with a temp id so it appears in the list, then enqueue
@@ -326,6 +332,7 @@ export function useBackgroundCapture() {
             body: saveBody,
             tempId,
             created_at: new Date().toISOString(),
+            headers: { "Idempotency-Key": idempotencyKey },
           });
         } catch (e) {
           updateTask(taskId, {
@@ -370,7 +377,11 @@ export function useBackgroundCapture() {
           try {
             res = await authFetch("/api/capture", {
               method: "POST",
-              headers: { "Content-Type": "application/json", ...(embedHeaders || {}) },
+              headers: {
+                "Content-Type": "application/json",
+                "Idempotency-Key": idempotencyKey,
+                ...(embedHeaders || {}),
+              },
               body: saveBody,
             });
             if (res.ok || (res.status >= 400 && res.status < 500)) break;
