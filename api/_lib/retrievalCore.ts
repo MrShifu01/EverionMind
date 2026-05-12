@@ -255,21 +255,29 @@ export async function retrieveEntries(
 
   // 2. Keyword expand — FTS via PostgREST `wfts` (websearch_to_tsquery).
   // Indexed by entries_search_tsv_gin_idx (migration 087, partial on
-  // type<>'secret' AND deleted_at IS NULL). Replaces the prior ILIKE OR-of-
-  // tokens scan; websearch handles "phrases", OR, -exclude tokens safely
-  // and won't crash on user input.
-  if (query.trim()) {
-    const ftsQuery = encodeURIComponent(query.trim());
-    const kwRes = await fetch(
-      `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&type=neq.secret&search_tsv=wfts(english).${ftsQuery}&select=id,title,type,tags,content,metadata&limit=10`,
-      { headers: SB_HEADERS },
-    );
-    if (kwRes.ok) {
-      const rows: any[] = await kwRes.json();
-      for (const r of rows) {
-        if (!existingIds.has(r.id)) {
-          existingIds.add(r.id);
-          entries.push({ ...r, brain_id: brainId, similarity: 0 });
+  // type<>'secret' AND deleted_at IS NULL).
+  //
+  // Tokens are OR-joined explicitly because websearch_to_tsquery
+  // AND-joins multi-word input by default — passing the raw query
+  // would require entries to match every term simultaneously, which
+  // misses "any-term" queries like "staff employee team member contact
+  // details" where no single entry has all six terms. Mirrors the
+  // ILIKE OR-of-tokens semantics the previous implementation used.
+  {
+    const kwTokens = extractQueryTokens(query);
+    if (kwTokens.length > 0) {
+      const orQuery = kwTokens.join(" OR ");
+      const kwRes = await fetch(
+        `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&type=neq.secret&search_tsv=wfts(english).${encodeURIComponent(orQuery)}&select=id,title,type,tags,content,metadata&limit=10`,
+        { headers: SB_HEADERS },
+      );
+      if (kwRes.ok) {
+        const rows: any[] = await kwRes.json();
+        for (const r of rows) {
+          if (!existingIds.has(r.id)) {
+            existingIds.add(r.id);
+            entries.push({ ...r, brain_id: brainId, similarity: 0 });
+          }
         }
       }
     }
@@ -443,19 +451,22 @@ export async function retrieveEntriesForUser(
   const brainScope = `brain_id=in.(${brainInList})`;
 
   // 2. Keyword expand — FTS via PostgREST `wfts` (websearch_to_tsquery).
-  // See retrieveEntries() for the index + rationale.
-  if (query.trim()) {
-    const ftsQuery = encodeURIComponent(query.trim());
-    const kwRes = await fetch(
-      `${SB_URL}/rest/v1/entries?${brainScope}&deleted_at=is.null&type=neq.secret&search_tsv=wfts(english).${ftsQuery}&select=id,title,type,tags,content,metadata,brain_id&limit=10`,
-      { headers: SB_HEADERS },
-    );
-    if (kwRes.ok) {
-      const rows: any[] = await kwRes.json();
-      for (const r of rows) {
-        if (!existingIds.has(r.id)) {
-          existingIds.add(r.id);
-          entries.push({ ...r, similarity: 0 });
+  // OR-join tokens — see retrieveEntries() for the rationale.
+  {
+    const kwTokens = extractQueryTokens(query);
+    if (kwTokens.length > 0) {
+      const orQuery = kwTokens.join(" OR ");
+      const kwRes = await fetch(
+        `${SB_URL}/rest/v1/entries?${brainScope}&deleted_at=is.null&type=neq.secret&search_tsv=wfts(english).${encodeURIComponent(orQuery)}&select=id,title,type,tags,content,metadata,brain_id&limit=10`,
+        { headers: SB_HEADERS },
+      );
+      if (kwRes.ok) {
+        const rows: any[] = await kwRes.json();
+        for (const r of rows) {
+          if (!existingIds.has(r.id)) {
+            existingIds.add(r.id);
+            entries.push({ ...r, similarity: 0 });
+          }
         }
       }
     }
