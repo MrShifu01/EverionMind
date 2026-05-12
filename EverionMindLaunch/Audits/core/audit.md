@@ -24,6 +24,17 @@ Fixed during the retrieval audit pass:
   service-role vector RPC.
 - Chat no longer sends the current user message twice in the history
   payload.
+- Prose facts now enter Tier 1 through the LLM fact-extraction step:
+  title-bearing prompt, array-safe parsing, confidence floor, privacy
+  skips, `created_by='system_llm'`, and migration 090 for auditability.
+- Duplicate canonical facts now refresh system-owned summaries and source
+  ids, covering the stale-after-edit failure mode for deterministic and
+  LLM facts.
+- `retrieveEntriesForUser` now applies concept-graph boost when the top
+  three seed hits all belong to one brain, and returns matched concepts
+  instead of always `concepts: []`.
+- Tag-sibling expansion now lifts tag tokens only from the top three seed
+  hits to reduce broad-tag pollution.
 
 ---
 

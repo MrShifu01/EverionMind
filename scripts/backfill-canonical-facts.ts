@@ -110,10 +110,66 @@ async function upsertFact(
       status: "active",
     }),
   });
-  if (r.status === 409) return "exists";
+  if (r.status === 409) {
+    await refreshExistingFact(fact, userId, brainId, createdBy);
+    return "exists";
+  }
   if (r.ok) return "inserted";
   console.error(`  upsert ${fact.memory_key} → HTTP ${r.status}: ${await r.text().catch(() => "")}`);
   return "failed";
+}
+
+async function refreshExistingFact(
+  fact: ExtractedFact,
+  userId: string,
+  brainId: string,
+  createdBy: "system" | "system_llm",
+): Promise<void> {
+  const q = new URLSearchParams({
+    user_id: `eq.${userId}`,
+    brain_id: `eq.${brainId}`,
+    memory_key: `eq.${fact.memory_key}`,
+    status: "eq.active",
+    select: "id,title,summary,source_entry_ids,created_by",
+    limit: "1",
+  });
+  const r = await fetch(`${SB_URL}/rest/v1/important_memories?${q.toString()}`, { headers: HDR });
+  if (!r.ok) return;
+  const rows: Array<{
+    id: string;
+    title: string | null;
+    summary: string | null;
+    source_entry_ids: string[] | null;
+    created_by: "user" | "system" | "system_llm" | null;
+  }> = await r.json().catch(() => []);
+  const row = rows[0];
+  if (!row || row.created_by === "user") return;
+
+  const mergedSources = Array.from(
+    new Set([...(row.source_entry_ids ?? []), ...fact.source_entry_ids].filter(Boolean)),
+  );
+  const patch: Record<string, unknown> = {};
+  if (row.title !== fact.title) patch.title = fact.title;
+  if (row.summary !== fact.summary) patch.summary = fact.summary;
+  if (JSON.stringify(row.source_entry_ids ?? []) !== JSON.stringify(mergedSources)) {
+    patch.source_entry_ids = mergedSources;
+  }
+  if (row.created_by === "system_llm" && createdBy === "system") {
+    patch.created_by = "system";
+  }
+  if (Object.keys(patch).length === 0) return;
+
+  const patchRes = await fetch(
+    `${SB_URL}/rest/v1/important_memories?id=eq.${encodeURIComponent(row.id)}`,
+    {
+      method: "PATCH",
+      headers: { ...HDR, Prefer: "return=minimal" },
+      body: JSON.stringify(patch),
+    },
+  );
+  if (!patchRes.ok) {
+    console.error(`  refresh ${fact.memory_key} → HTTP ${patchRes.status}`);
+  }
 }
 
 // ── LLM extraction pass (only when --llm flag set) ─────────────────────────

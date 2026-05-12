@@ -17,6 +17,18 @@ by user-visible impact + launch criticality. Pick up in priority order.
   `pin`, etc.) and aligned hybrid scoring with the shared tokenizer, so
   direct lookup questions are no longer diluted by conversational
   stopwords.
+- Completed P0 #2. `stepLLMFactExtract` now has a title-bearing prompt,
+  array-safe JSON parsing, confidence gating, secret/persona/list skips,
+  and writes audited `created_by='system_llm'` facts via migration 090.
+- P0 #3 is implementation-ready but still needs the operator run. The
+  backfill script supports `--llm`, uses the same prose-fact gate as
+  runtime enrichment, and refreshes existing system-owned facts on
+  duplicate keys.
+- Completed P1 #6. Duplicate canonical facts now refresh system-owned
+  summaries and source ids instead of leaving stale Tier 1 rows.
+- Also closed the core-audit retrieval ranker gaps: chat cross-brain
+  retrieval now applies the same-brain top-3 graph-boost compromise, and
+  tag-sibling expansion only lifts tags from the top-3 seeds.
 
 ## P0 — should ship before public launch
 
@@ -43,7 +55,7 @@ ordered.
 **Risk:** All 18 fixtures must still pass. If they do, ship and pull
 back the title-ILIKE rescue path (Phase 4 cleanup).
 
-### 2. LLM-driven fact extraction from prose
+### 2. [DONE] LLM-driven fact extraction from prose
 
 **What:** Phase 2A's auto-fact extraction is deterministic — it only
 walks structured metadata fields (`phone`, `id_number`, etc.). Misses
@@ -67,7 +79,7 @@ emotional content.
 the confidence floor, plus a `created_by='system_llm'` marker (different
 from `system` deterministic) so users can audit + bulk-remove if needed.
 
-### 3. Backfill LLM fact extraction over existing 275 entries
+### 3. [OPERATOR] Backfill LLM fact extraction over existing entries
 
 **What:** Once #2 ships, run the LLM extraction over all existing
 entries. Gemini cost: ~275 calls × ~$0.002 = ~$0.55. Negligible.
@@ -106,7 +118,7 @@ expansion: queries with an alias also search the canonical.
 **Why P1, not P0:** vector + trgm cover ~80% of alias cases already.
 The remaining 20% are noticeable but not launch-blocking.
 
-### 6. Sentence-level fact freshness
+### 6. [DONE] Sentence-level fact freshness
 
 **What:** When an entry gets edited (phone number changes, address
 updates), the auto-extracted important_memory still points at the old

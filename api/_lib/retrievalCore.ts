@@ -7,6 +7,7 @@ import { SERVER_PROMPTS } from "./prompts.js";
 import { sbHeaders } from "./sbHeaders.js";
 import { callAI } from "./aiProvider.js";
 import { resolveProviderForUser } from "./resolveProvider.js";
+import { writeAuditLog } from "./auditLog.js";
 
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_HEADERS = sbHeaders();
@@ -38,6 +39,30 @@ interface RetrievalResult {
   entries: RetrievedEntry[];
   concepts: Array<{ name: string; description?: string }>;
   importantMemories: ImportantMemoryHit[];
+}
+
+interface RetrievalTelemetryOptions {
+  userId?: string | null;
+  requestId?: string | null;
+  surface?: string;
+  brainId?: string | null;
+}
+
+function recordRetrievalTelemetry(
+  opts: RetrievalTelemetryOptions | undefined,
+  metadata: Record<string, unknown>,
+): void {
+  if (!opts?.userId) return;
+  writeAuditLog({
+    userId: opts.userId,
+    action: "retrieval.query",
+    resourceId: opts.brainId ?? null,
+    requestId: opts.requestId ?? null,
+    metadata: {
+      surface: opts.surface ?? "unknown",
+      ...metadata,
+    },
+  });
 }
 
 function applyGraphBoost(entries: any[], graph: any): any[] {
@@ -337,7 +362,11 @@ export async function retrieveEntries(
   brainId: string,
   geminiApiKey: string,
   limit = 15,
+  telemetry?: RetrievalTelemetryOptions,
 ): Promise<RetrievalResult> {
+  const startedAt = Date.now();
+  let tagSiblingUsed = false;
+  let graphBoostApplied = false;
   // Tier 1 (canonical facts) runs in parallel with the embed call so
   // it adds zero latency on the cache-miss path.
   const [embedding, importantMemories] = await Promise.all([
@@ -466,6 +495,7 @@ export async function retrieveEntries(
     });
   });
   if (tagTokens.size > 0) {
+    tagSiblingUsed = true;
     const tagQuery = Array.from(tagTokens).slice(0, 8).join(" OR ");
     const rows = await searchEntriesFts([brainId], tagQuery, 20);
     for (const r of rows) {
@@ -540,6 +570,7 @@ export async function retrieveEntries(
       const graph = rows[0]?.graph;
       if (graph) {
         entries = applyGraphBoost(entries, graph);
+        graphBoostApplied = true;
         const finalIds = new Set(entries.slice(0, limit).map((e: any) => e.id));
         for (const c of graph.concepts ?? []) {
           if (c.name && (c.source_entries ?? []).some((id: string) => finalIds.has(id))) {
@@ -562,6 +593,22 @@ export async function retrieveEntries(
   // latency is unchanged. Cap nudge so a fact can't pin itself by being
   // retrieved often.
   reinforcePersonaFacts(finalEntries).catch(() => {});
+
+  recordRetrievalTelemetry(
+    telemetry ? { ...telemetry, brainId: telemetry.brainId ?? brainId } : undefined,
+    {
+      mode: "single_brain",
+      duration_ms: Date.now() - startedAt,
+      requested_limit: limit,
+      returned_count: finalEntries.length,
+      important_memory_count: importantMemories.length,
+      concept_count: matchedConcepts.length,
+      graph_boost_applied: graphBoostApplied,
+      tag_sibling_used: tagSiblingUsed,
+      query_length: query.length,
+      token_count: extractQueryTokens(query).length,
+    },
+  );
 
   return { entries: finalEntries, concepts: matchedConcepts, importantMemories };
 }
@@ -607,9 +654,34 @@ export async function retrieveEntriesForUser(
   userId: string,
   geminiApiKey: string,
   limit = 15,
+  telemetry?: RetrievalTelemetryOptions,
 ): Promise<RetrievalResult> {
+  const startedAt = Date.now();
+  let tagSiblingUsed = false;
+  let graphBoostApplied = false;
+  const telemetryOpts: RetrievalTelemetryOptions = {
+    userId,
+    surface: "chat",
+    ...telemetry,
+    brainId: telemetry?.brainId ?? null,
+  };
   const accessibleIds = await getAccessibleBrainIds(userId);
-  if (!accessibleIds.length) return { entries: [], concepts: [], importantMemories: [] };
+  if (!accessibleIds.length) {
+    recordRetrievalTelemetry(telemetryOpts, {
+      mode: "cross_brain",
+      duration_ms: Date.now() - startedAt,
+      requested_limit: limit,
+      returned_count: 0,
+      important_memory_count: 0,
+      concept_count: 0,
+      graph_boost_applied: false,
+      tag_sibling_used: false,
+      accessible_brain_count: 0,
+      query_length: query.length,
+      token_count: extractQueryTokens(query).length,
+    });
+    return { entries: [], concepts: [], importantMemories: [] };
+  }
 
   // Tier 1 (canonical facts) runs in parallel with the embed call — see
   // retrieveEntries() for the rationale.
@@ -729,6 +801,7 @@ export async function retrieveEntriesForUser(
     });
   });
   if (tagTokens.size > 0) {
+    tagSiblingUsed = true;
     const tagQuery = Array.from(tagTokens).slice(0, 8).join(" OR ");
     const rows = await searchEntriesFts(accessibleIds.slice(0, 50), tagQuery, 20);
     for (const r of rows) {
@@ -786,23 +859,26 @@ export async function retrieveEntriesForUser(
         .filter((id: unknown): id is string => typeof id === "string" && id.length > 0),
     );
     if (seedBrainIds.size === 1) {
-      const [seedBrainId] = Array.from(seedBrainIds);
-      const graphRes = await fetch(
-        `${SB_URL}/rest/v1/concept_graphs?brain_id=eq.${encodeURIComponent(seedBrainId)}&select=graph`,
-        { headers: SB_HEADERS },
-      );
-      if (graphRes.ok) {
-        const rows: any[] = await graphRes.json();
-        const graph = rows[0]?.graph;
-        if (graph) {
-          entries = applyGraphBoost(entries, graph);
-          const finalIds = new Set(entries.slice(0, limit).map((e: any) => e.id));
-          for (const c of graph.concepts ?? []) {
-            if (c.name && (c.source_entries ?? []).some((id: string) => finalIds.has(id))) {
-              matchedConcepts.push({
-                name: c.name,
-                ...(c.description ? { description: c.description } : {}),
-              });
+      const seedBrainId = Array.from(seedBrainIds)[0];
+      if (seedBrainId) {
+        const graphRes = await fetch(
+          `${SB_URL}/rest/v1/concept_graphs?brain_id=eq.${encodeURIComponent(seedBrainId)}&select=graph`,
+          { headers: SB_HEADERS },
+        );
+        if (graphRes.ok) {
+          const rows: any[] = await graphRes.json();
+          const graph = rows[0]?.graph;
+          if (graph) {
+            entries = applyGraphBoost(entries, graph);
+            graphBoostApplied = true;
+            const finalIds = new Set(entries.slice(0, limit).map((e: any) => e.id));
+            for (const c of graph.concepts ?? []) {
+              if (c.name && (c.source_entries ?? []).some((id: string) => finalIds.has(id))) {
+                matchedConcepts.push({
+                  name: c.name,
+                  ...(c.description ? { description: c.description } : {}),
+                });
+              }
             }
           }
         }
@@ -814,6 +890,19 @@ export async function retrieveEntriesForUser(
 
   const finalEntries = entries.slice(0, limit) as RetrievedEntry[];
   reinforcePersonaFacts(finalEntries).catch(() => {});
+  recordRetrievalTelemetry(telemetryOpts, {
+    mode: "cross_brain",
+    duration_ms: Date.now() - startedAt,
+    requested_limit: limit,
+    returned_count: finalEntries.length,
+    important_memory_count: importantMemories.length,
+    concept_count: matchedConcepts.length,
+    graph_boost_applied: graphBoostApplied,
+    tag_sibling_used: tagSiblingUsed,
+    accessible_brain_count: accessibleIds.length,
+    query_length: query.length,
+    token_count: extractQueryTokens(query).length,
+  });
   return { entries: finalEntries, concepts: matchedConcepts, importantMemories };
 }
 
