@@ -118,7 +118,7 @@ const CHAT_TOOLS: ToolSchema[] = [
   {
     name: "retrieve_memory",
     description:
-      "Full semantic retrieval across every brain the user can read (their own + brains they're a member or viewer on). Vector search + keyword expansion. Use this for most queries — it finds the most relevant entries regardless of which brain they live in.",
+      "Full semantic retrieval across every brain the user can read (their own + brains they're a member or viewer on). Returns three layers in one call: (1) `importantMemories` — user-curated canonical facts ('Keep this' entries). PREFER these for direct fact questions like 'what is X's ID', 'when does Y expire', 'who is my Z'. Each hit has a `summary` and `source_entry_ids[]` you should cite. (2) `entries` — vector + keyword ranked entries for broader context. (3) `concepts` — related concept names. Use this for most queries.",
     parameters: {
       type: "object",
       properties: {

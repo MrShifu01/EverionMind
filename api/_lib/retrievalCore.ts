@@ -24,9 +24,20 @@ interface RetrievedEntry {
   _score: number;
 }
 
+interface ImportantMemoryHit {
+  id: string;
+  brain_id: string;
+  title: string;
+  summary: string;
+  memory_type: "fact" | "preference" | "decision" | "obligation";
+  source_entry_ids: string[];
+  created_at: string;
+}
+
 interface RetrievalResult {
   entries: RetrievedEntry[];
   concepts: Array<{ name: string; description?: string }>;
+  importantMemories: ImportantMemoryHit[];
 }
 
 function applyGraphBoost(entries: any[], graph: any): any[] {
@@ -148,13 +159,84 @@ export async function findLockedSecretTitles(
   return r.json();
 }
 
+// Shared token extractor for ILIKE-based lookups: strips non-alphanumeric
+// chars, drops short / STOP words, caps at 6 tokens.
+function extractQueryTokens(query: string): string[] {
+  return query
+    .trim()
+    .split(/\s+/)
+    .map((w) => w.replace(/[^a-zA-Z0-9]/g, ""))
+    .filter((w) => w.length > 3 && !STOP.has(w.toLowerCase()))
+    .slice(0, 6);
+}
+
+// Tier 1 — canonical-fact lookup. `important_memories` rows are the
+// user-curated fact layer ("Keep this" promotes an entry into a durable
+// fact with a stable memory_key, summary, and source_entry_ids).
+//
+// Before the vector path embeds the query, run an ILIKE pass over
+// title + summary. Hits return in ~30-80ms on a small table vs ~600ms
+// for the full embed → RPC → keyword → graph path. Runs in parallel
+// with generateEmbedding(), so it adds zero latency on the cache-miss
+// path — and gives the LLM canonical facts to prefer for direct
+// questions ("What is Henk's ID?").
+async function findImportantMemoriesByBrain(
+  query: string,
+  brainId: string,
+  limit = 5,
+): Promise<ImportantMemoryHit[]> {
+  const tokens = extractQueryTokens(query);
+  if (!tokens.length) return [];
+  const orFilter = tokens.map((kw) => `title.ilike.*${kw}*,summary.ilike.*${kw}*`).join(",");
+  const url = `${SB_URL}/rest/v1/important_memories?brain_id=eq.${encodeURIComponent(
+    brainId,
+  )}&status=eq.active&or=(${encodeURIComponent(
+    orFilter,
+  )})&select=id,brain_id,title,summary,memory_type,source_entry_ids,created_at&order=updated_at.desc&limit=${limit}`;
+  const r = await fetch(url, { headers: SB_HEADERS });
+  if (!r.ok) return [];
+  return r.json();
+}
+
+// Multi-brain variant used by /api/llm chat — every brain the user can
+// read (owned + member-of). `user_id` filter is the primary scope and
+// matches RLS; `brain_id IN (...)` narrows to brains we already resolved.
+async function findImportantMemoriesForUser(
+  query: string,
+  userId: string,
+  brainIds: string[],
+  limit = 5,
+): Promise<ImportantMemoryHit[]> {
+  if (!brainIds.length) return [];
+  const tokens = extractQueryTokens(query);
+  if (!tokens.length) return [];
+  const brainList = brainIds
+    .slice(0, 50)
+    .map((id) => encodeURIComponent(id))
+    .join(",");
+  const orFilter = tokens.map((kw) => `title.ilike.*${kw}*,summary.ilike.*${kw}*`).join(",");
+  const url = `${SB_URL}/rest/v1/important_memories?user_id=eq.${encodeURIComponent(
+    userId,
+  )}&brain_id=in.(${brainList})&status=eq.active&or=(${encodeURIComponent(
+    orFilter,
+  )})&select=id,brain_id,title,summary,memory_type,source_entry_ids,created_at&order=updated_at.desc&limit=${limit}`;
+  const r = await fetch(url, { headers: SB_HEADERS });
+  if (!r.ok) return [];
+  return r.json();
+}
+
 export async function retrieveEntries(
   query: string,
   brainId: string,
   geminiApiKey: string,
   limit = 15,
 ): Promise<RetrievalResult> {
-  const embedding = await generateEmbedding(query, geminiApiKey);
+  // Tier 1 (canonical facts) runs in parallel with the embed call so
+  // it adds zero latency on the cache-miss path.
+  const [embedding, importantMemories] = await Promise.all([
+    generateEmbedding(query, geminiApiKey),
+    findImportantMemoriesByBrain(query, brainId),
+  ]);
   if (!embedding) throw new Error("Embedding failed");
 
   // 1. Vector search
@@ -286,7 +368,7 @@ export async function retrieveEntries(
   // retrieved often.
   reinforcePersonaFacts(finalEntries).catch(() => {});
 
-  return { entries: finalEntries, concepts: matchedConcepts };
+  return { entries: finalEntries, concepts: matchedConcepts, importantMemories };
 }
 
 // Resolve every brain id the user can read: owned + member-of. Used by
@@ -333,11 +415,16 @@ export async function retrieveEntriesForUser(
   geminiApiKey: string,
   limit = 15,
 ): Promise<RetrievalResult> {
-  const embedding = await generateEmbedding(query, geminiApiKey);
-  if (!embedding) throw new Error("Embedding failed");
-
   const accessibleIds = await getAccessibleBrainIds(userId);
-  if (!accessibleIds.length) return { entries: [], concepts: [] };
+  if (!accessibleIds.length) return { entries: [], concepts: [], importantMemories: [] };
+
+  // Tier 1 (canonical facts) runs in parallel with the embed call — see
+  // retrieveEntries() for the rationale.
+  const [embedding, importantMemories] = await Promise.all([
+    generateEmbedding(query, geminiApiKey),
+    findImportantMemoriesForUser(query, userId, accessibleIds),
+  ]);
+  if (!embedding) throw new Error("Embedding failed");
 
   // 1. Vector search across every accessible brain (RPC handles the
   //    accessible-brains + entry_shares logic server-side).
@@ -441,7 +528,7 @@ export async function retrieveEntriesForUser(
 
   const finalEntries = entries as RetrievedEntry[];
   reinforcePersonaFacts(finalEntries).catch(() => {});
-  return { entries: finalEntries, concepts: [] };
+  return { entries: finalEntries, concepts: [], importantMemories };
 }
 
 async function reinforcePersonaFacts(entries: RetrievedEntry[]): Promise<void> {
