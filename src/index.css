@@ -837,13 +837,12 @@ body {
    are untouched. */
 html:has(.app-shell-fixed),
 body:has(.app-shell-fixed) {
-  /* 100dvh fills the full visible viewport (including the home indicator
-     safe area) on iOS 18+ PWA standalone. With viewport meta
-     `interactive-widget=resizes-content` the layout viewport ALSO shrinks
-     natively when the keyboard opens — no need to track visualViewport
-     in JS for that case. --vvh stays maintained for inkwell-sheet sizing
-     but no longer controls shell height (was leaving a 47px gap below
-     BottomNav whenever visualViewport.height < window.innerHeight). */
+  /* 100dvh shrinks with the soft keyboard (via
+     interactive-widget=resizes-content viewport meta), which is what
+     keeps the Ask input visible above the keyboard. The trade-off is
+     that on iOS PWA standalone, dvh can under-report the home indicator
+     safe-area — handled separately in BottomNav with a fixed-position
+     overlap into env(safe-area-inset-bottom). */
   height: 100dvh;
   overflow: hidden;
 }
