@@ -62,13 +62,14 @@ function BottomNavInner({
         zIndex: "var(--z-nav)",
         alignItems: "center",
         justifyContent: "space-around",
-        // Match the body bg exactly so the nav row + its safe-area extension
-        // both blend into the surrounding content. Previously var(--surface-low)
-        // made the nav (and the home-indicator strip below it) visibly lighter
-        // than the body, which read as a "gap" at the screen bottom.
-        background: "var(--bg)",
-        paddingBottom: "env(safe-area-inset-bottom, 0px)",
-        height: "calc(56px + env(safe-area-inset-bottom, 0px))",
+        background: "var(--surface-low)",
+        borderTop: "1px solid var(--line-soft)",
+        // Structural fix (not paint): nav is 56px flush at the screen
+        // edge. No env(safe-area-inset-bottom) padding pushing it up.
+        // iOS overlays its home-indicator pill over the icon row — the
+        // user prefers that to a visible strip below the nav.
+        paddingBottom: 0,
+        height: 56,
       }}
     >
       {navItems.map((item) => {
