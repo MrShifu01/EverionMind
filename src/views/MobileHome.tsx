@@ -327,6 +327,49 @@ export default function MobileHome({
           minHeight: 0,
         }}
       >
+        {/* Prompt text + voice-mode pill — sit above the orb. Hidden when
+            the chat input is focused so the keyboard + form get the room. */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 8,
+            opacity: inputFocused ? 0 : 1,
+            transform: inputFocused ? "translateY(4px) scale(0.98)" : "translateY(0) scale(1)",
+            pointerEvents: inputFocused ? "none" : "auto",
+            height: inputFocused ? 0 : "auto",
+            overflow: "hidden",
+            transition:
+              "opacity 320ms ease, transform 320ms ease, height 320ms cubic-bezier(0.16, 1, 0.3, 1)",
+          }}
+        >
+          <div
+            className="f-serif"
+            aria-live="polite"
+            style={{
+              fontSize: 14,
+              fontStyle: "italic",
+              color: error ? "var(--blood)" : "var(--ink-soft)",
+              letterSpacing: "-0.005em",
+              textAlign: "center",
+              minHeight: 20,
+              transition: "color 320ms ease",
+            }}
+          >
+            {error
+              ? error
+              : transcribing
+                ? "transcribing…"
+                : listening
+                  ? "recording — release to send"
+                  : isAsk
+                    ? askLiveCopy
+                    : "Tap to add, hold to record"}
+          </div>
+          {!isAsk && <VoiceModePill mode={voiceMode} onChange={setVoiceMode} />}
+        </div>
+
         <div
           style={{
             width: orbSize,
@@ -549,49 +592,6 @@ export default function MobileHome({
             </div>
           </div>
         )}
-
-        {/* Prompt text — sits directly under the orb. Hidden when the
-            chat input is focused so the keyboard + form get the room. */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 8,
-            opacity: inputFocused ? 0 : 1,
-            transform: inputFocused ? "translateY(-4px) scale(0.98)" : "translateY(0) scale(1)",
-            pointerEvents: inputFocused ? "none" : "auto",
-            height: inputFocused ? 0 : "auto",
-            overflow: "hidden",
-            transition:
-              "opacity 320ms ease, transform 320ms ease, height 320ms cubic-bezier(0.16, 1, 0.3, 1)",
-          }}
-        >
-          <div
-            className="f-serif"
-            aria-live="polite"
-            style={{
-              fontSize: 14,
-              fontStyle: "italic",
-              color: error ? "var(--blood)" : "var(--ink-soft)",
-              letterSpacing: "-0.005em",
-              textAlign: "center",
-              minHeight: 20,
-              transition: "color 320ms ease",
-            }}
-          >
-            {error
-              ? error
-              : transcribing
-                ? "transcribing…"
-                : listening
-                  ? "recording — release to send"
-                  : isAsk
-                    ? askLiveCopy
-                    : "Tap to add, hold to record"}
-          </div>
-          {!isAsk && <VoiceModePill mode={voiceMode} onChange={setVoiceMode} />}
-        </div>
 
         {/* Voice surfaces — both hide themselves when their content is
             empty so they don't reserve space in idle Ask. Each wrapped
