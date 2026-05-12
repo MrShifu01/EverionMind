@@ -837,11 +837,18 @@ body {
    are untouched. */
 html:has(.app-shell-fixed),
 body:has(.app-shell-fixed) {
-  height: var(--vvh, 100dvh);
+  /* 100dvh fills the full visible viewport (including the home indicator
+     safe area) on iOS 18+ PWA standalone. With viewport meta
+     `interactive-widget=resizes-content` the layout viewport ALSO shrinks
+     natively when the keyboard opens — no need to track visualViewport
+     in JS for that case. --vvh stays maintained for inkwell-sheet sizing
+     but no longer controls shell height (was leaving a 47px gap below
+     BottomNav whenever visualViewport.height < window.innerHeight). */
+  height: 100dvh;
   overflow: hidden;
 }
 .app-shell-fixed {
-  height: var(--vvh, 100dvh);
+  height: 100dvh;
   overflow: hidden;
 }
 
