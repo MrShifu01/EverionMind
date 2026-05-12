@@ -399,7 +399,7 @@ export default function MobileHome({
         // env(safe-area-inset-top) so the inkwell header lands BELOW the
         // status bar instead of underneath it. The hidden global MobileHeader
         // used to handle this via .safe-top.
-        padding: `calc(8px + env(safe-area-inset-top, 0px)) 16px calc(${isAsk ? 22 : 56}px + env(safe-area-inset-bottom, 0px))`,
+        padding: `calc(8px + env(safe-area-inset-top, 0px)) 16px 0`,
         position: "relative",
         background: "var(--bg)",
       }}
@@ -512,7 +512,19 @@ export default function MobileHome({
       </div>
 
       {isAsk && !sheetOpen && (
-        <form onSubmit={submitAsk} style={{ marginTop: 8, flexShrink: 0 }}>
+        <form
+          onSubmit={submitAsk}
+          style={{
+            // Absolutely pin to bronze-screen's bottom so iOS never thinks
+            // the form needs scrolling into view — it's already there. The
+            // bottom padding accounts for the iOS home indicator safe area
+            // PLUS 4px breathing room. left/right match the screen padding.
+            position: "absolute",
+            left: 16,
+            right: 16,
+            bottom: "calc(4px + env(safe-area-inset-bottom, 0px))",
+          }}
+        >
           <label
             htmlFor="ink-ask"
             style={{
