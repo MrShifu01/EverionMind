@@ -317,7 +317,11 @@ export default function MobileHome({
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
-        padding: `8px 16px calc(${isAsk ? 22 : 56}px + env(safe-area-inset-bottom, 0px))`,
+        // iOS PWA: status bar overlays the top of the viewport. Reserve
+        // env(safe-area-inset-top) so the inkwell header lands BELOW the
+        // status bar instead of underneath it. The hidden global MobileHeader
+        // used to handle this via .safe-top.
+        padding: `calc(8px + env(safe-area-inset-top, 0px)) 16px calc(${isAsk ? 22 : 56}px + env(safe-area-inset-bottom, 0px))`,
         position: "relative",
         background: "var(--bg)",
       }}
