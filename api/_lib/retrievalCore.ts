@@ -239,14 +239,16 @@ export async function retrieveEntries(
   ]);
   if (!embedding) throw new Error("Embedding failed");
 
-  // 1. Vector search
+  // 1. Vector search. match_count bumped from 20 → 30 to widen the
+  // candidate pool — title-boosted scoring downstream surfaces title
+  // hits buried in low-similarity territory.
   const rpcRes = await fetch(`${SB_URL}/rest/v1/rpc/match_entries`, {
     method: "POST",
     headers: SB_HEADERS,
     body: JSON.stringify({
       query_embedding: `[${embedding.join(",")}]`,
       p_brain_id: brainId,
-      match_count: 20,
+      match_count: 30,
     }),
   });
   let entries: any[] = rpcRes.ok ? await rpcRes.json() : [];
@@ -268,7 +270,7 @@ export async function retrieveEntries(
     if (kwTokens.length > 0) {
       const orQuery = kwTokens.join(" OR ");
       const kwRes = await fetch(
-        `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&type=neq.secret&search_tsv=wfts(english).${encodeURIComponent(orQuery)}&select=id,title,type,tags,content,metadata&limit=10`,
+        `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&type=neq.secret&search_tsv=wfts(english).${encodeURIComponent(orQuery)}&select=id,title,type,tags,content,metadata&limit=20`,
         { headers: SB_HEADERS },
       );
       if (kwRes.ok) {
@@ -300,7 +302,7 @@ export async function retrieveEntries(
   if (tagTokens.size > 0) {
     const tagQuery = Array.from(tagTokens).slice(0, 8).join(" OR ");
     const sibRes = await fetch(
-      `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&type=neq.secret&search_tsv=wfts(english).${encodeURIComponent(tagQuery)}&select=id,title,type,tags,content,metadata&limit=10`,
+      `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&type=neq.secret&search_tsv=wfts(english).${encodeURIComponent(tagQuery)}&select=id,title,type,tags,content,metadata&limit=20`,
       { headers: SB_HEADERS },
     );
     if (sibRes.ok) {
@@ -314,7 +316,23 @@ export async function retrieveEntries(
     }
   }
 
-  // 4. Hybrid score + sort
+  // 4. Hybrid score + sort.
+  //
+  // Three signals, each ∈ [0, 1], weighted to sum to 1:
+  //   - sim      0.45  — vector similarity (semantic baseline)
+  //   - titleHit 0.40  — fraction of query tokens appearing in title.
+  //                      Heavy weight because exact-title matches are
+  //                      near-certain answers to direct-lookup queries
+  //                      ("staff details" → titles like "Landon... -
+  //                      Staff Details" must win). Was missing pre-
+  //                      2026-05-12; staff queries surfaced test
+  //                      entries because pure vector tied them.
+  //   - bodyHit  0.15  — fraction in content + metadata. Supporting
+  //                      evidence; lower weight so a brief keyword
+  //                      mention doesn't beat a strong title match.
+  //
+  // Score range [0, 1]. Pure-vector hits cap at 0.45 unless they also
+  // hit by title/body; title-only hits with sim=0 cap at 0.55.
   const queryTokens = query
     .toLowerCase()
     .split(/\s+/)
@@ -325,14 +343,20 @@ export async function retrieveEntries(
       e._score = sim;
       return;
     }
+    const titleLc = (e.title ?? "").toLowerCase();
+    const titleHit =
+      queryTokens.filter((t) => titleLc.includes(t)).length / queryTokens.length;
+
     const metaText = e.metadata
       ? Object.entries(e.metadata)
           .map(([k, v]) => `${k} ${typeof v === "string" ? v : ""}`)
           .join(" ")
       : "";
-    const text = `${e.title ?? ""} ${e.content ?? ""} ${metaText}`.toLowerCase();
-    const kw = queryTokens.filter((t) => text.includes(t)).length / queryTokens.length;
-    e._score = sim * 0.7 + kw * 0.3;
+    const bodyText = `${e.content ?? ""} ${metaText}`.toLowerCase();
+    const bodyHit =
+      queryTokens.filter((t) => bodyText.includes(t)).length / queryTokens.length;
+
+    e._score = sim * 0.45 + titleHit * 0.4 + bodyHit * 0.15;
   });
   entries.sort((a: any, b: any) => b._score - a._score);
   entries = entries.slice(0, 40);
@@ -431,14 +455,15 @@ export async function retrieveEntriesForUser(
   if (!embedding) throw new Error("Embedding failed");
 
   // 1. Vector search across every accessible brain (RPC handles the
-  //    accessible-brains + entry_shares logic server-side).
+  //    accessible-brains + entry_shares logic server-side). match_count
+  //    bumped 20 → 30 to widen the pool for title-boosted re-ranking.
   const rpcRes = await fetch(`${SB_URL}/rest/v1/rpc/match_entries_for_user`, {
     method: "POST",
     headers: SB_HEADERS,
     body: JSON.stringify({
       query_embedding: `[${embedding.join(",")}]`,
       p_user_id: userId,
-      match_count: 20,
+      match_count: 30,
     }),
   });
   let entries: any[] = rpcRes.ok ? await rpcRes.json() : [];
@@ -457,7 +482,7 @@ export async function retrieveEntriesForUser(
     if (kwTokens.length > 0) {
       const orQuery = kwTokens.join(" OR ");
       const kwRes = await fetch(
-        `${SB_URL}/rest/v1/entries?${brainScope}&deleted_at=is.null&type=neq.secret&search_tsv=wfts(english).${encodeURIComponent(orQuery)}&select=id,title,type,tags,content,metadata,brain_id&limit=10`,
+        `${SB_URL}/rest/v1/entries?${brainScope}&deleted_at=is.null&type=neq.secret&search_tsv=wfts(english).${encodeURIComponent(orQuery)}&select=id,title,type,tags,content,metadata,brain_id&limit=20`,
         { headers: SB_HEADERS },
       );
       if (kwRes.ok) {
@@ -489,7 +514,7 @@ export async function retrieveEntriesForUser(
   if (tagTokens.size > 0) {
     const tagQuery = Array.from(tagTokens).slice(0, 8).join(" OR ");
     const sibRes = await fetch(
-      `${SB_URL}/rest/v1/entries?${brainScope}&deleted_at=is.null&type=neq.secret&search_tsv=wfts(english).${encodeURIComponent(tagQuery)}&select=id,title,type,tags,content,metadata,brain_id&limit=10`,
+      `${SB_URL}/rest/v1/entries?${brainScope}&deleted_at=is.null&type=neq.secret&search_tsv=wfts(english).${encodeURIComponent(tagQuery)}&select=id,title,type,tags,content,metadata,brain_id&limit=20`,
       { headers: SB_HEADERS },
     );
     if (sibRes.ok) {
@@ -503,7 +528,9 @@ export async function retrieveEntriesForUser(
     }
   }
 
-  // 4. Hybrid score + sort
+  // 4. Hybrid score + sort. See retrieveEntries() for the rationale —
+  // title-weighted three-signal formula so direct-lookup queries don't
+  // get drowned by mid-similarity vector noise.
   const queryTokens = query
     .toLowerCase()
     .split(/\s+/)
@@ -514,14 +541,20 @@ export async function retrieveEntriesForUser(
       e._score = sim;
       return;
     }
+    const titleLc = (e.title ?? "").toLowerCase();
+    const titleHit =
+      queryTokens.filter((t) => titleLc.includes(t)).length / queryTokens.length;
+
     const metaText = e.metadata
       ? Object.entries(e.metadata)
           .map(([k, v]) => `${k} ${typeof v === "string" ? v : ""}`)
           .join(" ")
       : "";
-    const text = `${e.title ?? ""} ${e.content ?? ""} ${metaText}`.toLowerCase();
-    const kw = queryTokens.filter((t) => text.includes(t)).length / queryTokens.length;
-    e._score = sim * 0.7 + kw * 0.3;
+    const bodyText = `${e.content ?? ""} ${metaText}`.toLowerCase();
+    const bodyHit =
+      queryTokens.filter((t) => bodyText.includes(t)).length / queryTokens.length;
+
+    e._score = sim * 0.45 + titleHit * 0.4 + bodyHit * 0.15;
   });
   entries.sort((a: any, b: any) => b._score - a._score);
   entries = entries.slice(0, limit);
