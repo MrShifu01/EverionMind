@@ -466,12 +466,12 @@ export default function MobileHome({
           style={{
             // Absolutely pin to bronze-screen's bottom so iOS never thinks
             // the form needs scrolling into view — it's already there.
-            // Sits flush against the screen edge; the iOS home indicator
-            // overlays the bottom with adaptive contrast.
+            // Flush at the screen edge (same treatment as BottomNav); iOS
+            // home indicator overlays the input. No safe-area padding.
             position: "absolute",
             left: 16,
             right: 16,
-            bottom: 4,
+            bottom: 0,
           }}
         >
           <label
