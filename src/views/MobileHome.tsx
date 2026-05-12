@@ -825,7 +825,7 @@ function Inkwell({
             inset 0 1px 0 color-mix(in oklch, ${BTN_ACCENT} 85%, white),
             inset 0 -6px 14px color-mix(in oklch, ${BTN_DEEP} 80%, transparent),
             0 0 28px color-mix(in oklch, ${BTN_ACCENT} ${animating ? 48 : 32}%, transparent),
-            var(--lift-2)`,
+            var(--lift-2-fixed)`,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",

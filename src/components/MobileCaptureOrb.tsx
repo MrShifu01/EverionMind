@@ -210,7 +210,7 @@ export default function MobileCaptureOrb({
               inset 0 1px 0 color-mix(in oklch, ${BTN_ACCENT} 85%, white),
               inset 0 ${btnInnerY}px ${btnInnerBlur}px color-mix(in oklch, ${BTN_DEEP} 80%, transparent),
               0 0 ${btnGlowBlur}px color-mix(in oklch, ${BTN_ACCENT} ${listening ? 48 : 32}%, transparent),
-              var(--lift-2)`,
+              var(--lift-2-fixed)`,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",

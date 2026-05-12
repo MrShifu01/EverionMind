@@ -38,6 +38,9 @@ html.family-bronze {
   --ember-fixed: oklch(76% 0.105 82);
   --ember-deep-fixed: oklch(34% 0.07 80);
   --ember-ink-fixed: oklch(12% 0.02 80);
+  /* Theme-locked drop shadow paired with the fixed ember tokens — used
+     by the orb button so its lift reads the same in light mode. */
+  --lift-2-fixed: 0 8px 24px oklch(4% 0.01 250 / 0.5), 0 2px 6px oklch(4% 0.01 250 / 0.3);
 
   --moss: oklch(62% 0.07 152);
   --moss-wash: oklch(62% 0.07 152 / 0.12);
