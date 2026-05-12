@@ -367,12 +367,10 @@ export default function MobileHome({
         // status bar instead of underneath it. The hidden global MobileHeader
         // used to handle this via .safe-top.
         //
-        // Bottom: Ask mode anchors its form via position:absolute so we
-        // zero the padding-bottom (form handles its own home-indicator
-        // clearance). Add mode keeps the VoiceModePill in flex flow, so
-        // we reserve env(safe-area-inset-bottom) here to push it above
-        // the iOS home indicator.
-        padding: `calc(8px + env(safe-area-inset-top, 0px)) 16px ${isAsk ? "0px" : "env(safe-area-inset-bottom, 0px)"}`,
+        // Bottom: zero padding in both modes — content sits flush with
+        // the screen edge. The iOS home indicator overlays the bottom
+        // automatically and adapts contrast to whatever's behind it.
+        padding: `calc(8px + env(safe-area-inset-top, 0px)) 16px 0px`,
         position: "relative",
         background: "var(--bg)",
       }}
@@ -467,13 +465,13 @@ export default function MobileHome({
           onSubmit={submitAsk}
           style={{
             // Absolutely pin to bronze-screen's bottom so iOS never thinks
-            // the form needs scrolling into view — it's already there. The
-            // bottom padding accounts for the iOS home indicator safe area
-            // PLUS 4px breathing room. left/right match the screen padding.
+            // the form needs scrolling into view — it's already there.
+            // Sits flush against the screen edge; the iOS home indicator
+            // overlays the bottom with adaptive contrast.
             position: "absolute",
             left: 16,
             right: 16,
-            bottom: "calc(4px + env(safe-area-inset-bottom, 0px))",
+            bottom: 4,
           }}
         >
           <label
