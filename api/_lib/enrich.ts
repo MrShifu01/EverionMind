@@ -27,6 +27,7 @@ import { SERVER_PROMPTS } from "./prompts.js";
 import { callAI, type AICall } from "./aiProvider.js";
 import { resolveProviderForUser, resolveEmbedProviderForUser } from "./resolveProvider.js";
 import { flagsOf } from "./enrichFlags.js";
+import { extractFactsFromEntry, type ExtractedFact } from "./factExtraction.js";
 import {
   extractPersonaFacts,
   loadExtractorContext,
@@ -642,6 +643,91 @@ async function stepPersonaExtract(
   return stampedMeta;
 }
 
+// ── Canonical fact extraction → important_memories ─────────────────────
+//
+// Walks the entry's structured metadata fields (phone, id_number, address,
+// expiry_date, etc.) and writes each as a row to important_memories. That
+// gives retrievalCore's Tier 1 ILIKE pass a direct hit for queries like
+// "what is Landon's phone" — sub-50ms answer with source_entry_ids cite,
+// no vector / FTS work needed.
+//
+// Deterministic — no LLM call. Field rules live in factExtraction.ts.
+//
+// Dedup is enforced by the migration-062 unique active index on
+// (brain_id, memory_key). The slug embeds entry.title + field-kind so the
+// same field on the same entry always produces the same memory_key —
+// re-running this step on an unchanged entry is a no-op (409s ignored).
+//
+// Stamps `metadata.enrichment.facts_extracted = true` so the orchestrator
+// doesn't keep re-running on already-processed rows.
+async function stepFactExtract(
+  entry: Entry,
+  userId: string,
+  brainId: string,
+): Promise<Record<string, any> | null> {
+  const meta = { ...(entry.metadata ?? {}) };
+  const enr = (meta.enrichment ?? {}) as Record<string, unknown>;
+  if (enr.facts_extracted === true) return null;
+  // Vault entries never leak to canonical facts — privacy boundary.
+  if (entry.type === "secret") {
+    return { ...meta, enrichment: { ...enr, facts_extracted: true } };
+  }
+
+  const facts = extractFactsFromEntry({
+    id: entry.id,
+    title: entry.title,
+    type: entry.type,
+    metadata: entry.metadata,
+  });
+
+  for (const fact of facts) {
+    try {
+      await upsertCanonicalFact(fact, userId, brainId);
+    } catch (err: any) {
+      console.error(
+        "[fact:extract] insert failed",
+        entry.id,
+        fact.memory_key,
+        err?.message ?? err,
+      );
+    }
+  }
+
+  return { ...meta, enrichment: { ...enr, facts_extracted: true } };
+}
+
+async function upsertCanonicalFact(
+  fact: ExtractedFact,
+  userId: string,
+  brainId: string,
+): Promise<void> {
+  // Insert. The active-key unique index (migration 062, brain_id +
+  // memory_key WHERE status='active') rejects duplicates with 409.
+  // We treat 409 as "already exists, leave it" — future refinement
+  // could PATCH the summary if it differs + append entry.id to
+  // source_entry_ids.
+  const r = await fetch(`${SB_URL}/rest/v1/important_memories`, {
+    method: "POST",
+    headers: { ...SB_HDR, Prefer: "return=minimal" },
+    body: JSON.stringify({
+      brain_id: brainId,
+      user_id: userId,
+      memory_key: fact.memory_key,
+      title: fact.title,
+      summary: fact.summary,
+      memory_type: fact.memory_type,
+      source_entry_ids: fact.source_entry_ids,
+      created_by: "system",
+      status: "active",
+    }),
+  });
+  if (r.status === 409) return;
+  if (!r.ok) {
+    const detail = await r.text().catch(() => "");
+    throw new Error(`HTTP ${r.status}: ${detail.slice(0, 200)}`);
+  }
+}
+
 async function insertExtractedFactDeduped(
   fact: { fact: string; bucket: string; confidence: number; evidence?: string },
   source: Entry,
@@ -982,6 +1068,13 @@ export async function enrichInline(
   if (brainId) {
     await runStep("persona", () =>
       stepPersonaExtract({ ...entry, metadata: workingMeta }, userId, brainId, null),
+    );
+    // Canonical-fact extraction runs after persona so workingMeta already
+    // has any parsed metadata fields (phone, id_number, etc.) that landed
+    // in stepParse. Writes structured facts to important_memories for
+    // Tier 1 fast-path retrieval.
+    await runStep("facts", () =>
+      stepFactExtract({ ...entry, metadata: workingMeta }, userId, brainId),
     );
   }
 
