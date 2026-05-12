@@ -27,7 +27,11 @@ import { SERVER_PROMPTS } from "./prompts.js";
 import { callAI, type AICall } from "./aiProvider.js";
 import { resolveProviderForUser, resolveEmbedProviderForUser } from "./resolveProvider.js";
 import { flagsOf } from "./enrichFlags.js";
-import { extractFactsFromEntry, type ExtractedFact } from "./factExtraction.js";
+import {
+  extractFactsFromEntry,
+  extractFactsFromProseCandidates,
+  type ExtractedFact,
+} from "./factExtraction.js";
 import {
   extractPersonaFacts,
   loadExtractorContext,
@@ -104,6 +108,50 @@ function parseAIJSON(raw: string): any | null {
     }
   }
   return null;
+}
+
+function parseAIJSONArray(raw: string): unknown[] | null {
+  const text = raw.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "");
+  const start = text.indexOf("[");
+  if (start !== -1) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let i = start; i < text.length; i++) {
+      const ch = text[i];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+      if (ch === "[") depth++;
+      if (ch === "]") {
+        depth--;
+        if (depth === 0) {
+          try {
+            const parsed = JSON.parse(text.slice(start, i + 1));
+            return Array.isArray(parsed) ? parsed : null;
+          } catch {
+            return null;
+          }
+        }
+      }
+    }
+  }
+
+  const obj = parseAIJSON(raw);
+  if (obj && Array.isArray((obj as { facts?: unknown[] }).facts)) {
+    return (obj as { facts: unknown[] }).facts;
+  }
+  return Array.isArray(obj) ? obj : null;
 }
 
 interface Entry {
@@ -700,12 +748,20 @@ async function upsertCanonicalFact(
   fact: ExtractedFact,
   userId: string,
   brainId: string,
+  createdBy: "system" | "system_llm" = "system",
 ): Promise<void> {
   // Insert. The active-key unique index (migration 062, brain_id +
   // memory_key WHERE status='active') rejects duplicates with 409.
-  // We treat 409 as "already exists, leave it" — future refinement
-  // could PATCH the summary if it differs + append entry.id to
-  // source_entry_ids.
+  // We treat 409 as "already exists, refresh the system-owned row" so edited
+  // entries and backfills can update summaries and append new source ids.
+  //
+  // `createdBy` distinguishes:
+  //   - "system"     — deterministic structured-metadata walker
+  //                    (factExtraction.ts:extractFactsFromEntry)
+  //   - "system_llm" — LLM-driven prose extraction
+  //                    (stepLLMFactExtract below)
+  // Stamping the source lets the user audit + bulk-remove a class of
+  // facts if a prompt regression starts producing junk.
   const r = await fetch(`${SB_URL}/rest/v1/important_memories`, {
     method: "POST",
     headers: { ...SB_HDR, Prefer: "return=minimal" },
@@ -717,15 +773,180 @@ async function upsertCanonicalFact(
       summary: fact.summary,
       memory_type: fact.memory_type,
       source_entry_ids: fact.source_entry_ids,
-      created_by: "system",
+      created_by: createdBy,
       status: "active",
     }),
   });
-  if (r.status === 409) return;
+  if (r.status === 409) {
+    await refreshCanonicalFact(fact, userId, brainId, createdBy).catch((err) => {
+      console.warn("[fact:refresh]", fact.memory_key, String(err?.message ?? err).slice(0, 200));
+    });
+    return;
+  }
   if (!r.ok) {
     const detail = await r.text().catch(() => "");
     throw new Error(`HTTP ${r.status}: ${detail.slice(0, 200)}`);
   }
+}
+
+async function refreshCanonicalFact(
+  fact: ExtractedFact,
+  userId: string,
+  brainId: string,
+  createdBy: "system" | "system_llm",
+): Promise<void> {
+  const q = new URLSearchParams({
+    user_id: `eq.${userId}`,
+    brain_id: `eq.${brainId}`,
+    memory_key: `eq.${fact.memory_key}`,
+    status: "eq.active",
+    select: "id,title,summary,source_entry_ids,created_by",
+    limit: "1",
+  });
+  const r = await fetch(`${SB_URL}/rest/v1/important_memories?${q.toString()}`, {
+    headers: SB_HDR,
+  });
+  if (!r.ok) return;
+  const rows: Array<{
+    id: string;
+    title: string | null;
+    summary: string | null;
+    source_entry_ids: string[] | null;
+    created_by: "user" | "system" | "system_llm" | null;
+  }> = await r.json().catch(() => []);
+  const row = rows[0];
+  if (!row || row.created_by === "user") return;
+
+  const mergedSources = Array.from(
+    new Set([...(row.source_entry_ids ?? []), ...fact.source_entry_ids].filter(Boolean)),
+  );
+  const patch: Record<string, unknown> = {};
+  if (row.title !== fact.title) patch.title = fact.title;
+  if (row.summary !== fact.summary) patch.summary = fact.summary;
+  if (JSON.stringify(row.source_entry_ids ?? []) !== JSON.stringify(mergedSources)) {
+    patch.source_entry_ids = mergedSources;
+  }
+  if (row.created_by !== createdBy && row.created_by !== "system") {
+    patch.created_by = createdBy;
+  }
+  if (Object.keys(patch).length === 0) return;
+
+  await fetch(`${SB_URL}/rest/v1/important_memories?id=eq.${encodeURIComponent(row.id)}`, {
+    method: "PATCH",
+    headers: { ...SB_HDR, Prefer: "return=minimal" },
+    body: JSON.stringify(patch),
+  });
+}
+
+// ── Step: LLM-driven prose fact extraction → important_memories ───────────
+//
+// Companion to the deterministic stepFactExtract above. Where that walks
+// structured metadata fields (phone, id_number, due_date, etc.), THIS step
+// runs a single Gemini call over title + content + full_text + attachment
+// text and extracts atomic factual statements written in prose.
+//
+// Examples it catches that the deterministic walker can't:
+//   - "Sarah's birthday is July 4"  (no `birthday` metadata field exists)
+//   - "Decided to go month-to-month after renewal"  (no `decision` field)
+//   - "Must renew the lease before July 1"  (free-form obligation)
+//
+// Both outputs land in important_memories side by side. Tier 1 ILIKE in
+// retrievalCore picks up whichever path produced the row.
+//
+// Idempotent — extractFactsFromProseCandidates produces a stable
+// `${memory_type}:${slug(title)}` memory_key per candidate, so re-runs
+// 409 cleanly. Shares the namespace with the deterministic walker but
+// the title shape (LLM "Sarah birthday" vs walker "Sarah — Phone")
+// keeps them out of each other's way in practice.
+//
+// Stamps `metadata.enrichment.llm_facts_extracted = true` regardless of
+// whether any facts were produced — empty extraction is a real answer.
+
+const LLMFactItemSchema = z
+  .object({
+    title: z.unknown().optional(),
+    summary: z.unknown(),
+    memory_type: z.unknown().optional(),
+    confidence: z.unknown(),
+  })
+  .passthrough();
+const LLMFactListSchema = z.array(LLMFactItemSchema).max(8);
+
+const LLM_FACT_MIN_CONTENT_CHARS = 80;
+const LLM_FACT_MIN_CONFIDENCE = 0.85;
+
+async function stepLLMFactExtract(
+  entry: Entry,
+  userId: string,
+  brainId: string,
+  cfg: AICall,
+): Promise<Record<string, any> | null> {
+  const meta = { ...(entry.metadata ?? {}) };
+  const enr = (meta.enrichment ?? {}) as Record<string, unknown>;
+  if (enr.llm_facts_extracted === true) return null;
+
+  // Privacy + scope skips:
+  //   secret — vault content must never reach Tier 1.
+  //   persona — user identity facts belong to the persona system.
+  //   list — list rows are item collections, not prose to extract from.
+  if (entry.type === "secret" || entry.type === "persona" || entry.type === "list") {
+    return { ...meta, enrichment: { ...enr, llm_facts_extracted: true } };
+  }
+
+  // Read the same superset every LLM step reads — title + content +
+  // metadata.full_text + attachment_text. Capped at 6000 chars; outputs
+  // top out around 800 tokens, so larger inputs waste cost without
+  // improving recall.
+  const body = buildEnrichText({ ...entry, metadata: meta }, 6000);
+  if (!body || body.length < LLM_FACT_MIN_CONTENT_CHARS) {
+    // Not enough prose for LLM extraction to add anything the structured
+    // walker didn't catch. Stamp the flag so re-runs don't keep paying
+    // the LLM call for nothing.
+    return { ...meta, enrichment: { ...enr, llm_facts_extracted: true } };
+  }
+
+  const prompt = `Entry ID: ${entry.id}\n<entry>\nType: ${entry.type || "note"}\n${body}\n</entry>`;
+  const raw = await callAI(cfg, SERVER_PROMPTS.LLM_FACT_EXTRACT, prompt, {
+    maxTokens: 800,
+    json: true,
+  });
+  // Genuine LLM failure (network, refusal, empty body) — let the next
+  // enrichment pass retry. Don't stamp.
+  if (!raw) return null;
+
+  // We got SOMETHING back. Whether parseable or not, stamp the flag so the
+  // step doesn't loop on an entry that the model can't structure.
+  const stamped = { ...meta, enrichment: { ...enr, llm_facts_extracted: true } };
+
+  const arr: unknown = parseAIJSONArray(raw);
+  if (!Array.isArray(arr)) return stamped;
+
+  const parsed = LLMFactListSchema.safeParse(arr);
+  if (!parsed.success) return stamped;
+
+  const facts = extractFactsFromProseCandidates(
+    {
+      id: entry.id,
+      title: entry.title,
+      type: entry.type,
+      metadata: entry.metadata,
+    },
+    parsed.data,
+    LLM_FACT_MIN_CONFIDENCE,
+  );
+  for (const fact of facts) {
+    try {
+      await upsertCanonicalFact(fact, userId, brainId, "system_llm");
+    } catch (err: any) {
+      console.error(
+        "[fact:llm] insert failed",
+        entry.id,
+        fact.memory_key,
+        err?.message ?? err,
+      );
+    }
+  }
+  return stamped;
 }
 
 async function insertExtractedFactDeduped(
@@ -1075,6 +1296,15 @@ export async function enrichInline(
     // Tier 1 fast-path retrieval.
     await runStep("facts", () =>
       stepFactExtract({ ...entry, metadata: workingMeta }, userId, brainId),
+    );
+    // LLM prose fact extraction runs LAST in the fact pipeline so it can
+    // see the parsed metadata + persona context the prior steps produced.
+    // Catches facts written in content prose that the deterministic walker
+    // can't infer (e.g. "Sarah's birthday is July 4" with no birthday
+    // metadata field). Writes to important_memories with
+    // created_by='system_llm' so the user can audit / bulk-remove.
+    await runStep("llm-facts", () =>
+      stepLLMFactExtract({ ...entry, metadata: workingMeta }, userId, brainId, llmCfg),
     );
   }
 

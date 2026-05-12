@@ -95,8 +95,10 @@ async function handleGraph({ req, res, user }: HandlerContext): Promise<void> {
 }
 
 // ── POST /api/search — semantic search ──
-async function handleSearch({ req, res }: HandlerContext): Promise<void> {
+async function handleSearch({ req, res, user }: HandlerContext): Promise<void> {
   const { query, brain_id, limit = 20 } = optionalBodyObject(req.body);
+  const brainId = typeof brain_id === "string" ? brain_id : undefined;
+  await requireBrainAccess(user.id, brainId);
 
   if (!query || typeof query !== "string" || !query.trim()) {
     res.status(200).json({ fallback: true });
@@ -111,7 +113,7 @@ async function handleSearch({ req, res }: HandlerContext): Promise<void> {
   }
 
   const matchCount = Math.min(Number(limit) || 20, 50);
-  const cacheKey = `${brain_id}:${query.trim().toLowerCase()}`;
+  const cacheKey = `${brainId}:${query.trim().toLowerCase()}`;
   const cached = _getCached(cacheKey);
   if (cached) {
     res.status(200).json(cached);
@@ -125,7 +127,7 @@ async function handleSearch({ req, res }: HandlerContext): Promise<void> {
       headers: sbHeaders(),
       body: JSON.stringify({
         query_embedding: `[${embedding.join(",")}]`,
-        p_brain_id: brain_id,
+        p_brain_id: brainId,
         match_count: matchCount,
       }),
     });

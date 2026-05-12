@@ -1,10 +1,10 @@
-// Types and helpers for Important Memories — user-curated durable facts
-// Everion always trusts. v0 is user-curated only (no AI inference); see
-// LAUNCH_CHECKLIST.md post-launch section for the rest.
+// Types and helpers for Important Memories — durable facts Everion always
+// trusts. User-authored memories stay distinguishable from deterministic and
+// conservative LLM-assisted system extraction.
 
 export type ImportantMemoryType = "fact" | "preference" | "decision" | "obligation";
 export type ImportantMemoryStatus = "active" | "retired";
-export type ImportantMemoryCreatedBy = "user" | "system";
+export type ImportantMemoryCreatedBy = "user" | "system" | "system_llm";
 
 export const IMPORTANT_MEMORY_TYPES: ImportantMemoryType[] = [
   "fact",

@@ -124,6 +124,25 @@ const STOP = new Set([
   "feel",
   "seem",
   "same",
+  "whats",
+  "where",
+  "who",
+  "whom",
+  "whose",
+]);
+
+const SHORT_LOOKUP_TOKENS = new Set([
+  "id",
+  "pin",
+  "vat",
+  "tax",
+  "tin",
+  "po",
+  "ref",
+  "reg",
+  "vin",
+  "otp",
+  "uid",
 ]);
 
 /**
@@ -142,12 +161,7 @@ export async function findLockedSecretTitles(
   brainId: string,
   limit = 5,
 ): Promise<Array<{ id: string; title: string }>> {
-  const qTokens = query
-    .trim()
-    .split(/\s+/)
-    .map((w) => w.replace(/[^a-zA-Z0-9]/g, ""))
-    .filter((w) => w.length > 3 && !STOP.has(w.toLowerCase()))
-    .slice(0, 6);
+  const qTokens = extractQueryTokens(query);
   if (qTokens.length === 0) return [];
 
   const orFilter = qTokens.map((kw) => `title.ilike.*${kw}*`).join(",");
@@ -160,14 +174,40 @@ export async function findLockedSecretTitles(
 }
 
 // Shared token extractor for ILIKE-based lookups: strips non-alphanumeric
-// chars, drops short / STOP words, caps at 6 tokens.
+// chars, drops STOP words, preserves common short lookup tokens like
+// "ID"/"VAT", and caps at 6 tokens.
 function extractQueryTokens(query: string): string[] {
   return query
     .trim()
     .split(/\s+/)
     .map((w) => w.replace(/[^a-zA-Z0-9]/g, ""))
-    .filter((w) => w.length > 3 && !STOP.has(w.toLowerCase()))
+    .map((w) => w.toLowerCase())
+    .filter((w) => !!w && !STOP.has(w))
+    .filter((w) => w.length > 3 || SHORT_LOOKUP_TOKENS.has(w))
     .slice(0, 6);
+}
+
+function extractScoreTokens(query: string): string[] {
+  return extractQueryTokens(query);
+}
+
+async function searchEntriesFts(
+  brainIds: string[],
+  query: string,
+  limit = 20,
+): Promise<Array<Record<string, unknown>>> {
+  if (!brainIds.length || !query.trim()) return [];
+  const r = await fetch(`${SB_URL}/rest/v1/rpc/search_entries_fts`, {
+    method: "POST",
+    headers: SB_HEADERS,
+    body: JSON.stringify({
+      p_brain_ids: brainIds,
+      p_query: query,
+      p_limit: limit,
+    }),
+  });
+  if (!r.ok) return [];
+  return r.json();
 }
 
 // Minimal English stemmer — strips the most common inflectional suffixes
@@ -322,9 +362,9 @@ export async function retrieveEntries(
   entries = entries.map((e) => ({ ...e, brain_id: brainId }));
   const existingIds = new Set(entries.map((e: any) => e.id));
 
-  // 2. Keyword expand — FTS via PostgREST `wfts` (websearch_to_tsquery).
-  // Indexed by entries_search_tsv_gin_idx (migration 087, partial on
-  // type<>'secret' AND deleted_at IS NULL).
+  // 2. Keyword expand — ranked FTS via search_entries_fts RPC. Indexed by
+  // entries_search_tsv_gin_idx (migration 087, partial on type<>'secret'
+  // AND deleted_at IS NULL) and ordered by ts_rank_cd (migration 088).
   //
   // Tokens are OR-joined explicitly because websearch_to_tsquery
   // AND-joins multi-word input by default — passing the raw query
@@ -336,17 +376,12 @@ export async function retrieveEntries(
     const kwTokens = extractQueryTokens(query);
     if (kwTokens.length > 0) {
       const orQuery = kwTokens.join(" OR ");
-      const kwRes = await fetch(
-        `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&type=neq.secret&search_tsv=wfts(english).${encodeURIComponent(orQuery)}&select=id,title,type,tags,content,metadata&limit=20`,
-        { headers: SB_HEADERS },
-      );
-      if (kwRes.ok) {
-        const rows: any[] = await kwRes.json();
-        for (const r of rows) {
-          if (!existingIds.has(r.id)) {
-            existingIds.add(r.id);
-            entries.push({ ...r, brain_id: brainId, similarity: 0 });
-          }
+      const rows = await searchEntriesFts([brainId], orQuery, 30);
+      for (const r of rows) {
+        const id = r.id as string;
+        if (!existingIds.has(id)) {
+          existingIds.add(id);
+          entries.push({ ...r, brain_id: brainId, similarity: 0 });
         }
       }
     }
@@ -380,19 +415,22 @@ export async function retrieveEntries(
     const trgTokens = extractQueryTokens(query);
     if (trgTokens.length > 0) {
       const trgResults = await Promise.all(
-        trgTokens.slice(0, 4).map((t) =>
-          fetch(`${SB_URL}/rest/v1/rpc/match_entries_title_trgm`, {
-            method: "POST",
-            headers: SB_HEADERS,
-            body: JSON.stringify({
-              p_brain_ids: [brainId],
-              p_query: t,
-              p_limit: 5,
-            }),
-          })
-            .then((r) => (r.ok ? r.json() : []))
-            .catch(() => []),
-        ),
+        trgTokens
+          .filter((t) => t.length >= 4)
+          .slice(0, 4)
+          .map((t) =>
+            fetch(`${SB_URL}/rest/v1/rpc/match_entries_title_trgm`, {
+              method: "POST",
+              headers: SB_HEADERS,
+              body: JSON.stringify({
+                p_brain_ids: [brainId],
+                p_query: t,
+                p_limit: 5,
+              }),
+            })
+              .then((r) => (r.ok ? r.json() : []))
+              .catch(() => []),
+          ),
       );
       for (const rows of trgResults) {
         for (const r of rows as Array<Record<string, unknown>>) {
@@ -413,9 +451,10 @@ export async function retrieveEntries(
   }
 
   // 3. Tag sibling expand — FTS over the union of tag tokens lifted
-  // from the top-5 hits. websearch treats `OR` as disjunction.
+  // from the top-3 seed hits. Keeping this tight avoids broad tags pulling
+  // weak siblings above direct title/body matches.
   const tagTokens = new Set<string>();
-  entries.slice(0, 5).forEach((e: any) => {
+  entries.slice(0, 3).forEach((e: any) => {
     (e.tags ?? []).forEach((tag: string) => {
       String(tag)
         .toLowerCase()
@@ -428,17 +467,12 @@ export async function retrieveEntries(
   });
   if (tagTokens.size > 0) {
     const tagQuery = Array.from(tagTokens).slice(0, 8).join(" OR ");
-    const sibRes = await fetch(
-      `${SB_URL}/rest/v1/entries?brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&type=neq.secret&search_tsv=wfts(english).${encodeURIComponent(tagQuery)}&select=id,title,type,tags,content,metadata&limit=20`,
-      { headers: SB_HEADERS },
-    );
-    if (sibRes.ok) {
-      const rows: any[] = await sibRes.json();
-      for (const r of rows) {
-        if (!existingIds.has(r.id)) {
-          existingIds.add(r.id);
-          entries.push({ ...r, brain_id: brainId, similarity: 0 });
-        }
+    const rows = await searchEntriesFts([brainId], tagQuery, 20);
+    for (const r of rows) {
+      const id = r.id as string;
+      if (!existingIds.has(id)) {
+        existingIds.add(id);
+        entries.push({ ...r, brain_id: brainId, similarity: 0 });
       }
     }
   }
@@ -460,10 +494,7 @@ export async function retrieveEntries(
   //
   // Score range [0, 1]. Pure-vector hits cap at 0.45 unless they also
   // hit by title/body; title-only hits with sim=0 cap at 0.55.
-  const queryTokens = query
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((t) => t.length > 2);
+  const queryTokens = extractScoreTokens(query);
   entries.forEach((e: any) => {
     const sim = e.similarity ?? 0;
     if (!queryTokens.length) {
@@ -568,11 +599,9 @@ async function getAccessibleBrainIds(userId: string): Promise<string[]> {
 // gates which entries are accessible — this just removes the brain_id
 // equality filter so vector ranking can pick the best match anywhere.
 //
-// Graph boost is intentionally skipped here: it's per-brain and merging
-// graphs across N brains is expensive for marginal score gains. Chat
-// users get a slightly less concept-aware ranking, but the trade-off
-// for the cross-brain reach is worth it. Single-brain callers (v1,
-// memory-api, mcp) keep the original retrieveEntries with graph boost.
+// Graph boost is opportunistic here: when the top-ranked seeds all land in
+// one brain, we can safely use that brain's graph without mixing graph
+// semantics across unrelated workspaces.
 export async function retrieveEntriesForUser(
   query: string,
   userId: string,
@@ -611,23 +640,18 @@ export async function retrieveEntriesForUser(
   const brainInList = accessibleIds.slice(0, 50).map((id) => encodeURIComponent(id)).join(",");
   const brainScope = `brain_id=in.(${brainInList})`;
 
-  // 2. Keyword expand — FTS via PostgREST `wfts` (websearch_to_tsquery).
+  // 2. Keyword expand — ranked FTS via search_entries_fts RPC.
   // OR-join tokens — see retrieveEntries() for the rationale.
   {
     const kwTokens = extractQueryTokens(query);
     if (kwTokens.length > 0) {
       const orQuery = kwTokens.join(" OR ");
-      const kwRes = await fetch(
-        `${SB_URL}/rest/v1/entries?${brainScope}&deleted_at=is.null&type=neq.secret&search_tsv=wfts(english).${encodeURIComponent(orQuery)}&select=id,title,type,tags,content,metadata,brain_id&limit=20`,
-        { headers: SB_HEADERS },
-      );
-      if (kwRes.ok) {
-        const rows: any[] = await kwRes.json();
-        for (const r of rows) {
-          if (!existingIds.has(r.id)) {
-            existingIds.add(r.id);
-            entries.push({ ...r, similarity: 0 });
-          }
+      const rows = await searchEntriesFts(accessibleIds.slice(0, 50), orQuery, 30);
+      for (const r of rows) {
+        const id = r.id as string;
+        if (!existingIds.has(id)) {
+          existingIds.add(id);
+          entries.push({ ...r, similarity: 0 });
         }
       }
     }
@@ -656,19 +680,22 @@ export async function retrieveEntriesForUser(
     if (trgTokens.length > 0) {
       const brainIdsSlice = accessibleIds.slice(0, 50);
       const trgResults = await Promise.all(
-        trgTokens.slice(0, 4).map((t) =>
-          fetch(`${SB_URL}/rest/v1/rpc/match_entries_title_trgm`, {
-            method: "POST",
-            headers: SB_HEADERS,
-            body: JSON.stringify({
-              p_brain_ids: brainIdsSlice,
-              p_query: t,
-              p_limit: 5,
-            }),
-          })
-            .then((r) => (r.ok ? r.json() : []))
-            .catch(() => []),
-        ),
+        trgTokens
+          .filter((t) => t.length >= 4)
+          .slice(0, 4)
+          .map((t) =>
+            fetch(`${SB_URL}/rest/v1/rpc/match_entries_title_trgm`, {
+              method: "POST",
+              headers: SB_HEADERS,
+              body: JSON.stringify({
+                p_brain_ids: brainIdsSlice,
+                p_query: t,
+                p_limit: 5,
+              }),
+            })
+              .then((r) => (r.ok ? r.json() : []))
+              .catch(() => []),
+          ),
       );
       for (const rows of trgResults) {
         for (const r of rows as Array<Record<string, unknown>>) {
@@ -687,9 +714,10 @@ export async function retrieveEntriesForUser(
   }
 
   // 3. Tag sibling expand — FTS over the union of tag tokens lifted
-  // from the top-5 hits. websearch treats `OR` as disjunction.
+  // from the top-3 seed hits. Keeping this tight avoids broad tags pulling
+  // weak siblings above direct title/body matches.
   const tagTokens = new Set<string>();
-  entries.slice(0, 5).forEach((e: any) => {
+  entries.slice(0, 3).forEach((e: any) => {
     (e.tags ?? []).forEach((tag: string) => {
       String(tag)
         .toLowerCase()
@@ -702,17 +730,12 @@ export async function retrieveEntriesForUser(
   });
   if (tagTokens.size > 0) {
     const tagQuery = Array.from(tagTokens).slice(0, 8).join(" OR ");
-    const sibRes = await fetch(
-      `${SB_URL}/rest/v1/entries?${brainScope}&deleted_at=is.null&type=neq.secret&search_tsv=wfts(english).${encodeURIComponent(tagQuery)}&select=id,title,type,tags,content,metadata,brain_id&limit=20`,
-      { headers: SB_HEADERS },
-    );
-    if (sibRes.ok) {
-      const rows: any[] = await sibRes.json();
-      for (const r of rows) {
-        if (!existingIds.has(r.id)) {
-          existingIds.add(r.id);
-          entries.push({ ...r, similarity: 0 });
-        }
+    const rows = await searchEntriesFts(accessibleIds.slice(0, 50), tagQuery, 20);
+    for (const r of rows) {
+      const id = r.id as string;
+      if (!existingIds.has(id)) {
+        existingIds.add(id);
+        entries.push({ ...r, similarity: 0 });
       }
     }
   }
@@ -720,10 +743,7 @@ export async function retrieveEntriesForUser(
   // 4. Hybrid score + sort. See retrieveEntries() for the rationale —
   // title-weighted three-signal formula so direct-lookup queries don't
   // get drowned by mid-similarity vector noise.
-  const queryTokens = query
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((t) => t.length > 2);
+  const queryTokens = extractScoreTokens(query);
   entries.forEach((e: any) => {
     const sim = e.similarity ?? 0;
     if (!queryTokens.length) {
@@ -755,11 +775,46 @@ export async function retrieveEntriesForUser(
     e._score = sim * 0.45 + titleHit * 0.4 + bodyHit * 0.15 + trgSim * 0.5;
   });
   entries.sort((a: any, b: any) => b._score - a._score);
-  entries = entries.slice(0, limit);
+  entries = entries.slice(0, 40);
 
-  const finalEntries = entries as RetrievedEntry[];
+  const matchedConcepts: Array<{ name: string; description?: string }> = [];
+  try {
+    const seedBrainIds = new Set(
+      entries
+        .slice(0, 3)
+        .map((e: any) => e.brain_id)
+        .filter((id: unknown): id is string => typeof id === "string" && id.length > 0),
+    );
+    if (seedBrainIds.size === 1) {
+      const [seedBrainId] = Array.from(seedBrainIds);
+      const graphRes = await fetch(
+        `${SB_URL}/rest/v1/concept_graphs?brain_id=eq.${encodeURIComponent(seedBrainId)}&select=graph`,
+        { headers: SB_HEADERS },
+      );
+      if (graphRes.ok) {
+        const rows: any[] = await graphRes.json();
+        const graph = rows[0]?.graph;
+        if (graph) {
+          entries = applyGraphBoost(entries, graph);
+          const finalIds = new Set(entries.slice(0, limit).map((e: any) => e.id));
+          for (const c of graph.concepts ?? []) {
+            if (c.name && (c.source_entries ?? []).some((id: string) => finalIds.has(id))) {
+              matchedConcepts.push({
+                name: c.name,
+                ...(c.description ? { description: c.description } : {}),
+              });
+            }
+          }
+        }
+      }
+    }
+  } catch {
+    /* non-fatal */
+  }
+
+  const finalEntries = entries.slice(0, limit) as RetrievedEntry[];
   reinforcePersonaFacts(finalEntries).catch(() => {});
-  return { entries: finalEntries, concepts: [], importantMemories };
+  return { entries: finalEntries, concepts: matchedConcepts, importantMemories };
 }
 
 async function reinforcePersonaFacts(entries: RetrievedEntry[]): Promise<void> {

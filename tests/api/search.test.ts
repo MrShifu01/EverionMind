@@ -57,6 +57,10 @@ vi.mock("../../api/_lib/generateEmbedding.js", () => ({
   buildEntryText: vi.fn().mockReturnValue("text"),
 }));
 
+vi.mock("../../api/_lib/checkBrainAccess.js", () => ({
+  checkBrainAccess: vi.fn().mockResolvedValue({ role: "owner" }),
+}));
+
 vi.mock("../../api/_lib/securityHeaders.js", () => ({
   applySecurityHeaders: vi.fn(),
 }));
@@ -78,8 +82,10 @@ beforeEach(async () => {
   // Reset mocked modules state
   const { verifyAuth } = await import("../../api/_lib/verifyAuth.js");
   const { rateLimit } = await import("../../api/_lib/rateLimit.js");
+  const { checkBrainAccess } = await import("../../api/_lib/checkBrainAccess.js");
   vi.mocked(verifyAuth).mockResolvedValue({ id: "user-1" });
   vi.mocked(rateLimit).mockResolvedValue(true);
+  vi.mocked(checkBrainAccess).mockResolvedValue({ role: "owner" });
 });
 
 describe("search handler", () => {

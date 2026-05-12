@@ -1,39 +1,16 @@
 /**
- * Deterministic canonical-fact extraction.
+ * Canonical fact extraction.
  *
- * Walks an entry's structured metadata (phone, id_number, address, etc.)
- * and produces atomic facts that go into `important_memories` for Tier-1
- * fast-path retrieval. No LLM call — fully deterministic, idempotent,
- * cheap.
+ * Deterministic extraction walks an entry's structured metadata (phone,
+ * id_number, address, etc.) and produces atomic facts that go into
+ * `important_memories` for Tier-1 fast-path retrieval.
  *
- * The point: when a user asks "what is Landon's phone?", retrievalCore's
- * Tier 1 ILIKE over important_memories.title + summary should land
- * "Landon Harris Klopper — Phone" / "Phone: 0820525038" in <50ms with
- * source_entry_ids citing the source. The vector path stays available
- * as fallback for queries the metadata-walker can't anticipate.
- *
- * What this catches:
- *   - phone / cellphone / landline / mobile  (kind: phone)
- *   - email
- *   - id_number / national_id   (kind: id)
- *   - tax_number
- *   - vat_number
- *   - bank_number / account_number
- *   - address
- *   - url   (kind: link)
- *   - due_date / deadline / expiry_date / renewal_date   (memory_type: obligation)
- *
- * What this skips:
- *   - secret / persona / list entries (different shapes)
- *   - entries with no title
- *   - missing / empty / "null" / "undefined" / "0" field values
- *   - fields whose value is an object without a `value` key
- *
- * Future enhancement: an LLM-driven pass to pull facts from prose
- * (e.g., "Sarah's birthday is July 4" written in the content body
- * with no birthday metadata field). For now: structured fields only,
- * because they hit ~90% of the user's directly-lookup-able facts.
+ * Prose extraction accepts already-parsed LLM candidates, then applies strict
+ * shape, type, and confidence gates before anything can be persisted as an
+ * important memory.
  */
+
+export type ExtractedMemoryType = "fact" | "preference" | "decision" | "obligation";
 
 export interface ExtractableEntry {
   id: string;
@@ -44,17 +21,24 @@ export interface ExtractableEntry {
 
 export interface ExtractedFact {
   memory_key: string;
-  memory_type: "fact" | "obligation";
+  memory_type: ExtractedMemoryType;
   title: string;
   summary: string;
   source_entry_ids: string[];
+}
+
+export interface ProseFactCandidate {
+  title?: unknown;
+  summary?: unknown;
+  memory_type?: unknown;
+  confidence?: unknown;
 }
 
 interface FieldExtractor {
   label: string;
   /** Stable key fragment so the same field on the same entry always produces the same memory_key. */
   kind: string;
-  memoryType?: "fact" | "obligation";
+  memoryType?: ExtractedMemoryType;
 }
 
 const FIELD_MAP: Record<string, FieldExtractor> = {
@@ -77,13 +61,13 @@ const FIELD_MAP: Record<string, FieldExtractor> = {
   renewal_date: { label: "Renewal", kind: "renewal", memoryType: "obligation" },
 };
 
-/** Mirrors src/lib/importantMemory.ts:generateMemoryKey — kept in sync. */
-function slugifyForKey(s: string): string {
+/** Mirrors src/lib/importantMemory.ts:generateMemoryKey - kept in sync. */
+export function slugifyForKey(s: string): string {
   return s
     .toLowerCase()
     .trim()
     .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "") // strip combining diacritical marks
+    .replace(/[\u0300-\u036f]/g, "") // strip combining diacritical marks
     .replace(/[‘’']/g, "") // strip smart quotes + apostrophes
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, "_")
@@ -91,7 +75,7 @@ function slugifyForKey(s: string): string {
     .slice(0, 80);
 }
 
-/** Read a scalar value from an entry metadata field — strings, numbers, or
+/** Read a scalar value from an entry metadata field - strings, numbers, or
  * the `{value, confidence}` shape some enrichment steps produce. */
 function readScalar(raw: unknown): string | null {
   if (typeof raw === "string") return raw.trim();
@@ -104,11 +88,23 @@ function readScalar(raw: unknown): string | null {
   return null;
 }
 
-/** Reject placeholder-ish strings that aren't real values. */
+/** Reject placeholder-ish strings that are not real values. */
 function isUsefulValue(v: string): boolean {
   if (!v) return false;
   const lower = v.toLowerCase();
   return lower !== "null" && lower !== "undefined" && lower !== "n/a" && lower !== "0";
+}
+
+function normalizeMemoryType(value: unknown): ExtractedMemoryType {
+  if (
+    value === "preference" ||
+    value === "decision" ||
+    value === "obligation" ||
+    value === "fact"
+  ) {
+    return value;
+  }
+  return "fact";
 }
 
 export function extractFactsFromEntry(entry: ExtractableEntry): ExtractedFact[] {
@@ -133,6 +129,61 @@ export function extractFactsFromEntry(entry: ExtractableEntry): ExtractedFact[] 
       summary: `${info.label}: ${value}`.slice(0, 1000),
       source_entry_ids: [entry.id],
     });
+  }
+
+  return facts;
+}
+
+export function extractFactsFromProseCandidates(
+  entry: ExtractableEntry,
+  candidates: ProseFactCandidate[],
+  minConfidence = 0.85,
+): ExtractedFact[] {
+  if (!entry.title || !entry.title.trim()) return [];
+  if (entry.type === "secret" || entry.type === "persona" || entry.type === "list") return [];
+
+  const entryTitle = entry.title.trim();
+  const entryTitleLower = entryTitle.toLowerCase();
+  const facts: ExtractedFact[] = [];
+  const seen = new Set<string>();
+
+  for (const candidate of candidates) {
+    const rawConfidence = candidate.confidence;
+    const confidence =
+      typeof rawConfidence === "number"
+        ? rawConfidence
+        : typeof rawConfidence === "string"
+          ? Number(rawConfidence)
+          : NaN;
+    if (!Number.isFinite(confidence) || confidence < minConfidence) continue;
+
+    const summary = readScalar(candidate.summary);
+    const candidateTitle = readScalar(candidate.title) ?? summary?.split(/[.;\n]/)[0]?.slice(0, 80);
+    if (!candidateTitle || summary === null) continue;
+    if (!isUsefulValue(candidateTitle) || !isUsefulValue(summary)) continue;
+
+    const memoryType = normalizeMemoryType(candidate.memory_type);
+    const includesSubject = candidateTitle.toLowerCase().includes(entryTitleLower);
+    const title = (includesSubject ? candidateTitle : `${entryTitle} — ${candidateTitle}`).slice(
+      0,
+      200,
+    );
+    const slug = slugifyForKey(title);
+    if (!slug) continue;
+
+    const key = `${memoryType}:${slug}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    facts.push({
+      memory_key: key,
+      memory_type: memoryType,
+      title,
+      summary: summary.slice(0, 1000),
+      source_entry_ids: [entry.id],
+    });
+
+    if (facts.length >= 8) break;
   }
 
   return facts;

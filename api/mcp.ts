@@ -127,7 +127,7 @@ const TOOLS = [
   {
     name: "retrieve_memory",
     description:
-      "Full semantic retrieval from the user's brain. Uses embedding + vector search + keyword expansion + graph boost to return the most relevant entries with complete metadata. Use this when the user asks about something stored in their knowledge base.",
+      "Full semantic retrieval from the user's brain. Returns importantMemories (canonical user-kept facts), entries (vector + ranked keyword results), and concepts. Prefer importantMemories for direct fact questions like ID numbers, phone numbers, dates, codes, and account details; use entries for broader context. Use this when the user asks about something stored in their knowledge base.",
     inputSchema: {
       type: "object",
       properties: {

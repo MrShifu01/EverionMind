@@ -69,7 +69,8 @@ export function useChat(brainId: string | undefined) {
       setLoading(true);
       setPendingAction(null);
 
-      const historyForApi = nextMessages
+      const historySource = confirmed ? nextMessages : messages;
+      const historyForApi = historySource
         .slice(-HISTORY_LIMIT)
         .map((m) => ({ role: m.role, content: m.content }));
 

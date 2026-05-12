@@ -8,9 +8,19 @@ went from 13/14 to 18/18.
 Recorded here so the work isn't lost to chat history. Each item ranks
 by user-visible impact + launch criticality. Pick up in priority order.
 
+## Resolution update — 2026-05-12
+
+- Completed P0 #1. `api/_lib/retrievalCore.ts` now calls the ranked
+  `search_entries_fts` RPC for both single-brain and chat cross-brain
+  keyword/tag expansion.
+- The same change preserved short factual lookup tokens (`id`, `vat`,
+  `pin`, etc.) and aligned hybrid scoring with the shared tokenizer, so
+  direct lookup questions are no longer diluted by conversational
+  stopwords.
+
 ## P0 — should ship before public launch
 
-### 1. Swap `wfts` PostgREST call → `search_entries_fts` RPC
+### 1. [DONE] Swap `wfts` PostgREST call → `search_entries_fts` RPC
 
 **What:** Migration 088 (`search_entries_fts` RPC) is applied to prod but
 not yet called from `retrievalCore.ts`. The RPC uses `ts_rank_cd` over

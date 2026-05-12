@@ -45,8 +45,13 @@ async function handleContext({ brainId }: Auth, body: any) {
   if (!GEMINI_API_KEY) throw { status: 500, message: "Embedding not configured on server" };
 
   const safeLimit = Math.min(Math.max(1, Number(limit) || 15), 50);
-  const { entries, concepts } = await retrieveEntries(query, brainId, GEMINI_API_KEY, safeLimit);
-  return { results: entries, concepts };
+  const { entries, concepts, importantMemories } = await retrieveEntries(
+    query,
+    brainId,
+    GEMINI_API_KEY,
+    safeLimit,
+  );
+  return { results: entries, concepts, importantMemories };
 }
 
 // ── /v1/answer ────────────────────────────────────────────────────────────────
@@ -122,9 +127,23 @@ async function handleAnswer({ brainId }: Auth, body: any) {
   if (!GEMINI_API_KEY) throw { status: 500, message: "Embedding not configured on server" };
 
   const safeLimit = Math.min(Math.max(1, Number(limit) || 15), 50);
-  const { entries } = await retrieveEntries(query, brainId, GEMINI_API_KEY, safeLimit);
+  const { entries, importantMemories } = await retrieveEntries(
+    query,
+    brainId,
+    GEMINI_API_KEY,
+    safeLimit,
+  );
 
-  const contextBlock = entries.map((e) => `### ${e.title}\n${e.content}`).join("\n\n");
+  const importantBlock = importantMemories
+    .map((m) => `### ${m.title}\n${m.summary}`)
+    .join("\n\n");
+  const entriesBlock = entries.map((e) => `### ${e.title}\n${e.content}`).join("\n\n");
+  const contextBlock = [
+    importantBlock ? `Canonical facts:\n${importantBlock}` : "",
+    entriesBlock ? `Retrieved entries:\n${entriesBlock}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
   const systemPrompt = `You are a helpful assistant with access to the user's personal knowledge base. Answer using ONLY the context below. If the context is insufficient, say so clearly.\n\nContext:\n${contextBlock}`;
 
   const slashIdx = model.indexOf("/");
@@ -138,6 +157,7 @@ async function handleAnswer({ brainId }: Auth, body: any) {
 
   return {
     answer: answerText,
+    importantMemories,
     sources: entries.map((e) => ({ id: e.id, title: e.title, similarity: e.similarity })),
   };
 }
