@@ -31,6 +31,14 @@ html.family-bronze {
   --ember-deep: oklch(34% 0.07 80);
   --ember-ink: oklch(12% 0.02 80);
 
+  /* Theme-locked ember — these intentionally keep the dark-mode values
+     and are NOT overridden in .theme-light. The inkwell orb's center
+     button uses these so the deep brass well stays visually identical
+     under light mode; only the surrounding rim/ring adapt to theme. */
+  --ember-fixed: oklch(76% 0.105 82);
+  --ember-deep-fixed: oklch(34% 0.07 80);
+  --ember-ink-fixed: oklch(12% 0.02 80);
+
   --moss: oklch(62% 0.07 152);
   --moss-wash: oklch(62% 0.07 152 / 0.12);
   --blood: oklch(58% 0.16 28);

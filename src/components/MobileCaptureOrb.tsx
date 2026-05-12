@@ -22,6 +22,12 @@ interface Props {
 
 const HOLD_THRESHOLD_MS = 250;
 const ACCENT = "var(--ember)";
+// Button-only accent — theme-locked so the inner ember well stays
+// visually identical in light mode. Rim and ring keep using ACCENT so
+// they still adapt to theme.
+const BTN_ACCENT = "var(--ember-fixed)";
+const BTN_DEEP = "var(--ember-deep-fixed)";
+const BTN_INK = "var(--ember-ink-fixed)";
 
 // Home Inkwell reference (size=220). All proportional values below are
 // derived from this so the mini orb is a true 1:1 scale-down — same
@@ -192,18 +198,18 @@ export default function MobileCaptureOrb({
             inset: buttonInset,
             borderRadius: "50%",
             background: `radial-gradient(circle at 50% 30%,
-              color-mix(in oklch, ${ACCENT} 55%, var(--ember-deep)) 0%,
-              color-mix(in oklch, ${ACCENT} 30%, var(--ember-deep)) 50%,
-              var(--ember-deep) 100%)`,
-            border: `1px solid color-mix(in oklch, ${ACCENT} 70%, transparent)`,
+              color-mix(in oklch, ${BTN_ACCENT} 55%, ${BTN_DEEP}) 0%,
+              color-mix(in oklch, ${BTN_ACCENT} 30%, ${BTN_DEEP}) 50%,
+              ${BTN_DEEP} 100%)`,
+            border: `1px solid color-mix(in oklch, ${BTN_ACCENT} 70%, transparent)`,
             cursor: "pointer",
             padding: 0,
             transform: pressed ? "scale(0.96)" : "scale(1)",
             transition: "transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1)",
             boxShadow: `
-              inset 0 1px 0 color-mix(in oklch, ${ACCENT} 85%, white),
-              inset 0 ${btnInnerY}px ${btnInnerBlur}px color-mix(in oklch, var(--ember-deep) 80%, transparent),
-              0 0 ${btnGlowBlur}px color-mix(in oklch, ${ACCENT} ${listening ? 48 : 32}%, transparent),
+              inset 0 1px 0 color-mix(in oklch, ${BTN_ACCENT} 85%, white),
+              inset 0 ${btnInnerY}px ${btnInnerBlur}px color-mix(in oklch, ${BTN_DEEP} 80%, transparent),
+              0 0 ${btnGlowBlur}px color-mix(in oklch, ${BTN_ACCENT} ${listening ? 48 : 32}%, transparent),
               var(--lift-2)`,
             display: "flex",
             alignItems: "center",
@@ -226,7 +232,7 @@ export default function MobileCaptureOrb({
               left: "22%",
               width: "44%",
               height: "22%",
-              background: `radial-gradient(ellipse, color-mix(in oklch, white 32%, ${ACCENT}) 0%, transparent 70%)`,
+              background: `radial-gradient(ellipse, color-mix(in oklch, white 32%, ${BTN_ACCENT}) 0%, transparent 70%)`,
               filter: `blur(${Math.max(1, Math.round(4 * k))}px)`,
               opacity: 0.85,
               borderRadius: "50%",
@@ -240,7 +246,7 @@ export default function MobileCaptureOrb({
                   position: "absolute",
                   inset: "30%",
                   borderRadius: "50%",
-                  border: `1.5px solid color-mix(in oklch, white 38%, ${ACCENT})`,
+                  border: `1.5px solid color-mix(in oklch, white 38%, ${BTN_ACCENT})`,
                   animation: "inkwell-ripple 800ms ease-out forwards",
                 }}
               />
@@ -250,7 +256,7 @@ export default function MobileCaptureOrb({
                   position: "absolute",
                   inset: "30%",
                   borderRadius: "50%",
-                  border: `1px solid color-mix(in oklch, ${ACCENT} 60%, transparent)`,
+                  border: `1px solid color-mix(in oklch, ${BTN_ACCENT} 60%, transparent)`,
                   animation: "inkwell-ripple 800ms ease-out 200ms forwards",
                 }}
               />
@@ -262,10 +268,10 @@ export default function MobileCaptureOrb({
               position: "relative",
               zIndex: 1,
               fontSize: glyphFont,
-              color: "var(--ember-ink)",
+              color: BTN_INK,
               fontWeight: 300,
               lineHeight: 1,
-              textShadow: "0 1px 2px color-mix(in oklch, var(--ember-deep) 60%, transparent)",
+              textShadow: `0 1px 2px color-mix(in oklch, ${BTN_DEEP} 60%, transparent)`,
             }}
           >
             {glyph}
