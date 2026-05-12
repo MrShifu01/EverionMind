@@ -62,8 +62,11 @@ function BottomNavInner({
         zIndex: "var(--z-nav)",
         alignItems: "center",
         justifyContent: "space-around",
-        background: "var(--surface-low)",
-        borderTop: "1px solid var(--line-soft)",
+        // Match the body bg exactly so the nav row + its safe-area extension
+        // both blend into the surrounding content. Previously var(--surface-low)
+        // made the nav (and the home-indicator strip below it) visibly lighter
+        // than the body, which read as a "gap" at the screen bottom.
+        background: "var(--bg)",
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
         height: "calc(56px + env(safe-area-inset-bottom, 0px))",
       }}
