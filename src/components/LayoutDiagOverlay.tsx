@@ -1,4 +1,4 @@
-import { useEffect, useState, type JSX } from "react";
+import { useEffect, useRef, useState, type JSX } from "react";
 
 // Temporary diagnostic for the "click-out-click-in shoots everything above
 // the screen" bug on /home. Gated by either:
@@ -72,6 +72,28 @@ export default function LayoutDiagOverlay(): JSX.Element | null {
   const [latest, setLatest] = useState<Snapshot | null>(null);
   const [history, setHistory] = useState<Snapshot[]>([]);
   const [origin] = useState(() => Date.now());
+  // Pin to visualViewport. Without this, position:fixed anchors to the
+  // layout viewport — when the soft keyboard opens and visualViewport
+  // translates, the overlay scrolls off with the page and the user can't
+  // see the numbers during the bug.
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const pin = () => {
+      const el = overlayRef.current;
+      if (!el) return;
+      el.style.transform = `translate3d(0, ${vv.offsetTop}px, 0)`;
+    };
+    pin();
+    vv.addEventListener("resize", pin);
+    vv.addEventListener("scroll", pin);
+    return () => {
+      vv.removeEventListener("resize", pin);
+      vv.removeEventListener("scroll", pin);
+    };
+  }, [enabled]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -166,11 +188,13 @@ export default function LayoutDiagOverlay(): JSX.Element | null {
 
   return (
     <div
+      ref={overlayRef}
       style={{
         position: "fixed",
         top: "calc(env(safe-area-inset-top, 0px) + 4px)",
         right: 4,
         zIndex: 99999,
+        willChange: "transform",
         background: "rgba(0, 0, 0, 0.78)",
         color: "#0f0",
         fontFamily: "ui-monospace, Menlo, Consolas, monospace",
