@@ -23,6 +23,9 @@ interface Snapshot {
   vvScale: number | null;
   vvhVar: string; // computed --vvh
   mainScrollY: number | null; // #main-content.scrollTop
+  docScrollY: number; // document.scrollingElement.scrollTop — catches html-element scroll
+  windowScrollY: number; // window.scrollY — catches doc-element scroll
+  bodyScrollY: number; // body.scrollTop — catches body-level scroll
   mhY: number | null; // MobileHome wrapper top
   mhH: number | null;
   taY: number | null; // textarea (ask everion…) top
@@ -125,6 +128,9 @@ export default function LayoutDiagOverlay(): JSX.Element | null {
         vvScale: vv ? Number(vv.scale.toFixed(3)) : null,
         vvhVar: getComputedStyle(document.documentElement).getPropertyValue("--vvh").trim(),
         mainScrollY: main ? main.scrollTop : null,
+        docScrollY: Math.round(document.scrollingElement?.scrollTop ?? 0),
+        windowScrollY: Math.round(window.scrollY),
+        bodyScrollY: Math.round(document.body.scrollTop),
         mhY: rect(mh)?.y ?? null,
         mhH: rect(mh)?.h ?? null,
         taY: rect(ta)?.y ?? null,
@@ -216,6 +222,9 @@ vvTop:  ${latest.vvTop}
 vvSc:   ${latest.vvScale}
 --vvh:  ${latest.vvhVar}
 mainSY: ${latest.mainScrollY}
+docSY:  ${latest.docScrollY}
+winSY:  ${latest.windowScrollY}
+bodySY: ${latest.bodyScrollY}
 mh y:   ${latest.mhY}  h:${latest.mhH}
 ta y:   ${latest.taY}  h:${latest.taH}
 orb y:  ${latest.orbY}  h:${latest.orbH}

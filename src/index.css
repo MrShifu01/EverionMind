@@ -726,6 +726,13 @@ body {
    instead of html/body globally — the Landing/Login pages still need
    body-scroll for their long marketing pages and the ExitIntentSlideIn
    scroll listener. */
+/* Both html AND body must be locked. body:has(...) sets body height when
+   the shell is mounted, but html's default overflow is visible — when
+   content (the .app-shell-fixed) exceeds the layout viewport, html
+   itself becomes the scroll root and the document scrolls on focus.
+   Lock html too, scoped via :has() so Landing/Login marketing pages
+   are untouched. */
+html:has(.app-shell-fixed),
 body:has(.app-shell-fixed) {
   height: var(--vvh, 100dvh);
   overflow: hidden;
