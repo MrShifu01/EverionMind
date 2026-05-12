@@ -23,12 +23,22 @@ interface Props {
 const HOLD_THRESHOLD_MS = 250;
 const ACCENT = "var(--ember)";
 
-/**
- * Mini inkwell orb. Same visual language as MobileHome's central inkwell
- * but sized down to ~64px, positioned fixed at the screen-bottom center.
- * Replaces the old BottomNav center FAB on every non-home view, and is
- * reused as the loading-screen capture button.
- */
+// Home Inkwell reference (size=220). All proportional values below are
+// derived from this so the mini orb is a true 1:1 scale-down — same
+// circles within circles, same shadow stack, same highlight + ripple,
+// same press scale.
+const REF_SIZE = 220;
+const REF_RING_INSET = 18;
+const REF_BUTTON_INSET = 38;
+const REF_GLYPH_FONT = 36;
+const REF_RIM_INSET_SHADOW_BLUR = 18;
+const REF_RIM_INSET_SHADOW_Y = -8;
+const REF_RING_INSET_SHADOW_BLUR = 14;
+const REF_RING_INSET_SHADOW_Y = 4;
+const REF_BTN_INNER_INSET_SHADOW_BLUR = 14;
+const REF_BTN_INNER_INSET_SHADOW_Y = -6;
+const REF_BTN_GLOW_BLUR = 28;
+
 export default function MobileCaptureOrb({
   onOpenCapture,
   onOpenCaptureWith,
@@ -114,12 +124,18 @@ export default function MobileCaptureOrb({
     }
   }
 
-  // Proportions matched to the home inkwell (220px → rim 0, ring 18,
-  // button 38 → 0 / 8.18% / 17.27%; glyph fontSize 36 in 220 → 16.4%).
-  // Keeps the small orb visually identical, just scaled down.
-  const ringInset = Math.round(size * 0.0818);
-  const buttonInset = Math.round(size * 0.1727);
-  const fontSize = Math.round(size * 0.34);
+  // 1:1 scale factor from the 220px home orb.
+  const k = size / REF_SIZE;
+  const ringInset = Math.round(REF_RING_INSET * k);
+  const buttonInset = Math.round(REF_BUTTON_INSET * k);
+  const glyphFont = Math.round(REF_GLYPH_FONT * k);
+  const rimInsetBlur = Math.max(1, Math.round(REF_RIM_INSET_SHADOW_BLUR * k));
+  const rimInsetY = Math.round(REF_RIM_INSET_SHADOW_Y * k);
+  const ringInsetBlur = Math.max(1, Math.round(REF_RING_INSET_SHADOW_BLUR * k));
+  const ringInsetY = Math.max(1, Math.round(REF_RING_INSET_SHADOW_Y * k));
+  const btnInnerBlur = Math.max(1, Math.round(REF_BTN_INNER_INSET_SHADOW_BLUR * k));
+  const btnInnerY = Math.round(REF_BTN_INNER_INSET_SHADOW_Y * k);
+  const btnGlowBlur = Math.max(2, Math.round(REF_BTN_GLOW_BLUR * k));
 
   return (
     <div
@@ -135,7 +151,7 @@ export default function MobileCaptureOrb({
       }}
     >
       <div style={{ position: "relative", width: size, height: size }}>
-        {/* Outer rim */}
+        {/* Outer rim — matches home orb exactly, scaled. */}
         <div
           aria-hidden
           style={{
@@ -147,7 +163,7 @@ export default function MobileCaptureOrb({
               var(--surface) 48%,
               var(--surface-low) 100%)`,
             border: `1px solid color-mix(in oklch, ${ACCENT} 42%, transparent)`,
-            boxShadow: "var(--lift-2)",
+            boxShadow: `var(--lift-2), inset 0 ${rimInsetY}px ${rimInsetBlur}px var(--scrim)`,
           }}
         />
         {/* Inner ring */}
@@ -157,12 +173,12 @@ export default function MobileCaptureOrb({
             position: "absolute",
             inset: ringInset,
             borderRadius: "50%",
-            border: `1px solid color-mix(in oklch, ${ACCENT} 55%, transparent)`,
+            border: `1.5px solid color-mix(in oklch, ${ACCENT} 55%, transparent)`,
             background: "var(--surface-dim)",
-            boxShadow: "inset 0 1px 4px oklch(4% 0.01 250 / 0.8)",
+            boxShadow: `inset 0 ${ringInsetY}px ${ringInsetBlur}px oklch(4% 0.01 250 / 0.8)`,
           }}
         />
-        {/* Push button */}
+        {/* Push button — same shadow stack and press behaviour as home. */}
         <button
           type="button"
           onPointerDown={onPointerDown}
@@ -170,6 +186,7 @@ export default function MobileCaptureOrb({
           onPointerCancel={onPointerCancel}
           onContextMenu={(e) => e.preventDefault()}
           aria-label={ariaLabel}
+          data-pressed={pressed ? "true" : "false"}
           style={{
             position: "absolute",
             inset: buttonInset,
@@ -181,12 +198,13 @@ export default function MobileCaptureOrb({
             border: `1px solid color-mix(in oklch, ${ACCENT} 70%, transparent)`,
             cursor: "pointer",
             padding: 0,
-            transform: pressed ? "scale(0.94)" : "scale(1)",
+            transform: pressed ? "scale(0.96)" : "scale(1)",
             transition: "transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1)",
             boxShadow: `
               inset 0 1px 0 color-mix(in oklch, ${ACCENT} 85%, white),
-              0 0 12px color-mix(in oklch, ${ACCENT} 28%, transparent),
-              var(--lift-1)`,
+              inset 0 ${btnInnerY}px ${btnInnerBlur}px color-mix(in oklch, var(--ember-deep) 80%, transparent),
+              0 0 ${btnGlowBlur}px color-mix(in oklch, ${ACCENT} ${listening ? 48 : 32}%, transparent),
+              var(--lift-2)`,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -199,14 +217,55 @@ export default function MobileCaptureOrb({
             animation: listening ? "inkwell-breathe 1.4s ease-in-out infinite" : "none",
           }}
         >
+          {/* Inner highlight — proportional to button, same %s as home. */}
+          <span
+            aria-hidden
+            style={{
+              position: "absolute",
+              top: "14%",
+              left: "22%",
+              width: "44%",
+              height: "22%",
+              background: `radial-gradient(ellipse, color-mix(in oklch, white 32%, ${ACCENT}) 0%, transparent 70%)`,
+              filter: `blur(${Math.max(1, Math.round(4 * k))}px)`,
+              opacity: 0.85,
+              borderRadius: "50%",
+            }}
+          />
+          {pressed && (
+            <>
+              <span
+                aria-hidden
+                style={{
+                  position: "absolute",
+                  inset: "30%",
+                  borderRadius: "50%",
+                  border: `1.5px solid color-mix(in oklch, white 38%, ${ACCENT})`,
+                  animation: "inkwell-ripple 800ms ease-out forwards",
+                }}
+              />
+              <span
+                aria-hidden
+                style={{
+                  position: "absolute",
+                  inset: "30%",
+                  borderRadius: "50%",
+                  border: `1px solid color-mix(in oklch, ${ACCENT} 60%, transparent)`,
+                  animation: "inkwell-ripple 800ms ease-out 200ms forwards",
+                }}
+              />
+            </>
+          )}
           <span
             className="f-serif"
             style={{
-              fontSize,
+              position: "relative",
+              zIndex: 1,
+              fontSize: glyphFont,
               color: "var(--ember-ink)",
               fontWeight: 300,
               lineHeight: 1,
-              textShadow: "0 1px 1px color-mix(in oklch, var(--ember-deep) 60%, transparent)",
+              textShadow: "0 1px 2px color-mix(in oklch, var(--ember-deep) 60%, transparent)",
             }}
           >
             {glyph}
