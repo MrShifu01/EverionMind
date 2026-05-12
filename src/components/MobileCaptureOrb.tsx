@@ -114,7 +114,12 @@ export default function MobileCaptureOrb({
     }
   }
 
-  const fontSize = Math.round(size * 0.42);
+  // Proportions matched to the home inkwell (220px → rim 0, ring 18,
+  // button 38 → 0 / 8.18% / 17.27%; glyph fontSize 36 in 220 → 16.4%).
+  // Keeps the small orb visually identical, just scaled down.
+  const ringInset = Math.round(size * 0.0818);
+  const buttonInset = Math.round(size * 0.1727);
+  const fontSize = Math.round(size * 0.34);
 
   return (
     <div
@@ -142,7 +147,7 @@ export default function MobileCaptureOrb({
               var(--surface) 48%,
               var(--surface-low) 100%)`,
             border: `1px solid color-mix(in oklch, ${ACCENT} 42%, transparent)`,
-            boxShadow: "var(--lift-2), inset 0 -4px 12px var(--scrim)",
+            boxShadow: "var(--lift-2)",
           }}
         />
         {/* Inner ring */}
@@ -150,11 +155,11 @@ export default function MobileCaptureOrb({
           aria-hidden
           style={{
             position: "absolute",
-            inset: 6,
+            inset: ringInset,
             borderRadius: "50%",
-            border: `1.5px solid color-mix(in oklch, ${ACCENT} 55%, transparent)`,
+            border: `1px solid color-mix(in oklch, ${ACCENT} 55%, transparent)`,
             background: "var(--surface-dim)",
-            boxShadow: "inset 0 2px 8px oklch(4% 0.01 250 / 0.8)",
+            boxShadow: "inset 0 1px 4px oklch(4% 0.01 250 / 0.8)",
           }}
         />
         {/* Push button */}
@@ -167,7 +172,7 @@ export default function MobileCaptureOrb({
           aria-label={ariaLabel}
           style={{
             position: "absolute",
-            inset: 12,
+            inset: buttonInset,
             borderRadius: "50%",
             background: `radial-gradient(circle at 50% 30%,
               color-mix(in oklch, ${ACCENT} 55%, var(--ember-deep)) 0%,
@@ -180,8 +185,7 @@ export default function MobileCaptureOrb({
             transition: "transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1)",
             boxShadow: `
               inset 0 1px 0 color-mix(in oklch, ${ACCENT} 85%, white),
-              inset 0 -3px 8px color-mix(in oklch, var(--ember-deep) 80%, transparent),
-              0 0 16px color-mix(in oklch, ${ACCENT} 32%, transparent),
+              0 0 12px color-mix(in oklch, ${ACCENT} 28%, transparent),
               var(--lift-1)`,
             display: "flex",
             alignItems: "center",
