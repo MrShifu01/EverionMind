@@ -46,12 +46,18 @@ async function runOne(f: Fixture): Promise<FixtureResult> {
   const required = f.minHits ?? f.expectTitles.length;
   try {
     const r = await retrieveEntries(f.query, f.brainId, GEMINI_API_KEY, f.limit ?? 15);
-    const titles = r.entries.map((e) => e.title ?? "");
+    // Match against BOTH entry titles AND important_memory titles. The Tier 1
+    // canonical-fact layer is a parallel signal the LLM sees in
+    // `retrieve_memory`'s result — asserting against either lets us test
+    // direct-fact queries that should land Tier 1 ("Landon's phone").
+    const entryTitles = r.entries.map((e) => e.title ?? "");
+    const factTitles = r.importantMemories.map((m) => m.title ?? "");
+    const allTitles = [...factTitles, ...entryTitles];
     const matched: string[] = [];
     const unmatched: string[] = [];
     for (const pattern of f.expectTitles) {
       const re = new RegExp(pattern, "i");
-      if (titles.some((t) => re.test(t))) matched.push(pattern);
+      if (allTitles.some((t) => re.test(t))) matched.push(pattern);
       else unmatched.push(pattern);
     }
     return {
@@ -59,7 +65,7 @@ async function runOne(f: Fixture): Promise<FixtureResult> {
       pass: matched.length >= required,
       hitCount: matched.length,
       required,
-      topTitles: titles.slice(0, 8),
+      topTitles: allTitles.slice(0, 8),
       matched,
       unmatched,
     };

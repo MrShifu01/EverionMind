@@ -160,4 +160,39 @@ export const fixtures: Fixture[] = [
     brainId: MY_BRAIN,
     expectTitles: ["Yolandi"],
   },
+
+  // ─────────────────────────────────────────────────────────────────────
+  // DIRECT FACT LOOKUP — Tier 1 (important_memories) targets
+  // These should hit the canonical-fact layer (post-Phase-2 backfill)
+  // before the vector path even runs. Each expects a fact title like
+  // "<Person> - Staff Details — Phone" or similar from auto-extraction.
+  // ─────────────────────────────────────────────────────────────────────
+  {
+    id: "fact-landon-phone",
+    description: "Direct fact: Landon's phone. Should hit Tier 1 important_memories.",
+    query: "what is Landon's phone number",
+    brainId: MY_BRAIN,
+    expectTitles: ["Landon.*Phone|Landon Harris Klopper"],
+  },
+  {
+    id: "fact-avela-id",
+    description: "Direct fact: Avela's ID. Tier 1.",
+    query: "Avela ID number",
+    brainId: MY_BRAIN,
+    expectTitles: ["Avela.*ID|Avela Ntonto"],
+  },
+  {
+    id: "fact-tshepang-bank",
+    description: "Direct fact: Tshepang's bank account. Tier 1.",
+    query: "Tshepang bank account",
+    brainId: MY_BRAIN,
+    expectTitles: ["Tshepang.*Bank|Tshepang Godfrey"],
+  },
+  {
+    id: "fact-benita-tax",
+    description: "Direct fact: Benita's tax number. Tier 1.",
+    query: "Benita tax number",
+    brainId: MY_BRAIN,
+    expectTitles: ["Benita.*Tax|Benita Liebenberg"],
+  },
 ];
