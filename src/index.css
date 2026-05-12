@@ -699,29 +699,39 @@ body {
   max-width: 100vw;
 }
 
-/* Signed-in app shell: body becomes fixed-height (100lvh) with
-   overflow:hidden so the inner <main id="main-content"> is the actual
-   scroll container. The bottom nav is then a regular in-flow flex child
-   of .app-shell-fixed and does not depend on window.innerHeight.
+/* Signed-in app shell: body becomes fixed-height with overflow:hidden so
+   the inner <main id="main-content"> is the actual scroll container. The
+   bottom nav is then a regular in-flow flex child of .app-shell-fixed
+   and does not depend on window.innerHeight.
 
-   Why: position:fixed bottom:0 in iOS PWA standalone anchors to the
-   layout viewport (innerHeight). On launch, iOS PWA reports innerHeight
-   smaller than the device screen (measured 815/816 → 844 on iPhone 14,
-   transition over ~1s — see DebugViewportOverlay readings, commits
-   649ea9c, 4472234). Fixed elements leave a body-bg strip below them
-   until iOS commits the full viewport. Synthetic scrollTo/resize events
-   do not shortcut the commit.
+   Height = var(--vvh, 100dvh). --vvh is set in MobileHome's
+   visualViewport effect; falls back to 100dvh on browsers without
+   visualViewport. Using --vvh (which shrinks on keyboard open) instead
+   of 100lvh (which stays constant) is what stops the textarea-focus
+   bug: when the keyboard opens, the shell shrinks to match the visible
+   viewport so there's nothing for the browser's auto-scroll-into-view
+   to scroll. Without this, the shell stayed 100lvh tall while the
+   layout viewport shrunk, the document overflowed by ~325px, and the
+   browser scrolled the document up that much to bring the focused
+   textarea above the keyboard — which yanked the whole page out of
+   visible viewport.
+
+   Trade-off: on iOS PWA standalone the launch-time innerHeight bug
+   (commits 649ea9c, 4472234) means --vvh briefly under-reports on
+   cold start, leaving a body-bg strip below the bottom nav for ~1s.
+   Acceptable since the keyboard-focus bug is far more visible and
+   regular users hit it many times per session.
 
    Scoping via .app-shell-fixed (added in Everion.tsx outer wrapper)
    instead of html/body globally — the Landing/Login pages still need
    body-scroll for their long marketing pages and the ExitIntentSlideIn
    scroll listener. */
 body:has(.app-shell-fixed) {
-  height: 100lvh;
+  height: var(--vvh, 100dvh);
   overflow: hidden;
 }
 .app-shell-fixed {
-  height: 100lvh;
+  height: var(--vvh, 100dvh);
   overflow: hidden;
 }
 

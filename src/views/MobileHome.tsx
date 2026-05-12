@@ -541,60 +541,15 @@ export default function MobileHome({
           </button>
         </div>
 
-        {/* Connecting progress bar — slim ember bar that fills 0→100% over
-            5s with ease-out, so it feels fast at first then slows ("almost
-            there…"). After 10s the parent flips to the deflated state and
-            the bar is replaced by the "sorry, connection fell flat" text. */}
-        {(isConnecting || connectTimedOut) && (
-          <div
-            aria-live="polite"
-            style={{
-              width: 200,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 8,
-              marginTop: 4,
-            }}
-          >
-            <div
-              style={{
-                width: "100%",
-                height: 3,
-                borderRadius: 999,
-                background: "color-mix(in oklch, var(--ember) 12%, transparent)",
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  height: "100%",
-                  width: connectTimedOut ? "100%" : 0,
-                  background: connectTimedOut ? "var(--blood)" : "var(--ember)",
-                  borderRadius: 999,
-                  animation: connectTimedOut
-                    ? "none"
-                    : "orb-connect-progress 5s cubic-bezier(0.16, 1, 0.3, 1) forwards",
-                  transition: "background 240ms ease",
-                }}
-              />
-            </div>
-            <div
-              className="f-serif"
-              style={{
-                fontSize: 12,
-                fontStyle: "italic",
-                color: connectTimedOut ? "var(--blood)" : "var(--ink-faint)",
-                textAlign: "center",
-                lineHeight: 1.35,
-                minHeight: 16,
-                transition: "color 240ms ease",
-              }}
-            >
-              {connectTimedOut ? "sorry, connection fell flat — tap orb to retry" : "connecting…"}
-            </div>
-          </div>
-        )}
+        {/* Connecting state — no separate progress bar or "connecting…"
+            copy. The orb's own animations carry the state:
+              - isConnecting → orb-connect-bounce (2.2s ease loop, set on
+                the button's `animation` style below)
+              - connectTimedOut → orb-deflate (700ms forwards, the orb
+                visibly flattens to indicate failure)
+            The redundant 200px progress strip + italic caption used to
+            stack below the orb and ate vertical space. Removed
+            2026-05-12 — keep the surface clean and let the orb speak. */}
 
         {/* Voice surfaces — both hide themselves when their content is
             empty so they don't reserve space in idle Ask. Each wrapped
