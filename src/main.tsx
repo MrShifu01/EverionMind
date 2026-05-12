@@ -23,12 +23,6 @@ import TermsOfService from "./views/TermsOfService";
 import NotFound from "./views/NotFound";
 import { ConsentBanner, getConsentDecision } from "./components/ConsentBanner";
 import UpdatePrompt from "./components/UpdatePrompt";
-// Eager import — Suspense fallback for the lazy App / Landing chunks. Without
-// this the gap between the inline boot shell (in index.html) and App's own
-// LoadingScreen renders as a blank black screen, causing a visible flash.
-// Tree-shaken into the eager chunk; subsequent lazy callers (App.tsx,
-// Everion.tsx) reuse the same module via Vite's deduplication.
-import LoadingScreen from "./components/LoadingScreen";
 import LayoutDiagOverlay from "./components/LayoutDiagOverlay";
 import { initPostHog } from "./lib/posthog";
 import { initCapacitorBridge, hideSplashScreen, isNative } from "./lib/capacitorBridge";
@@ -241,7 +235,7 @@ function Root() {
   if (!showApp) {
     return (
       <>
-        <Suspense fallback={<LoadingScreen />}>
+        <Suspense fallback={null}>
           <Landing
             onAuth={(mode) => {
               setAuthIntent(mode);
@@ -260,7 +254,7 @@ function Root() {
 
   return (
     <>
-      <Suspense fallback={<LoadingScreen />}>
+      <Suspense fallback={null}>
         <App initialAuthIntent={authIntent} />
       </Suspense>
       {consent === "accepted" && (

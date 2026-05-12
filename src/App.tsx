@@ -9,7 +9,6 @@ import Landing from "./views/Landing";
 import ErrorBoundary from "./ErrorBoundary";
 import { MemoryProvider } from "./MemoryContext";
 import { ThemeProvider } from "./ThemeContext";
-import LoadingScreen from "./components/LoadingScreen";
 import OfflineScreen from "./components/OfflineScreen";
 import { Button } from "./components/ui/button";
 import type { Session } from "@supabase/auth-js";
@@ -57,7 +56,7 @@ export default function App({ initialAuthIntent }: AppProps = {}): JSX.Element {
   if (typeof window !== "undefined" && window.location.pathname === "/status") {
     return (
       <ThemeProvider>
-        <Suspense fallback={<LoadingScreen />}>
+        <Suspense fallback={null}>
           <StatusPage />
         </Suspense>
       </ThemeProvider>
@@ -259,7 +258,6 @@ function AppMain({ initialAuthIntent }: AppProps = {}): JSX.Element {
   if (session === undefined)
     return (
       <ThemeProvider>
-        <LoadingScreen />
         {earlyCapture ? (
           <div
             style={{
@@ -362,7 +360,7 @@ function AppMain({ initialAuthIntent }: AppProps = {}): JSX.Element {
     return (
       <ThemeProvider>
         {showLogin ? (
-          <Suspense fallback={<LoadingScreen />}>
+          <Suspense fallback={null}>
             <LoginScreen initialIntent={authIntent} />
           </Suspense>
         ) : (
@@ -378,7 +376,7 @@ function AppMain({ initialAuthIntent }: AppProps = {}): JSX.Element {
   if (showResetPassword)
     return (
       <ThemeProvider>
-        <Suspense fallback={<LoadingScreen />}>
+        <Suspense fallback={null}>
           <ResetPasswordView onDone={() => setShowResetPassword(false)} />
         </Suspense>
       </ThemeProvider>
@@ -411,7 +409,7 @@ function AppMain({ initialAuthIntent }: AppProps = {}): JSX.Element {
     }
     return (
       <ThemeProvider>
-        <Suspense fallback={<LoadingScreen />}>
+        <Suspense fallback={null}>
           <AdminView />
         </Suspense>
       </ThemeProvider>
@@ -442,7 +440,7 @@ function AppMain({ initialAuthIntent }: AppProps = {}): JSX.Element {
               {inviteMsg}
             </div>
           )}
-          <Suspense fallback={<LoadingScreen />}>
+          <Suspense fallback={null}>
             <Everion initialShowCapture={earlyCapture} />
           </Suspense>
         </MemoryProvider>

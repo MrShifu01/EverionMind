@@ -327,12 +327,6 @@ export default function MobileHome({
           minHeight: 0,
         }}
       >
-        {/* Orb button — position-aligned with LoadingScreen's orb so the
-            LoadingScreen → MobileHome handoff reads as visual continuity.
-            The earlier layoutId="brain-orb" wrapper was removed because
-            Framer's layout reconciler was hijacking LoadingScreen's
-            fall-from-above spring, resolving the drop in ~300ms instead
-            of the intended ~900ms. */}
         <div
           style={{
             width: orbSize,

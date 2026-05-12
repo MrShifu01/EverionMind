@@ -51,7 +51,6 @@ function prefetchCaptureSheet() {
 }
 import DesktopSidebar from "./components/DesktopSidebar";
 import DesktopHeader from "./components/DesktopHeader";
-import LoadingScreen from "./components/LoadingScreen";
 import SkeletonCard from "./components/SkeletonCard";
 import OmniSearch from "./components/OmniSearch";
 import SettingsView from "./views/SettingsView";
@@ -1126,7 +1125,7 @@ function EverionContent({
 }
 
 export default function Everion({ initialShowCapture }: { initialShowCapture?: boolean } = {}) {
-  const { brains, activeBrain, setActiveBrain, refresh, loading: brainsLoading } = useBrainHook();
+  const { brains, activeBrain, setActiveBrain, refresh } = useBrainHook();
 
   const patchEntryIdRef = useRef<(tempId: string, realId: string) => void>(() => {});
 
@@ -1254,10 +1253,8 @@ export default function Everion({ initialShowCapture }: { initialShowCapture?: b
     [activeBrain, brains, setActiveBrain, refresh],
   );
 
-  const splashReady = !brainsLoading || brains.length > 0;
   return (
     <>
-      <LoadingScreen ready={splashReady} />
       <EntriesContext.Provider value={entriesValue}>
         <BrainContext.Provider value={brainValue}>
           <ConceptGraphProvider activeBrainId={activeBrain?.id}>
