@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { useChat } from "../hooks/useChat";
 import { useVoiceMode, useGeminiLive, useGeminiVoice, type VoiceMode } from "../hooks/useVoiceMode";
@@ -11,18 +10,6 @@ import { authFetch } from "../lib/authFetch";
 import NotificationBell from "../components/NotificationBell";
 import type { AppNotification } from "../hooks/useNotifications";
 import type { Brain } from "../types";
-
-const EASE_OUT_QUART = [0.16, 1, 0.3, 1] as const;
-const FADE_SLIDE_DOWN = (offset = 6, duration = 0.26) => ({
-  initial: { opacity: 0, y: -offset },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration, ease: EASE_OUT_QUART },
-});
-const BUBBLE_IN = {
-  initial: { opacity: 0, y: 8, scale: 0.98 },
-  animate: { opacity: 1, y: 0, scale: 1 },
-  transition: { duration: 0.28, ease: EASE_OUT_QUART },
-};
 
 interface MobileHomeProps {
   brainId: string | undefined;
@@ -144,8 +131,11 @@ export default function MobileHome({
   }, []);
 
   useEffect(() => {
+    // Instant + nearest so iOS Safari/PWA never tries to scroll an ancestor
+    // into view alongside it — that's what was pushing the orb above the
+    // viewport when a new message arrived or the input was focused.
     if (mode === "ask" && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+      messagesEndRef.current.scrollIntoView({ behavior: "instant", block: "nearest" });
     }
   }, [messages, chatLoading, mode]);
 
@@ -236,7 +226,6 @@ export default function MobileHome({
   const isAsk = mode === "ask";
   const liveActive = liveSession.status === "listening" || liveSession.status === "speaking";
   const isConnecting = liveSession.status === "connecting";
-  const liveShow = liveSession.status !== "idle" || !!liveSession.error;
   const animating =
     listening ||
     transcribing ||
@@ -271,13 +260,32 @@ export default function MobileHome({
     };
   }, []);
 
-  const hasChatContent = messages.length > 0 || liveShow || pendingActions.pending.length > 0;
+  // Lock main-content's overflow while MobileHome is mounted. The shell
+  // marks it overflow-y:auto for scroll-heavy views (memory/timeline) — on
+  // the inkwell view that lets iOS scroll the focused Ask input into view
+  // and pushes the orb above the viewport when the keyboard opens. Bronze
+  // screen itself is overflow:hidden so nothing here should scroll.
+  useEffect(() => {
+    const el = document.getElementById("main-content");
+    if (!el) return;
+    const prev = el.style.overflow;
+    el.style.overflow = "hidden";
+    return () => {
+      el.style.overflow = prev;
+    };
+  }, []);
+
+  // Live voice now renders its status inline on the home screen — it does
+  // NOT pop the chat sheet. Sheet is reserved for actual text-chat history
+  // and pending-voice-action confirmations.
+  const hasChatContent = messages.length > 0 || pendingActions.pending.length > 0;
   const sheetOpen = isAsk && hasChatContent && !sheetUserDismissed;
 
   useEffect(() => {
     if (sheetOpen) {
-      const id = window.setTimeout(() => sheetInputRef.current?.focus(), 320);
-      return () => window.clearTimeout(id);
+      // Defer focus until paint completes so iOS doesn't auto-scroll.
+      const id = window.requestAnimationFrame(() => sheetInputRef.current?.focus());
+      return () => window.cancelAnimationFrame(id);
     }
     return;
   }, [sheetOpen]);
@@ -297,12 +305,21 @@ export default function MobileHome({
     : typeof entriesCount === "number"
       ? `${today} · ${entriesCount} in the well`
       : today;
+  const liveStatusText = liveSession.error
+    ? "voice error · tap orb to retry"
+    : liveSession.status === "connecting"
+      ? "connecting…"
+      : liveSession.status === "listening"
+        ? "connected · listening"
+        : liveSession.status === "speaking"
+          ? "speaking"
+          : null;
   const caption = isAsk
-    ? geminiLiveOn
-      ? liveActive || isConnecting
-        ? "tap orb to end"
-        : "tap to talk · or type below"
-      : "tap to type · hold to ask by voice"
+    ? liveStatusText
+      ? liveStatusText
+      : geminiLiveOn
+        ? "tap orb to talk · or type below"
+        : "tap to type · hold to ask by voice"
     : listening
       ? "release to send"
       : transcribing
@@ -483,7 +500,7 @@ export default function MobileHome({
       <ChatSheet
         open={sheetOpen}
         onClose={() => setSheetUserDismissed(true)}
-        messages={liveShow ? [] : messages}
+        messages={messages}
         loading={chatLoading}
         input={askInput}
         onInputChange={setAskInput}
@@ -495,8 +512,6 @@ export default function MobileHome({
         sheetInputRef={sheetInputRef}
         messagesEndRef={messagesEndRef}
         brainReady={!!brainId}
-        liveShow={liveShow}
-        live={liveSession}
         pending={pendingActions}
       />
 
@@ -1165,142 +1180,8 @@ function VoiceModePill({ mode, onChange }: { mode: VoiceMode; onChange: (m: Voic
   );
 }
 
-/* ── Live banner ────────────────────────────────────────────────── */
-
-function friendlyLiveError(error: string | null, closeCode: number | null): string | null {
-  if (!error) return null;
-  const raw = error.toLowerCase();
-  if (raw.startsWith("mint:402") || raw.includes("no_ai_provider"))
-    return "Add a Gemini API key in Settings to use voice.";
-  if (raw.startsWith("mint:503") || raw.includes("live_not_configured"))
-    return "Voice isn't enabled on the server yet.";
-  if (raw.startsWith("mint:")) return "Couldn't start voice — server rejected the request.";
-  if (raw.includes("not found") && raw.includes("bidigeneratecontent"))
-    return "Voice model is unavailable. Update GEMINI_LIVE_MODEL on the server.";
-  if (closeCode === 1008) return "Voice service rejected the request (model or auth).";
-  if (closeCode === 1007) return "Voice client sent an unsupported message. Update the app.";
-  if (closeCode === 1011) return "Voice service hit an internal error. Try again.";
-  if (closeCode === 1006) return "Voice connection dropped. Tap mic to retry.";
-  if (raw.startsWith("ws_error")) return "Voice connection failed. Check your network and retry.";
-  if (raw.includes("mic_denied") || raw.includes("notallowed"))
-    return "Microphone access denied. Enable it in your browser settings.";
-  return "Voice session failed. Tap mic to try again.";
-}
-
-function LiveBanner({
-  status,
-  error,
-  userTranscript,
-  assistantTranscript,
-  lastEvent,
-  chunksOut,
-  chunksIn,
-  closeCode,
-  closeReason,
-}: {
-  status: "idle" | "connecting" | "listening" | "speaking" | "error";
-  error: string | null;
-  userTranscript: string;
-  assistantTranscript: string;
-  lastEvent: string;
-  chunksOut: number;
-  chunksIn: number;
-  closeCode: number | null;
-  closeReason: string;
-}) {
-  const friendly = friendlyLiveError(error, closeCode);
-  const label =
-    status === "connecting"
-      ? "connecting…"
-      : status === "listening"
-        ? "listening"
-        : status === "speaking"
-          ? "speaking"
-          : status === "error"
-            ? "error"
-            : status === "idle"
-              ? "ended"
-              : "";
-  return (
-    <div
-      style={{
-        width: "100%",
-        display: "flex",
-        flexDirection: "column",
-        gap: 6,
-        padding: "10px 14px",
-        background: "var(--surface-high)",
-        border: "1px solid var(--line-soft)",
-        borderRadius: 12,
-        boxShadow: "var(--lift-1)",
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div
-          className="f-sans"
-          style={{
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.12em",
-            textTransform: "uppercase",
-            color: error ? "var(--blood)" : "var(--ember)",
-          }}
-        >
-          {label}
-        </div>
-        <div
-          style={{
-            fontSize: 10,
-            color: "var(--ink-faint)",
-            fontFamily: "var(--f-mono)",
-          }}
-        >
-          out {chunksOut} · in {chunksIn}
-          {closeCode !== null ? ` · close ${closeCode}` : ""}
-        </div>
-      </div>
-      {friendly && (
-        <div style={{ fontSize: 13, color: "var(--blood)", lineHeight: 1.35 }}>{friendly}</div>
-      )}
-      {(lastEvent || error) && (
-        <div
-          style={{
-            fontSize: 10,
-            color: "var(--ink-faint)",
-            fontFamily: "var(--f-mono)",
-            wordBreak: "break-all",
-            opacity: 0.75,
-          }}
-        >
-          {error || lastEvent}
-          {closeReason ? ` (${closeReason})` : ""}
-        </div>
-      )}
-      {userTranscript && (
-        <div className="f-serif" style={{ fontSize: 14, color: "var(--ink)", lineHeight: 1.45 }}>
-          {userTranscript}
-        </div>
-      )}
-      {assistantTranscript && (
-        <div
-          className="f-serif"
-          style={{
-            fontSize: 14,
-            fontStyle: "italic",
-            color: "var(--ink-soft)",
-            lineHeight: 1.45,
-          }}
-        >
-          {assistantTranscript}
-        </div>
-      )}
-    </div>
-  );
-}
-
 /* ── Chat sheet ─────────────────────────────────────────────────── */
 
-type LiveSessionShape = ReturnType<typeof useGeminiLiveSession>;
 type PendingShape = ReturnType<typeof usePendingVoiceActions>;
 
 function ChatSheet({
@@ -1315,8 +1196,6 @@ function ChatSheet({
   sheetInputRef,
   messagesEndRef,
   brainReady,
-  liveShow,
-  live,
   pending,
 }: {
   open: boolean;
@@ -1330,8 +1209,6 @@ function ChatSheet({
   sheetInputRef: React.RefObject<HTMLTextAreaElement | null>;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   brainReady: boolean;
-  liveShow: boolean;
-  live: LiveSessionShape;
   pending: PendingShape;
 }) {
   if (!open) return null;
@@ -1339,13 +1216,7 @@ function ChatSheet({
   return (
     <>
       <div className="inkwell-sheet-scrim" onClick={onClose} aria-hidden />
-      <motion.div
-        className="inkwell-sheet"
-        initial={{ y: "100%" }}
-        animate={{ y: 0 }}
-        exit={{ y: "100%" }}
-        transition={{ duration: 0.36, ease: EASE_OUT_QUART }}
-      >
+      <div className="inkwell-sheet">
         <div className="inkwell-sheet-grip" />
         <div
           style={{
@@ -1454,32 +1325,17 @@ function ChatSheet({
         </div>
 
         <div className="inkwell-sheet-body">
-          {liveShow && (
-            <motion.div style={{ width: "100%" }} {...FADE_SLIDE_DOWN(6, 0.26)}>
-              <LiveBanner
-                status={live.status}
-                error={live.error}
-                userTranscript={live.userTranscript}
-                assistantTranscript={live.assistantTranscript}
-                lastEvent={live.lastEvent}
-                chunksOut={live.chunksOut}
-                chunksIn={live.chunksIn}
-                closeCode={live.closeCode}
-                closeReason={live.closeReason}
-              />
-            </motion.div>
-          )}
           {pending.pending.length > 0 && (
-            <motion.div style={{ width: "100%" }} {...FADE_SLIDE_DOWN(6, 0.26)}>
+            <div style={{ width: "100%" }}>
               <PendingVoiceActionsBanner
                 pending={pending.pending}
                 onAccept={pending.accept}
                 onReject={pending.reject}
               />
-            </motion.div>
+            </div>
           )}
           {messages.map((m, i) => (
-            <motion.div
+            <div
               key={i}
               style={{
                 alignSelf: m.role === "user" ? "flex-end" : "flex-start",
@@ -1495,13 +1351,12 @@ function ChatSheet({
                 whiteSpace: "pre-wrap",
                 wordBreak: "break-word",
               }}
-              {...BUBBLE_IN}
             >
               {m.content}
-            </motion.div>
+            </div>
           ))}
           {loading && (
-            <motion.div
+            <div
               style={{
                 alignSelf: "flex-start",
                 padding: "10px 14px",
@@ -1512,10 +1367,9 @@ function ChatSheet({
                 color: "var(--ink-faint)",
                 fontStyle: "italic",
               }}
-              {...BUBBLE_IN}
             >
               thinking…
-            </motion.div>
+            </div>
           )}
           <div ref={messagesEndRef} />
         </div>
@@ -1596,7 +1450,7 @@ function ChatSheet({
             </svg>
           </button>
         </form>
-      </motion.div>
+      </div>
     </>
   );
 }
@@ -1609,6 +1463,8 @@ interface DrawerItem {
   meta?: string;
   swatch?: string;
   viewId?: string;
+  /** Optional SettingsView tab id; routed via ?tab=<id> query param. */
+  settingsTab?: string;
   onClick?: () => void;
 }
 
@@ -1730,10 +1586,22 @@ function InkwellDrawer({
 }) {
   const { activeBrain, brains, setActiveBrain } = useBrain();
 
-  const navigate = (viewId?: string) => {
-    if (!viewId) return;
+  const navigate = (item: DrawerItem) => {
+    if (item.onClick) {
+      onClose();
+      item.onClick();
+      return;
+    }
+    if (!item.viewId) return;
+    if (item.settingsTab) {
+      // SettingsView reads ?tab=<id> on mount. Push the param BEFORE setView
+      // so the remount reads the right tab.
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", item.settingsTab);
+      window.history.replaceState({}, "", url);
+    }
     onClose();
-    onNavigate?.(viewId);
+    onNavigate?.(item.viewId);
   };
 
   async function pick(brain: Brain) {
@@ -1754,20 +1622,21 @@ function InkwellDrawer({
     title: "Library",
     items: [
       { icon: "well", label: "Inkwell", viewId: "home" },
-      { icon: "calendar", label: "Timeline", viewId: "memory" },
-      { icon: "tag", label: "Threads", viewId: "graph" },
-      { icon: "voice", label: "Voice", viewId: "chat" },
-      { icon: "photo", label: "Vault", viewId: "vault" },
+      { icon: "calendar", label: "Memory", viewId: "memory" },
+      { icon: "lock", label: "Vault", viewId: "vault" },
     ],
   };
 
   const settingsSection: DrawerSection = {
     title: "Settings",
     items: [
-      { icon: "key", label: "Connections", viewId: "settings" },
-      { icon: "lock", label: "Privacy & vault", viewId: "vault" },
-      { icon: "tune", label: "Appearance", viewId: "settings" },
-      { icon: "user", label: "Account", viewId: "settings" },
+      { icon: "user", label: "Persona", viewId: "settings", settingsTab: "persona" },
+      { icon: "tune", label: "AI", viewId: "settings", settingsTab: "ai" },
+      { icon: "brain", label: "Brain", viewId: "settings", settingsTab: "brain" },
+      { icon: "key", label: "Notifications", viewId: "settings", settingsTab: "notifications" },
+      { icon: "user", label: "Account", viewId: "settings", settingsTab: "account" },
+      { icon: "tune", label: "Billing", viewId: "settings", settingsTab: "billing" },
+      { icon: "lock", label: "Privacy", viewId: "settings", settingsTab: "privacy" },
     ],
   };
 
@@ -1809,6 +1678,10 @@ function InkwellDrawer({
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
+          // Reserve iOS status-bar height so the drawer logo + close button
+          // don't sit behind the status bar (same fix MobileHome itself uses).
+          paddingTop: "env(safe-area-inset-top, 0px)",
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
         }}
       >
         <div
@@ -1885,7 +1758,7 @@ function InkwellDrawer({
             zIndex: 1,
           }}
         >
-          <DrawerSectionRender section={librarySection} onItemClick={(it) => navigate(it.viewId)} />
+          <DrawerSectionRender section={librarySection} onItemClick={(it) => navigate(it)} />
 
           <div style={{ marginTop: 14 }}>
             <div
@@ -2006,7 +1879,7 @@ function InkwellDrawer({
 
           <DrawerSectionRender
             section={settingsSection}
-            onItemClick={(it) => navigate(it.viewId)}
+            onItemClick={(it) => navigate(it)}
             topMargin={14}
           />
         </nav>
