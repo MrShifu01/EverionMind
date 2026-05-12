@@ -275,41 +275,12 @@ export default function MobileHome({
     };
   }, []);
 
-  // ── DIAGNOSTIC OVERLAY (temporary) ──────────────────────────────
-  // Prints live layout numbers in the top-right so we can see what's
-  // actually moving when the keyboard opens. Remove once the jump bug
-  // is fixed.
-  const [diag, setDiag] = useState<Record<string, string>>({});
-  useEffect(() => {
-    let raf = 0;
-    const tick = () => {
-      const vv = window.visualViewport;
-      const root = document.documentElement;
-      const main = document.getElementById("main-content");
-      const bronze = document.querySelector(".bronze-screen") as HTMLElement | null;
-      const askInput = document.getElementById("ink-ask") as HTMLInputElement | null;
-      const next: Record<string, string> = {
-        innerH: String(window.innerHeight),
-        vvH: vv ? String(Math.round(vv.height)) : "—",
-        vvTop: vv ? String(Math.round(vv.offsetTop)) : "—",
-        vvScale: vv ? vv.scale.toFixed(2) : "—",
-        cssVvh: root.style.getPropertyValue("--vvh") || "—",
-        bodyScroll: String(Math.round(window.scrollY)),
-        docScroll: String(Math.round(document.scrollingElement?.scrollTop ?? 0)),
-        mainScroll: main ? String(Math.round(main.scrollTop)) : "—",
-        mainOver: main ? getComputedStyle(main).overflow : "—",
-        bronzeTop: bronze ? String(Math.round(bronze.getBoundingClientRect().top)) : "—",
-        bronzeH: bronze ? String(Math.round(bronze.getBoundingClientRect().height)) : "—",
-        inputTop: askInput ? String(Math.round(askInput.getBoundingClientRect().top)) : "—",
-        focused: document.activeElement?.id || document.activeElement?.tagName || "—",
-      };
-      setDiag(next);
-      raf = window.requestAnimationFrame(tick);
-    };
-    raf = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(raf);
-  }, []);
-  // ────────────────────────────────────────────────────────────────
+  // When the Ask input is focused, hide the headline + inkwell stage.
+  // Diagnostic confirmed bronze-screen shrinks to vvh (797→443) correctly
+  // — but the 220×220 orb overflows the ~90px of remaining flex space and
+  // visually paints over the headline above and the input below. Hiding
+  // the orb cluster while typing reclaims that space cleanly.
+  const [inputFocused, setInputFocused] = useState(false);
 
   // Live voice now renders its status inline on the home screen — it does
   // NOT pop the chat sheet. Sheet is reserved for actual text-chat history
@@ -379,28 +350,6 @@ export default function MobileHome({
         background: "var(--bg)",
       }}
     >
-      {/* DIAGNOSTIC OVERLAY — remove once jump bug is fixed */}
-      <div
-        style={{
-          position: "fixed",
-          top: "env(safe-area-inset-top, 0px)",
-          right: 4,
-          zIndex: 9999,
-          padding: "4px 6px",
-          background: "rgba(0,0,0,0.78)",
-          color: "#ffd86b",
-          fontFamily: "ui-monospace, monospace",
-          fontSize: 9,
-          lineHeight: 1.25,
-          borderRadius: 6,
-          pointerEvents: "none",
-          maxWidth: 180,
-          whiteSpace: "pre",
-        }}
-      >
-        {`iH ${diag.innerH} vvH ${diag.vvH}\nvvTop ${diag.vvTop} sc ${diag.vvScale}\n--vvh ${diag.cssVvh}\nbody ${diag.bodyScroll} doc ${diag.docScroll}\nmain sc ${diag.mainScroll} ov ${diag.mainOver}\nbronze t${diag.bronzeTop} h${diag.bronzeH}\ninput t${diag.inputTop}\nfoc ${diag.focused}`}
-      </div>
-
       <div
         style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 4, flexShrink: 0 }}
       >
@@ -424,41 +373,50 @@ export default function MobileHome({
         <ModeToggle mode={mode} onChange={setModeAndReset} listening={listening} />
       </div>
 
-      <div style={{ marginTop: 14, textAlign: "center", flexShrink: 0 }}>
-        <div
-          className="f-serif"
-          style={{
-            fontSize: 26,
-            color: error ? "var(--blood)" : "var(--ink)",
-            letterSpacing: "-0.02em",
-            lineHeight: 1.05,
-            transition: "color 320ms ease",
-          }}
-        >
-          {error ? error : headline}
+      {!inputFocused && (
+        <div style={{ marginTop: 14, textAlign: "center", flexShrink: 0 }}>
+          <div
+            className="f-serif"
+            style={{
+              fontSize: 26,
+              color: error ? "var(--blood)" : "var(--ink)",
+              letterSpacing: "-0.02em",
+              lineHeight: 1.05,
+              transition: "color 320ms ease",
+            }}
+          >
+            {error ? error : headline}
+          </div>
+          <div
+            className="f-mono"
+            style={{
+              fontSize: 10,
+              letterSpacing: "0.18em",
+              color: "var(--ink-faint)",
+              textTransform: "uppercase",
+              marginTop: 6,
+            }}
+          >
+            {meta}
+          </div>
         </div>
-        <div
-          className="f-mono"
-          style={{
-            fontSize: 10,
-            letterSpacing: "0.18em",
-            color: "var(--ink-faint)",
-            textTransform: "uppercase",
-            marginTop: 6,
-          }}
-        >
-          {meta}
-        </div>
-      </div>
+      )}
 
+      {/* Inkwell stage. When the Ask input is focused (keyboard open) the
+          residual flex space is too small for the 220×220 orb — it would
+          overflow and visually paint over the headline + input. Drop the
+          orb entirely while typing. Header + toggle stay at top, input
+          stays at bottom of the visible viewport. */}
       <div
         style={{
-          flex: 1,
-          display: "flex",
+          flex: inputFocused ? "0 0 0" : 1,
+          height: inputFocused ? 0 : undefined,
+          display: inputFocused ? "none" : "flex",
           alignItems: "center",
           justifyContent: "center",
           position: "relative",
           minHeight: 0,
+          overflow: "hidden",
         }}
       >
         <Inkwell
@@ -474,6 +432,11 @@ export default function MobileHome({
           caption={caption}
         />
       </div>
+
+      {/* When the keyboard is open we have no orb above, so push the input
+          down to fill the remaining space and keep it docked to the bottom
+          of the visible viewport. */}
+      {inputFocused && <div style={{ flex: 1, minHeight: 0 }} aria-hidden />}
 
       {isAsk && !sheetOpen && (
         <form onSubmit={submitAsk} style={{ marginTop: 8, flexShrink: 0 }}>
@@ -509,7 +472,11 @@ export default function MobileHome({
               type="text"
               value={askInput}
               onChange={(e) => setAskInput(e.target.value)}
-              onFocus={() => setSheetUserDismissed(false)}
+              onFocus={() => {
+                setSheetUserDismissed(false);
+                setInputFocused(true);
+              }}
+              onBlur={() => setInputFocused(false)}
               placeholder="Ask your second brain…"
               disabled={!brainId}
               style={{
