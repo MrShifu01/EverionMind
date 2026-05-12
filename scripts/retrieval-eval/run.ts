@@ -65,7 +65,7 @@ async function runOne(f: Fixture): Promise<FixtureResult> {
       pass: matched.length >= required,
       hitCount: matched.length,
       required,
-      topTitles: allTitles.slice(0, 8),
+      topTitles: allTitles.slice(0, 20),
       matched,
       unmatched,
     };

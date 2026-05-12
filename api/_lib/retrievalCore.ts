@@ -170,6 +170,73 @@ function extractQueryTokens(query: string): string[] {
     .slice(0, 6);
 }
 
+// Minimal English stemmer — strips the most common inflectional suffixes
+// so "built" and "Builder" both collapse to "build" and match. Without
+// this, the client-side title/body scoring (which is .includes()-based)
+// misses obvious lexical relatives that the server-side FTS pass (which
+// uses Postgres `english` text-search with full Porter stemming) catches
+// at the index level.
+//
+// Conservative: only strips suffixes from words ≥6 chars to avoid
+// collapsing short words like "as" → "a" or "is" → "i". Tested against
+// the JC Kraal failure (query "built", title "Builder" — both → "build").
+function stemSimple(word: string): string {
+  const w = word.toLowerCase();
+  if (w.length < 6) return w;
+  // Order matters: try longest matching suffix first.
+  const suffixes = ["ings", "ying", "ied", "ing", "ed", "es", "er", "ly", "s"];
+  for (const suf of suffixes) {
+    if (w.length > suf.length + 3 && w.endsWith(suf)) {
+      return w.slice(0, -suf.length);
+    }
+  }
+  return w;
+}
+
+/** Token-vs-text match with stemming. Returns true if any word in `text`
+ *  shares a stem with `token` (either direction). */
+function stemMatch(token: string, text: string): boolean {
+  const stemmedToken = stemSimple(token);
+  const words = text.toLowerCase().split(/[^a-z0-9]+/);
+  for (const w of words) {
+    if (!w) continue;
+    if (w === token || w === stemmedToken) return true;
+    const stemmedWord = stemSimple(w);
+    if (stemmedWord === stemmedToken) return true;
+    // Substring fallback for short tokens that escaped stemming (e.g.
+    // "VAT" → 3 chars, no stem applied, want direct hit on "VAT number").
+    if (token.length >= 4 && w.includes(token)) return true;
+  }
+  return false;
+}
+
+/** Title-targeted ILIKE path using STEMMED tokens. The keyword FTS pass
+ *  is OR-tokens unordered + limit-capped, so on broad queries that match
+ *  many entries by content, title-only hits can fall outside the cut.
+ *  This path guarantees title hits enter the pool. Stems each query
+ *  token before ILIKE so "built" → "build" → matches "Builder" titles. */
+async function pathTitleMatch(
+  query: string,
+  brainScope: string,
+  selectFields: string,
+  limit = 20,
+): Promise<Array<Record<string, unknown>>> {
+  const tokens = extractQueryTokens(query);
+  if (!tokens.length) return [];
+  // Drop very-short stems (≤3 chars) — they produce too many false
+  // positives ("built" → "buil" via stem? no, we keep "built" → "build";
+  // length stays ≥4 except for words too short to stem in the first place).
+  const stems = Array.from(new Set(tokens.map(stemSimple).filter((s) => s.length >= 4)));
+  if (!stems.length) return [];
+  const orFilter = stems.map((s) => `title.ilike.*${s}*`).join(",");
+  const r = await fetch(
+    `${SB_URL}/rest/v1/entries?${brainScope}&deleted_at=is.null&type=neq.secret&or=(${encodeURIComponent(orFilter)})&select=${selectFields}&limit=${limit}`,
+    { headers: SB_HEADERS },
+  );
+  if (!r.ok) return [];
+  return r.json();
+}
+
 // Tier 1 — canonical-fact lookup. `important_memories` rows are the
 // user-curated fact layer ("Keep this" promotes an entry into a durable
 // fact with a stable memory_key, summary, and source_entry_ids).
@@ -285,6 +352,66 @@ export async function retrieveEntries(
     }
   }
 
+  // 2b. Title-stemmed ILIKE — guarantees title-matching entries enter
+  // the pool even when the FTS OR-tokens query has too many candidates
+  // and JC Kraal-style entries fall outside the cut.
+  {
+    const titleHits = await pathTitleMatch(
+      query,
+      `brain_id=eq.${encodeURIComponent(brainId)}`,
+      "id,title,type,tags,content,metadata",
+    );
+    for (const r of titleHits) {
+      const id = r.id as string;
+      if (!existingIds.has(id)) {
+        existingIds.add(id);
+        entries.push({ ...r, brain_id: brainId, similarity: 0 });
+      }
+    }
+  }
+
+  // 2c. Trigram fuzzy title match — closes the irregular-verb gap that
+  // FTS stemming + naive client-side stemming both miss. word_similarity
+  // needs single-word queries (full sentences dilute the score below
+  // threshold), so we fan out one RPC call per query token in parallel
+  // and union the results. "built" vs "Builder" hits 0.667, JC Kraal
+  // case clears the 0.4 threshold and surfaces.
+  {
+    const trgTokens = extractQueryTokens(query);
+    if (trgTokens.length > 0) {
+      const trgResults = await Promise.all(
+        trgTokens.slice(0, 4).map((t) =>
+          fetch(`${SB_URL}/rest/v1/rpc/match_entries_title_trgm`, {
+            method: "POST",
+            headers: SB_HEADERS,
+            body: JSON.stringify({
+              p_brain_ids: [brainId],
+              p_query: t,
+              p_limit: 5,
+            }),
+          })
+            .then((r) => (r.ok ? r.json() : []))
+            .catch(() => []),
+        ),
+      );
+      for (const rows of trgResults) {
+        for (const r of rows as Array<Record<string, unknown>>) {
+          const id = r.id as string;
+          const trgSim = typeof r.sim === "number" ? r.sim : 0;
+          if (existingIds.has(id)) {
+            // Already in pool from another path — attach the trgm score
+            // so scoring can pick it up.
+            const existing = entries.find((e: any) => e.id === id);
+            if (existing) existing._trgm_sim = Math.max(existing._trgm_sim ?? 0, trgSim);
+          } else {
+            existingIds.add(id);
+            entries.push({ ...r, brain_id: brainId, similarity: 0, _trgm_sim: trgSim });
+          }
+        }
+      }
+    }
+  }
+
   // 3. Tag sibling expand — FTS over the union of tag tokens lifted
   // from the top-5 hits. websearch treats `OR` as disjunction.
   const tagTokens = new Set<string>();
@@ -343,20 +470,29 @@ export async function retrieveEntries(
       e._score = sim;
       return;
     }
-    const titleLc = (e.title ?? "").toLowerCase();
+    const titleText = e.title ?? "";
     const titleHit =
-      queryTokens.filter((t) => titleLc.includes(t)).length / queryTokens.length;
+      queryTokens.filter((t) => stemMatch(t, titleText)).length / queryTokens.length;
 
     const metaText = e.metadata
       ? Object.entries(e.metadata)
           .map(([k, v]) => `${k} ${typeof v === "string" ? v : ""}`)
           .join(" ")
       : "";
-    const bodyText = `${e.content ?? ""} ${metaText}`.toLowerCase();
+    const bodyText = `${e.content ?? ""} ${metaText}`;
     const bodyHit =
-      queryTokens.filter((t) => bodyText.includes(t)).length / queryTokens.length;
+      queryTokens.filter((t) => stemMatch(t, bodyText)).length / queryTokens.length;
 
-    e._score = sim * 0.45 + titleHit * 0.4 + bodyHit * 0.15;
+    // Trigram fuzzy-title bonus — only set when the entry came (or was
+    // also reached) via the pg_trgm path. Server-side filtered at
+    // threshold 0.4 so any nonzero value here represents a real
+    // word-level match in the title that the literal stemMatch missed
+    // (typical irregular-verb case: query "built" vs title "Builder",
+    // word_similarity 0.667). Weighted 0.5 so a strong fuzzy hit beats
+    // any pure content-only candidate.
+    const trgSim = (e._trgm_sim as number | undefined) ?? 0;
+
+    e._score = sim * 0.45 + titleHit * 0.4 + bodyHit * 0.15 + trgSim * 0.5;
   });
   entries.sort((a: any, b: any) => b._score - a._score);
   entries = entries.slice(0, 40);
@@ -497,6 +633,59 @@ export async function retrieveEntriesForUser(
     }
   }
 
+  // 2b. Title-stemmed ILIKE — see retrieveEntries() for the rationale.
+  {
+    const titleHits = await pathTitleMatch(
+      query,
+      brainScope,
+      "id,title,type,tags,content,metadata,brain_id",
+    );
+    for (const r of titleHits) {
+      const id = r.id as string;
+      if (!existingIds.has(id)) {
+        existingIds.add(id);
+        entries.push({ ...r, similarity: 0 });
+      }
+    }
+  }
+
+  // 2c. Trigram fuzzy title match — see retrieveEntries() for rationale.
+  // Fan out per-token in parallel.
+  {
+    const trgTokens = extractQueryTokens(query);
+    if (trgTokens.length > 0) {
+      const brainIdsSlice = accessibleIds.slice(0, 50);
+      const trgResults = await Promise.all(
+        trgTokens.slice(0, 4).map((t) =>
+          fetch(`${SB_URL}/rest/v1/rpc/match_entries_title_trgm`, {
+            method: "POST",
+            headers: SB_HEADERS,
+            body: JSON.stringify({
+              p_brain_ids: brainIdsSlice,
+              p_query: t,
+              p_limit: 5,
+            }),
+          })
+            .then((r) => (r.ok ? r.json() : []))
+            .catch(() => []),
+        ),
+      );
+      for (const rows of trgResults) {
+        for (const r of rows as Array<Record<string, unknown>>) {
+          const id = r.id as string;
+          const trgSim = typeof r.sim === "number" ? r.sim : 0;
+          if (existingIds.has(id)) {
+            const existing = entries.find((e: any) => e.id === id);
+            if (existing) existing._trgm_sim = Math.max(existing._trgm_sim ?? 0, trgSim);
+          } else {
+            existingIds.add(id);
+            entries.push({ ...r, similarity: 0, _trgm_sim: trgSim });
+          }
+        }
+      }
+    }
+  }
+
   // 3. Tag sibling expand — FTS over the union of tag tokens lifted
   // from the top-5 hits. websearch treats `OR` as disjunction.
   const tagTokens = new Set<string>();
@@ -541,20 +730,29 @@ export async function retrieveEntriesForUser(
       e._score = sim;
       return;
     }
-    const titleLc = (e.title ?? "").toLowerCase();
+    const titleText = e.title ?? "";
     const titleHit =
-      queryTokens.filter((t) => titleLc.includes(t)).length / queryTokens.length;
+      queryTokens.filter((t) => stemMatch(t, titleText)).length / queryTokens.length;
 
     const metaText = e.metadata
       ? Object.entries(e.metadata)
           .map(([k, v]) => `${k} ${typeof v === "string" ? v : ""}`)
           .join(" ")
       : "";
-    const bodyText = `${e.content ?? ""} ${metaText}`.toLowerCase();
+    const bodyText = `${e.content ?? ""} ${metaText}`;
     const bodyHit =
-      queryTokens.filter((t) => bodyText.includes(t)).length / queryTokens.length;
+      queryTokens.filter((t) => stemMatch(t, bodyText)).length / queryTokens.length;
 
-    e._score = sim * 0.45 + titleHit * 0.4 + bodyHit * 0.15;
+    // Trigram fuzzy-title bonus — only set when the entry came (or was
+    // also reached) via the pg_trgm path. Server-side filtered at
+    // threshold 0.4 so any nonzero value here represents a real
+    // word-level match in the title that the literal stemMatch missed
+    // (typical irregular-verb case: query "built" vs title "Builder",
+    // word_similarity 0.667). Weighted 0.5 so a strong fuzzy hit beats
+    // any pure content-only candidate.
+    const trgSim = (e._trgm_sim as number | undefined) ?? 0;
+
+    e._score = sim * 0.45 + titleHit * 0.4 + bodyHit * 0.15 + trgSim * 0.5;
   });
   entries.sort((a: any, b: any) => b._score - a._score);
   entries = entries.slice(0, limit);
