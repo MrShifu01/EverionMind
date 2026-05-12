@@ -1,11 +1,16 @@
 import { useEffect, useState, type JSX } from "react";
 
 // Temporary diagnostic for the "click-out-click-in shoots everything above
-// the screen" bug on /home. Gated by localStorage so it only appears for
-// the operator + anyone we ask to flip it on.
+// the screen" bug on /home. Gated by either:
+//   - URL query param: any page with ?debug=layout (persists via localStorage)
+//   - direct localStorage flag (desktop devtools workflow)
 //
-// Enable:   localStorage.setItem('everion:debug-layout', '1'); location.reload();
-// Disable:  localStorage.removeItem('everion:debug-layout'); location.reload();
+// Mobile enable: visit https://app.url/anything?debug=layout — flag is
+// stored in localStorage and survives navigation. Visit again with
+// ?debug=off to clear.
+//
+// Desktop enable:   localStorage.setItem('everion:debug-layout', '1'); location.reload();
+// Desktop disable:  localStorage.removeItem('everion:debug-layout'); location.reload();
 //
 // Once we have numbers and a fix, delete this file + the mount in main.tsx.
 
@@ -28,6 +33,28 @@ interface Snapshot {
 
 function isEnabled(): boolean {
   try {
+    // URL query param overrides localStorage so a phone user can toggle
+    // the overlay just by appending ?debug=layout (or ?debug=off) to any
+    // page URL. The flag is then persisted to localStorage so subsequent
+    // navigations still show the overlay.
+    const params = new URLSearchParams(window.location.search);
+    const debugParam = params.get("debug");
+    if (debugParam === "layout") {
+      try {
+        localStorage.setItem("everion:debug-layout", "1");
+      } catch {
+        // ignore
+      }
+      return true;
+    }
+    if (debugParam === "off") {
+      try {
+        localStorage.removeItem("everion:debug-layout");
+      } catch {
+        // ignore
+      }
+      return false;
+    }
     return localStorage.getItem("everion:debug-layout") === "1";
   } catch {
     return false;
