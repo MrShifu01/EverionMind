@@ -291,19 +291,24 @@ export default function MobileHome({
   return (
     <div
       style={{
-        // var(--vvh) is set by the visualViewport effect above — it shrinks
-        // when the soft keyboard opens. Falls back to dvh for environments
-        // that don't expose visualViewport (older browsers, tests). The
-        // min-height transition eases the form upward when the keyboard
-        // opens instead of snapping.
-        minHeight: "calc(var(--vvh, 100dvh) - var(--app-header-h, 56px))",
+        // Fill main-content exactly. main-content is flex:1 inside
+        // .app-shell-fixed (height var(--vvh)), so its height already
+        // equals vvh − header − bottomNav − safe-area. We just need
+        // to occupy that — NOT min-height a vvh-based value, which
+        // forced MobileHome to be ~56px taller than main-content and
+        // gave the user a tiny scroll on Add.
+        //
+        // overflow: hidden is the lock: nothing in this tree should
+        // scroll EXCEPT the chat messages list inside AskPanel
+        // (which has its own maxHeight + overflowY:auto).
+        height: "100%",
+        overflow: "hidden",
         display: "flex",
         flexDirection: "column",
         // Bottom padding bumped 50px so the prompt + voice-mode pill + orb
         // cluster sit higher in the viewport — previously the orb hugged the
         // safe-area which felt cramped on small phones.
         padding: "16px 16px calc(66px + env(safe-area-inset-bottom, 0px))",
-        transition: "min-height 240ms cubic-bezier(0.16, 1, 0.3, 1)",
       }}
     >
       <ModeToggle mode={mode} onChange={setModeAndResetFocus} listening={listening} />
