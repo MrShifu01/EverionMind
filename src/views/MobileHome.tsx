@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { useChat } from "../hooks/useChat";
@@ -6,17 +6,13 @@ import { useVoiceMode, useGeminiLive, useGeminiVoice, type VoiceMode } from "../
 import { useGeminiLiveSession } from "../hooks/useGeminiLiveSession";
 import { usePendingVoiceActions } from "../hooks/usePendingVoiceActions";
 import { PendingVoiceActionsBanner } from "../components/PendingVoiceActionsBanner";
+import { useBrain } from "../context/BrainContext";
+import { authFetch } from "../lib/authFetch";
+import NotificationBell from "../components/NotificationBell";
+import type { AppNotification } from "../hooks/useNotifications";
+import type { Brain } from "../types";
 
-// Motion presets — applied to the in-tree enter animations that used to
-// live as CSS @keyframes (mh-ask-in, mh-banner-in, mh-bubble-in, mh-clear-in).
-// Framer Motion gives us per-component initial→animate orchestration with
-// a single shared easing language across the file.
 const EASE_OUT_QUART = [0.16, 1, 0.3, 1] as const;
-const FADE_SLIDE_UP = (offset = 8, duration = 0.28) => ({
-  initial: { opacity: 0, y: offset },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration, ease: EASE_OUT_QUART },
-});
 const FADE_SLIDE_DOWN = (offset = 6, duration = 0.26) => ({
   initial: { opacity: 0, y: -offset },
   animate: { opacity: 1, y: 0 },
@@ -33,34 +29,57 @@ interface MobileHomeProps {
   onOpenCapture: () => void;
   onOpenCaptureWith: (text: string) => void;
   onCaptureRaw: (text: string) => void;
+  onNavigate?: (id: string) => void;
+  onSearch?: () => void;
+  onCreateBrain?: () => void;
+  entriesCount?: number;
+  notifications?: AppNotification[];
+  unreadCount?: number;
+  onDismissNotification?: (id: string) => void;
+  onMarkNotificationRead?: (id: string) => void;
+  onDismissAllNotifications?: () => void;
+  onAcceptMerge?: (n: AppNotification) => void;
 }
 
 type VoiceTarget = "capture" | "chat" | null;
 
 const HOLD_THRESHOLD_MS = 250;
+const ACCENT = "var(--ember)";
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function todayLabel(): string {
+  const d = new Date();
+  return `${WEEKDAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}`;
+}
 
 export default function MobileHome({
   brainId,
   onOpenCapture,
   onOpenCaptureWith,
   onCaptureRaw,
+  onNavigate,
+  onSearch,
+  onCreateBrain,
+  entriesCount,
+  notifications = [],
+  unreadCount = 0,
+  onDismissNotification,
+  onMarkNotificationRead,
+  onDismissAllNotifications,
+  onAcceptMerge,
 }: MobileHomeProps) {
   const [mode, setMode] = useState<"add" | "ask">("add");
   const [pressed, setPressed] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [askInput, setAskInput] = useState("");
-  // Orb stays centred + big in Ask mode until the user taps the text
-  // input. That focus → orb shrinks + moves up so the chat panel can
-  // unfold. Tapping outside the input shrinks it back.
-  const [inputFocused, setInputFocused] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [sheetUserDismissed, setSheetUserDismissed] = useState(false);
   const [voiceMode, setVoiceMode] = useVoiceMode();
   const [geminiLiveOn] = useGeminiLive();
   const [geminiVoice] = useGeminiVoice();
   const liveSession = useGeminiLiveSession();
-  // Poll pending voice actions only while the orb is active. Banner is
-  // hidden silently when the list is empty (during the listening/speaking
-  // phase before the model has enqueued anything, and after expiry).
   const liveSessionActive =
     liveSession.status === "connecting" ||
     liveSession.status === "listening" ||
@@ -75,6 +94,8 @@ export default function MobileHome({
   const liveOnRef = useRef(geminiLiveOn);
   const liveVoiceRef = useRef(geminiVoice);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const askInputRef = useRef<HTMLInputElement | null>(null);
+  const sheetInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     voiceModeRef.current = voiceMode;
@@ -128,12 +149,9 @@ export default function MobileHome({
     }
   }, [messages, chatLoading, mode]);
 
-  // Wrap setMode so toggling back to Add (or away from Ask) resets the
-  // focus latch — the next Ask entry should open with the orb big again
-  // even if the textarea was focused last time.
-  const setModeAndResetFocus = useCallback((next: "add" | "ask") => {
+  const setModeAndReset = useCallback((next: "add" | "ask") => {
     setMode(next);
-    setInputFocused(false);
+    setSheetUserDismissed(false);
   }, []);
 
   function clearHoldTimer() {
@@ -148,8 +166,6 @@ export default function MobileHome({
     (e.target as Element).setPointerCapture?.(e.pointerId);
     setError(null);
     setPressed(true);
-    // Ask + Live = tap-to-toggle: no hold timer, no STT path. The toggle
-    // itself fires on pointer-up so the press animation still shows.
     if (mode === "ask" && liveOnRef.current) return;
     clearHoldTimer();
     const targetForHold: VoiceTarget = mode === "ask" ? "chat" : "capture";
@@ -162,7 +178,6 @@ export default function MobileHome({
   }
 
   function onPointerUp() {
-    // Ask + Live = tap-to-toggle.
     if (mode === "ask" && liveOnRef.current) {
       setPressed(false);
       if (liveActiveRef.current || liveSession.status === "connecting") {
@@ -178,8 +193,10 @@ export default function MobileHome({
       clearHoldTimer();
       setPressed(false);
       if (mode === "add") {
-        // Tap: spring orb back up first, then open modal so the bounce is visible.
         window.setTimeout(() => onOpenCapture(), 220);
+      } else {
+        // Ask + non-Live: tap focuses the ask input so user can type
+        window.setTimeout(() => askInputRef.current?.focus(), 60);
       }
       return;
     }
@@ -194,8 +211,6 @@ export default function MobileHome({
 
   function onPointerCancel() {
     setPressed(false);
-    // Don't stop the Live session on pointer cancel — it's tap-to-toggle,
-    // user explicitly wants the session running until the next tap.
     if (mode === "ask" && liveOnRef.current) return;
     if (holdTimerRef.current) {
       clearHoldTimer();
@@ -213,19 +228,15 @@ export default function MobileHome({
     const text = askInput.trim();
     if (!text || chatLoading) return;
     setAskInput("");
+    setSheetUserDismissed(false);
     void sendChat(text);
   }
 
   const transcribing = status === "transcribing";
   const isAsk = mode === "ask";
   const liveActive = liveSession.status === "listening" || liveSession.status === "speaking";
-  const isSpeaking = liveSession.status === "speaking";
   const isConnecting = liveSession.status === "connecting";
   const liveShow = liveSession.status !== "idle" || !!liveSession.error;
-  // The orb is the brain symbol — it animates whenever ANYONE is thinking.
-  //   Human side:  recording STT, transcribing STT, typing into the input
-  //   LLM side:    chat responding, voice listening/speaking, voice connecting
-  // Idle = no human, no LLM activity → orb is still.
   const animating =
     listening ||
     transcribing ||
@@ -234,13 +245,10 @@ export default function MobileHome({
     isConnecting ||
     askInput.trim().length > 0;
 
-  // 10s connect timeout — after that the orb deflates and we show
-  // "sorry, connection fell flat". Reset on every transition INTO the
-  // connecting state so retries get a fresh budget.
   const [connectTimedOut, setConnectTimedOut] = useState(false);
   useEffect(() => {
     if (!isConnecting) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on transition out of connecting; the alternative is leaking the timed-out flag into the next session.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on transition out of connecting
       setConnectTimedOut(false);
       return;
     }
@@ -248,11 +256,6 @@ export default function MobileHome({
     return () => window.clearTimeout(id);
   }, [isConnecting]);
 
-  // visualViewport → --vvh. 100dvh on some mobile browsers doesn't shrink
-  // when the soft keyboard opens (Android Chrome PWA in particular), so
-  // the input form ends up floating mid-viewport with a gap below it.
-  // Tracking visualViewport.height directly puts the input flush above
-  // the keyboard on every device.
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
@@ -268,585 +271,743 @@ export default function MobileHome({
     };
   }, []);
 
-  const hasChat = isAsk && messages.length > 0 && !liveShow;
-  // Compact layout pins the input to the bottom and shrinks the orb so the
-  // message list fills the space between. Two triggers:
-  //   1. user tapped the text input (typing to chat)
-  //   2. there are already messages in this session (continuing a thread)
-  // Without (2), a returning Ask session with prior messages centred the
-  // orb + input mid-screen with a gap below — input wasn't reachable at
-  // the bottom of the viewport.
-  const compact = isAsk && (inputFocused || messages.length > 0);
-  const orbSize = compact ? 84 : 168;
-  const logoSize = Math.round(orbSize * 0.78);
-  const askLiveCopy =
-    isAsk && geminiLiveOn
-      ? liveActive || liveSession.status === "connecting"
-        ? "tap orb to end conversation"
-        : "tap orb to talk · or type below"
-      : isAsk
-        ? "hold orb to ask by voice · or type below"
-        : "";
+  const hasChatContent = messages.length > 0 || liveShow || pendingActions.pending.length > 0;
+  const sheetOpen = isAsk && hasChatContent && !sheetUserDismissed;
+
+  useEffect(() => {
+    if (sheetOpen) {
+      const id = window.setTimeout(() => sheetInputRef.current?.focus(), 320);
+      return () => window.clearTimeout(id);
+    }
+    return;
+  }, [sheetOpen]);
+
+  const headline = isAsk ? (
+    <>
+      <span style={{ fontStyle: "italic", color: ACCENT }}>Ask</span> your brain
+    </>
+  ) : (
+    <>
+      <span style={{ fontStyle: "italic", color: ACCENT }}>Drop</span> a thought
+    </>
+  );
+  const today = useMemo(() => todayLabel(), []);
+  const meta = isAsk
+    ? `${today} · search · recall · synthesize`
+    : typeof entriesCount === "number"
+      ? `${today} · ${entriesCount} in the well`
+      : today;
+  const caption = isAsk
+    ? geminiLiveOn
+      ? liveActive || isConnecting
+        ? "tap orb to end"
+        : "tap to talk · or type below"
+      : "tap to type · hold to ask by voice"
+    : listening
+      ? "release to send"
+      : transcribing
+        ? "transcribing…"
+        : "tap · hold to record";
 
   return (
     <div
+      className="bronze-screen"
       style={{
-        // Fill main-content exactly. main-content is flex:1 inside
-        // .app-shell-fixed (height var(--vvh)), so its height already
-        // equals vvh − header − bottomNav − safe-area. We just need
-        // to occupy that — NOT min-height a vvh-based value, which
-        // forced MobileHome to be ~56px taller than main-content and
-        // gave the user a tiny scroll on Add.
-        //
-        // overflow: hidden is the lock: nothing in this tree should
-        // scroll EXCEPT the chat messages list inside AskPanel
-        // (which has its own maxHeight + overflowY:auto).
         height: "100%",
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
-        // Bottom padding bumped 50px so the prompt + voice-mode pill + orb
-        // cluster sit higher in the viewport — previously the orb hugged the
-        // safe-area which felt cramped on small phones.
-        padding: "16px 16px calc(66px + env(safe-area-inset-bottom, 0px))",
+        padding: `8px 16px calc(${isAsk ? 22 : 56}px + env(safe-area-inset-bottom, 0px))`,
+        position: "relative",
+        background: "var(--bg)",
       }}
     >
-      <ModeToggle mode={mode} onChange={setModeAndResetFocus} listening={listening} />
+      <div
+        style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 4, flexShrink: 0 }}
+      >
+        <InkwellHeader
+          onMenu={() => setDrawerOpen(true)}
+          onSearch={onSearch}
+          notificationBell={
+            onDismissNotification ? (
+              <NotificationBell
+                notifications={notifications}
+                unreadCount={unreadCount}
+                onDismiss={onDismissNotification}
+                onMarkRead={onMarkNotificationRead ?? (() => {})}
+                onDismissAll={onDismissAllNotifications ?? (() => {})}
+                onAcceptMerge={onAcceptMerge ?? (() => {})}
+              />
+            ) : null
+          }
+        />
+        <BrainPill onCreateBrain={onCreateBrain} />
+        <ModeToggle mode={mode} onChange={setModeAndReset} listening={listening} />
+      </div>
 
-      {/* Top spacer — always flex 1. Naturally shrinks as the askGroup
-          below grows (messages list expanding, banners stacking). When
-          idle the spacer claims most of the viewport so the orb sits
-          just above the input form. */}
-      <div style={{ flex: 1, minHeight: 0 }} />
+      <div style={{ marginTop: 14, textAlign: "center", flexShrink: 0 }}>
+        <div
+          className="f-serif"
+          style={{
+            fontSize: 26,
+            color: error ? "var(--blood)" : "var(--ink)",
+            letterSpacing: "-0.02em",
+            lineHeight: 1.05,
+            transition: "color 320ms ease",
+          }}
+        >
+          {error ? error : headline}
+        </div>
+        <div
+          className="f-mono"
+          style={{
+            fontSize: 10,
+            letterSpacing: "0.18em",
+            color: "var(--ink-faint)",
+            textTransform: "uppercase",
+            marginTop: 6,
+          }}
+        >
+          {meta}
+        </div>
+      </div>
 
-      {/* Ask group: orb + prompt + banners + messages + form, all
-          clustered at the bottom of the viewport. Orb sits right above
-          the input; as messages arrive the messages list expands and
-          pushes the orb upward. */}
       <div
         style={{
-          width: "100%",
-          maxWidth: 560,
-          margin: "0 auto",
+          flex: 1,
           display: "flex",
-          flexDirection: "column",
           alignItems: "center",
-          gap: 12,
+          justifyContent: "center",
+          position: "relative",
           minHeight: 0,
         }}
       >
-        {/* Prompt text + voice-mode pill — sit above the orb. Hidden when
-            the chat input is focused so the keyboard + form get the room. */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 8,
-            opacity: inputFocused ? 0 : 1,
-            transform: inputFocused ? "translateY(4px) scale(0.98)" : "translateY(0) scale(1)",
-            pointerEvents: inputFocused ? "none" : "auto",
-            height: inputFocused ? 0 : "auto",
-            overflow: "hidden",
-            transition:
-              "opacity 320ms ease, transform 320ms ease, height 320ms cubic-bezier(0.16, 1, 0.3, 1)",
-          }}
-        >
-          <div
-            className="f-serif"
-            aria-live="polite"
-            style={{
-              fontSize: 14,
-              fontStyle: "italic",
-              color: error ? "var(--blood)" : "var(--ink-soft)",
-              letterSpacing: "-0.005em",
-              textAlign: "center",
-              minHeight: 20,
-              transition: "color 320ms ease",
-            }}
-          >
-            {error
-              ? error
-              : transcribing
-                ? "transcribing…"
-                : listening
-                  ? "recording — release to send"
-                  : isAsk
-                    ? askLiveCopy
-                    : "Tap to add, hold to record"}
-          </div>
-          {!isAsk && <VoiceModePill mode={voiceMode} onChange={setVoiceMode} />}
-        </div>
+        <Inkwell
+          mode={mode}
+          pressed={pressed}
+          listening={listening}
+          animating={animating}
+          isConnecting={isConnecting}
+          connectTimedOut={connectTimedOut}
+          onPointerDown={onPointerDown}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerCancel}
+          caption={caption}
+        />
+      </div>
 
-        <div
-          style={{
-            width: orbSize,
-            height: orbSize,
-            flexShrink: 0,
-          }}
-        >
-          <button
-            type="button"
-            aria-label={
-              listening
-                ? "Recording — release to send"
-                : isAsk
-                  ? geminiLiveOn
-                    ? liveActive || liveSession.status === "connecting"
-                      ? "Tap to end voice conversation"
-                      : "Tap to start voice conversation"
-                    : "Hold to ask by voice"
-                  : "Tap to capture, hold to record"
-            }
-            onPointerDown={onPointerDown}
-            onPointerUp={onPointerUp}
-            onPointerCancel={onPointerCancel}
-            onContextMenu={(e) => e.preventDefault()}
-            data-listening={listening ? "true" : "false"}
-            data-pressed={pressed ? "true" : "false"}
-            data-mode={mode}
+      {isAsk && !sheetOpen && (
+        <form onSubmit={submitAsk} style={{ marginTop: 8, flexShrink: 0 }}>
+          <label
+            htmlFor="ink-ask"
             style={{
-              position: "relative",
-              width: "100%",
-              height: "100%",
-              padding: 0,
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              touchAction: "none",
-              WebkitTapHighlightColor: "transparent",
-              WebkitTouchCallout: "none",
-              userSelect: "none",
-              WebkitUserSelect: "none",
-              transition: "transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1)",
-              transform: pressed ? "translateY(2px) scale(0.94)" : "translateY(0) scale(1)",
-              // Connecting: bouncing orb (gravity feel) until the WebSocket
-              // setupComplete arrives. Timed-out: orb deflates flat. Both
-              // animations are forwards-fill so the final frame holds until
-              // status changes.
-              animation: connectTimedOut
-                ? "orb-deflate 700ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards"
-                : isConnecting
-                  ? "orb-connect-bounce 2.2s ease-in-out infinite"
-                  : "none",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "0 14px",
+              height: 52,
+              background: "var(--surface)",
+              border: `1px solid color-mix(in oklch, ${ACCENT} 32%, var(--line-soft))`,
+              borderRadius: 14,
+              boxShadow: `0 0 0 4px color-mix(in oklch, ${ACCENT} 8%, transparent), var(--lift-1)`,
             }}
           >
-            <span
-              aria-hidden="true"
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke={ACCENT}
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+            <input
+              ref={askInputRef}
+              id="ink-ask"
+              type="text"
+              value={askInput}
+              onChange={(e) => setAskInput(e.target.value)}
+              onFocus={() => setSheetUserDismissed(false)}
+              placeholder="Ask your second brain…"
+              disabled={!brainId}
               style={{
-                position: "absolute",
-                inset: -16,
-                borderRadius: "50%",
-                background:
-                  "radial-gradient(circle, color-mix(in oklch, var(--ember) 24%, transparent), color-mix(in oklch, var(--ember) 14%, transparent), transparent 70%)",
-                filter: "blur(20px)",
-                opacity: animating ? 1 : 0.55,
-                transition: "opacity 240ms ease",
-                animation: isSpeaking
-                  ? "orb-speak-glow 0.9s ease-in-out infinite"
-                  : animating
-                    ? "hero-glow 1.6s ease-in-out infinite"
-                    : "none",
+                flex: 1,
+                minWidth: 0,
+                height: "100%",
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                fontFamily: "var(--f-serif)",
+                fontSize: 15,
+                fontStyle: "italic",
+                color: "var(--ink)",
               }}
             />
-            <span
-              aria-hidden="true"
+            <button
+              type="submit"
+              disabled={!askInput.trim() || chatLoading || !brainId}
+              aria-label="Send"
+              className="press f-mono"
               style={{
-                position: "absolute",
-                inset: 0,
-                borderRadius: "50%",
-                border: "1px solid color-mix(in oklch, var(--ember) 35%, transparent)",
-                animation: isSpeaking
-                  ? "ring-pulse 0.6s ease-in-out infinite"
-                  : animating
-                    ? "ring-pulse 1.4s ease-in-out infinite"
-                    : "none",
-              }}
-            />
-            <span
-              aria-hidden="true"
-              style={{
-                position: "absolute",
-                inset: -14,
-                borderRadius: "50%",
-                border: "1px dashed color-mix(in oklch, var(--ember) 22%, transparent)",
-                animation: animating ? "orbital-spin 8s linear infinite" : "none",
-                opacity: animating ? 1 : 0.4,
-                transition: "opacity 240ms ease",
-              }}
-            />
-            {/* Speaking-only: two emanating waves, staggered by 750ms so a
-              ring is always travelling outward while the model talks. */}
-            {isSpeaking && (
-              <>
-                <span
-                  aria-hidden="true"
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    borderRadius: "50%",
-                    border: "1.5px solid color-mix(in oklch, var(--ember) 55%, transparent)",
-                    animation: "orb-speak-wave 1.5s ease-out infinite",
-                    pointerEvents: "none",
-                  }}
-                />
-                <span
-                  aria-hidden="true"
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    borderRadius: "50%",
-                    border: "1.5px solid color-mix(in oklch, var(--ember) 45%, transparent)",
-                    animation: "orb-speak-wave 1.5s ease-out infinite",
-                    animationDelay: "750ms",
-                    pointerEvents: "none",
-                  }}
-                />
-              </>
-            )}
-            <span
-              aria-hidden="true"
-              style={{
-                position: "absolute",
-                inset: 0,
-                borderRadius: "50%",
-                background: "var(--surface-high)",
-                border: "1px solid color-mix(in oklch, var(--ember) 30%, transparent)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                boxShadow: pressed ? "var(--lift-1)" : "var(--lift-2)",
-                transition: "box-shadow 140ms ease",
-                overflow: "hidden",
+                fontSize: 9,
+                letterSpacing: "0.16em",
+                color: askInput.trim() ? "var(--ember-ink)" : "var(--ink-faint)",
+                background: askInput.trim() ? "var(--ember)" : "transparent",
+                textTransform: "uppercase",
+                border: askInput.trim() ? "none" : "1px solid var(--line-soft)",
+                padding: "3px 8px",
+                borderRadius: 6,
+                cursor: askInput.trim() ? "pointer" : "default",
+                transition: "background 180ms, color 180ms",
               }}
             >
-              <img
-                src="/logoNew.webp"
-                width={logoSize}
-                height={logoSize}
-                alt=""
-                aria-hidden="true"
-                decoding="async"
-                draggable={false}
-                style={
-                  {
-                    objectFit: "contain",
-                    display: "block",
-                    pointerEvents: "none",
-                    userSelect: "none",
-                    WebkitUserSelect: "none",
-                    WebkitTouchCallout: "none",
-                    WebkitUserDrag: "none",
-                    transition:
-                      "width 620ms cubic-bezier(0.16, 1, 0.3, 1), height 620ms cubic-bezier(0.16, 1, 0.3, 1)",
-                  } as React.CSSProperties
-                }
-              />
-            </span>
-          </button>
+              ↵
+            </button>
+          </label>
+        </form>
+      )}
+
+      {!isAsk && (
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 4, flexShrink: 0 }}>
+          <VoiceModePill mode={voiceMode} onChange={setVoiceMode} />
         </div>
+      )}
 
-        {/* Connecting state — no separate progress bar or "connecting…"
-            copy. The orb's own animations carry the state:
-              - isConnecting → orb-connect-bounce (2.2s ease loop, set on
-                the button's `animation` style below)
-              - connectTimedOut → orb-deflate (700ms forwards, the orb
-                visibly flattens to indicate failure)
-            The redundant 200px progress strip + italic caption used to
-            stack below the orb and ate vertical space. Removed
-            2026-05-12 — keep the surface clean and let the orb speak. */}
+      <ChatSheet
+        open={sheetOpen}
+        onClose={() => setSheetUserDismissed(true)}
+        messages={liveShow ? [] : messages}
+        loading={chatLoading}
+        input={askInput}
+        onInputChange={setAskInput}
+        onSubmit={submitAsk}
+        onClear={() => {
+          clearHistory();
+          setSheetUserDismissed(true);
+        }}
+        sheetInputRef={sheetInputRef}
+        messagesEndRef={messagesEndRef}
+        brainReady={!!brainId}
+        liveShow={liveShow}
+        live={liveSession}
+        pending={pendingActions}
+      />
 
-        {/* Voice surfaces — both hide themselves when their content is
-            empty so they don't reserve space in idle Ask. Each wrapped
-            with FADE_SLIDE_DOWN so they fade + slide instead of popping
-            when they appear. */}
-        {liveShow && (
-          <motion.div style={{ width: "100%" }} {...FADE_SLIDE_DOWN(6, 0.26)}>
-            <LiveBanner
-              status={liveSession.status}
-              error={liveSession.error}
-              userTranscript={liveSession.userTranscript}
-              assistantTranscript={liveSession.assistantTranscript}
-              lastEvent={liveSession.lastEvent}
-              chunksOut={liveSession.chunksOut}
-              chunksIn={liveSession.chunksIn}
-              closeCode={liveSession.closeCode}
-              closeReason={liveSession.closeReason}
-            />
-          </motion.div>
+      <InkwellDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        onNavigate={onNavigate}
+        onCreateBrain={onCreateBrain}
+      />
+    </div>
+  );
+}
+
+/* ── Header ─────────────────────────────────────────────────────── */
+
+function InkwellHeader({
+  onMenu,
+  onSearch,
+  notificationBell,
+}: {
+  onMenu: () => void;
+  onSearch?: () => void;
+  notificationBell: React.ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "0 4px",
+        gap: 8,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <HeaderIconButton label="Menu" onClick={onMenu}>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          >
+            <path d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </HeaderIconButton>
+        <div className="ink-logo">
+          <span className="ink-logo-mark">
+            <span></span>
+          </span>
+          <span>everion</span>
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        {onSearch && (
+          <HeaderIconButton label="Search" onClick={onSearch}>
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+          </HeaderIconButton>
         )}
-        {pendingActions.pending.length > 0 && (
-          <motion.div style={{ width: "100%" }} {...FADE_SLIDE_DOWN(6, 0.26)}>
-            <PendingVoiceActionsBanner
-              pending={pendingActions.pending}
-              onAccept={pendingActions.accept}
-              onReject={pendingActions.reject}
-            />
-          </motion.div>
-        )}
-
-        {/* Add-mode placeholder — reserves the same vertical space that
-            the idle AskPanel input form occupies in Ask mode (~56px), so
-            the orb lands at the SAME screen-Y whether the user is in Ask
-            or Add. Without this, the orb would sit ~56px lower in Add mode
-            because there's no AskPanel below it pushing it up. Invisible. */}
-        {!isAsk && <div style={{ height: 56, width: "100%", flexShrink: 0 }} aria-hidden="true" />}
-
-        {/* Chat panel — sits between orb-group and... wait, form is INSIDE
-            AskPanel. So the chat messages + form live here. The messages
-            container inside AskPanel claims flex:1 when expanded (any
-            messages exist) and pushes the form to the bottom of the
-            askGroup; the askGroup itself grows downward as messages
-            arrive, and the top spacer above naturally shrinks. */}
-        {isAsk && (
-          <motion.div style={{ width: "100%" }} {...FADE_SLIDE_UP(12, 0.36)}>
-            <AskPanel
-              // Voice and chat are mutually exclusive in the visual stack:
-              // when a Live session is non-idle the LiveBanner above shows
-              // user/assistant transcripts, so hide the chat message list
-              // to stop the two surfaces overlapping. Input form stays
-              // visible so the user can type to stop voice and switch.
-              messages={liveShow ? [] : messages}
-              loading={chatLoading}
-              input={askInput}
-              onInputChange={setAskInput}
-              onSubmit={submitAsk}
-              onClear={clearHistory}
-              onFocus={() => setInputFocused(true)}
-              onBlur={() => setInputFocused(false)}
-              messagesEndRef={messagesEndRef}
-              brainReady={!!brainId}
-              expanded={hasChat}
-            />
-          </motion.div>
-        )}
+        {notificationBell}
       </div>
     </div>
   );
 }
+
+function HeaderIconButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      className="press"
+      style={{
+        width: 34,
+        height: 34,
+        borderRadius: 10,
+        background: "var(--surface)",
+        border: "1px solid var(--line-soft)",
+        color: "var(--ink-soft)",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        padding: 0,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+/* ── Brain pill ─────────────────────────────────────────────────── */
+
+function BrainPill({ onCreateBrain }: { onCreateBrain?: () => void }) {
+  const { activeBrain, brains, setActiveBrain } = useBrain();
+  const [open, setOpen] = useState(false);
+  if (!activeBrain) return null;
+
+  const personal = brains.find((b) => b.is_personal);
+  const others = brains.filter((b) => !b.is_personal).sort((a, b) => a.name.localeCompare(b.name));
+  const sorted = personal ? [personal, ...others] : others;
+
+  async function pick(brain: Brain) {
+    if (brain.id === activeBrain?.id) {
+      setOpen(false);
+      return;
+    }
+    setActiveBrain(brain);
+    setOpen(false);
+    authFetch("/api/brains?action=set-active", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: brain.id }),
+    }).catch(() => {});
+  }
+
+  return (
+    <div style={{ display: "flex", justifyContent: "center", position: "relative" }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="press"
+        aria-label={`Active brain: ${activeBrain.name}. Tap to switch.`}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 8,
+          height: 30,
+          padding: "0 12px 0 8px",
+          background: "var(--surface)",
+          border: "1px solid var(--line-soft)",
+          borderRadius: 999,
+          color: "var(--ink)",
+          fontFamily: "var(--f-sans)",
+          fontSize: 12,
+          fontWeight: 500,
+          cursor: "pointer",
+        }}
+      >
+        <span
+          style={{
+            width: 18,
+            height: 18,
+            borderRadius: "50%",
+            background: `color-mix(in oklch, ${ACCENT} 22%, var(--surface-low))`,
+            border: `1px solid color-mix(in oklch, ${ACCENT} 60%, transparent)`,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: ACCENT,
+            fontSize: 10,
+            lineHeight: 1,
+          }}
+        >
+          ●
+        </span>
+        <span
+          className="f-mono"
+          style={{
+            fontSize: 9,
+            letterSpacing: "0.16em",
+            color: "var(--ink-faint)",
+            textTransform: "uppercase",
+          }}
+        >
+          brain
+        </span>
+        <span
+          style={{
+            maxWidth: 140,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {activeBrain.name}
+        </span>
+        <svg
+          width="9"
+          height="9"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          style={{ opacity: 0.55 }}
+        >
+          <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && (
+        <>
+          <div
+            onClick={() => setOpen(false)}
+            style={{ position: "fixed", inset: 0, zIndex: 40 }}
+            aria-hidden
+          />
+          <div
+            style={{
+              position: "absolute",
+              top: "calc(100% + 6px)",
+              left: "50%",
+              transform: "translateX(-50%)",
+              minWidth: 220,
+              background: "var(--surface-high)",
+              border: "1px solid var(--line-soft)",
+              borderRadius: 14,
+              padding: 6,
+              boxShadow: "var(--lift-3)",
+              zIndex: 41,
+              animation: "fade-up 180ms ease both",
+            }}
+          >
+            {sorted.map((b) => {
+              const isActive = b.id === activeBrain.id;
+              return (
+                <button
+                  key={b.id}
+                  onClick={() => void pick(b)}
+                  className="press"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    width: "100%",
+                    padding: "8px 8px",
+                    background: isActive ? "var(--ember-wash)" : "transparent",
+                    border: "none",
+                    borderRadius: 8,
+                    color: "var(--ink)",
+                    cursor: "pointer",
+                    fontFamily: "var(--f-sans)",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    textAlign: "left",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: "50%",
+                      background: `color-mix(in oklch, ${ACCENT} 22%, var(--surface-low))`,
+                      border: `1px solid color-mix(in oklch, ${ACCENT} 60%, transparent)`,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: ACCENT,
+                      fontSize: 11,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {b.is_personal ? "●" : "▲"}
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0 }}>{b.name}</span>
+                  {isActive && (
+                    <span
+                      className="f-mono"
+                      style={{
+                        fontSize: 9,
+                        letterSpacing: "0.16em",
+                        color: ACCENT,
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      active
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            {onCreateBrain && (
+              <>
+                <div style={{ height: 1, background: "var(--line-soft)", margin: "4px 6px" }} />
+                <button
+                  onClick={() => {
+                    setOpen(false);
+                    onCreateBrain();
+                  }}
+                  className="press"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    width: "100%",
+                    padding: "8px 8px",
+                    background: "transparent",
+                    border: "none",
+                    borderRadius: 8,
+                    color: "var(--ink-soft)",
+                    cursor: "pointer",
+                    fontFamily: "var(--f-sans)",
+                    fontSize: 13,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: "50%",
+                      border: "1px dashed var(--line)",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "var(--ink-faint)",
+                      fontSize: 14,
+                      lineHeight: 1,
+                    }}
+                  >
+                    +
+                  </span>
+                  <span>New brain</span>
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ── Inkwell vessel ─────────────────────────────────────────────── */
+
+function Inkwell({
+  mode,
+  pressed,
+  listening,
+  animating,
+  isConnecting,
+  connectTimedOut,
+  onPointerDown,
+  onPointerUp,
+  onPointerCancel,
+  caption,
+}: {
+  mode: "add" | "ask";
+  pressed: boolean;
+  listening: boolean;
+  animating: boolean;
+  isConnecting: boolean;
+  connectTimedOut: boolean;
+  onPointerDown: (e: React.PointerEvent) => void;
+  onPointerUp: () => void;
+  onPointerCancel: () => void;
+  caption: string;
+}) {
+  const size = 220;
+  const glyph = mode === "add" ? "+" : "?";
+  return (
+    <div style={{ position: "relative", width: size, height: size }}>
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          borderRadius: "50%",
+          background: `radial-gradient(circle at 50% 30%,
+            color-mix(in oklch, ${ACCENT} 28%, var(--surface)) 0%,
+            var(--surface) 48%,
+            var(--surface-low) 100%)`,
+          border: `1px solid color-mix(in oklch, ${ACCENT} 42%, transparent)`,
+          boxShadow: "var(--lift-2), inset 0 -8px 18px var(--scrim)",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          inset: 18,
+          borderRadius: "50%",
+          border: `1.5px solid color-mix(in oklch, ${ACCENT} 55%, transparent)`,
+          background: "var(--surface-dim)",
+          boxShadow: "inset 0 4px 14px oklch(4% 0.01 250 / 0.8)",
+        }}
+      />
+      <button
+        type="button"
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
+        onContextMenu={(e) => e.preventDefault()}
+        aria-label={mode === "add" ? "Drop a thought" : "Ask your brain"}
+        data-pressed={pressed ? "true" : "false"}
+        data-mode={mode}
+        style={{
+          position: "absolute",
+          inset: 38,
+          borderRadius: "50%",
+          background: `radial-gradient(circle at 50% 30%,
+            color-mix(in oklch, ${ACCENT} 55%, var(--ember-deep)) 0%,
+            color-mix(in oklch, ${ACCENT} 30%, var(--ember-deep)) 50%,
+            var(--ember-deep) 100%)`,
+          border: `1px solid color-mix(in oklch, ${ACCENT} 70%, transparent)`,
+          cursor: "pointer",
+          padding: 0,
+          transform: pressed ? "scale(0.96)" : "scale(1)",
+          transition: "transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+          boxShadow: `
+            inset 0 1px 0 color-mix(in oklch, ${ACCENT} 85%, white),
+            inset 0 -6px 14px color-mix(in oklch, var(--ember-deep) 80%, transparent),
+            0 0 28px color-mix(in oklch, ${ACCENT} ${animating ? 48 : 32}%, transparent),
+            var(--lift-2)`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          overflow: "hidden",
+          touchAction: "none",
+          WebkitTapHighlightColor: "transparent",
+          WebkitTouchCallout: "none",
+          userSelect: "none",
+          WebkitUserSelect: "none",
+          animation: connectTimedOut
+            ? "orb-deflate 700ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards"
+            : isConnecting
+              ? "orb-connect-bounce 2.2s ease-in-out infinite"
+              : listening
+                ? "inkwell-breathe 1.4s ease-in-out infinite"
+                : "none",
+        }}
+      >
+        <span
+          aria-hidden
+          style={{
+            position: "absolute",
+            top: "14%",
+            left: "22%",
+            width: "44%",
+            height: "22%",
+            background: `radial-gradient(ellipse, color-mix(in oklch, white 32%, ${ACCENT}) 0%, transparent 70%)`,
+            filter: "blur(4px)",
+            opacity: 0.85,
+            borderRadius: "50%",
+          }}
+        />
+        {pressed && (
+          <>
+            <span
+              aria-hidden
+              style={{
+                position: "absolute",
+                inset: "30%",
+                borderRadius: "50%",
+                border: `1.5px solid color-mix(in oklch, white 38%, ${ACCENT})`,
+                animation: "inkwell-ripple 800ms ease-out forwards",
+              }}
+            />
+            <span
+              aria-hidden
+              style={{
+                position: "absolute",
+                inset: "30%",
+                borderRadius: "50%",
+                border: `1px solid color-mix(in oklch, ${ACCENT} 60%, transparent)`,
+                animation: "inkwell-ripple 800ms ease-out 200ms forwards",
+              }}
+            />
+          </>
+        )}
+        <span
+          className="f-serif"
+          style={{
+            position: "relative",
+            zIndex: 1,
+            fontSize: 36,
+            color: "var(--ember-ink)",
+            fontWeight: 300,
+            lineHeight: 1,
+            textShadow: "0 1px 2px color-mix(in oklch, var(--ember-deep) 60%, transparent)",
+          }}
+        >
+          {glyph}
+        </span>
+      </button>
+      <div
+        className="f-mono"
+        style={{
+          position: "absolute",
+          bottom: -22,
+          left: "50%",
+          transform: "translateX(-50%)",
+          fontSize: 9,
+          letterSpacing: "0.2em",
+          color: "var(--ink-faint)",
+          textTransform: "uppercase",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {caption}
+      </div>
+    </div>
+  );
+}
+
+/* ── Toggle ─────────────────────────────────────────────────────── */
 
 const TOGGLE_BTN_WIDTH = 78;
 const TOGGLE_BTN_HEIGHT = 34;
 const TOGGLE_PADDING = 3;
-
-const VOICE_PILL_W = 56;
-const VOICE_PILL_H = 22;
-const VOICE_PILL_PAD = 2;
-
-function VoiceModePill({ mode, onChange }: { mode: VoiceMode; onChange: (m: VoiceMode) => void }) {
-  const thumbX = mode === "preview" ? 0 : VOICE_PILL_W;
-  return (
-    <div
-      role="tablist"
-      aria-label="Voice capture mode"
-      style={{
-        position: "relative",
-        display: "inline-flex",
-        padding: VOICE_PILL_PAD,
-        background: "var(--surface-low)",
-        border: "1px solid var(--line-soft)",
-        borderRadius: 999,
-      }}
-    >
-      <span
-        aria-hidden="true"
-        style={{
-          position: "absolute",
-          top: VOICE_PILL_PAD,
-          left: VOICE_PILL_PAD,
-          width: VOICE_PILL_W,
-          height: VOICE_PILL_H,
-          borderRadius: 999,
-          background: "var(--surface-high)",
-          boxShadow: "var(--lift-1)",
-          transform: `translateX(${thumbX}px)`,
-          transition: "transform 360ms cubic-bezier(0.16, 1, 0.3, 1)",
-        }}
-      />
-      {(["preview", "auto"] as const).map((m) => {
-        const active = mode === m;
-        return (
-          <button
-            key={m}
-            role="tab"
-            aria-selected={active}
-            onClick={() => onChange(m)}
-            className="press"
-            style={{
-              position: "relative",
-              width: VOICE_PILL_W,
-              height: VOICE_PILL_H,
-              minHeight: VOICE_PILL_H,
-              borderRadius: 999,
-              fontFamily: "var(--f-sans)",
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: "0.02em",
-              background: "transparent",
-              color: active ? "var(--ink)" : "var(--ink-faint)",
-              border: "none",
-              cursor: "pointer",
-              textTransform: "capitalize",
-              transition: "color 320ms cubic-bezier(0.16, 1, 0.3, 1)",
-              zIndex: 1,
-            }}
-          >
-            {m}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-// Map raw provider/WebSocket failures to a short, human headline.
-// Detail (raw error + lastEvent + close code) stays visible underneath in a
-// muted line so users can still report specifics without parsing 1008/1006/etc.
-function friendlyLiveError(error: string | null, closeCode: number | null): string | null {
-  if (!error) return null;
-  const raw = error.toLowerCase();
-  // Auth / token mint failures (server-side, before WS opens).
-  if (raw.startsWith("mint:402") || raw.includes("no_ai_provider"))
-    return "Add a Gemini API key in Settings to use voice.";
-  if (raw.startsWith("mint:503") || raw.includes("live_not_configured"))
-    return "Voice isn't enabled on the server yet.";
-  if (raw.startsWith("mint:")) return "Couldn't start voice — server rejected the request.";
-  // Model / config rejected by Google after handshake.
-  if (raw.includes("not found") && raw.includes("bidigeneratecontent"))
-    return "Voice model is unavailable. Update GEMINI_LIVE_MODEL on the server.";
-  // Common WebSocket close codes.
-  if (closeCode === 1008) return "Voice service rejected the request (model or auth).";
-  if (closeCode === 1007) return "Voice client sent an unsupported message. Update the app.";
-  if (closeCode === 1011) return "Voice service hit an internal error. Try again.";
-  if (closeCode === 1006) return "Voice connection dropped. Tap mic to retry.";
-  if (raw.startsWith("ws_error")) return "Voice connection failed. Check your network and retry.";
-  if (raw.includes("mic_denied") || raw.includes("notallowed"))
-    return "Microphone access denied. Enable it in your browser settings.";
-  return "Voice session failed. Tap mic to try again.";
-}
-
-function LiveBanner({
-  status,
-  error,
-  userTranscript,
-  assistantTranscript,
-  lastEvent,
-  chunksOut,
-  chunksIn,
-  closeCode,
-  closeReason,
-}: {
-  status: "idle" | "connecting" | "listening" | "speaking" | "error";
-  error: string | null;
-  userTranscript: string;
-  assistantTranscript: string;
-  lastEvent: string;
-  chunksOut: number;
-  chunksIn: number;
-  closeCode: number | null;
-  closeReason: string;
-}) {
-  const friendly = friendlyLiveError(error, closeCode);
-  const label =
-    status === "connecting"
-      ? "connecting…"
-      : status === "listening"
-        ? "listening"
-        : status === "speaking"
-          ? "speaking"
-          : status === "error"
-            ? "error"
-            : status === "idle"
-              ? "ended"
-              : "";
-  return (
-    <div
-      style={{
-        width: "100%",
-        maxWidth: 560,
-        display: "flex",
-        flexDirection: "column",
-        gap: 6,
-        padding: "10px 14px",
-        background: "var(--surface-high)",
-        border: "1px solid var(--line-soft)",
-        borderRadius: 12,
-        boxShadow: "var(--lift-1)",
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div
-          className="f-sans"
-          style={{
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.12em",
-            textTransform: "uppercase",
-            color: error ? "var(--blood)" : "var(--ember)",
-          }}
-        >
-          {label}
-        </div>
-        <div
-          className="f-sans"
-          style={{
-            fontSize: 10,
-            color: "var(--ink-faint)",
-            fontFamily: "var(--f-mono)",
-          }}
-        >
-          out {chunksOut} · in {chunksIn}
-          {closeCode !== null ? ` · close ${closeCode}` : ""}
-        </div>
-      </div>
-      {friendly && (
-        <div
-          className="f-sans"
-          style={{
-            fontSize: 13,
-            color: "var(--blood)",
-            lineHeight: 1.35,
-          }}
-        >
-          {friendly}
-        </div>
-      )}
-      {(lastEvent || error) && (
-        <div
-          className="f-sans"
-          style={{
-            fontSize: 10,
-            color: "var(--ink-faint)",
-            fontFamily: "var(--f-mono)",
-            wordBreak: "break-all",
-            opacity: 0.75,
-          }}
-        >
-          {error || lastEvent}
-          {closeReason ? ` (${closeReason})` : ""}
-        </div>
-      )}
-      {userTranscript && (
-        <div className="f-serif" style={{ fontSize: 14, color: "var(--ink)", lineHeight: 1.45 }}>
-          {userTranscript}
-        </div>
-      )}
-      {assistantTranscript && (
-        <div
-          className="f-serif"
-          style={{
-            fontSize: 14,
-            fontStyle: "italic",
-            color: "var(--ink-soft)",
-            lineHeight: 1.45,
-          }}
-        >
-          {assistantTranscript}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function ModeToggle({
   mode,
@@ -862,11 +1023,7 @@ function ModeToggle({
     <div
       role="tablist"
       aria-label="Capture mode"
-      style={{
-        display: "flex",
-        justifyContent: "center",
-        marginBottom: 8,
-      }}
+      style={{ display: "flex", justifyContent: "center" }}
     >
       <div
         style={{
@@ -879,7 +1036,7 @@ function ModeToggle({
         }}
       >
         <span
-          aria-hidden="true"
+          aria-hidden
           style={{
             position: "absolute",
             top: TOGGLE_PADDING,
@@ -932,236 +1089,1028 @@ function ModeToggle({
   );
 }
 
-function AskPanel({
-  messages,
-  loading,
-  input,
-  onInputChange,
-  onSubmit,
-  onClear,
-  onFocus,
-  onBlur,
-  messagesEndRef,
-  brainReady,
-  expanded,
+/* ── Voice mode pill (preview / auto) ───────────────────────────── */
+
+const VOICE_PILL_W = 56;
+const VOICE_PILL_H = 22;
+const VOICE_PILL_PAD = 2;
+
+function VoiceModePill({ mode, onChange }: { mode: VoiceMode; onChange: (m: VoiceMode) => void }) {
+  const thumbX = mode === "preview" ? 0 : VOICE_PILL_W;
+  return (
+    <div
+      role="tablist"
+      aria-label="Voice capture mode"
+      style={{
+        position: "relative",
+        display: "inline-flex",
+        padding: VOICE_PILL_PAD,
+        background: "var(--surface-low)",
+        border: "1px solid var(--line-soft)",
+        borderRadius: 999,
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: VOICE_PILL_PAD,
+          left: VOICE_PILL_PAD,
+          width: VOICE_PILL_W,
+          height: VOICE_PILL_H,
+          borderRadius: 999,
+          background: "var(--surface-high)",
+          boxShadow: "var(--lift-1)",
+          transform: `translateX(${thumbX}px)`,
+          transition: "transform 360ms cubic-bezier(0.16, 1, 0.3, 1)",
+        }}
+      />
+      {(["preview", "auto"] as const).map((m) => {
+        const active = mode === m;
+        return (
+          <button
+            key={m}
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(m)}
+            className="press"
+            style={{
+              position: "relative",
+              width: VOICE_PILL_W,
+              height: VOICE_PILL_H,
+              minHeight: VOICE_PILL_H,
+              borderRadius: 999,
+              fontFamily: "var(--f-sans)",
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: "0.02em",
+              background: "transparent",
+              color: active ? "var(--ink)" : "var(--ink-faint)",
+              border: "none",
+              cursor: "pointer",
+              textTransform: "capitalize",
+              transition: "color 320ms cubic-bezier(0.16, 1, 0.3, 1)",
+              zIndex: 1,
+            }}
+          >
+            {m}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Live banner ────────────────────────────────────────────────── */
+
+function friendlyLiveError(error: string | null, closeCode: number | null): string | null {
+  if (!error) return null;
+  const raw = error.toLowerCase();
+  if (raw.startsWith("mint:402") || raw.includes("no_ai_provider"))
+    return "Add a Gemini API key in Settings to use voice.";
+  if (raw.startsWith("mint:503") || raw.includes("live_not_configured"))
+    return "Voice isn't enabled on the server yet.";
+  if (raw.startsWith("mint:")) return "Couldn't start voice — server rejected the request.";
+  if (raw.includes("not found") && raw.includes("bidigeneratecontent"))
+    return "Voice model is unavailable. Update GEMINI_LIVE_MODEL on the server.";
+  if (closeCode === 1008) return "Voice service rejected the request (model or auth).";
+  if (closeCode === 1007) return "Voice client sent an unsupported message. Update the app.";
+  if (closeCode === 1011) return "Voice service hit an internal error. Try again.";
+  if (closeCode === 1006) return "Voice connection dropped. Tap mic to retry.";
+  if (raw.startsWith("ws_error")) return "Voice connection failed. Check your network and retry.";
+  if (raw.includes("mic_denied") || raw.includes("notallowed"))
+    return "Microphone access denied. Enable it in your browser settings.";
+  return "Voice session failed. Tap mic to try again.";
+}
+
+function LiveBanner({
+  status,
+  error,
+  userTranscript,
+  assistantTranscript,
+  lastEvent,
+  chunksOut,
+  chunksIn,
+  closeCode,
+  closeReason,
 }: {
-  messages: Array<{ role: "user" | "assistant"; content: string; ts: string }>;
-  loading: boolean;
-  input: string;
-  onInputChange: (v: string) => void;
-  onSubmit: (e: React.FormEvent) => void;
-  onClear: () => void;
-  onFocus: () => void;
-  onBlur: () => void;
-  messagesEndRef: React.RefObject<HTMLDivElement | null>;
-  brainReady: boolean;
-  expanded: boolean;
+  status: "idle" | "connecting" | "listening" | "speaking" | "error";
+  error: string | null;
+  userTranscript: string;
+  assistantTranscript: string;
+  lastEvent: string;
+  chunksOut: number;
+  chunksIn: number;
+  closeCode: number | null;
+  closeReason: string;
 }) {
-  const canSend = input.trim().length > 0 && !loading && brainReady;
-  const hasMessages = messages.length > 0;
+  const friendly = friendlyLiveError(error, closeCode);
+  const label =
+    status === "connecting"
+      ? "connecting…"
+      : status === "listening"
+        ? "listening"
+        : status === "speaking"
+          ? "speaking"
+          : status === "error"
+            ? "error"
+            : status === "idle"
+              ? "ended"
+              : "";
   return (
     <div
       style={{
         width: "100%",
         display: "flex",
         flexDirection: "column",
-        gap: 12,
-        minHeight: 0,
+        gap: 6,
+        padding: "10px 14px",
+        background: "var(--surface-high)",
+        border: "1px solid var(--line-soft)",
+        borderRadius: 12,
+        boxShadow: "var(--lift-1)",
       }}
     >
-      {expanded && hasMessages && (
-        <motion.div
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div
+          className="f-sans"
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            color: error ? "var(--blood)" : "var(--ember)",
+          }}
+        >
+          {label}
+        </div>
+        <div
+          style={{
+            fontSize: 10,
+            color: "var(--ink-faint)",
+            fontFamily: "var(--f-mono)",
+          }}
+        >
+          out {chunksOut} · in {chunksIn}
+          {closeCode !== null ? ` · close ${closeCode}` : ""}
+        </div>
+      </div>
+      {friendly && (
+        <div style={{ fontSize: 13, color: "var(--blood)", lineHeight: 1.35 }}>{friendly}</div>
+      )}
+      {(lastEvent || error) && (
+        <div
+          style={{
+            fontSize: 10,
+            color: "var(--ink-faint)",
+            fontFamily: "var(--f-mono)",
+            wordBreak: "break-all",
+            opacity: 0.75,
+          }}
+        >
+          {error || lastEvent}
+          {closeReason ? ` (${closeReason})` : ""}
+        </div>
+      )}
+      {userTranscript && (
+        <div className="f-serif" style={{ fontSize: 14, color: "var(--ink)", lineHeight: 1.45 }}>
+          {userTranscript}
+        </div>
+      )}
+      {assistantTranscript && (
+        <div
+          className="f-serif"
+          style={{
+            fontSize: 14,
+            fontStyle: "italic",
+            color: "var(--ink-soft)",
+            lineHeight: 1.45,
+          }}
+        >
+          {assistantTranscript}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Chat sheet ─────────────────────────────────────────────────── */
+
+type LiveSessionShape = ReturnType<typeof useGeminiLiveSession>;
+type PendingShape = ReturnType<typeof usePendingVoiceActions>;
+
+function ChatSheet({
+  open,
+  onClose,
+  messages,
+  loading,
+  input,
+  onInputChange,
+  onSubmit,
+  onClear,
+  sheetInputRef,
+  messagesEndRef,
+  brainReady,
+  liveShow,
+  live,
+  pending,
+}: {
+  open: boolean;
+  onClose: () => void;
+  messages: Array<{ role: "user" | "assistant"; content: string; ts: string }>;
+  loading: boolean;
+  input: string;
+  onInputChange: (v: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+  onClear: () => void;
+  sheetInputRef: React.RefObject<HTMLTextAreaElement | null>;
+  messagesEndRef: React.RefObject<HTMLDivElement | null>;
+  brainReady: boolean;
+  liveShow: boolean;
+  live: LiveSessionShape;
+  pending: PendingShape;
+}) {
+  if (!open) return null;
+  const canSend = input.trim().length > 0 && !loading && brainReady;
+  return (
+    <>
+      <div className="inkwell-sheet-scrim" onClick={onClose} aria-hidden />
+      <motion.div
+        className="inkwell-sheet"
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        exit={{ y: "100%" }}
+        transition={{ duration: 0.36, ease: EASE_OUT_QUART }}
+      >
+        <div className="inkwell-sheet-grip" />
+        <div
           style={{
             display: "flex",
-            justifyContent: "flex-end",
-            padding: "0 4px",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 10,
           }}
-          {...FADE_SLIDE_DOWN(4, 0.24)}
         >
-          <button
-            type="button"
-            onClick={onClear}
-            aria-label="Clear chat"
-            className="press"
+          <div
+            className="f-mono"
             style={{
               display: "inline-flex",
               alignItems: "center",
               gap: 6,
-              height: 26,
-              padding: "0 10px 0 8px",
-              borderRadius: 999,
-              background: "var(--surface-high)",
-              border: "1px solid var(--line-soft)",
-              color: "var(--ink-soft)",
+              fontSize: 10,
+              fontWeight: 600,
+              letterSpacing: "0.12em",
+              color: "var(--ember)",
+              textTransform: "uppercase",
+            }}
+          >
+            <span
+              style={{
+                width: 5,
+                height: 5,
+                borderRadius: "50%",
+                background: "var(--ember)",
+                boxShadow: "0 0 8px var(--ember)",
+              }}
+            />
+            <span>ASKING</span>
+          </div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            {messages.length > 0 && (
+              <button
+                type="button"
+                onClick={onClear}
+                aria-label="Clear chat"
+                className="press"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  height: 26,
+                  padding: "0 10px 0 8px",
+                  borderRadius: 999,
+                  background: "var(--surface-low)",
+                  border: "1px solid var(--line-soft)",
+                  color: "var(--ink-soft)",
+                  fontFamily: "var(--f-sans)",
+                  fontSize: 11,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
+                <svg
+                  width="11"
+                  height="11"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  viewBox="0 0 24 24"
+                  aria-hidden
+                >
+                  <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                </svg>
+                clear
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close chat"
+              className="press"
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 8,
+                background: "transparent",
+                border: "1px solid var(--line-soft)",
+                color: "var(--ink-faint)",
+                fontSize: 14,
+                cursor: "pointer",
+                padding: 0,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                <path d="M6 6l12 12M18 6l-12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div className="inkwell-sheet-body">
+          {liveShow && (
+            <motion.div style={{ width: "100%" }} {...FADE_SLIDE_DOWN(6, 0.26)}>
+              <LiveBanner
+                status={live.status}
+                error={live.error}
+                userTranscript={live.userTranscript}
+                assistantTranscript={live.assistantTranscript}
+                lastEvent={live.lastEvent}
+                chunksOut={live.chunksOut}
+                chunksIn={live.chunksIn}
+                closeCode={live.closeCode}
+                closeReason={live.closeReason}
+              />
+            </motion.div>
+          )}
+          {pending.pending.length > 0 && (
+            <motion.div style={{ width: "100%" }} {...FADE_SLIDE_DOWN(6, 0.26)}>
+              <PendingVoiceActionsBanner
+                pending={pending.pending}
+                onAccept={pending.accept}
+                onReject={pending.reject}
+              />
+            </motion.div>
+          )}
+          {messages.map((m, i) => (
+            <motion.div
+              key={i}
+              style={{
+                alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+                maxWidth: "85%",
+                padding: "10px 14px",
+                borderRadius: 14,
+                background: m.role === "user" ? "var(--ember)" : "var(--surface-high)",
+                color: m.role === "user" ? "var(--ember-ink)" : "var(--ink)",
+                border: m.role === "user" ? "none" : "1px solid var(--line-soft)",
+                fontFamily: "var(--f-sans)",
+                fontSize: 14,
+                lineHeight: 1.5,
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+              }}
+              {...BUBBLE_IN}
+            >
+              {m.content}
+            </motion.div>
+          ))}
+          {loading && (
+            <motion.div
+              style={{
+                alignSelf: "flex-start",
+                padding: "10px 14px",
+                borderRadius: 14,
+                background: "var(--surface-high)",
+                border: "1px solid var(--line-soft)",
+                fontSize: 14,
+                color: "var(--ink-faint)",
+                fontStyle: "italic",
+              }}
+              {...BUBBLE_IN}
+            >
+              thinking…
+            </motion.div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        <form
+          onSubmit={onSubmit}
+          style={{
+            display: "flex",
+            gap: 8,
+            alignItems: "flex-end",
+            background: "var(--surface-high)",
+            border: "1px solid var(--line-soft)",
+            borderRadius: 18,
+            padding: "8px 8px 8px 14px",
+            boxShadow: "var(--lift-1)",
+            marginTop: 10,
+          }}
+        >
+          <textarea
+            ref={sheetInputRef}
+            value={input}
+            onChange={(e) => onInputChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                onSubmit(e);
+              }
+            }}
+            placeholder={brainReady ? "ask everion…" : "loading brain…"}
+            disabled={!brainReady}
+            rows={1}
+            style={{
+              flex: 1,
+              resize: "none",
+              border: "none",
+              outline: "none",
+              background: "transparent",
+              color: "var(--ink)",
               fontFamily: "var(--f-sans)",
-              fontSize: 11,
-              fontWeight: 500,
-              letterSpacing: "0.01em",
-              cursor: "pointer",
-              boxShadow: "var(--lift-1)",
-              transition: "background 180ms, color 180ms, transform 180ms",
+              fontSize: 16,
+              lineHeight: 1.4,
+              padding: "8px 0",
+              maxHeight: 120,
+            }}
+          />
+          <button
+            type="submit"
+            disabled={!canSend}
+            aria-label="Send"
+            className="press"
+            style={{
+              width: 36,
+              height: 36,
+              minHeight: 36,
+              borderRadius: "50%",
+              background: canSend ? "var(--ember)" : "var(--surface-low)",
+              color: canSend ? "var(--ember-ink)" : "var(--ink-faint)",
+              border: "none",
+              cursor: canSend ? "pointer" : "not-allowed",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              transition: "background 180ms, color 180ms",
             }}
           >
             <svg
-              width="11"
-              height="11"
+              width="16"
+              height="16"
               fill="none"
               stroke="currentColor"
-              strokeWidth="1.6"
+              strokeWidth="1.8"
               strokeLinecap="round"
               strokeLinejoin="round"
               viewBox="0 0 24 24"
-              aria-hidden="true"
             >
-              <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+              <path d="M12 19V5M5 12l7-7 7 7" />
             </svg>
-            clear chat
           </button>
-        </motion.div>
-      )}
+        </form>
+      </motion.div>
+    </>
+  );
+}
+
+/* ── Drawer ─────────────────────────────────────────────────────── */
+
+interface DrawerItem {
+  icon: DrawerIconKind;
+  label: string;
+  meta?: string;
+  swatch?: string;
+  viewId?: string;
+  onClick?: () => void;
+}
+
+interface DrawerSection {
+  title: string;
+  items: DrawerItem[];
+}
+
+type DrawerIconKind =
+  | "well"
+  | "calendar"
+  | "tag"
+  | "voice"
+  | "photo"
+  | "brain"
+  | "key"
+  | "lock"
+  | "tune"
+  | "user";
+
+function DrawerIcon({ kind }: { kind: DrawerIconKind }) {
+  const props = {
+    width: 16,
+    height: 16,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.6,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
+  switch (kind) {
+    case "well":
+      return (
+        <svg {...props}>
+          <ellipse cx="12" cy="9" rx="7" ry="3" />
+          <path d="M5 9c0 5 2 9 7 9s7-4 7-9" />
+        </svg>
+      );
+    case "calendar":
+      return (
+        <svg {...props}>
+          <rect x="4" y="5" width="16" height="16" rx="2" />
+          <path d="M4 10h16M9 3v4M15 3v4" />
+        </svg>
+      );
+    case "tag":
+      return (
+        <svg {...props}>
+          <path d="M3 12 12 3h8v8l-9 9z" />
+          <circle cx="15" cy="8" r="1.2" />
+        </svg>
+      );
+    case "voice":
+      return (
+        <svg {...props}>
+          <rect x="9" y="3" width="6" height="12" rx="3" />
+          <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+        </svg>
+      );
+    case "photo":
+      return (
+        <svg {...props}>
+          <rect x="3" y="5" width="18" height="14" rx="2" />
+          <circle cx="9" cy="11" r="2" />
+          <path d="m3 18 5-5 4 4 3-3 6 6" />
+        </svg>
+      );
+    case "brain":
+      return (
+        <svg {...props}>
+          <path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 1 5 3 3 0 0 0 4 3V4z" />
+          <path d="M15 4a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-1 5 3 3 0 0 1-4 3V4z" />
+        </svg>
+      );
+    case "key":
+      return (
+        <svg {...props}>
+          <circle cx="8" cy="15" r="4" />
+          <path d="m10.5 13 9-9M16 7l2 2M14 9l2 2" />
+        </svg>
+      );
+    case "lock":
+      return (
+        <svg {...props}>
+          <rect x="5" y="11" width="14" height="10" rx="2" />
+          <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+        </svg>
+      );
+    case "tune":
+      return (
+        <svg {...props}>
+          <path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" />
+          <circle cx="16" cy="6" r="2" />
+          <circle cx="10" cy="12" r="2" />
+          <circle cx="18" cy="18" r="2" />
+        </svg>
+      );
+    case "user":
+      return (
+        <svg {...props}>
+          <circle cx="12" cy="8" r="4" />
+          <path d="M4 21a8 8 0 0 1 16 0" />
+        </svg>
+      );
+  }
+}
+
+function InkwellDrawer({
+  open,
+  onClose,
+  onNavigate,
+  onCreateBrain,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onNavigate?: (id: string) => void;
+  onCreateBrain?: () => void;
+}) {
+  const { activeBrain, brains, setActiveBrain } = useBrain();
+
+  const navigate = (viewId?: string) => {
+    if (!viewId) return;
+    onClose();
+    onNavigate?.(viewId);
+  };
+
+  async function pick(brain: Brain) {
+    if (brain.id === activeBrain?.id) {
+      onClose();
+      return;
+    }
+    setActiveBrain(brain);
+    onClose();
+    authFetch("/api/brains?action=set-active", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: brain.id }),
+    }).catch(() => {});
+  }
+
+  const librarySection: DrawerSection = {
+    title: "Library",
+    items: [
+      { icon: "well", label: "Inkwell", viewId: "home" },
+      { icon: "calendar", label: "Timeline", viewId: "memory" },
+      { icon: "tag", label: "Threads", viewId: "graph" },
+      { icon: "voice", label: "Voice", viewId: "chat" },
+      { icon: "photo", label: "Vault", viewId: "vault" },
+    ],
+  };
+
+  const settingsSection: DrawerSection = {
+    title: "Settings",
+    items: [
+      { icon: "key", label: "Connections", viewId: "settings" },
+      { icon: "lock", label: "Privacy & vault", viewId: "vault" },
+      { icon: "tune", label: "Appearance", viewId: "settings" },
+      { icon: "user", label: "Account", viewId: "settings" },
+    ],
+  };
+
+  return (
+    <>
       <div
+        onClick={onClose}
+        aria-hidden
         style={{
-          // Cap the messages list at ~45% of the visible viewport so it
-          // grows naturally with content but can't push the form below
-          // the keyboard. Past the cap it scrolls. expanded=false
-          // collapses to zero so idle Ask shows just orb + prompt + form.
-          maxHeight: expanded ? "calc(var(--vvh, 100dvh) * 0.45)" : 0,
-          overflowY: expanded ? "auto" : "hidden",
+          position: "absolute",
+          inset: 0,
+          zIndex: 60,
+          background: "color-mix(in oklch, oklch(8% 0.01 250) 60%, transparent)",
+          backdropFilter: "blur(4px)",
+          WebkitBackdropFilter: "blur(4px)",
+          opacity: open ? 1 : 0,
+          pointerEvents: open ? "auto" : "none",
+          transition: "opacity 280ms cubic-bezier(0.4, 0, 0.2, 1)",
+        }}
+      />
+      <aside
+        aria-hidden={!open}
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          bottom: 0,
+          width: "82%",
+          maxWidth: 320,
+          zIndex: 61,
+          transform: open ? "translateX(0)" : "translateX(-101%)",
+          transition: "transform 360ms cubic-bezier(0.16, 1, 0.3, 1)",
+          background: `linear-gradient(180deg,
+            color-mix(in oklch, var(--ember) 14%, var(--surface-high)) 0%,
+            var(--surface-high) 30%,
+            var(--surface) 100%)`,
+          borderRight: "1px solid color-mix(in oklch, var(--ember) 28%, var(--line-soft))",
+          boxShadow: "8px 0 40px oklch(4% 0.01 250 / 0.55)",
           display: "flex",
           flexDirection: "column",
-          gap: 10,
-          padding: expanded ? "8px 4px" : "0 4px",
-          opacity: expanded ? 1 : 0,
-          transition:
-            "max-height 520ms cubic-bezier(0.16, 1, 0.3, 1), opacity 360ms ease, padding 320ms ease",
+          overflow: "hidden",
         }}
       >
-        {/* Empty-state placeholder removed — the prompt text already
-            lives directly under the orb in MobileHome and serves the same
-            "what can I do here?" purpose. Two stacked empty-state
-            messages was redundant and noisy. */}
-        {messages.map((m, i) => (
-          <motion.div
-            key={i}
-            style={{
-              alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-              maxWidth: "85%",
-              padding: "10px 14px",
-              borderRadius: 14,
-              background: m.role === "user" ? "var(--ember)" : "var(--surface-high)",
-              color: m.role === "user" ? "var(--ember-ink)" : "var(--ink)",
-              border: m.role === "user" ? "none" : "1px solid var(--line-soft)",
-              fontFamily: "var(--f-sans)",
-              fontSize: 14,
-              lineHeight: 1.5,
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
-            }}
-            // Each new bubble eases in. Reused-key bubbles (already-
-            // mounted DOM nodes) won't re-run the animation because React
-            // keeps the node and Framer only runs `initial → animate` on
-            // first mount.
-            {...BUBBLE_IN}
-          >
-            {m.content}
-          </motion.div>
-        ))}
-        {loading && (
-          <motion.div
-            style={{
-              alignSelf: "flex-start",
-              padding: "10px 14px",
-              borderRadius: 14,
-              background: "var(--surface-high)",
-              border: "1px solid var(--line-soft)",
-              fontSize: 14,
-              color: "var(--ink-faint)",
-              fontStyle: "italic",
-            }}
-            {...BUBBLE_IN}
-          >
-            thinking…
-          </motion.div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      <form
-        onSubmit={onSubmit}
-        style={{
-          display: "flex",
-          gap: 8,
-          alignItems: "flex-end",
-          background: "var(--surface-high)",
-          border: "1px solid var(--line-soft)",
-          borderRadius: 18,
-          padding: "8px 8px 8px 14px",
-          boxShadow: "var(--lift-1)",
-        }}
-      >
-        <textarea
-          value={input}
-          onChange={(e) => onInputChange(e.target.value)}
-          onFocus={onFocus}
-          onBlur={onBlur}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              onSubmit(e);
-            }
-          }}
-          placeholder={brainReady ? "ask everion…" : "loading brain…"}
-          disabled={!brainReady}
-          rows={1}
+        <div
+          aria-hidden
           style={{
-            flex: 1,
-            resize: "none",
-            border: "none",
-            outline: "none",
-            background: "transparent",
-            color: "var(--ink)",
-            fontFamily: "var(--f-sans)",
-            fontSize: 16,
-            lineHeight: 1.4,
-            padding: "8px 0",
-            maxHeight: 120,
+            position: "absolute",
+            top: -120,
+            right: -120,
+            width: 280,
+            height: 280,
+            borderRadius: "50%",
+            background:
+              "radial-gradient(circle, color-mix(in oklch, var(--ember) 28%, transparent), transparent 65%)",
+            filter: "blur(20px)",
+            pointerEvents: "none",
           }}
         />
-        <button
-          type="submit"
-          disabled={!canSend}
-          aria-label="Send"
-          className="press"
+
+        <div
           style={{
-            width: 36,
-            height: 36,
-            minHeight: 36,
-            borderRadius: "50%",
-            background: canSend ? "var(--ember)" : "var(--surface-low)",
-            color: canSend ? "var(--ember-ink)" : "var(--ink-faint)",
-            border: "none",
-            cursor: canSend ? "pointer" : "not-allowed",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-            transition: "background 180ms, color 180ms",
+            justifyContent: "space-between",
+            padding: "14px 16px 12px",
+            borderBottom: "1px solid color-mix(in oklch, var(--ember) 14%, var(--line-soft))",
+            position: "relative",
+            zIndex: 1,
           }}
         >
-          <svg
-            width="16"
-            height="16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            viewBox="0 0 24 24"
+          <div className="ink-logo">
+            <span className="ink-logo-mark">
+              <span></span>
+            </span>
+            <span>everion</span>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close menu"
+            className="press"
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: 8,
+              background: "var(--surface)",
+              border: "1px solid var(--line-soft)",
+              color: "var(--ink-soft)",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 0,
+            }}
           >
-            <path d="M12 19V5M5 12l7-7 7 7" />
-          </svg>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
+              <path d="M6 6l12 12M18 6l-12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <nav
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            padding: "8px 8px 12px",
+            position: "relative",
+            zIndex: 1,
+          }}
+        >
+          <DrawerSectionRender section={librarySection} onItemClick={(it) => navigate(it.viewId)} />
+
+          <div style={{ marginTop: 14 }}>
+            <div
+              className="f-mono"
+              style={{
+                fontSize: 9,
+                letterSpacing: "0.2em",
+                color: "var(--ink-faint)",
+                textTransform: "uppercase",
+                padding: "4px 12px 6px",
+              }}
+            >
+              Workspaces
+            </div>
+            {brains.map((b) => {
+              const isActive = b.id === activeBrain?.id;
+              return (
+                <button
+                  key={b.id}
+                  onClick={() => void pick(b)}
+                  className="press"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    width: "100%",
+                    padding: "10px 12px",
+                    background: "transparent",
+                    border: "none",
+                    borderRadius: 10,
+                    cursor: "pointer",
+                    color: "var(--ink)",
+                    fontFamily: "var(--f-sans)",
+                    fontSize: 14,
+                    textAlign: "left",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 30,
+                      height: 30,
+                      borderRadius: 9,
+                      background: `color-mix(in oklch, ${ACCENT} 18%, var(--surface-low))`,
+                      border: `1px solid color-mix(in oklch, ${ACCENT} 50%, transparent)`,
+                      color: ACCENT,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <DrawerIcon kind="brain" />
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0 }}>{b.name}</span>
+                  {isActive && (
+                    <span
+                      className="f-mono"
+                      style={{
+                        fontSize: 9,
+                        letterSpacing: "0.16em",
+                        textTransform: "uppercase",
+                        color: "var(--ember)",
+                        padding: "3px 7px",
+                        background: "var(--ember-wash)",
+                        borderRadius: 999,
+                        border: "1px solid color-mix(in oklch, var(--ember) 36%, transparent)",
+                      }}
+                    >
+                      active
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            {onCreateBrain && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onCreateBrain();
+                }}
+                className="press"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  width: "100%",
+                  padding: "10px 12px",
+                  background: "transparent",
+                  border: "none",
+                  borderRadius: 10,
+                  cursor: "pointer",
+                  color: "var(--ink-soft)",
+                  fontFamily: "var(--f-sans)",
+                  fontSize: 14,
+                  textAlign: "left",
+                }}
+              >
+                <span
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 9,
+                    border: "1px dashed var(--line)",
+                    color: "var(--ink-faint)",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 18,
+                    flexShrink: 0,
+                  }}
+                >
+                  +
+                </span>
+                <span>New brain</span>
+              </button>
+            )}
+          </div>
+
+          <DrawerSectionRender
+            section={settingsSection}
+            onItemClick={(it) => navigate(it.viewId)}
+            topMargin={14}
+          />
+        </nav>
+
+        <div
+          style={{
+            padding: "10px 14px 14px",
+            borderTop: "1px solid color-mix(in oklch, var(--ember) 14%, var(--line-soft))",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            position: "relative",
+            zIndex: 1,
+          }}
+        >
+          <div
+            className="f-mono"
+            style={{
+              fontSize: 9,
+              letterSpacing: "0.18em",
+              color: "var(--ink-faint)",
+              textTransform: "uppercase",
+            }}
+          >
+            everion mind
+          </div>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+function DrawerSectionRender({
+  section,
+  onItemClick,
+  topMargin = 6,
+}: {
+  section: DrawerSection;
+  onItemClick: (it: DrawerItem) => void;
+  topMargin?: number;
+}) {
+  return (
+    <div style={{ marginTop: topMargin }}>
+      <div
+        className="f-mono"
+        style={{
+          fontSize: 9,
+          letterSpacing: "0.2em",
+          color: "var(--ink-faint)",
+          textTransform: "uppercase",
+          padding: "4px 12px 6px",
+        }}
+      >
+        {section.title}
+      </div>
+      {section.items.map((it, i) => (
+        <button
+          key={i}
+          onClick={() => onItemClick(it)}
+          className="press"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            width: "100%",
+            padding: "10px 12px",
+            background: "transparent",
+            border: "none",
+            borderRadius: 10,
+            cursor: "pointer",
+            color: "var(--ink)",
+            fontFamily: "var(--f-sans)",
+            fontSize: 14,
+            textAlign: "left",
+          }}
+        >
+          <span
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: 9,
+              background: "var(--surface-low)",
+              border: "1px solid var(--line-soft)",
+              color: "var(--ink-soft)",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <DrawerIcon kind={it.icon} />
+          </span>
+          <span style={{ flex: 1 }}>{it.label}</span>
+          {it.meta && (
+            <span
+              className="f-mono"
+              style={{
+                fontSize: 9,
+                letterSpacing: "0.16em",
+                textTransform: "uppercase",
+                color: "var(--ink-faint)",
+              }}
+            >
+              {it.meta}
+            </span>
+          )}
         </button>
-      </form>
+      ))}
     </div>
   );
 }

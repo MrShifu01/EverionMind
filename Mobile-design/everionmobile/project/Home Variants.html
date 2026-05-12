@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>everion · inkwell iterations</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css" />
+<style>
+  html, body { margin: 0; background: #efece6; height: 100%; }
+  body { font-family: -apple-system, system-ui, sans-serif; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="android-frame.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel" src="inkwell-a.jsx"></script>
+
+<script type="text/babel">
+const IOS_W = 390, IOS_H = 844;
+const AND_W = 412, AND_H = 892;
+
+function IOSWrap({ children }) {
+  return (
+    <IOSDevice width={IOS_W} height={IOS_H} dark={true}>
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ height: 54, flexShrink: 0 }} />
+        <div style={{ flex: 1, minHeight: 0 }}>{children}</div>
+      </div>
+    </IOSDevice>
+  );
+}
+function AndroidWrap({ children }) {
+  return (
+    <AndroidDevice width={AND_W} height={AND_H} dark={true}>
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, minHeight: 0 }}>{children}</div>
+      </div>
+    </AndroidDevice>
+  );
+}
+
+function App() {
+  return (
+    <DesignCanvas>
+      <DCSection id="inkwell" title="Inkwell" subtitle="Single quiet vessel. Add mode drops a thought; ask mode opens a clean search field.">
+        <DCArtboard id="a" label="Inkwell" width={IOS_W} height={IOS_H}>
+          <IOSWrap><InkwellA /></IOSWrap>
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+function tryMount(attempt = 0) {
+  if (typeof InkwellA !== "undefined" &&
+      typeof DesignCanvas !== "undefined" &&
+      typeof IOSDevice !== "undefined" &&
+      typeof AndroidDevice !== "undefined" &&
+      typeof useTweaks !== "undefined") {
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  } else if (attempt < 40) {
+    setTimeout(() => tryMount(attempt + 1), 100);
+  } else {
+    console.error("Variants didn't load in time");
+  }
+}
+tryMount();
+</script>
+</body>
+</html>

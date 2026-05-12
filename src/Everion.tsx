@@ -461,25 +461,30 @@ function EverionContent({
 
       <div className="app-shell-fixed w-full overflow-x-clip">
         <div className="bg-background flex h-full flex-col overflow-hidden lg:ml-60 lg:max-w-[calc(100vw-240px)]">
-          <MobileHeader
-            onToggleTheme={toggleTheme}
-            isDark={isDark}
-            isOnline={isOnline}
-            pendingCount={pendingCount}
-            onSearch={() =>
-              window.dispatchEvent(
-                new KeyboardEvent("keydown", { key: "/", metaKey: true, bubbles: true }),
-              )
-            }
-            onOpenMenu={() => setMoreOpen(true)}
-            onNavigate={appShell.setView}
-            notifications={notifs.notifications}
-            unreadCount={notifs.unreadCount}
-            onDismissNotification={notifs.dismiss}
-            onMarkNotificationRead={notifs.markRead}
-            onDismissAllNotifications={notifs.dismissAll}
-            onAcceptMerge={notifs.acceptMerge}
-          ></MobileHeader>
+          {/* MobileHome renders its own inkwell-style header. Hide the global
+              header on mobile/home so we don't stack two headers. Other views
+              and desktop keep the global one. */}
+          {!(isMobile && appShell.view === "home") && (
+            <MobileHeader
+              onToggleTheme={toggleTheme}
+              isDark={isDark}
+              isOnline={isOnline}
+              pendingCount={pendingCount}
+              onSearch={() =>
+                window.dispatchEvent(
+                  new KeyboardEvent("keydown", { key: "/", metaKey: true, bubbles: true }),
+                )
+              }
+              onOpenMenu={() => setMoreOpen(true)}
+              onNavigate={appShell.setView}
+              notifications={notifs.notifications}
+              unreadCount={notifs.unreadCount}
+              onDismissNotification={notifs.dismiss}
+              onMarkNotificationRead={notifs.markRead}
+              onDismissAllNotifications={notifs.dismissAll}
+              onAcceptMerge={notifs.acceptMerge}
+            ></MobileHeader>
+          )}
 
           <DesktopHeader
             searchInput={appShell.searchInput}
@@ -895,6 +900,24 @@ function EverionContent({
                         handleCreated,
                       );
                     }}
+                    onNavigate={(id) => {
+                      setSelected(null);
+                      appShell.setShowCapture(false);
+                      appShell.setView(id);
+                    }}
+                    onSearch={() =>
+                      window.dispatchEvent(
+                        new KeyboardEvent("keydown", { key: "/", metaKey: true, bubbles: true }),
+                      )
+                    }
+                    onCreateBrain={() => appShell.setShowCreateBrain(true)}
+                    entriesCount={entries.length}
+                    notifications={notifs.notifications}
+                    unreadCount={notifs.unreadCount}
+                    onDismissNotification={notifs.dismiss}
+                    onMarkNotificationRead={notifs.markRead}
+                    onDismissAllNotifications={notifs.dismissAll}
+                    onAcceptMerge={notifs.acceptMerge}
                   />
                 </Suspense>
               </ErrorBoundary>
