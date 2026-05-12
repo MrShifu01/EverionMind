@@ -911,7 +911,6 @@ function EverionContent({
                       )
                     }
                     onCreateBrain={() => appShell.setShowCreateBrain(true)}
-                    entriesCount={entries.length}
                     notifications={notifs.notifications}
                     unreadCount={notifs.unreadCount}
                     onDismissNotification={notifs.dismiss}

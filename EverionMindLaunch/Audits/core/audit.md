@@ -35,6 +35,9 @@ Fixed during the retrieval audit pass:
   instead of always `concepts: []`.
 - Tag-sibling expansion now lifts tag tokens only from the top three seed
   hits to reduce broad-tag pollution.
+- Retrieval calls now write privacy-preserving `audit_log` telemetry
+  (`retrieval.query`) for surface, duration, result counts, Tier 1 count,
+  graph/tag usage, accessible-brain count, and query/token lengths.
 
 ---
 

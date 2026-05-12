@@ -39,7 +39,7 @@ type Auth = { userId: string; brainId: string };
 
 // ── /v1/context ───────────────────────────────────────────────────────────────
 
-async function handleContext({ brainId }: Auth, body: any) {
+async function handleContext(auth: Auth, body: any) {
   const { query, limit = 5 } = body;
   if (!query || typeof query !== "string") throw { status: 400, message: "query is required" };
   if (!GEMINI_API_KEY) throw { status: 500, message: "Embedding not configured on server" };
@@ -47,9 +47,10 @@ async function handleContext({ brainId }: Auth, body: any) {
   const safeLimit = Math.min(Math.max(1, Number(limit) || 15), 50);
   const { entries, concepts, importantMemories } = await retrieveEntries(
     query,
-    brainId,
+    auth.brainId,
     GEMINI_API_KEY,
     safeLimit,
+    { userId: auth.userId, brainId: auth.brainId, surface: "v1-context" },
   );
   return { results: entries, concepts, importantMemories };
 }
@@ -117,7 +118,7 @@ async function callAnthropic(
   return data.content?.[0]?.text?.trim() ?? "";
 }
 
-async function handleAnswer({ brainId }: Auth, body: any) {
+async function handleAnswer(auth: Auth, body: any) {
   const { query, model, api_key, limit = 5 } = body;
   if (!query || typeof query !== "string") throw { status: 400, message: "query is required" };
   if (!model || typeof model !== "string")
@@ -129,9 +130,10 @@ async function handleAnswer({ brainId }: Auth, body: any) {
   const safeLimit = Math.min(Math.max(1, Number(limit) || 15), 50);
   const { entries, importantMemories } = await retrieveEntries(
     query,
-    brainId,
+    auth.brainId,
     GEMINI_API_KEY,
     safeLimit,
+    { userId: auth.userId, brainId: auth.brainId, surface: "v1-answer" },
   );
 
   const importantBlock = importantMemories

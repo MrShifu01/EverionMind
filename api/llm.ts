@@ -240,6 +240,7 @@ async function execTool(
   args: Record<string, any>,
   userId: string,
   brainId: string,
+  requestId?: string | null,
 ): Promise<unknown> {
   if (PERSONA_TOOL_NAMES.has(name)) {
     return execPersonaTool(name, args, userId, brainId);
@@ -257,6 +258,7 @@ async function execTool(
         userId,
         GEMINI_API_KEY,
         Math.min(Math.max(1, args.limit || 15), 50),
+        { requestId, surface: "chat-tool", brainId },
       ),
       findLockedSecretTitles(args.query, brainId, 5),
     ]);
@@ -603,7 +605,7 @@ async function handleChat(
           ),
       );
     }
-    return execTool(name, args, user.id, brain_id);
+    return execTool(name, args, user.id, brain_id, reqId);
   };
 
   const result = await runChat({

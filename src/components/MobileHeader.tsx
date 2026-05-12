@@ -1,11 +1,7 @@
 import { useEffect, type ReactNode } from "react";
 import type { AppNotification } from "../hooks/useNotifications";
 import NotificationBell from "./NotificationBell";
-import BrainSwitcher from "./BrainSwitcher";
-import { isFeatureEnabled } from "../lib/featureFlags";
-import { useAdminDevMode } from "../hooks/useAdminDevMode";
-import { Button } from "./ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import InkwellBrainPill from "./InkwellBrainPill";
 
 interface MobileHeaderProps {
   onToggleTheme: () => void;
@@ -15,6 +11,7 @@ interface MobileHeaderProps {
   onSearch?: () => void;
   onOpenMenu?: () => void;
   onNavigate?: (id: string) => void;
+  onCreateBrain?: () => void;
   children?: ReactNode;
   notifications?: AppNotification[];
   unreadCount?: number;
@@ -24,6 +21,12 @@ interface MobileHeaderProps {
   onAcceptMerge?: (n: AppNotification) => void;
 }
 
+/**
+ * Global mobile header — matches the inkwell aesthetic so every view
+ * reads the same as the home view. Layout: burger LEFT, logo + serif
+ * "Everion Mind" wordmark, search + bell RIGHT. Compact brain pill in
+ * a second row below. All buttons are transparent — no boxed bg.
+ */
 export default function MobileHeader({
   onToggleTheme: _onToggleTheme,
   isDark: _isDark,
@@ -32,6 +35,7 @@ export default function MobileHeader({
   onSearch,
   onOpenMenu,
   onNavigate,
+  onCreateBrain,
   children,
   notifications = [],
   unreadCount = 0,
@@ -40,31 +44,64 @@ export default function MobileHeader({
   onDismissAllNotifications,
   onAcceptMerge,
 }: MobileHeaderProps) {
-  const { adminFlags } = useAdminDevMode();
-  const showBrainSwitcher = isFeatureEnabled("multiBrain", adminFlags);
-
   useEffect(() => {
     const root = document.documentElement;
-    const baseHeight = showBrainSwitcher ? 116 : 56;
-    root.style.setProperty(
-      "--app-header-h",
-      `calc(${baseHeight}px + env(safe-area-inset-top, 0px))`,
-    );
+    root.style.setProperty("--app-header-h", `calc(108px + env(safe-area-inset-top, 0px))`);
     return () => {
       root.style.removeProperty("--app-header-h");
     };
-  }, [showBrainSwitcher]);
+  }, []);
 
   return (
     <div
       className="safe-top sticky top-0 z-30 lg:hidden"
       style={{
         background: "var(--bg)",
-        borderBottom: "1px solid var(--line-soft)",
       }}
     >
-      <header className="flex items-center justify-between gap-2 px-4 py-3">
-        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
+      <header
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "10px 16px 4px",
+          gap: 8,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+          {onOpenMenu && (
+            <button
+              type="button"
+              onClick={onOpenMenu}
+              aria-label="Menu"
+              className="press"
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                background: "transparent",
+                border: "none",
+                color: "var(--ink-soft)",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                padding: 0,
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                <path d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onNavigate?.("home")}
@@ -80,7 +117,6 @@ export default function MobileHeader({
               cursor: "pointer",
               color: "inherit",
               minWidth: 0,
-              flex: 1,
               textAlign: "left",
             }}
           >
@@ -89,7 +125,7 @@ export default function MobileHeader({
               width={28}
               height={28}
               alt=""
-              aria-hidden="true"
+              aria-hidden
               decoding="async"
               style={{ flexShrink: 0, objectFit: "contain", display: "block" }}
             />
@@ -109,7 +145,41 @@ export default function MobileHeader({
           {children}
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+          {onSearch && (
+            <button
+              type="button"
+              onClick={onSearch}
+              aria-label="Search"
+              className="press"
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                background: "transparent",
+                border: "none",
+                color: "var(--ink-soft)",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                padding: 0,
+              }}
+            >
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-3.5-3.5" />
+              </svg>
+            </button>
+          )}
           {onDismissNotification && (
             <NotificationBell
               notifications={notifications}
@@ -120,69 +190,12 @@ export default function MobileHeader({
               onAcceptMerge={onAcceptMerge ?? (() => {})}
             />
           )}
-          {onSearch && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={onSearch}
-                  aria-label="Search"
-                  style={{ color: "var(--ink-soft)" }}
-                >
-                  <svg
-                    width="18"
-                    height="18"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle cx="11" cy="11" r="6.5" />
-                    <path d="m20 20-3.5-3.5" />
-                  </svg>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Search</TooltipContent>
-            </Tooltip>
-          )}
-          {onOpenMenu && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={onOpenMenu}
-              aria-label="Menu"
-              style={{ color: "var(--ink-soft)" }}
-            >
-              <svg
-                width="20"
-                height="20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path d="M4 7h16M4 12h16M4 17h16" />
-              </svg>
-            </Button>
-          )}
         </div>
       </header>
 
-      {showBrainSwitcher && (
-        <div
-          style={{
-            padding: "0 14px 12px",
-          }}
-        >
-          <BrainSwitcher cardMode />
-        </div>
-      )}
+      <div style={{ padding: "0 16px 10px" }}>
+        <InkwellBrainPill onCreateBrain={onCreateBrain} />
+      </div>
     </div>
   );
 }

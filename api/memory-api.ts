@@ -75,7 +75,11 @@ async function handleRetrieve(req: ApiRequest, res: ApiResponse): Promise<void> 
 
   const safeLimit = Math.min(Math.max(1, parseInt(String(limit)) || 15), 50);
   try {
-    const result = await retrieveEntries(query.trim(), auth.brainId, GEMINI_API_KEY, safeLimit);
+    const result = await retrieveEntries(query.trim(), auth.brainId, GEMINI_API_KEY, safeLimit, {
+      userId: auth.userId,
+      brainId: auth.brainId,
+      surface: "memory-api",
+    });
     return res.status(200).json(result);
   } catch (e: any) {
     return res.status(502).json({ error: e.message });

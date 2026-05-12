@@ -365,12 +365,23 @@ async function listBrains(userId: string): Promise<unknown> {
   return { brains, count: brains.length };
 }
 
-async function retrieveMemory(brainId: string, query: string, limit = 15): Promise<unknown> {
+async function retrieveMemory(
+  brainId: string,
+  query: string,
+  limit = 15,
+  userId?: string,
+  requestId?: string,
+): Promise<unknown> {
   const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
   if (!GEMINI_API_KEY) throw new Error("Embedding not configured on server");
 
   const safeLimit = Math.min(Math.max(1, limit), 50);
-  return retrieveEntries(query, brainId, GEMINI_API_KEY, safeLimit);
+  return retrieveEntries(query, brainId, GEMINI_API_KEY, safeLimit, {
+    userId,
+    requestId,
+    brainId,
+    surface: "mcp",
+  });
 }
 
 async function getUpcoming(brainId: string, days = 30): Promise<unknown> {
@@ -754,7 +765,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
       } else if (toolName === "retrieve_memory") {
         if (!args.query) return res.status(200).json(jsonRpcErr(id, -32602, "query is required"));
         const target = await resolveTargetBrain(args, brainId, userId, ["owner", "member", "viewer"]);
-        result = await retrieveMemory(target, args.query, args.limit);
+        result = await retrieveMemory(target, args.query, args.limit, userId, reqId);
       } else if (toolName === "get_upcoming") {
         const target = await resolveTargetBrain(args, brainId, userId, ["owner", "member", "viewer"]);
         result = await getUpcoming(target, args.days);

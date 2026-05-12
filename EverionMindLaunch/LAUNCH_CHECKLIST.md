@@ -13,7 +13,7 @@ Project-specific, prioritized for solo dev shipping a public-scale product.
 Traceability source: [`Audits/retrieval-followups-2026-05-12.md`](Audits/retrieval-followups-2026-05-12.md) and [`Audits/core/audit.md`](Audits/core/audit.md).
 
 - [ ] **RETR-OPS-LLM-BACKFILL** After migration 090 is applied, run `tsx --env-file=.env.local scripts/backfill-canonical-facts.ts <user_id> --llm` for existing users that need prose facts promoted into Tier 1.
-- [ ] **RETR-P0-8** Add retrieval telemetry for Tier 1 hit rate, path timings, graph-boost usage, tag-sibling usage, and `[NO_INFO:*]` answer frequency.
+- [ ] **RETR-P0-8B** Finish retrieval observability: build the dashboard/read model from `audit_log` `retrieval.query` rows and add answer-level `[NO_INFO:*]` frequency.
 - [ ] **RETR-P0-9** Collapse duplicate client/server capture parsing or explicitly cache the client parse result into server enrichment.
 - [ ] **RETR-P1-5** Add entity aliases so role/name/nickname queries like `dad`, `father`, and a legal name expand to the same canonical entity.
 - [ ] **RETR-P1-EVAL** Add 20-30 retrieval fixtures for prose facts, cross-brain graph boost, tag pollution, aliases, temporal queries, and voice/transcription spelling variants.

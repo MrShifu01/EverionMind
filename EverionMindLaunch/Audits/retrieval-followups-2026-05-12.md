@@ -29,6 +29,9 @@ by user-visible impact + launch criticality. Pick up in priority order.
 - Also closed the core-audit retrieval ranker gaps: chat cross-brain
   retrieval now applies the same-brain top-3 graph-boost compromise, and
   tag-sibling expansion only lifts tags from the top-3 seeds.
+- Added privacy-preserving retrieval telemetry to `audit_log` for chat,
+  MCP, v1, and memory-api surfaces. Remaining telemetry work is the
+  dashboard/read model plus answer-level `[NO_INFO:*]` frequency.
 
 ## P0 — should ship before public launch
 
