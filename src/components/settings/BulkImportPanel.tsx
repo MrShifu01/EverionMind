@@ -138,7 +138,7 @@ export default function BulkImportPanel({
   }, []);
 
   const runImport = useCallback(
-    async (files: FileList) => {
+    async (files: File[]) => {
       const ac = new AbortController();
       abortRef.current = ac;
       const startedAt = Date.now();
@@ -314,8 +314,12 @@ export default function BulkImportPanel({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files;
       if (!files || files.length === 0) return;
+      // Snapshot BEFORE clearing the input — `e.target.files` is a live
+      // FileList. Resetting the value empties it, and async parsers were
+      // seeing length 0 by the time they iterated (= "0 files seen").
+      const snapshot = Array.from(files);
       e.target.value = "";
-      void runImport(files);
+      void runImport(snapshot);
     },
     [runImport],
   );

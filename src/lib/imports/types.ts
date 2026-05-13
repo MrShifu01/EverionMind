@@ -16,8 +16,13 @@ export interface ImportEntry {
   created_at?: string;
 }
 
+// `File[]` not `FileList`: a FileList from `e.target.files` is a live
+// reference to the input element. Once the panel resets `input.value = ""`
+// to allow re-selecting the same files, that FileList empties out — and
+// since parsers are async, by the time they iterate, length is 0.
+// Snapshotting to a plain array before reset detaches us from the input.
 export type Parser = (
-  files: FileList,
+  files: File[],
   onProgress: (current: number, total: number, detail?: string) => void,
   signal: AbortSignal,
 ) => Promise<ImportEntry[]>;
