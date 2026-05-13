@@ -26,6 +26,8 @@ export default defineConfig([
     // Design handoff bundle — prototype JSX using UMD globals (React, ReactDOM),
     // not real source. Kept for reference, never bundled or executed.
     "Mobile-design/**",
+    "mobiledesign2/**",
+    "mobilemodals/**",
   ]),
   {
     files: ["**/*.{ts,tsx}"],
