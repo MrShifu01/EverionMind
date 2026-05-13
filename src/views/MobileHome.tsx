@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { useChat } from "../hooks/useChat";
 import { useVoiceMode, useGeminiLive, useGeminiVoice, type VoiceMode } from "../hooks/useVoiceMode";
-import { useGeminiLiveSession } from "../hooks/useGeminiLiveSession";
+import { useGeminiLiveSession, type LiveStatus } from "../hooks/useGeminiLiveSession";
 import { usePendingVoiceActions } from "../hooks/usePendingVoiceActions";
 import { PendingVoiceActionsBanner } from "../components/PendingVoiceActionsBanner";
 import NotificationBell from "../components/NotificationBell";
@@ -230,6 +230,15 @@ export default function MobileHome({
   const isAsk = mode === "ask";
   const liveActive = liveSession.status === "listening" || liveSession.status === "speaking";
   const isConnecting = liveSession.status === "connecting";
+  // Voice-conversation UI: shrink orb + show transcript card. Stays
+  // visible after the session ends so the user can re-read; cleared
+  // when the next session starts (the hook resets transcripts).
+  const showVoiceUi =
+    isAsk &&
+    (liveActive ||
+      isConnecting ||
+      !!liveSession.userTranscript ||
+      !!liveSession.assistantTranscript);
   const animating =
     listening ||
     transcribing ||
@@ -440,33 +449,68 @@ export default function MobileHome({
         </div>
       </div>
 
-      {/* Inkwell stage. flex:1 fills remaining vertical space and the
-          orb sits centered. Sheet, when open, covers it. */}
+      {/* Inkwell stage. flex:1 fills remaining vertical space. When a
+          Live voice conversation is active (or its transcript is still
+          on screen), orb shrinks to top and the transcript card fills
+          the rest. Sheet, when open, covers everything. */}
       <div
         style={{
           flex: 1,
           display: "flex",
+          flexDirection: "column",
           alignItems: "center",
-          justifyContent: "center",
+          justifyContent: showVoiceUi ? "flex-start" : "center",
           position: "relative",
           minHeight: 0,
           overflow: "hidden",
+          paddingTop: showVoiceUi ? 8 : 0,
         }}
       >
-        <Inkwell
-          mode={mode}
-          pressed={pressed}
-          listening={listening}
-          animating={animating}
-          isConnecting={isConnecting}
-          isSpeaking={liveSession.status === "speaking"}
-          isThinking={thinking}
-          connectTimedOut={connectTimedOut}
-          onPointerDown={onPointerDown}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerCancel}
-          caption={caption}
-        />
+        <div
+          style={{
+            // Reserve a 140px slot for the visually-shrunk orb (220 →
+            // ~121 via scale 0.55). overflow:visible lets the orb's
+            // larger layout box spill upward without being clipped.
+            height: showVoiceUi ? 140 : "auto",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "flex-start",
+            transition: "height 320ms cubic-bezier(0.16, 1, 0.3, 1)",
+            flexShrink: 0,
+            overflow: "visible",
+          }}
+        >
+          <div
+            style={{
+              transform: showVoiceUi ? "scale(0.55)" : "scale(1)",
+              transformOrigin: "top center",
+              transition: "transform 320ms cubic-bezier(0.16, 1, 0.3, 1)",
+            }}
+          >
+            <Inkwell
+              mode={mode}
+              pressed={pressed}
+              listening={listening}
+              animating={animating}
+              isConnecting={isConnecting}
+              isSpeaking={liveSession.status === "speaking"}
+              isThinking={thinking}
+              connectTimedOut={connectTimedOut}
+              onPointerDown={onPointerDown}
+              onPointerUp={onPointerUp}
+              onPointerCancel={onPointerCancel}
+              caption={showVoiceUi ? "" : caption}
+            />
+          </div>
+        </div>
+        {showVoiceUi && (
+          <VoiceTranscriptCard
+            status={liveSession.status}
+            isThinking={thinking}
+            userText={liveSession.userTranscript}
+            assistantText={liveSession.assistantTranscript}
+          />
+        )}
       </div>
 
       {isAsk && !sheetOpen && (
@@ -699,6 +743,180 @@ function HeaderIconButton({
 }
 
 /* BrainPill moved to ../components/InkwellBrainPill (shared with MobileHeader) */
+
+/* ── Voice transcript card ──────────────────────────────────────── */
+
+function VoiceTranscriptCard({
+  status,
+  isThinking,
+  userText,
+  assistantText,
+}: {
+  status: LiveStatus;
+  isThinking: boolean;
+  userText: string;
+  assistantText: string;
+}) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [userText, assistantText, status]);
+
+  const stateLabel =
+    status === "connecting"
+      ? "connecting…"
+      : status === "speaking"
+        ? "everion is speaking…"
+        : isThinking
+          ? "thinking…"
+          : status === "listening"
+            ? "listening…"
+            : "session ended";
+  const activeSpeaker: "user" | "assistant" | null =
+    status === "listening" ? "user" : status === "speaking" ? "assistant" : null;
+
+  return (
+    <div
+      style={{
+        flex: 1,
+        alignSelf: "stretch",
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+        marginTop: 12,
+        marginLeft: 4,
+        marginRight: 4,
+        marginBottom: 8,
+        background: "var(--surface-high)",
+        border: "1px solid var(--line-soft)",
+        borderRadius: 14,
+        boxShadow: "var(--lift-1)",
+        animation: "fade-up 220ms ease both",
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "10px 14px 8px",
+          borderBottom: "1px solid var(--line-soft)",
+          flexShrink: 0,
+        }}
+      >
+        <span
+          aria-hidden
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: "50%",
+            background: status === "idle" ? "var(--ink-faint)" : "var(--ember)",
+            boxShadow: status === "idle" ? "none" : "0 0 8px var(--ember)",
+            animation: status !== "idle" ? "ring-pulse 1.4s ease-in-out infinite" : undefined,
+            flexShrink: 0,
+          }}
+        />
+        <span
+          className="f-mono"
+          style={{
+            fontSize: 9,
+            letterSpacing: "0.18em",
+            color: "var(--ink-faint)",
+            textTransform: "uppercase",
+          }}
+        >
+          {stateLabel}
+        </span>
+      </div>
+      <div
+        ref={scrollRef}
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: "auto",
+          padding: "12px 14px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+          overscrollBehavior: "contain",
+        }}
+      >
+        {!userText && !assistantText && (
+          <div
+            className="f-mono"
+            style={{
+              fontSize: 10,
+              letterSpacing: "0.1em",
+              color: "var(--ink-faint)",
+              textAlign: "center",
+              padding: "16px 0",
+            }}
+          >
+            speak when ready · transcript will appear here
+          </div>
+        )}
+        {userText && (
+          <TranscriptTurn label="you" active={activeSpeaker === "user"} text={userText} />
+        )}
+        {assistantText && (
+          <TranscriptTurn
+            label="everion"
+            active={activeSpeaker === "assistant"}
+            text={assistantText}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TranscriptTurn({ label, active, text }: { label: string; active: boolean; text: string }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span
+          className="f-mono"
+          style={{
+            fontSize: 9,
+            letterSpacing: "0.18em",
+            color: active ? "var(--ember)" : "var(--ink-faint)",
+            textTransform: "uppercase",
+          }}
+        >
+          {label}
+        </span>
+        {active && (
+          <span
+            aria-hidden
+            style={{
+              width: 5,
+              height: 5,
+              borderRadius: "50%",
+              background: "var(--ember)",
+              animation: "ring-pulse 1.2s ease-in-out infinite",
+            }}
+          />
+        )}
+      </div>
+      <div
+        className="f-serif"
+        style={{
+          fontSize: 14,
+          lineHeight: 1.45,
+          color: "var(--ink)",
+          fontStyle: label === "you" ? "italic" : "normal",
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+        }}
+      >
+        {text}
+      </div>
+    </div>
+  );
+}
 
 /* ── Inkwell vessel ─────────────────────────────────────────────── */
 
