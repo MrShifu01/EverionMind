@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { useChat } from "../hooks/useChat";
 import { useVoiceMode, useGeminiLive, useGeminiVoice, type VoiceMode } from "../hooks/useVoiceMode";
@@ -77,7 +78,6 @@ export default function MobileHome({
   const liveOnRef = useRef(geminiLiveOn);
   const liveVoiceRef = useRef(geminiVoice);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const askInputRef = useRef<HTMLInputElement | null>(null);
   const sheetInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -180,10 +180,9 @@ export default function MobileHome({
       setPressed(false);
       if (mode === "add") {
         window.setTimeout(() => onOpenCapture(), 220);
-      } else {
-        // Ask + non-Live: tap focuses the ask input so user can type
-        window.setTimeout(() => askInputRef.current?.focus(), 60);
       }
+      // Ask + non-Live: tap is a no-op. The orb is reserved for voice
+      // (hold to record); typing is started by tapping the chat box.
       return;
     }
     if (recordingRef.current) {
@@ -322,18 +321,15 @@ export default function MobileHome({
     };
   }, []);
 
-  // When the Ask input is focused, hide the headline + inkwell stage.
-  // Diagnostic confirmed bronze-screen shrinks to vvh (797→443) correctly
-  // — but the 220×220 orb overflows the ~90px of remaining flex space and
-  // visually paints over the headline above and the input below. Hiding
-  // the orb cluster while typing reclaims that space cleanly.
-  const [inputFocused, setInputFocused] = useState(false);
-
   // Live voice now renders its status inline on the home screen — it does
   // NOT pop the chat sheet. Sheet is reserved for actual text-chat history
   // and pending-voice-action confirmations.
   const hasChatContent = messages.length > 0 || pendingActions.pending.length > 0;
-  const sheetOpen = isAsk && hasChatContent && !sheetUserDismissed;
+  // sheetExplicitOpen lets the user pop the sheet by tapping the inline
+  // ask field BEFORE there's any content — saves the click-twice-to-send
+  // jank where the inline form's submit also opened the sheet.
+  const [sheetExplicitOpen, setSheetExplicitOpen] = useState(false);
+  const sheetOpen = isAsk && (hasChatContent || sheetExplicitOpen) && !sheetUserDismissed;
 
   useEffect(() => {
     if (sheetOpen) {
@@ -420,29 +416,23 @@ export default function MobileHome({
         <ModeToggle mode={mode} onChange={setModeAndReset} listening={listening} />
       </div>
 
-      {!inputFocused && (
-        <div style={{ marginTop: 14, textAlign: "center", flexShrink: 0 }}>
-          <div
-            className="f-serif"
-            style={{
-              fontSize: 26,
-              color: error ? "var(--blood)" : "var(--ink)",
-              letterSpacing: "-0.02em",
-              lineHeight: 1.05,
-              transition: "color 320ms ease",
-            }}
-          >
-            {error ? error : headline}
-          </div>
+      <div style={{ marginTop: 14, textAlign: "center", flexShrink: 0 }}>
+        <div
+          className="f-serif"
+          style={{
+            fontSize: 26,
+            color: error ? "var(--blood)" : "var(--ink)",
+            letterSpacing: "-0.02em",
+            lineHeight: 1.05,
+            transition: "color 320ms ease",
+          }}
+        >
+          {error ? error : headline}
         </div>
-      )}
+      </div>
 
-      {/* Inkwell stage. Always flex:1 — that's what pushes the form to the
-          bottom of bronze-screen. When the Ask input is focused (keyboard
-          open) the residual space is too small for the 220×220 orb, so we
-          render nothing inside the container. The empty flex:1 box still
-          claims all remaining space, keeping the form docked to the
-          visible viewport bottom. */}
+      {/* Inkwell stage. flex:1 fills remaining vertical space and the
+          orb sits centered. Sheet, when open, covers it. */}
       <div
         style={{
           flex: 1,
@@ -454,119 +444,70 @@ export default function MobileHome({
           overflow: "hidden",
         }}
       >
-        {!inputFocused && (
-          <Inkwell
-            mode={mode}
-            pressed={pressed}
-            listening={listening}
-            animating={animating}
-            isConnecting={isConnecting}
-            isSpeaking={liveSession.status === "speaking"}
-            isThinking={thinking}
-            connectTimedOut={connectTimedOut}
-            onPointerDown={onPointerDown}
-            onPointerUp={onPointerUp}
-            onPointerCancel={onPointerCancel}
-            caption={caption}
-          />
-        )}
+        <Inkwell
+          mode={mode}
+          pressed={pressed}
+          listening={listening}
+          animating={animating}
+          isConnecting={isConnecting}
+          isSpeaking={liveSession.status === "speaking"}
+          isThinking={thinking}
+          connectTimedOut={connectTimedOut}
+          onPointerDown={onPointerDown}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerCancel}
+          caption={caption}
+        />
       </div>
 
       {isAsk && !sheetOpen && (
-        <form
-          onSubmit={submitAsk}
+        <button
+          type="button"
+          aria-label="Open chat"
+          disabled={!brainId}
+          onClick={() => {
+            setSheetUserDismissed(false);
+            setSheetExplicitOpen(true);
+          }}
           style={{
-            // Pin to the VISUAL viewport bottom, not bronze-screen's
-            // bottom. On iOS PWA standalone, 100dvh does not reliably
-            // shrink when the soft keyboard opens, so an
-            // absolute-to-bronze-screen form ends up underneath the
-            // keyboard. --vvh is kept in sync with
-            // window.visualViewport.height by the effect above; the
-            // keyboard's height is therefore (100vh - --vvh), and we
-            // add that to --edge-bottom-pad to lift the form above the
-            // keyboard. When the keyboard is closed, vvh = 100vh so the
-            // extra offset collapses to 0 and the form sits flush.
+            // Same fixed-to-visual-viewport pin as before so the iOS
+            // keyboard can never cover it once the sheet opens.
             position: "fixed",
             left: 16,
             right: 16,
             bottom: "calc(100vh - var(--vvh, 100vh) + var(--edge-bottom-pad, 0px))",
             zIndex: 50,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "0 14px",
+            height: 52,
+            background: "var(--surface)",
+            border: `1px solid color-mix(in oklch, ${ACCENT} 32%, var(--line-soft))`,
+            borderRadius: 14,
+            boxShadow: `0 0 0 4px color-mix(in oklch, ${ACCENT} 8%, transparent), var(--lift-1)`,
+            cursor: "pointer",
+            textAlign: "left",
+            color: "var(--ink-faint)",
+            fontFamily: "var(--f-serif)",
+            fontSize: 15,
+            fontStyle: "italic",
           }}
         >
-          <label
-            htmlFor="ink-ask"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "0 14px",
-              height: 52,
-              background: "var(--surface)",
-              border: `1px solid color-mix(in oklch, ${ACCENT} 32%, var(--line-soft))`,
-              borderRadius: 14,
-              boxShadow: `0 0 0 4px color-mix(in oklch, ${ACCENT} 8%, transparent), var(--lift-1)`,
-            }}
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={ACCENT}
+            strokeWidth="2"
+            strokeLinecap="round"
           >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke={ACCENT}
-              strokeWidth="2"
-              strokeLinecap="round"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <path d="m20 20-3.5-3.5" />
-            </svg>
-            <input
-              ref={askInputRef}
-              id="ink-ask"
-              type="text"
-              value={askInput}
-              onChange={(e) => setAskInput(e.target.value)}
-              onFocus={() => {
-                setSheetUserDismissed(false);
-                setInputFocused(true);
-              }}
-              onBlur={() => setInputFocused(false)}
-              placeholder="Ask your second brain…"
-              disabled={!brainId}
-              style={{
-                flex: 1,
-                minWidth: 0,
-                height: "100%",
-                background: "transparent",
-                border: "none",
-                outline: "none",
-                fontFamily: "var(--f-serif)",
-                fontSize: 15,
-                fontStyle: "italic",
-                color: "var(--ink)",
-              }}
-            />
-            <button
-              type="submit"
-              disabled={!askInput.trim() || chatLoading || !brainId}
-              aria-label="Send"
-              className="press f-mono"
-              style={{
-                fontSize: 9,
-                letterSpacing: "0.16em",
-                color: askInput.trim() ? "var(--ember-ink)" : "var(--ink-faint)",
-                background: askInput.trim() ? "var(--ember)" : "transparent",
-                textTransform: "uppercase",
-                border: askInput.trim() ? "none" : "1px solid var(--line-soft)",
-                padding: "3px 8px",
-                borderRadius: 6,
-                cursor: askInput.trim() ? "pointer" : "default",
-                transition: "background 180ms, color 180ms",
-              }}
-            >
-              ↵
-            </button>
-          </label>
-        </form>
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-3.5-3.5" />
+          </svg>
+          <span style={{ flex: 1, minWidth: 0 }}>Ask your second brain…</span>
+        </button>
       )}
 
       {!isAsk && (
@@ -608,7 +549,10 @@ export default function MobileHome({
 
       <ChatSheet
         open={sheetOpen}
-        onClose={() => setSheetUserDismissed(true)}
+        onClose={() => {
+          setSheetUserDismissed(true);
+          setSheetExplicitOpen(false);
+        }}
         messages={messages}
         loading={chatLoading}
         input={askInput}
@@ -1084,6 +1028,119 @@ function VoiceModePill({ mode, onChange }: { mode: VoiceMode; onChange: (m: Voic
   );
 }
 
+/* ── Tiny markdown renderer ─────────────────────────────────────── */
+
+// LLM output uses **bold**, *italic*, `code`, bullet/numbered lists,
+// and the occasional ## heading. A full markdown lib is overkill for
+// chat bubbles, so this stateless pair turns those into React nodes.
+
+function renderInline(text: string, baseKey: number): ReactNode {
+  const out: ReactNode[] = [];
+  // Match bold first (longer pattern), then code, then italic.
+  const re = /(\*\*[^*\n]+\*\*|`[^`\n]+`|\*[^*\n]+\*|_[^_\n]+_)/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  let i = 0;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) {
+      out.push(<Fragment key={`${baseKey}-t${i++}`}>{text.slice(last, m.index)}</Fragment>);
+    }
+    const tok = m[0];
+    if (tok.startsWith("**")) {
+      out.push(<strong key={`${baseKey}-b${i++}`}>{tok.slice(2, -2)}</strong>);
+    } else if (tok.startsWith("`")) {
+      out.push(
+        <code
+          key={`${baseKey}-c${i++}`}
+          style={{
+            fontFamily: "var(--f-mono)",
+            fontSize: "0.92em",
+            background: "var(--surface-low)",
+            padding: "1px 5px",
+            borderRadius: 4,
+          }}
+        >
+          {tok.slice(1, -1)}
+        </code>,
+      );
+    } else {
+      out.push(<em key={`${baseKey}-i${i++}`}>{tok.slice(1, -1)}</em>);
+    }
+    last = m.index + tok.length;
+  }
+  if (last < text.length) {
+    out.push(<Fragment key={`${baseKey}-t${i++}`}>{text.slice(last)}</Fragment>);
+  }
+  return out;
+}
+
+function MarkdownText({ text }: { text: string }) {
+  // Split into blocks separated by blank lines, then classify each.
+  const blocks = text.split(/\n\s*\n/);
+  return (
+    <>
+      {blocks.map((raw, bi) => {
+        const block = raw.replace(/^\n+|\n+$/g, "");
+        if (!block) return null;
+        const lines = block.split(/\r?\n/);
+
+        const bulletRe = /^\s*[-*•]\s+(.*)$/;
+        const numberedRe = /^\s*\d+\.\s+(.*)$/;
+        const headerRe = /^(#{1,3})\s+(.*)$/;
+
+        if (lines.every((l) => bulletRe.test(l))) {
+          return (
+            <ul key={bi} style={{ margin: "4px 0", paddingLeft: 18 }}>
+              {lines.map((l, li) => {
+                const text = l.match(bulletRe)?.[1] ?? "";
+                return (
+                  <li key={li} style={{ margin: "2px 0" }}>
+                    {renderInline(text, li)}
+                  </li>
+                );
+              })}
+            </ul>
+          );
+        }
+        if (lines.every((l) => numberedRe.test(l))) {
+          return (
+            <ol key={bi} style={{ margin: "4px 0", paddingLeft: 22 }}>
+              {lines.map((l, li) => {
+                const text = l.match(numberedRe)?.[1] ?? "";
+                return (
+                  <li key={li} style={{ margin: "2px 0" }}>
+                    {renderInline(text, li)}
+                  </li>
+                );
+              })}
+            </ol>
+          );
+        }
+        const h = lines[0]?.match(headerRe);
+        if (h && lines.length === 1) {
+          const lvl = h[1].length;
+          const fontSize = lvl === 1 ? 17 : lvl === 2 ? 15 : 14;
+          return (
+            <div key={bi} style={{ margin: "4px 0 2px", fontSize, fontWeight: 600 }}>
+              {renderInline(h[2], 0)}
+            </div>
+          );
+        }
+        return (
+          <p key={bi} style={{ margin: "0 0 6px" }}>
+            {lines.map((line, li) => (
+              <Fragment key={li}>
+                {li > 0 && <br />}
+                {renderInline(line, li)}
+              </Fragment>
+            ))}
+          </p>
+        );
+      })}
+    </>
+  );
+}
+
 /* ── Chat sheet ─────────────────────────────────────────────────── */
 
 type PendingShape = ReturnType<typeof usePendingVoiceActions>;
@@ -1252,11 +1309,14 @@ function ChatSheet({
                 fontFamily: "var(--f-sans)",
                 fontSize: 14,
                 lineHeight: 1.5,
-                whiteSpace: "pre-wrap",
                 wordBreak: "break-word",
               }}
             >
-              {m.content}
+              {m.role === "assistant" ? (
+                <MarkdownText text={m.content} />
+              ) : (
+                <span style={{ whiteSpace: "pre-wrap" }}>{m.content}</span>
+              )}
             </div>
           ))}
           {loading && (

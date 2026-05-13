@@ -521,10 +521,19 @@ html:not(.dark) {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* Stop the page beneath bouncing into view when the user reaches a
+     scroll end inside the sheet — fixes the jerky-scroll feel on iOS. */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding: 4px 4px;
+}
+/* Each chat bubble paints in its own layer so iOS doesn't repaint the
+   whole list every scroll frame. */
+.inkwell-sheet-body > * {
+  contain: content;
 }
 
 /* View transition */
