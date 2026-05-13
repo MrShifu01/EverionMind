@@ -8,6 +8,7 @@ import { usePendingVoiceActions } from "../hooks/usePendingVoiceActions";
 import { PendingVoiceActionsBanner } from "../components/PendingVoiceActionsBanner";
 import NotificationBell from "../components/NotificationBell";
 import InkwellBrainPill from "../components/InkwellBrainPill";
+import { startViewTransition } from "../lib/viewTransitions";
 import type { AppNotification } from "../hooks/useNotifications";
 
 interface MobileHomeProps {
@@ -506,8 +507,15 @@ export default function MobileHome({
           aria-label="Open chat"
           disabled={!brainId}
           onClick={() => {
-            setSheetUserDismissed(false);
-            setSheetExplicitOpen(true);
+            // Shared-element morph: this pill carries `view-transition-name:
+            // ask-input` (declared below), the ChatSheet's textarea carries
+            // the same name. Wrapping the open in startViewTransition lets
+            // the browser morph the pill into the textarea instead of the
+            // modal sliding up over a snapping-away pill.
+            startViewTransition(() => {
+              setSheetUserDismissed(false);
+              setSheetExplicitOpen(true);
+            });
           }}
           style={{
             // Pinned to the visual viewport. -30px shaves the gap below
@@ -516,6 +524,7 @@ export default function MobileHome({
             position: "fixed",
             left: 16,
             right: 16,
+            viewTransitionName: "ask-input",
             bottom:
               "max(0px, calc(100vh - var(--vvh, 100vh) + var(--edge-bottom-pad, 0px) - 30px))",
             zIndex: 50,
@@ -1808,6 +1817,14 @@ function ChatSheet({
             padding: "8px 8px 8px 14px",
             boxShadow: "var(--lift-1)",
             marginTop: 10,
+            // Shared-element morph target. The home Ask pill (in MobileHome
+            // around line 503) carries the same `view-transition-name:
+            // ask-input`; opening the sheet via startViewTransition morphs
+            // the pill into this form. Visually the pill grows from its
+            // home position into the chat input pill at the bottom of the
+            // sheet — feels like the input "stayed" and the chat surface
+            // grew around it, instead of a modal sliding over.
+            viewTransitionName: "ask-input",
           }}
         >
           <textarea
