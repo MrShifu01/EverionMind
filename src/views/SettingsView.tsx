@@ -194,6 +194,9 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
     };
   }
 
+  const avatarInitial = (email || "?").trim().charAt(0).toUpperCase();
+  const nameGuess = (email || "").split("@")[0] || "you";
+
   return (
     <div
       className="settings-root"
@@ -229,15 +232,130 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
         </h1>
       </header>
 
+      <div className="settings-mobile-hero">
+        <div
+          className="f-mono"
+          style={{
+            fontSize: 10,
+            letterSpacing: "0.22em",
+            color: "var(--ink-faint)",
+            textTransform: "uppercase",
+          }}
+        >
+          configure
+        </div>
+        <div
+          className="f-serif"
+          style={{
+            fontSize: 30,
+            color: "var(--ink)",
+            letterSpacing: "-0.025em",
+            lineHeight: 1.05,
+            marginTop: 4,
+          }}
+        >
+          <span style={{ fontStyle: "italic", color: "var(--ember)" }}>Settings</span>
+        </div>
+
+        <div
+          style={{
+            marginTop: 14,
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
+            padding: "12px 14px",
+            background:
+              "linear-gradient(135deg, color-mix(in oklch, var(--ember) 12%, var(--surface-high)), var(--surface-high))",
+            border: "1px solid color-mix(in oklch, var(--ember) 24%, var(--line-soft))",
+            borderRadius: 16,
+          }}
+        >
+          <div
+            aria-hidden
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: "50%",
+              background:
+                "linear-gradient(135deg, color-mix(in oklch, var(--ember) 60%, var(--ember-deep)), var(--ember-deep))",
+              border: "1px solid color-mix(in oklch, var(--ember) 70%, transparent)",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--ember-ink)",
+              fontFamily: "var(--f-serif)",
+              fontSize: 22,
+              fontWeight: 500,
+              boxShadow: "0 0 18px color-mix(in oklch, var(--ember) 32%, transparent)",
+              flexShrink: 0,
+            }}
+          >
+            {avatarInitial}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              className="f-serif"
+              style={{
+                fontSize: 17,
+                color: "var(--ink)",
+                letterSpacing: "-0.01em",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {nameGuess}
+            </div>
+            <div
+              className="f-mono"
+              style={{
+                fontSize: 9.5,
+                letterSpacing: "0.16em",
+                color: "var(--ink-faint)",
+                textTransform: "uppercase",
+                marginTop: 3,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {email || "signed in"}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              visit("account");
+              setSection("account");
+            }}
+            className="press"
+            style={{
+              padding: "6px 10px",
+              background: "var(--ember-wash)",
+              border: "1px solid color-mix(in oklch, var(--ember) 38%, transparent)",
+              borderRadius: 999,
+              color: "var(--ember)",
+              cursor: "pointer",
+              fontFamily: "var(--f-mono)",
+              fontSize: 9,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+            }}
+          >
+            edit
+          </button>
+        </div>
+      </div>
+
       <nav
         className="settings-mobile-tabs scrollbar-hide"
         aria-label="Settings sections"
         style={{
           overflowX: "auto",
-          padding: "8px 12px",
+          padding: "10px 12px",
           borderBottom: "1px solid var(--line-soft)",
-          background: "var(--surface-low)",
-          gap: 2,
+          background: "var(--bg)",
+          gap: 6,
           position: "sticky",
           top: 0,
           zIndex: "var(--z-sticky)",
@@ -255,11 +373,21 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
               aria-current={active ? "page" : undefined}
               className="press"
               style={{
-                ...navButtonStyle(active),
-                width: "auto",
-                padding: "0 12px",
-                height: 32,
-                minHeight: 32,
+                flexShrink: 0,
+                padding: "6px 12px",
+                height: 30,
+                background: active ? "var(--ember-wash)" : "var(--surface-low)",
+                border: `1px solid ${
+                  active ? "color-mix(in oklch, var(--ember) 40%, transparent)" : "var(--line-soft)"
+                }`,
+                borderRadius: 999,
+                color: active ? "var(--ember)" : "var(--ink-soft)",
+                fontFamily: "var(--f-mono)",
+                fontSize: 9.5,
+                letterSpacing: "0.16em",
+                textTransform: "uppercase",
+                fontWeight: 600,
+                cursor: "pointer",
               }}
             >
               {label}
@@ -452,14 +580,22 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
         .settings-content { overflow-y: auto; padding: 28px 36px; }
         .settings-topbar { padding: 16px 28px; min-height: 56px; }
         .settings-mobile-tabs { display: none; }
+        .settings-mobile-hero { display: none; }
         .settings-desktop-nav { display: flex; }
 
         @media (max-width: 1024px) {
           .settings-root { height: auto; min-height: 100vh; min-height: 100dvh; }
           .settings-body { overflow: visible; flex-direction: column; }
-          .settings-content { overflow: visible; padding: 18px 16px calc(96px + env(safe-area-inset-bottom)); }
-          .settings-content-inner { max-width: 100%; }
+          .settings-content { overflow: visible; padding: 14px 16px calc(96px + env(safe-area-inset-bottom)); }
+          .settings-content-inner {
+            max-width: 100%;
+            background: var(--surface);
+            border: 1px solid var(--line-soft);
+            border-radius: 16px;
+            padding: 14px 14px 18px;
+          }
           .settings-topbar { display: none; }
+          .settings-mobile-hero { display: block; padding: 10px 16px 14px; background: var(--bg); }
           .settings-mobile-tabs { display: flex; }
           .settings-desktop-nav { display: none; }
         }

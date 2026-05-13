@@ -2,10 +2,203 @@
 // Both are "outside, trying to get in" states. Stateless render
 // components; state + handlers live in useVaultOps.
 
-import type { Dispatch, RefObject, SetStateAction } from "react";
+import { useEffect, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { Button } from "../components/ui/button";
+import { VaultBrassDial } from "../components/vault/VaultBrassDial";
 
-export function VaultLockedScreen({
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches,
+  );
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return isMobile;
+}
+
+export function VaultLockedScreen(props: {
+  inputRef: RefObject<HTMLInputElement | null>;
+  passphrase: string;
+  setPassphrase: Dispatch<SetStateAction<string>>;
+  error: string;
+  setError: Dispatch<SetStateAction<string>>;
+  busy: boolean;
+  secretsCount: number;
+  onUnlock: () => void;
+  onUseRecoveryKey: () => void;
+}) {
+  const isMobile = useIsMobile();
+  if (isMobile) return <VaultLockedMobile {...props} />;
+  return <VaultLockedDesktop {...props} />;
+}
+
+function VaultLockedMobile({
+  inputRef,
+  passphrase,
+  setPassphrase,
+  error,
+  setError,
+  busy,
+  secretsCount,
+  onUnlock,
+  onUseRecoveryKey,
+}: {
+  inputRef: RefObject<HTMLInputElement | null>;
+  passphrase: string;
+  setPassphrase: Dispatch<SetStateAction<string>>;
+  error: string;
+  setError: Dispatch<SetStateAction<string>>;
+  busy: boolean;
+  secretsCount: number;
+  onUnlock: () => void;
+  onUseRecoveryKey: () => void;
+}) {
+  return (
+    <div
+      className="bronze-screen"
+      style={{
+        padding: "8px 16px 22px",
+        background: "var(--bg)",
+        minHeight: "100%",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      <div style={{ marginTop: 14, textAlign: "center" }}>
+        <div
+          className="f-mono"
+          style={{
+            fontSize: 10,
+            letterSpacing: "0.22em",
+            color: "var(--ember)",
+            textTransform: "uppercase",
+          }}
+        >
+          encrypted
+        </div>
+        <div
+          className="f-serif"
+          style={{
+            fontSize: 28,
+            color: "var(--ink)",
+            letterSpacing: "-0.025em",
+            lineHeight: 1.05,
+            marginTop: 4,
+          }}
+        >
+          the <span style={{ fontStyle: "italic", color: "var(--ember)" }}>vault</span>
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: 14,
+          display: "flex",
+          justifyContent: "center",
+        }}
+      >
+        <VaultBrassDial
+          unlocked={false}
+          onTap={() => inputRef.current?.focus()}
+          label="Focus passphrase to unlock"
+        />
+      </div>
+
+      <div
+        className="f-mono"
+        style={{
+          fontSize: 9.5,
+          letterSpacing: "0.2em",
+          color: "var(--ink-faint)",
+          textTransform: "uppercase",
+          marginTop: 12,
+          textAlign: "center",
+        }}
+      >
+        {secretsCount > 0
+          ? `${secretsCount} encrypted · enter passphrase`
+          : "enter passphrase to begin"}
+      </div>
+
+      <div
+        style={{
+          marginTop: 22,
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+        }}
+      >
+        <input
+          ref={inputRef}
+          type="password"
+          value={passphrase}
+          onChange={(e) => {
+            setPassphrase(e.target.value);
+            setError("");
+          }}
+          onKeyDown={(e) => e.key === "Enter" && onUnlock()}
+          placeholder="passphrase"
+          className="design-input f-sans"
+          style={{
+            height: 48,
+            minHeight: 48,
+            fontSize: 16,
+            textAlign: "center",
+            letterSpacing: "0.1em",
+            background: "var(--surface-low)",
+            border: "1px solid var(--line-soft)",
+            borderRadius: 14,
+            color: "var(--ink)",
+            padding: "0 14px",
+          }}
+        />
+
+        {error && (
+          <p
+            className="f-serif"
+            style={{
+              fontSize: 14,
+              fontStyle: "italic",
+              color: "var(--blood)",
+              textAlign: "center",
+              margin: 0,
+            }}
+          >
+            {error}
+          </p>
+        )}
+
+        <Button
+          onClick={onUnlock}
+          disabled={busy || !passphrase.trim()}
+          size="lg"
+          className="w-full"
+        >
+          {busy ? "unlocking…" : "Unlock"}
+        </Button>
+
+        <Button
+          variant="link"
+          size="sm"
+          onClick={onUseRecoveryKey}
+          className="italic"
+          style={{
+            color: "var(--ink-faint)",
+            fontFamily: "var(--f-serif)",
+          }}
+        >
+          forgot your passphrase? use recovery key.
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function VaultLockedDesktop({
   inputRef,
   passphrase,
   setPassphrase,

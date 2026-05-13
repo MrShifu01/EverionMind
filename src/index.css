@@ -512,29 +512,31 @@ html:not(.dark) {
   position: fixed;
   inset: 0;
   background: var(--scrim, oklch(6% 0.008 250 / 0.72));
-  z-index: 70;
+  z-index: var(--z-modal-backdrop);
   /* Promote to its own compositor layer so the opacity transition runs
      on the GPU and doesn't repaint the home view underneath. */
   will-change: opacity;
   transform: translateZ(0);
 }
 .inkwell-sheet {
-  /* Full-screen sheet. Background fills the WHOLE viewport from below
-     the status bar to the screen bottom so the home view never shows
-     through, and the content is pushed up via padding-bottom by the
-     keyboard's height (100vh - --vvh) so the chat input stays above it.
-     --vvh is kept in sync by MobileHome's visualViewport effect. */
+  /* Mobile-first Ask sheet. It reads as a deliberate modal surface rather
+     than a patched full-screen takeover: centered width, visible scrim
+     context above it, and keyboard padding driven by --vvh. */
   position: fixed;
-  left: 0;
-  right: 0;
-  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  left: 50%;
+  right: auto;
+  top: auto;
   bottom: 0;
-  background: var(--surface);
-  border-top: 1px solid var(--line-soft);
+  width: min(640px, calc(100vw - 24px));
+  height: min(82dvh, calc(var(--vvh, 100vh) - env(safe-area-inset-top, 0px) - 18px));
+  max-height: calc(var(--vvh, 100vh) - env(safe-area-inset-top, 0px) - 18px);
+  background: var(--surface-high);
+  border: 1px solid var(--line-soft);
+  border-bottom: 0;
   border-radius: 22px 22px 0 0;
-  padding: 14px 16px
+  padding: 12px clamp(14px, 4vw, 18px)
     max(0px, calc(env(safe-area-inset-bottom, 0px) + (100vh - var(--vvh, 100vh)) - 28px));
-  z-index: 71;
+  z-index: var(--z-slide-in);
   box-shadow: var(--lift-3);
   display: flex;
   flex-direction: column;
@@ -544,16 +546,18 @@ html:not(.dark) {
      the React state during the transition. backface-visibility hidden
      stops Safari subpixel-flicker during the animation. */
   will-change: transform;
-  transform: translateZ(0);
+  transform: translate3d(-50%, 0, 0);
+  transform-origin: bottom center;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
+  contain: layout paint style;
 }
 .inkwell-sheet-grip {
   width: 38px;
   height: 4px;
   border-radius: 999px;
   background: var(--line);
-  margin: 0 auto 12px;
+  margin: 0 auto 10px;
   flex-shrink: 0;
 }
 .inkwell-sheet-body {
@@ -567,7 +571,7 @@ html:not(.dark) {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 4px 4px;
+  padding: 4px 2px;
 }
 /* Each chat bubble paints in its own layer so iOS doesn't repaint the
    whole list every scroll frame. */
@@ -1257,4 +1261,124 @@ select option:hover {
     grid-template-columns: minmax(0, 1fr);
     gap: 2px !important;
   }
+}
+
+/* ── Sonner toast skin — brass + slate, per data-type accent ───────── */
+[data-sonner-toaster] {
+  --normal-bg: var(--surface-high);
+  --normal-text: var(--ink);
+  --normal-border: var(--line-soft);
+  font-family: var(--f-sans) !important;
+}
+[data-sonner-toaster][data-mobile="true"] {
+  width: calc(100% - 28px) !important;
+  max-width: 420px !important;
+}
+[data-sonner-toaster] [data-sonner-toast] {
+  background: var(--surface-high) !important;
+  border: 1px solid var(--line-soft) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--lift-2) !important;
+  color: var(--ink) !important;
+  font-family: var(--f-sans) !important;
+  padding: 10px 12px !important;
+  gap: 10px !important;
+}
+[data-sonner-toaster] [data-sonner-toast] [data-title] {
+  font-family: var(--f-serif) !important;
+  font-size: 13.5px !important;
+  font-weight: 400 !important;
+  letter-spacing: -0.005em !important;
+  color: var(--ink) !important;
+  line-height: 1.35 !important;
+}
+[data-sonner-toaster] [data-sonner-toast] [data-description] {
+  font-family: var(--f-mono) !important;
+  font-size: 9.5px !important;
+  letter-spacing: 0.14em !important;
+  text-transform: uppercase !important;
+  color: var(--ink-faint) !important;
+  margin-top: 2px !important;
+}
+[data-sonner-toaster] [data-sonner-toast] [data-icon] {
+  width: 26px !important;
+  height: 26px !important;
+  border-radius: 50% !important;
+  background: var(--surface-low) !important;
+  border: 1px solid var(--line-soft) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 !important;
+  flex-shrink: 0 !important;
+  align-self: flex-start !important;
+}
+[data-sonner-toaster] [data-sonner-toast] [data-icon] > * {
+  width: 14px !important;
+  height: 14px !important;
+}
+[data-sonner-toaster] [data-sonner-toast][data-type="success"] {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--moss) 8%, var(--surface-high)),
+    var(--surface-high)
+  ) !important;
+  border-color: color-mix(in oklch, var(--moss) 36%, var(--line-soft)) !important;
+}
+[data-sonner-toaster] [data-sonner-toast][data-type="success"] [data-icon] {
+  background: color-mix(in oklch, var(--moss) 24%, var(--surface-low)) !important;
+  border-color: color-mix(in oklch, var(--moss) 55%, transparent) !important;
+  color: var(--moss) !important;
+}
+[data-sonner-toaster] [data-sonner-toast][data-type="error"] {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--blood) 8%, var(--surface-high)),
+    var(--surface-high)
+  ) !important;
+  border-color: color-mix(in oklch, var(--blood) 36%, var(--line-soft)) !important;
+}
+[data-sonner-toaster] [data-sonner-toast][data-type="error"] [data-icon] {
+  background: color-mix(in oklch, var(--blood) 22%, var(--surface-low)) !important;
+  border-color: color-mix(in oklch, var(--blood) 50%, transparent) !important;
+  color: var(--blood) !important;
+}
+[data-sonner-toaster] [data-sonner-toast][data-type="loading"] [data-icon] {
+  color: var(--ember) !important;
+}
+[data-sonner-toaster] [data-sonner-toast][data-type="info"] [data-icon],
+[data-sonner-toaster] [data-sonner-toast][data-type="warning"] [data-icon] {
+  background: color-mix(in oklch, var(--ember) 22%, var(--surface-low)) !important;
+  border-color: color-mix(in oklch, var(--ember) 50%, transparent) !important;
+  color: var(--ember) !important;
+}
+[data-sonner-toaster] [data-sonner-toast] [data-button] {
+  background: transparent !important;
+  color: var(--ember) !important;
+  border: none !important;
+  font-family: var(--f-mono) !important;
+  font-size: 9px !important;
+  letter-spacing: 0.16em !important;
+  text-transform: uppercase !important;
+  font-weight: 700 !important;
+  padding: 4px 8px !important;
+  border-radius: 999px !important;
+  height: auto !important;
+  flex-shrink: 0 !important;
+}
+[data-sonner-toaster] [data-sonner-toast][data-type="success"] [data-button] {
+  color: var(--moss) !important;
+}
+[data-sonner-toaster] [data-sonner-toast][data-type="error"] [data-button] {
+  color: var(--blood) !important;
+}
+[data-sonner-toaster] [data-sonner-toast] [data-cancel] {
+  background: var(--surface-low) !important;
+  border: 1px solid var(--line-soft) !important;
+  color: var(--ink-soft) !important;
+}
+[data-sonner-toaster] [data-sonner-toast] [data-close-button] {
+  background: var(--surface-low) !important;
+  border: 1px solid var(--line-soft) !important;
+  color: var(--ink-faint) !important;
 }

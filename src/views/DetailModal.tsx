@@ -385,7 +385,7 @@ No explanation, no punctuation, just one word.`,
           // now ride on inline style to sidestep the v4 tokenizer; the
           // translate classes still drive centering so desktop's vertical
           // centering keeps composing correctly.
-          className="fixed left-1/2 z-50 flex max-w-[720px] -translate-x-1/2 flex-col lg:top-1/2 lg:bottom-auto lg:-translate-y-1/2"
+          className="detail-modal-content fixed left-1/2 z-50 flex max-w-[720px] -translate-x-1/2 flex-col lg:top-1/2 lg:bottom-auto lg:-translate-y-1/2"
           style={{
             background: "var(--surface-high)",
             border: "1px solid var(--line-soft)",
@@ -1397,6 +1397,7 @@ No explanation, no punctuation, just one word.`,
             <div
               role="toolbar"
               aria-label="Entry actions"
+              className="detail-modal-toolbar"
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -1554,6 +1555,7 @@ No explanation, no punctuation, just one word.`,
               isGmailEntry ||
               (canWrite && importantMemoriesEnabled && !isSecret)) && (
               <div
+                className="detail-modal-delete-strip"
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -1654,6 +1656,60 @@ No explanation, no punctuation, just one word.`,
               </div>
             )}
         </DialogPrimitive.Content>
+        <style>{`
+          @media (max-width: 1023px) {
+            .detail-modal-content {
+              background: linear-gradient(180deg, color-mix(in oklch, var(--ember) 8%, var(--surface-high)) 0%, var(--surface-high) 20%, var(--surface) 100%) !important;
+              border: 1px solid color-mix(in oklch, var(--ember) 22%, var(--line-soft)) !important;
+              border-radius: 22px 22px 0 0 !important;
+              bottom: 0 !important;
+              left: 0 !important;
+              right: 0 !important;
+              transform: none !important;
+              width: 100% !important;
+              max-width: 100% !important;
+              max-height: calc(100dvh - 60px) !important;
+              top: auto !important;
+            }
+            .detail-modal-content::before {
+              content: "";
+              position: absolute;
+              top: 8px; left: 50%;
+              transform: translateX(-50%);
+              width: 38px; height: 4px;
+              border-radius: 999px;
+              background: var(--line);
+              pointer-events: none;
+              z-index: 3;
+            }
+            .detail-modal-toolbar {
+              gap: 6px !important;
+              padding: 10px 12px !important;
+              background: var(--surface) !important;
+            }
+            .detail-modal-toolbar button {
+              flex: 1 !important;
+              min-width: 0 !important;
+              height: auto !important;
+              padding: 8px 4px !important;
+              background: var(--surface-low) !important;
+              border: 1px solid var(--line-soft) !important;
+              border-radius: 10px !important;
+            }
+            .detail-modal-toolbar button svg {
+              width: 14px !important;
+              height: 14px !important;
+            }
+            .detail-modal-delete-strip {
+              padding: 10px 12px calc(14px + env(safe-area-inset-bottom)) !important;
+              background: var(--surface) !important;
+              gap: 8px !important;
+            }
+            .detail-modal-delete-strip button {
+              flex: 1;
+            }
+          }
+        `}</style>
       </DialogPrimitive.Portal>
       {movingBrain && activeBrain && (
         <MoveToBrainModal

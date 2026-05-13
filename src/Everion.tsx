@@ -59,6 +59,7 @@ const MobileHome = lazy(() => import("./views/MobileHome"));
 import { usePullToRefresh } from "./hooks/usePullToRefresh";
 import PullToRefreshIndicator from "./components/PullToRefreshIndicator";
 import FloatingCaptureButton from "./components/FloatingCaptureButton";
+import MobileMemoryView from "./components/home/MobileMemoryView";
 import { Button } from "./components/ui/button";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/sonner";
@@ -574,284 +575,295 @@ function EverionContent({
             tabIndex={-1}
           >
             <PullToRefreshIndicator pullDistance={pullDistance} refreshing={refreshing} />
-            {(appShell.view === "memory" || appShell.view === "timeline") && (
-              <Suspense fallback={<Loader />}>
-                <MemoryHeader
-                  appShell={appShell}
-                  entries={entries}
-                  entriesLoaded={entriesLoaded}
-                  activeBrainId={activeBrain?.id}
-                  notifications={notifs.notifications}
-                  unreadCount={notifs.unreadCount}
-                  onDismissNotification={notifs.dismiss}
-                  onMarkNotificationRead={notifs.markRead}
-                  onDismissAllNotifications={notifs.dismissAll}
-                  onAcceptMerge={notifs.acceptMerge}
-                />
+            {appShell.view === "memory" && isMobile && entriesLoaded && entries.length > 0 ? (
+              <MobileMemoryView
+                entries={filtered}
+                totalCount={entries.length}
+                searchInput={appShell.searchInput}
+                onSearchChange={appShell.setSearchInput}
+                onSelect={handleEntrySelect}
+              />
+            ) : null}
+            {(appShell.view === "memory" || appShell.view === "timeline") &&
+              !(appShell.view === "memory" && isMobile && entriesLoaded && entries.length > 0) && (
+                <Suspense fallback={<Loader />}>
+                  <MemoryHeader
+                    appShell={appShell}
+                    entries={entries}
+                    entriesLoaded={entriesLoaded}
+                    activeBrainId={activeBrain?.id}
+                    notifications={notifs.notifications}
+                    unreadCount={notifs.unreadCount}
+                    onDismissNotification={notifs.dismiss}
+                    onMarkNotificationRead={notifs.markRead}
+                    onDismissAllNotifications={notifs.dismissAll}
+                    onAcceptMerge={notifs.acceptMerge}
+                  />
 
-                {appShell.view === "timeline" && ff("timeline") && (
-                  <div className="mx-auto max-w-4xl px-4 pt-4 pb-32 sm:px-6 lg:pb-8">
-                    <VirtualTimeline
-                      sorted={sortedTimeline}
-                      setSelected={handleEntrySelect}
-                      typeIcons={appShell.typeIcons}
-                    />
-                  </div>
-                )}
-                {appShell.view === "memory" && (
-                  <div className="mx-auto max-w-6xl space-y-3 px-4 pt-4 pb-32 sm:px-6 lg:pb-8">
-                    {!entriesLoaded ? (
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                        <SkeletonCard count={6} />
-                      </div>
-                    ) : entries.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center gap-5 py-24 text-center">
-                        {isAdmin && loadError && (
-                          <div
-                            className="w-full rounded-xl border px-4 py-3 text-left font-mono text-xs"
-                            style={{
-                              background: "color-mix(in oklch, var(--color-error) 8%, transparent)",
-                              borderColor:
-                                "color-mix(in oklch, var(--color-error) 25%, transparent)",
-                              color: "var(--color-error)",
-                            }}
-                          >
-                            <strong>Admin — entries load error:</strong> {loadError}
-                          </div>
-                        )}
-                        <div
-                          style={{
-                            width: 56,
-                            height: 56,
-                            borderRadius: "50%",
-                            background: "var(--ember-wash)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          <svg
-                            width="24"
-                            height="24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            viewBox="0 0 24 24"
-                            style={{ color: "var(--ember)" }}
-                          >
-                            <path d="M5 19c3-9 8-14 14-14-1 6-4 12-12 14M8 12l4 4" />
-                          </svg>
+                  {appShell.view === "timeline" && ff("timeline") && (
+                    <div className="mx-auto max-w-4xl px-4 pt-4 pb-32 sm:px-6 lg:pb-8">
+                      <VirtualTimeline
+                        sorted={sortedTimeline}
+                        setSelected={handleEntrySelect}
+                        typeIcons={appShell.typeIcons}
+                      />
+                    </div>
+                  )}
+                  {appShell.view === "memory" && (
+                    <div className="mx-auto max-w-6xl space-y-3 px-4 pt-4 pb-32 sm:px-6 lg:pb-8">
+                      {!entriesLoaded ? (
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                          <SkeletonCard count={6} />
                         </div>
-                        <h2
-                          className="f-serif"
-                          style={{
-                            fontSize: 28,
-                            fontWeight: 400,
-                            letterSpacing: "-0.01em",
-                            color: "var(--ink)",
-                            margin: 0,
-                          }}
-                        >
-                          Your brain is empty.
-                        </h2>
-                        <p
-                          className="f-serif"
-                          style={{
-                            fontSize: 16,
-                            fontStyle: "italic",
-                            color: "var(--ink-soft)",
-                            margin: 0,
-                            maxWidth: 380,
-                            lineHeight: 1.5,
-                          }}
-                        >
-                          Capture your first thing — or import what you've already written down.
-                        </p>
-                        <p
-                          className="f-sans"
-                          style={{
-                            fontSize: 13,
-                            color: "var(--ink-faint)",
-                            margin: 0,
-                            maxWidth: 420,
-                            lineHeight: 1.55,
-                          }}
-                        >
-                          A note, a link, a gate code, a policy number, a half-formed idea. Anything
-                          worth not losing.
-                        </p>
-
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: 8,
-                            flexWrap: "wrap",
-                            justifyContent: "center",
-                            marginTop: 4,
-                          }}
-                        >
-                          <Button onClick={() => appShell.openCapture()} className="press">
-                            + Capture a thought
-                          </Button>
-                          <Button
-                            variant="outline"
-                            onClick={() => appShell.setView("settings")}
-                            className="press"
-                          >
-                            Import from somewhere…
-                          </Button>
-                        </div>
-
-                        <div style={{ marginTop: 24, width: "100%", maxWidth: 480 }}>
-                          <div
-                            className="micro"
-                            style={{ marginBottom: 10, color: "var(--ink-faint)" }}
-                          >
-                            try one of these to see how it works
-                          </div>
+                      ) : entries.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center gap-5 py-24 text-center">
+                          {isAdmin && loadError && (
+                            <div
+                              className="w-full rounded-xl border px-4 py-3 text-left font-mono text-xs"
+                              style={{
+                                background:
+                                  "color-mix(in oklch, var(--color-error) 8%, transparent)",
+                                borderColor:
+                                  "color-mix(in oklch, var(--color-error) 25%, transparent)",
+                                color: "var(--color-error)",
+                              }}
+                            >
+                              <strong>Admin — entries load error:</strong> {loadError}
+                            </div>
+                          )}
                           <div
                             style={{
+                              width: 56,
+                              height: 56,
+                              borderRadius: "50%",
+                              background: "var(--ember-wash)",
                               display: "flex",
-                              flexWrap: "wrap",
-                              gap: 6,
+                              alignItems: "center",
                               justifyContent: "center",
                             }}
                           >
-                            {[
-                              "the gate code Mom always forgets",
-                              "when does my driver's licence expire",
-                              "the customer call insight from Tuesday",
-                              "where I hid the spare key",
-                            ].map((example) => (
-                              <button
-                                key={example}
-                                type="button"
-                                onClick={() => appShell.openCapture(example)}
-                                className="design-chip f-sans press"
-                                style={{ fontSize: 12, cursor: "pointer" }}
-                              >
-                                {example}
-                              </button>
-                            ))}
+                            <svg
+                              width="24"
+                              height="24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              viewBox="0 0 24 24"
+                              style={{ color: "var(--ember)" }}
+                            >
+                              <path d="M5 19c3-9 8-14 14-14-1 6-4 12-12 14M8 12l4 4" />
+                            </svg>
                           </div>
-                        </div>
-
-                        {ff("vault") && (
-                          <button
-                            type="button"
-                            onClick={() => appShell.setView("vault")}
-                            className="press"
+                          <h2
+                            className="f-serif"
                             style={{
-                              marginTop: 28,
-                              padding: "14px 18px",
-                              background: "var(--surface)",
-                              border: "1px solid var(--ember)",
-                              borderRadius: 14,
-                              cursor: "pointer",
-                              textAlign: "left",
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: 4,
-                              maxWidth: 420,
+                              fontSize: 28,
+                              fontWeight: 400,
+                              letterSpacing: "-0.01em",
+                              color: "var(--ink)",
+                              margin: 0,
                             }}
                           >
+                            Your brain is empty.
+                          </h2>
+                          <p
+                            className="f-serif"
+                            style={{
+                              fontSize: 16,
+                              fontStyle: "italic",
+                              color: "var(--ink-soft)",
+                              margin: 0,
+                              maxWidth: 380,
+                              lineHeight: 1.5,
+                            }}
+                          >
+                            Capture your first thing — or import what you've already written down.
+                          </p>
+                          <p
+                            className="f-sans"
+                            style={{
+                              fontSize: 13,
+                              color: "var(--ink-faint)",
+                              margin: 0,
+                              maxWidth: 420,
+                              lineHeight: 1.55,
+                            }}
+                          >
+                            A note, a link, a gate code, a policy number, a half-formed idea.
+                            Anything worth not losing.
+                          </p>
+
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 8,
+                              flexWrap: "wrap",
+                              justifyContent: "center",
+                              marginTop: 4,
+                            }}
+                          >
+                            <Button onClick={() => appShell.openCapture()} className="press">
+                              + Capture a thought
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => appShell.setView("settings")}
+                              className="press"
+                            >
+                              Import from somewhere…
+                            </Button>
+                          </div>
+
+                          <div style={{ marginTop: 24, width: "100%", maxWidth: 480 }}>
                             <div
-                              className="f-serif"
+                              className="micro"
+                              style={{ marginBottom: 10, color: "var(--ink-faint)" }}
+                            >
+                              try one of these to see how it works
+                            </div>
+                            <div
                               style={{
-                                fontSize: 14,
-                                fontWeight: 450,
-                                color: "var(--ink)",
                                 display: "flex",
-                                alignItems: "center",
+                                flexWrap: "wrap",
                                 gap: 6,
+                                justifyContent: "center",
                               }}
                             >
-                              <span
-                                aria-hidden="true"
-                                style={{
-                                  width: 5,
-                                  height: 5,
-                                  borderRadius: "50%",
-                                  background: "var(--ember)",
-                                }}
-                              />
-                              Set up your vault
+                              {[
+                                "the gate code Mom always forgets",
+                                "when does my driver's licence expire",
+                                "the customer call insight from Tuesday",
+                                "where I hid the spare key",
+                              ].map((example) => (
+                                <button
+                                  key={example}
+                                  type="button"
+                                  onClick={() => appShell.openCapture(example)}
+                                  className="design-chip f-sans press"
+                                  style={{ fontSize: 12, cursor: "pointer" }}
+                                >
+                                  {example}
+                                </button>
+                              ))}
                             </div>
-                            <div
-                              className="f-serif"
+                          </div>
+
+                          {ff("vault") && (
+                            <button
+                              type="button"
+                              onClick={() => appShell.setView("vault")}
+                              className="press"
                               style={{
-                                fontSize: 12,
-                                color: "var(--ink-soft)",
-                                fontStyle: "italic",
-                                lineHeight: 1.45,
+                                marginTop: 28,
+                                padding: "14px 18px",
+                                background: "var(--surface)",
+                                border: "1px solid var(--ember)",
+                                borderRadius: 14,
+                                cursor: "pointer",
+                                textAlign: "left",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 4,
+                                maxWidth: 420,
                               }}
                             >
-                              For the high-stakes stuff — IDs, bank details, "if I die" notes.
-                              End-to-end encrypted, server can't read it.
-                            </div>
-                          </button>
-                        )}
-                      </div>
-                    ) : filtered.length > 0 ? (
-                      <>
-                        <VirtualGrid
-                          filtered={filtered}
-                          setSelected={appShell.selectMode ? () => {} : handleEntrySelect}
-                          typeIcons={appShell.typeIcons}
-                          onPin={(e) =>
-                            e.type !== "secret" && handleUpdate(e.id, { pinned: !e.pinned })
-                          }
-                          onDelete={(e) => e.type !== "secret" && handleDelete(e.id)}
-                          selectMode={appShell.selectMode}
-                          selectedIds={appShell.selectedIds}
-                          onToggleSelect={appShell.toggleSelectId}
-                          viewMode={appShell.gridViewMode}
-                          conceptMap={conceptMap}
-                        />
-                      </>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
-                        <h3
-                          className="f-serif"
-                          style={{
-                            fontSize: 22,
-                            fontWeight: 450,
-                            letterSpacing: "-0.005em",
-                            color: "var(--ink)",
-                            margin: 0,
-                          }}
-                        >
-                          nothing matches.
-                        </h3>
-                        <p
-                          className="f-serif"
-                          style={{
-                            fontSize: 15,
-                            fontStyle: "italic",
-                            color: "var(--ink-faint)",
-                            margin: 0,
-                            maxWidth: 320,
-                            lineHeight: 1.5,
-                          }}
-                        >
-                          try a looser word. or a feeling.
-                        </p>
-                        <Button
-                          variant="outline"
-                          onClick={() => appShell.setShowCapture(true)}
-                          className="press"
-                          style={{ marginTop: 8 }}
-                        >
-                          Capture something new
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </Suspense>
-            )}
+                              <div
+                                className="f-serif"
+                                style={{
+                                  fontSize: 14,
+                                  fontWeight: 450,
+                                  color: "var(--ink)",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 6,
+                                }}
+                              >
+                                <span
+                                  aria-hidden="true"
+                                  style={{
+                                    width: 5,
+                                    height: 5,
+                                    borderRadius: "50%",
+                                    background: "var(--ember)",
+                                  }}
+                                />
+                                Set up your vault
+                              </div>
+                              <div
+                                className="f-serif"
+                                style={{
+                                  fontSize: 12,
+                                  color: "var(--ink-soft)",
+                                  fontStyle: "italic",
+                                  lineHeight: 1.45,
+                                }}
+                              >
+                                For the high-stakes stuff — IDs, bank details, "if I die" notes.
+                                End-to-end encrypted, server can't read it.
+                              </div>
+                            </button>
+                          )}
+                        </div>
+                      ) : filtered.length > 0 ? (
+                        <>
+                          <VirtualGrid
+                            filtered={filtered}
+                            setSelected={appShell.selectMode ? () => {} : handleEntrySelect}
+                            typeIcons={appShell.typeIcons}
+                            onPin={(e) =>
+                              e.type !== "secret" && handleUpdate(e.id, { pinned: !e.pinned })
+                            }
+                            onDelete={(e) => e.type !== "secret" && handleDelete(e.id)}
+                            selectMode={appShell.selectMode}
+                            selectedIds={appShell.selectedIds}
+                            onToggleSelect={appShell.toggleSelectId}
+                            viewMode={appShell.gridViewMode}
+                            conceptMap={conceptMap}
+                          />
+                        </>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
+                          <h3
+                            className="f-serif"
+                            style={{
+                              fontSize: 22,
+                              fontWeight: 450,
+                              letterSpacing: "-0.005em",
+                              color: "var(--ink)",
+                              margin: 0,
+                            }}
+                          >
+                            nothing matches.
+                          </h3>
+                          <p
+                            className="f-serif"
+                            style={{
+                              fontSize: 15,
+                              fontStyle: "italic",
+                              color: "var(--ink-faint)",
+                              margin: 0,
+                              maxWidth: 320,
+                              lineHeight: 1.5,
+                            }}
+                          >
+                            try a looser word. or a feeling.
+                          </p>
+                          <Button
+                            variant="outline"
+                            onClick={() => appShell.setShowCapture(true)}
+                            className="press"
+                            style={{ marginTop: 8 }}
+                          >
+                            Capture something new
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </Suspense>
+              )}
 
             {appShell.view === "chat" && ff("chat") && (
               <ErrorBoundary

@@ -5,7 +5,7 @@
 // Split out of VaultView.tsx. Accepts the full hook bag so the prop
 // surface is one object, not 25 individual fields.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getTypeConfig } from "../data/constants";
 import type { useVaultOps } from "../hooks/useVaultOps";
 import type { Entry } from "../types";
@@ -17,10 +17,37 @@ import { VaultTemplatePicker } from "../components/vault/VaultTemplatePicker";
 import { VaultTemplateForm } from "../components/vault/VaultTemplateForm";
 import { buildVaultBackup, downloadVaultBackup } from "../lib/vaultBackup";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import MobileVaultUnlocked from "../components/vault/MobileVaultUnlocked";
 
 type VaultOps = ReturnType<typeof useVaultOps>;
 
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches,
+  );
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return isMobile;
+}
+
 export function VaultUnlocked({
+  ops,
+  onSelect,
+}: {
+  ops: VaultOps;
+  onSelect: (entry: Entry) => void;
+}) {
+  const isMobile = useIsMobile();
+  if (isMobile) return <MobileVaultUnlocked ops={ops} onSelect={onSelect} />;
+  return <VaultUnlockedDesktop ops={ops} onSelect={onSelect} />;
+}
+
+function VaultUnlockedDesktop({
   ops,
   onSelect,
 }: {
