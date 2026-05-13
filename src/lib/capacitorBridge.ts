@@ -17,6 +17,7 @@ import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp, type URLOpenListenerEvent } from "@capacitor/app";
 import { Network, type ConnectionStatus } from "@capacitor/network";
 import { SplashScreen } from "@capacitor/splash-screen";
+import { Keyboard, KeyboardResize } from "@capacitor/keyboard";
 import { supabase } from "./supabase";
 
 /** True when running inside the Capacitor wrap (iOS / Android), false on web. */
@@ -117,6 +118,35 @@ export function getNativeNetworkStatus(): ConnectionStatus | null {
   return cachedNetwork;
 }
 
+// ── Keyboard ───────────────────────────────────────────────────────────────
+//
+// iOS Safari renders a form accessory bar (Previous / Next / Done) above the
+// keyboard for any focused input. There is NO web API to hide it — it's a
+// system UI element. In the native shell the Capacitor Keyboard plugin can
+// disable it (`setAccessoryBarVisible({ isVisible: false })`), so do that.
+//
+// `setResizeMode({ mode: Native })` makes the entire WKWebView resize when
+// the keyboard appears, so `position: fixed; bottom: 0` naturally lands above
+// the keyboard without any visualViewport math.
+//
+// For PWA Safari (web, not native), the accessory bar is unavoidable.
+// useKeyboardInset() in main.tsx adds an empirical 44px offset to compensate.
+
+async function registerKeyboard(): Promise<void> {
+  try {
+    await Keyboard.setResizeMode({ mode: KeyboardResize.Native });
+  } catch {
+    // Plugin not yet bridged or platform doesn't support — non-fatal.
+  }
+  if (nativePlatform() === "ios") {
+    try {
+      await Keyboard.setAccessoryBarVisible({ isVisible: false });
+    } catch {
+      // ignore — accessory bar fallback will still work via PWA logic if web
+    }
+  }
+}
+
 // ── Public init ────────────────────────────────────────────────────────────
 
 interface BridgeOptions {
@@ -129,6 +159,7 @@ export async function initCapacitorBridge(options: BridgeOptions = {}): Promise<
   if (initialised || !isNative()) return;
   initialised = true;
   await registerDeepLinkHandler();
+  await registerKeyboard();
   if (options.onNetworkChange) {
     await registerNetworkHandler(options.onNetworkChange);
   }

@@ -230,22 +230,66 @@ function EverionContent({
     };
   }, [saveError, setSaveError]);
 
-  // Keep --vvh in sync with the visual viewport for the entire signed-in
-  // shell so any modal that needs to lift above the soft keyboard
-  // (CaptureSheet, ChatSheet) can read a live value regardless of
-  // which view is mounted.
+  // Keep --vvh and --kb-inset in sync with the visual viewport.
+  //
+  // --vvh: visualViewport.height. Used by sheets that need to size to the
+  // currently-visible area (shrinks when soft keyboard opens on Android
+  // and modern iOS).
+  //
+  // --kb-inset: a precise inset to push fixed-bottom elements above the
+  // keyboard. Equals `window.innerHeight - vv.height - vv.offsetTop` — the
+  // obstructed area at the bottom of the layout viewport.
+  //   - iOS 17+ Safari with `interactive-widget=resizes-content` (we have
+  //     it set): the layout viewport shrinks with the keyboard, so this
+  //     comes out at ~0. BUT the iOS form accessory bar (Previous / Next /
+  //     Done) still sits over the bottom of the visible area and isn't
+  //     accounted for. We add a fixed 44px on iOS Safari PWA only.
+  //   - Older iOS Safari (no resizes-content): layout viewport stays at
+  //     screen size, so the math gives keyboard height directly.
+  //   - Android Chrome: layout viewport doesn't shrink; the math gives
+  //     keyboard height, which keeps content above the IME suggestion bar.
+  //   - Capacitor native: the @capacitor/keyboard plugin set the WKWebView
+  //     to Native resize mode and hid the accessory bar — kb-inset ends up
+  //     at 0 because everything is already accounted for at the WebView
+  //     level. The PWA branch below is gated by !isNative().
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
-    const setVvh = () => {
+    const ua = navigator.userAgent;
+    // Treat all iOS browsers (Safari, Chrome, Firefox on iOS) as Safari for
+    // accessory-bar purposes — they all run on WKWebView and inherit the
+    // same form accessory bar from the OS.
+    const isIosWebView =
+      /iPhone|iPad|iPod/.test(ua) ||
+      // iPadOS 13+ reports as Mac with touch support
+      (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    const update = () => {
       document.documentElement.style.setProperty("--vvh", `${vv.height}px`);
+      // Obstructed area at the bottom of the layout viewport.
+      let inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      // iOS Safari PWA accessory bar offset. Detect "keyboard open" by a
+      // large reduction in vv.height relative to the device screen. We
+      // can't detect the accessory bar directly — its presence is implied
+      // by an open keyboard on an iOS WebView. 44px is the iPhone default;
+      // iPads use ~55px but 44 still keeps content visible (just slightly
+      // tighter padding above it). Skip when running inside Capacitor —
+      // the plugin already hid the bar there.
+      const isNative = !!(
+        window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }
+      ).Capacitor?.isNativePlatform?.();
+      if (isIosWebView && !isNative) {
+        const screenH = window.screen.height || vv.height;
+        const keyboardOpen = vv.height < screenH * 0.85;
+        if (keyboardOpen) inset += 44;
+      }
+      document.documentElement.style.setProperty("--kb-inset", `${inset}px`);
     };
-    setVvh();
-    vv.addEventListener("resize", setVvh);
-    vv.addEventListener("scroll", setVvh);
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
     return () => {
-      vv.removeEventListener("resize", setVvh);
-      vv.removeEventListener("scroll", setVvh);
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
     };
   }, []);
 

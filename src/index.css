@@ -521,12 +521,14 @@ html:not(.dark) {
 .inkwell-sheet {
   /* Mobile-first Ask sheet. It reads as a deliberate modal surface rather
      than a patched full-screen takeover: centered width, visible scrim
-     context above it, and keyboard padding driven by --vvh. */
+     context above it, and keyboard-aware bottom anchoring via --kb-inset.
+     --kb-inset is set in Everion.tsx from visualViewport — accounts for
+     iOS Safari accessory bar and Android IME suggestion bars. */
   position: fixed;
   left: 50%;
   right: auto;
   top: auto;
-  bottom: 0;
+  bottom: var(--kb-inset, 0px);
   width: min(640px, calc(100vw - 24px));
   height: min(82dvh, calc(var(--vvh, 100vh) - env(safe-area-inset-top, 0px) - 18px));
   max-height: calc(var(--vvh, 100vh) - env(safe-area-inset-top, 0px) - 18px);
@@ -534,8 +536,7 @@ html:not(.dark) {
   border: 1px solid var(--line-soft);
   border-bottom: 0;
   border-radius: 22px 22px 0 0;
-  padding: 12px clamp(14px, 4vw, 18px)
-    max(0px, calc(env(safe-area-inset-bottom, 0px) + (100vh - var(--vvh, 100vh)) - 28px));
+  padding: 12px clamp(14px, 4vw, 18px) max(env(safe-area-inset-bottom, 0px), 8px);
   z-index: var(--z-slide-in);
   box-shadow: var(--lift-3);
   display: flex;
