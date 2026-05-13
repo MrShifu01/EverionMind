@@ -350,6 +350,27 @@ function EverionContent({
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
   }, []);
+
+  // --vvh lives at the shell level so every view sees a fresh value.
+  // Previously this lived in MobileHome and got stale on navigate-away:
+  // the listener was removed on unmount but --vvh kept its last value,
+  // so the .app-shell-fixed (height: var(--vvh)) ended up shorter than
+  // the visible viewport on iOS PWA → content shifted up under the
+  // status bar and left a gap at the bottom (bug 2026-05-13).
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const setVvh = () => {
+      document.documentElement.style.setProperty("--vvh", `${vv.height}px`);
+    };
+    setVvh();
+    vv.addEventListener("resize", setVvh);
+    vv.addEventListener("scroll", setVvh);
+    return () => {
+      vv.removeEventListener("resize", setVvh);
+      vv.removeEventListener("scroll", setVvh);
+    };
+  }, []);
   const { isAdmin, adminFlags } = useAdminDevMode();
   const ff = (key: FeatureFlagKey) => isFeatureEnabled(key, adminFlags);
   const visibleNavViews = NAV_VIEWS.filter(
@@ -364,6 +385,7 @@ function EverionContent({
     (next: string | ((prev: string) => string)) => {
       startViewTransition(() => appShell.setView(next));
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only setView is read; appShell as a whole isn't a dep.
     [appShell.setView],
   );
 

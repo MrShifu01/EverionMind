@@ -64,6 +64,7 @@ export default function MemoryViewAtelier({
       );
     }
 
+    // eslint-disable-next-line react-hooks/purity -- relative-time filter; clock skew on re-render is harmless here.
     const now = Date.now();
     const dayMs = 24 * 60 * 60 * 1000;
     if (filter === "today") {

@@ -17,6 +17,8 @@ import { toast } from "sonner";
 import { useChat } from "../hooks/useChat";
 import { useEntries } from "../context/EntriesContext";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
+import { useGeminiLiveSession } from "../hooks/useGeminiLiveSession";
+import { useGeminiLive, useGeminiVoice } from "../hooks/useVoiceMode";
 import {
   useHasAIAccess,
   readSuggestionsCache,
@@ -26,6 +28,8 @@ import {
 } from "./chatUtils";
 
 const ACCENT = "var(--ember)";
+const BTN_ACCENT = "var(--ember)";
+const BTN_DEEP = "var(--ember-deep)";
 
 interface ChatViewMobileProps {
   brainId: string | undefined;
@@ -196,7 +200,7 @@ export default function ChatViewMobile({ brainId, brainName, onNavigate }: ChatV
           gap: 18,
         }}
       >
-        {messages.length === 0 && entriesLoaded && entries.length > 0 && <Hero />}
+        {messages.length === 0 && entriesLoaded && entries.length > 0 && <Hero brainId={brainId} />}
         {messages.map((m, i) => (
           <Bubble key={i} role={m.role} text={m.content} />
         ))}
@@ -223,19 +227,19 @@ export default function ChatViewMobile({ brainId, brainName, onNavigate }: ChatV
 
 // ─── Empty-state hero ────────────────────────────────────────────────
 
-function Hero() {
+function Hero({ brainId }: { brainId: string | undefined }) {
   return (
     <div
       style={{
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        gap: 12,
+        gap: 14,
         padding: "32px 8px",
         textAlign: "center",
       }}
     >
-      <BrainAvatar size={48} />
+      <VoiceOrb brainId={brainId} size={120} />
       <div>
         <div
           className="f-mono"
@@ -261,6 +265,144 @@ function Hero() {
           ask anything you've kept.
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Voice orb — tap to start/stop Gemini Live ───────────────────────
+// Lifted from MobileHome's Inkwell; same glyph + animations, simplified
+// to tap-to-start (no hold-to-record), no caption, fixed "?" glyph.
+
+function VoiceOrb({ brainId, size }: { brainId: string | undefined; size: number }) {
+  const liveSession = useGeminiLiveSession();
+  const [liveOn] = useGeminiLive();
+  const [voice] = useGeminiVoice();
+  const [pressed, setPressed] = useState(false);
+
+  const status = liveSession.status;
+  const isConnecting = status === "connecting";
+  const isListening = status === "listening";
+  const isSpeaking = status === "speaking";
+  const isActive = isConnecting || isListening || isSpeaking;
+  const showStop = isActive;
+
+  const onTap = useCallback(() => {
+    if (!liveOn) {
+      toast("Turn on Gemini Live in Settings → Voice to enable voice chat.", {
+        duration: 3500,
+      });
+      return;
+    }
+    if (!brainId) return;
+    if (isActive) {
+      liveSession.stop();
+      return;
+    }
+    void liveSession.start({ voice, brainId });
+  }, [liveOn, brainId, isActive, liveSession, voice]);
+
+  return (
+    <div style={{ position: "relative", width: size, height: size }}>
+      {/* Outer ring */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          borderRadius: "50%",
+          background: `radial-gradient(circle at 50% 30%,
+            color-mix(in oklch, ${ACCENT} 28%, var(--surface)) 0%,
+            var(--surface) 48%,
+            var(--surface-low) 100%)`,
+          border: `1px solid color-mix(in oklch, ${ACCENT} 42%, transparent)`,
+          boxShadow: "var(--lift-2), inset 0 -6px 12px var(--scrim)",
+        }}
+      />
+      {/* Inner well */}
+      <div
+        style={{
+          position: "absolute",
+          inset: Math.round(size * 0.08),
+          borderRadius: "50%",
+          border: `1.5px solid color-mix(in oklch, ${ACCENT} 55%, transparent)`,
+          background: "var(--surface-dim)",
+          boxShadow: "inset 0 3px 10px oklch(4% 0.01 250 / 0.8)",
+        }}
+      />
+      {/* Pressable button */}
+      <button
+        type="button"
+        onPointerDown={(e) => {
+          (e.target as Element).setPointerCapture?.(e.pointerId);
+          setPressed(true);
+        }}
+        onPointerUp={() => {
+          setPressed(false);
+          onTap();
+        }}
+        onPointerCancel={() => setPressed(false)}
+        onContextMenu={(e) => e.preventDefault()}
+        aria-label={showStop ? "Stop voice chat" : "Start voice chat"}
+        disabled={!brainId}
+        style={{
+          position: "absolute",
+          inset: Math.round(size * 0.18),
+          borderRadius: "50%",
+          background: `radial-gradient(circle at 50% 30%,
+            color-mix(in oklch, ${BTN_ACCENT} 55%, ${BTN_DEEP}) 0%,
+            color-mix(in oklch, ${BTN_ACCENT} 30%, ${BTN_DEEP}) 50%,
+            ${BTN_DEEP} 100%)`,
+          border: `1px solid color-mix(in oklch, ${BTN_ACCENT} 70%, transparent)`,
+          cursor: brainId ? "pointer" : "default",
+          padding: 0,
+          transform: pressed ? "scale(0.96)" : "scale(1)",
+          transition: "transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+          boxShadow: `
+            inset 0 1px 0 color-mix(in oklch, ${BTN_ACCENT} 85%, white),
+            inset 0 -4px 10px color-mix(in oklch, ${BTN_DEEP} 80%, transparent),
+            0 0 22px color-mix(in oklch, ${BTN_ACCENT} ${isActive ? 48 : 28}%, transparent),
+            var(--lift-2-fixed)`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          touchAction: "none",
+          WebkitTapHighlightColor: "transparent",
+          WebkitTouchCallout: "none",
+          userSelect: "none",
+          WebkitUserSelect: "none",
+          animation: isSpeaking
+            ? "orb-speak-glow 0.9s ease-in-out infinite"
+            : isListening
+              ? "inkwell-breathe 1.4s ease-in-out infinite"
+              : isConnecting
+                ? "inkwell-breathe 1.0s ease-in-out infinite"
+                : "none",
+        }}
+      >
+        {showStop ? (
+          <svg
+            width={Math.round(size * 0.18)}
+            height={Math.round(size * 0.18)}
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            style={{ color: "var(--ember-ink)" }}
+          >
+            <rect x="6" y="6" width="12" height="12" rx="2" />
+          </svg>
+        ) : (
+          <span
+            aria-hidden
+            style={{
+              fontFamily: "var(--f-serif)",
+              fontSize: Math.round(size * 0.32),
+              fontWeight: 300,
+              color: "var(--ember-ink)",
+              lineHeight: 1,
+            }}
+          >
+            ?
+          </span>
+        )}
+      </button>
     </div>
   );
 }

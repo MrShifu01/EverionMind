@@ -28,6 +28,7 @@ export default defineConfig([
     "Mobile-design/**",
     "mobiledesign2/**",
     "mobilemodals/**",
+    "DesktopDesignInkwell/**",
   ]),
   {
     files: ["**/*.{ts,tsx}"],

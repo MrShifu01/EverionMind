@@ -279,20 +279,9 @@ export default function MobileHome({
     return () => window.clearInterval(id);
   }, [liveSession.status, liveSession.userTranscript]);
 
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const setVvh = () => {
-      document.documentElement.style.setProperty("--vvh", `${vv.height}px`);
-    };
-    setVvh();
-    vv.addEventListener("resize", setVvh);
-    vv.addEventListener("scroll", setVvh);
-    return () => {
-      vv.removeEventListener("resize", setVvh);
-      vv.removeEventListener("scroll", setVvh);
-    };
-  }, []);
+  // --vvh lives in Everion (shell-level effect) so it stays in sync on every
+  // view including chat. Previously this effect lived here and unmounting
+  // MobileHome left --vvh stale, breaking the shell height on other views.
 
   // Lock main-content's overflow while MobileHome is mounted. The shell
   // marks it overflow-y:auto for scroll-heavy views (memory/timeline) — on
