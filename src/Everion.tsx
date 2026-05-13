@@ -86,6 +86,7 @@ import { supabase } from "./lib/supabase";
 import { trackNavViewActive } from "./lib/events";
 import { AppLockGate } from "./components/AppLockGate";
 import HomeViewHearth from "./views/HomeViewHearth";
+import MemoryViewAtelier from "./views/MemoryViewAtelier";
 
 // Retry dynamic imports once on failure (stale chunk hash after deploy)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -652,8 +653,17 @@ function EverionContent({
                 onSelect={handleEntrySelect}
               />
             ) : null}
+            {appShell.view === "memory" && !isMobile && entriesLoaded && entries.length > 0 ? (
+              <MemoryViewAtelier
+                entries={entries}
+                onSelect={handleEntrySelect}
+                searchInput={appShell.searchInput}
+                onSearchChange={appShell.setSearchInput}
+              />
+            ) : null}
             {(appShell.view === "memory" || appShell.view === "timeline") &&
-              !(appShell.view === "memory" && isMobile && entriesLoaded && entries.length > 0) && (
+              !(appShell.view === "memory" && isMobile && entriesLoaded && entries.length > 0) &&
+              !(appShell.view === "memory" && !isMobile && entriesLoaded && entries.length > 0) && (
                 <Suspense fallback={<Loader />}>
                   <MemoryHeader
                     appShell={appShell}
