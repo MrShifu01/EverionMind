@@ -1588,12 +1588,12 @@ function ChatSheet({
   if (!rendered) return null;
   const canSend = input.trim().length > 0 && !loading && brainReady;
   // Compose transform: drag delta wins; otherwise slide-up/down via visible.
-  // X uses --inkwell-sheet-x (defaults to -50% for desktop centering;
-  // mobile CSS overrides to 0 so left:12/right:12 anchors the sheet
-  // edge-to-edge without the -50% translate fighting it).
+  // -50% on X centers the sheet against `left: 50%` — works because the
+  // containing block is the viewport (fixed earlier by making the
+  // .animate-view-enter animation not retain its transform).
   const sheetY = dragY > 0 ? `${dragY}px` : visible ? "0px" : "110vh";
   const sheetScale = dragY > 0 || visible ? 1 : 0.985;
-  const transform = `translate3d(var(--inkwell-sheet-x, -50%), ${sheetY}, 0) scale(${sheetScale})`;
+  const transform = `translate3d(-50%, ${sheetY}, 0) scale(${sheetScale})`;
   const transition = dragging ? "none" : "transform 320ms var(--ease-emphasized)";
   return (
     <>

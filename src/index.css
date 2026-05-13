@@ -579,9 +579,16 @@ html:not(.dark) {
   contain: content;
 }
 
-/* View transition */
+/* View transition.
+   `backwards` (not `both`) on purpose: `both` retains the animation's end
+   transform (`translateY(0)`) on #main-content forever, and ANY non-none
+   transform on an element makes it the containing block for position:fixed
+   descendants. That broke the Ask/Capture sheets — `bottom: 0` was resolving
+   to the bottom of #main-content, not the viewport, and the sheets parked
+   above the viewport bottom (visible grey gap on Android). `backwards` keeps
+   the entrance animation but clears the transform once it ends. */
 .animate-view-enter {
-  animation: slide-up 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: slide-up 320ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
 /* ── Neural ambient background — gold top-left + sage bottom-right ── */
