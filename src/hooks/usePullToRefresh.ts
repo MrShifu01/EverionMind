@@ -119,7 +119,7 @@ export function usePullToRefresh(
       el.removeEventListener("touchend", onTouchEnd);
       el.removeEventListener("touchcancel", onTouchEnd);
     };
-  }, [el, threshold, maxDistance, enabled]);
+  }, [el, threshold, maxDistance, enabled, activationDistance]);
 
   return { pullDistance, refreshing };
 }
