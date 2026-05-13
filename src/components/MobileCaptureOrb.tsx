@@ -198,12 +198,12 @@ export default function MobileCaptureOrb({
           data-pressed={pressed ? "true" : "false"}
           style={{
             position: "absolute",
-            // Nudge the brass button up by 1px (top -1, bottom +1).
-            // Without this it reads as sitting slightly low inside the
-            // ring on the mini orb, making the whole stack look uneven.
-            top: buttonInset - 1,
+            // Nudge the button up by 2px (top -2, bottom +2) — without
+            // this it reads as sitting slightly low inside the ring on
+            // the mini orb, making the whole stack look uneven.
+            top: buttonInset - 2,
             right: buttonInset,
-            bottom: buttonInset + 1,
+            bottom: buttonInset + 2,
             left: buttonInset,
             borderRadius: "50%",
             background: `radial-gradient(circle at 50% 30%,
