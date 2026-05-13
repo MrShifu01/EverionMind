@@ -208,9 +208,17 @@ async function dedupeByImportHash(
   for (let i = 0; i < hashes.length; i += QUERY_CHUNK) {
     const slice = hashes.slice(i, i + QUERY_CHUNK);
     const inList = slice.map(encodeURIComponent).join(",");
+    // Filter out soft-deleted rows (`deleted_at IS NOT NULL`). Without
+    // this, a user who imported a Keep zip, deleted everything via
+    // memory → select all → delete, and re-imported the same zip would
+    // see "0 imported, N duplicates skipped" — because soft-delete just
+    // stamps `deleted_at` and leaves the row (with its `import_hash`)
+    // in place. Re-import must be a clean slate when the user has
+    // logically removed the prior entries.
     const url =
       `${SB_URL}/rest/v1/entries` +
       `?brain_id=eq.${encodeURIComponent(brainId)}` +
+      `&deleted_at=is.null` +
       `&metadata->>import_hash=in.(${inList})` +
       `&select=metadata->>import_hash`;
     const r = await fetch(url, { headers: sbHeadersNoContent() });
