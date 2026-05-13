@@ -44,6 +44,25 @@ What's NOT shipped: real-time push. The previous `postgres_changes` subscription
 
 ---
 
+## View Transitions API — additional polish (deferred from 2026-05-13)
+
+Initial roll-out shipped: tab transitions (`27c05fe`), entry card → DetailModal morph (`2eec554`), Ask pill → ChatSheet input morph (`098fa60`), Capture FAB → CaptureSheet morph (`3d10458`). The helper at `src/lib/viewTransitions.ts` (`6c33b9f`) is feature-detected + reduced-motion-aware + React.flushSync-wrapped, so all call sites fall back to instant on unsupported browsers.
+
+The polish below uses the same helper and the same shared-element pattern but needs more careful per-component work. Each item is small in isolation but adds up to a "Notion-grade" tactile feel across the whole app.
+
+- [ ] **DetailModal close → reverse morph back to source card.** Today the modal closes via the default root-view fade. Track the card element that opened it (a ref stashed on `setSelected`), re-apply `view-transition-name: entry-${id}` to that card on close, then wrap setSelected(null) in startViewTransition. Reverse morph completes the round-trip and makes navigation feel symmetric.
+- [ ] **CaptureSheet close → reverse morph back to FAB.** Same pattern as DetailModal close.
+- [ ] **ChatSheet close → reverse morph back to Ask pill.** Same pattern.
+- [ ] **Replace ChatSheet modal with chat route.** The ChatView route already exists (`src/views/ChatView.tsx`, gated by `VITE_FEATURE_CHAT`). Make MobileHome's Ask pill navigate to `view: "chat"` instead of opening the modal sheet. Apply `view-transition-name: ask-input` to both pill and ChatView's composer. Eliminates a whole class of position:fixed / keyboard-inset bugs (the ChatSheet bugs we chased in 9c5f325, ae5ba62, 6e9b2e5). Requires the ChatView's mobile styling to match the current sheet UX — header, dismiss gesture, brain pill, voice toggle. Phase as: enable ChatView on mobile behind admin flag, port the missing UX pieces, swap default, retire ChatSheet.
+- [ ] **BrainSwitcher pill → BrainSwitcher sheet.** Tap the brain pill in the header → it expands into the brain-list sheet. Matching name on the active-brain row inside the sheet.
+- [ ] **Voice orb → live voice UI.** Inkwell orb scales down + live transcript panel slides in (today via inline transforms). Re-cast as a View Transitions morph with `view-transition-name: voice-orb` on the orb and on the small voice indicator in the live-voice state. Removes the manual scale transition + makes the layout shift feel intentional.
+- [ ] **Memory list reorder / filter / sort animations.** Apply `view-transition-name: entry-${id}` to each card visible in the grid. When filters change or sort flips, the API automatically morphs cards to their new positions. Watch perf budget — limit to viewport-visible cards via IntersectionObserver to keep pseudo-element count bounded on long lists.
+- [ ] **Onboarding step transitions.** Multi-step modals (vault setup, brain create, etc.) share a logo / header that stays anchored across steps via a shared `view-transition-name`. Replaces the per-step fade cross-fade with a "single surface, different content" feel.
+
+**Trigger:** any moment of "this could feel more native." None of these are launch-blocking. They're systematic polish — best worked in batches across a single day's pass rather than scattered through other PRs.
+
+---
+
 ## Month 1-2 features (from ROADMAP § Month 1-2)
 
 Day-7 retention loop. Build only after the launch checklist closes and the first cohort is in.
