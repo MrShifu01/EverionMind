@@ -94,26 +94,31 @@ export function SettingsSectionLabel({
         borderTop: topMargin ? "1px solid var(--line-soft)" : "none",
       }}
     >
+      {/* Mono ALL-CAPS micro-caption matches the Inkwell idiom used in
+          Hearth, Atelier, and Colloquy section headers. Wider tracking
+          + JetBrains Mono reads as a chapter divider, not a control
+          label. */}
       <div
-        className="f-sans"
+        className="f-mono"
         style={{
-          fontSize: 10.5,
+          fontSize: 9.5,
           fontWeight: 600,
-          letterSpacing: "0.08em",
+          letterSpacing: "0.22em",
           textTransform: "uppercase",
           color: danger ? "var(--blood)" : "var(--ink-faint)",
-          marginBottom: hint ? 4 : 0,
+          marginBottom: hint ? 6 : 0,
         }}
       >
         {label}
       </div>
       {hint && (
         <div
-          className="f-sans"
+          className="f-serif"
           style={{
-            fontSize: 13,
+            fontSize: 13.5,
             color: "var(--ink-soft)",
-            lineHeight: 1.5,
+            lineHeight: 1.55,
+            fontStyle: "italic",
           }}
         >
           {hint}

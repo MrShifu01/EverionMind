@@ -175,24 +175,43 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
 
   function navButtonStyle(active: boolean): React.CSSProperties {
     return {
+      position: "relative",
       flexShrink: 0,
       width: "100%",
       textAlign: "left",
-      padding: "0 12px",
-      minHeight: 32,
-      height: 32,
-      borderRadius: 6,
+      padding: "0 14px",
+      minHeight: 36,
+      height: 36,
+      borderRadius: 8,
       fontFamily: "var(--f-sans)",
-      fontSize: 13,
-      fontWeight: 500,
+      fontSize: 13.5,
+      fontWeight: active ? 600 : 500,
       color: active ? "var(--ink)" : "var(--ink-soft)",
-      background: active ? "var(--surface-high)" : "transparent",
+      background: active ? "var(--surface)" : "transparent",
       border: "none",
       cursor: "pointer",
       transition: "background 140ms, color 140ms",
       whiteSpace: "nowrap",
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 10,
     };
   }
+
+  // Sub-label per section — design uses mono ALL-CAPS micro caption beside
+  // each nav row. Stays terse; missing entries fall back to the label.
+  const NAV_SUBLABELS: Record<SectionId, string> = {
+    persona: "you",
+    ai: "providers",
+    brain: "archive",
+    notifications: "nudges",
+    account: "identity",
+    billing: "plan",
+    privacy: "vault",
+    developer: "api",
+    admin: "ops",
+  };
 
   const avatarInitial = (email || "?").trim().charAt(0).toUpperCase();
   const nameGuess = (email || "").split("@")[0] || "you";
@@ -207,6 +226,9 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
         flexDirection: "column",
       }}
     >
+      {/* Desktop-only top breadcrumb — mirrors the Hearth/Atelier topbar
+          treatment (mono breadcrumb · serif italic title). Hidden on
+          mobile, where the hero card below carries the title. */}
       <header
         className="settings-topbar"
         style={{
@@ -214,22 +236,34 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
           alignItems: "center",
           justifyContent: "space-between",
           borderBottom: "1px solid var(--line-soft)",
-          background: "var(--bg)",
-          gap: 20,
+          background: "color-mix(in oklch, var(--bg) 88%, transparent)",
+          gap: 16,
         }}
       >
-        <h1
-          className="f-sans"
-          style={{
-            fontSize: 18,
-            fontWeight: 600,
-            letterSpacing: "-0.01em",
-            margin: 0,
-            color: "var(--ink)",
-          }}
-        >
-          Settings
-        </h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 180 }}>
+          <span
+            className="f-mono"
+            style={{
+              fontSize: 9.5,
+              letterSpacing: "0.2em",
+              color: "var(--ink-faint)",
+              textTransform: "uppercase",
+            }}
+          >
+            configure
+          </span>
+          <span style={{ color: "var(--ink-ghost)" }}>·</span>
+          <span
+            className="f-serif"
+            style={{
+              fontSize: 14,
+              color: "var(--ink)",
+              fontStyle: "italic",
+            }}
+          >
+            Settings
+          </span>
+        </div>
       </header>
 
       <div className="settings-mobile-hero">
@@ -400,18 +434,30 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
         <nav
           className="settings-desktop-nav scrollbar-hide"
           style={{
-            width: 200,
+            width: 220,
             flexShrink: 0,
             height: "100%",
-            padding: "20px 12px",
+            padding: "22px 12px 14px",
             borderRight: "1px solid var(--line-soft)",
             background: "var(--surface-low)",
             overflowY: "auto",
             flexDirection: "column",
-            gap: 2,
+            gap: 4,
           }}
           aria-label="Settings sections"
         >
+          <div
+            className="f-mono"
+            style={{
+              fontSize: 8.5,
+              letterSpacing: "0.2em",
+              color: "var(--ink-faint)",
+              textTransform: "uppercase",
+              padding: "0 14px 8px",
+            }}
+          >
+            sections
+          </div>
           {SECTIONS.map(({ id, label }) => {
             const active = section === id;
             return (
@@ -425,7 +471,35 @@ export default function SettingsView({ onNavigate }: SettingsViewProps = {}) {
                 className="press"
                 style={navButtonStyle(active)}
               >
-                {label}
+                {/* Ember spine on active — matches the Hearth/Atelier
+                    sidebar pattern (DNavItem in desktop-shared.jsx). */}
+                {active && (
+                  <span
+                    aria-hidden
+                    style={{
+                      position: "absolute",
+                      left: -12,
+                      top: 8,
+                      bottom: 8,
+                      width: 2,
+                      background: "var(--ember)",
+                      boxShadow: "0 0 8px color-mix(in oklch, var(--ember) 60%, transparent)",
+                      borderRadius: 2,
+                    }}
+                  />
+                )}
+                <span style={{ flex: 1 }}>{label}</span>
+                <span
+                  className="f-mono"
+                  style={{
+                    fontSize: 9,
+                    letterSpacing: "0.14em",
+                    color: active ? "var(--ember)" : "var(--ink-ghost)",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {NAV_SUBLABELS[id]}
+                </span>
               </button>
             );
           })}
