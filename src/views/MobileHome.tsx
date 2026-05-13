@@ -1432,10 +1432,6 @@ function ChatSheet({
       const raf1 = requestAnimationFrame(() => {
         raf2 = requestAnimationFrame(() => {
           setVisible(true);
-          // Focus the textarea as soon as it's mounted. iOS may not
-          // pop the keyboard programmatically, but desktop + Android
-          // get instant typing.
-          sheetInputRef.current?.focus();
         });
       });
       return () => {

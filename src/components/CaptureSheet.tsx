@@ -123,16 +123,9 @@ export default function CaptureSheet({
       requestAnimationFrame(() => {
         setVisible(true);
       });
-      // Focus the textarea after the sheet has just enough time to be
-      // mounted + the slide-up has started. Was 420ms (waited for the
-      // full 360ms animation + buffer to avoid iOS touch-swallow during
-      // overlapping sheet+keyboard slide-up); user feedback wants to
-      // start typing immediately, so we drop to 60ms — short enough to
-      // feel instant, late enough that the sheet's first paint has
-      // committed so iOS lines the keyboard up cleanly.
-      const focusTimer = window.setTimeout(() => {
-        textareaRef.current?.focus();
-      }, 60);
+      // No auto-focus on open. iOS pops the keyboard on focus and the
+      // overlapping slide-up makes the whole UI jump; user prefers
+      // tapping the textarea themselves.
       // Lock background scroll for the duration of the sheet so flicks
       // outside the visible chrome don't bleed into the home view
       // beneath. We deliberately avoided this earlier because iOS
@@ -146,7 +139,6 @@ export default function CaptureSheet({
       html.style.overflow = "hidden";
       body.style.overflow = "hidden";
       return () => {
-        window.clearTimeout(focusTimer);
         html.style.overflow = prevHtmlOverflow;
         body.style.overflow = prevBodyOverflow;
       };
