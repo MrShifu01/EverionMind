@@ -86,6 +86,11 @@ export default function ChatComposer({
           display: "flex",
           alignItems: "flex-end",
           gap: 10,
+          // Shared-element morph target from the MobileHome Ask pill
+          // (which carries the same `view-transition-name: ask-input`).
+          // The pill grows from its home position into this composer
+          // when the user navigates to the chat view.
+          viewTransitionName: "ask-input",
         }}
       >
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>

@@ -1,7 +1,15 @@
 const ADMIN_FLAGS_KEY = "openbrain_admin_flags";
 
 export const FEATURE_FLAGS = {
-  chat: { label: "Chat", icon: "💬", prodEnabled: import.meta.env.VITE_FEATURE_CHAT === "true" },
+  // Chat is now the primary destination for the home Ask pill (the pill
+  // navigates here instead of opening the old ChatSheet modal), so it
+  // needs to be enabled by default. The env-var override stays available
+  // for explicit local disable in development if needed.
+  chat: {
+    label: "Chat",
+    icon: "💬",
+    prodEnabled: import.meta.env.VITE_FEATURE_CHAT !== "false",
+  },
   graph: {
     label: "Knowledge Graph",
     icon: "✦",

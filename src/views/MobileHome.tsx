@@ -19,6 +19,9 @@ interface MobileHomeProps {
   onSearch?: () => void;
   onOpenMenu?: () => void;
   onCreateBrain?: () => void;
+  /** Navigate to another app-shell view (wrapped in startViewTransition by
+   *  the parent so the Ask pill morphs into the chat composer). */
+  onNavigate?: (view: string) => void;
   notifications?: AppNotification[];
   unreadCount?: number;
   onDismissNotification?: (id: string) => void;
@@ -46,6 +49,7 @@ export default function MobileHome({
   onSearch,
   onOpenMenu,
   onCreateBrain,
+  onNavigate,
   notifications = [],
   unreadCount = 0,
   onDismissNotification,
@@ -507,15 +511,23 @@ export default function MobileHome({
           aria-label="Open chat"
           disabled={!brainId}
           onClick={() => {
-            // Shared-element morph: this pill carries `view-transition-name:
-            // ask-input` (declared below), the ChatSheet's textarea carries
-            // the same name. Wrapping the open in startViewTransition lets
-            // the browser morph the pill into the textarea instead of the
-            // modal sliding up over a snapping-away pill.
-            startViewTransition(() => {
-              setSheetUserDismissed(false);
-              setSheetExplicitOpen(true);
-            });
+            // Navigate to the chat view (route) instead of opening the
+            // ChatSheet modal. ChatView's composer carries the matching
+            // `view-transition-name: ask-input`, so the browser morphs
+            // this pill into the composer's input pill — the chat surface
+            // appears to grow from this pill, not slide over it.
+            // The parent (Everion) wraps setView in startViewTransition,
+            // so we don't need to wrap here.
+            if (onNavigate) {
+              onNavigate("chat");
+            } else {
+              // Fallback for surfaces that don't pass onNavigate yet —
+              // keep the legacy modal flow alive so nothing breaks.
+              startViewTransition(() => {
+                setSheetUserDismissed(false);
+                setSheetExplicitOpen(true);
+              });
+            }
           }}
           style={{
             // Pinned to the visual viewport. -30px shaves the gap below

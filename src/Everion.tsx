@@ -933,7 +933,7 @@ function EverionContent({
                 </Suspense>
               )}
 
-            {appShell.view === "chat" && ff("chat") && (
+            {appShell.view === "chat" && (
               <ErrorBoundary
                 name="ChatView"
                 fallback={(error, reset) => <ViewError view="Chat" error={error} onReset={reset} />}
@@ -1006,6 +1006,7 @@ function EverionContent({
                     }
                     onOpenMenu={() => setMoreOpen(true)}
                     onCreateBrain={() => appShell.setShowCreateBrain(true)}
+                    onNavigate={navigateView}
                     notifications={notifs.notifications}
                     unreadCount={notifs.unreadCount}
                     onDismissNotification={notifs.dismiss}
