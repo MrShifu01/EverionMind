@@ -530,8 +530,15 @@ html:not(.dark) {
   top: auto;
   bottom: var(--kb-inset, 0px);
   width: min(640px, calc(100vw - 24px));
-  height: min(82dvh, calc(var(--vvh, 100vh) - env(safe-area-inset-top, 0px) - 18px));
-  max-height: calc(var(--vvh, 100vh) - env(safe-area-inset-top, 0px) - 18px);
+  /* Shrink-wrap to content (header + body + form). Body has flex:1 with
+     min-height:0 so it collapses to 0 when there are no messages — sheet
+     ends up ~150px tall (grip + header + input). As chat fills in, body
+     grows the sheet up to the max-height cap, then becomes scrollable.
+     Previously this was `height: min(82dvh, ...)` which forced the sheet
+     to claim ~80% of viewport height regardless of content, producing a
+     giant empty white void above the input when no messages exist. */
+  height: auto;
+  max-height: min(82dvh, calc(var(--vvh, 100vh) - env(safe-area-inset-top, 0px) - 18px));
   background: var(--surface-high);
   border: 1px solid var(--line-soft);
   border-bottom: 0;
