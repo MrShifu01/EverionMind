@@ -118,12 +118,16 @@ const CHAT_TOOLS: ToolSchema[] = [
   {
     name: "retrieve_memory",
     description:
-      "Full semantic retrieval across every brain the user can read (their own + brains they're a member or viewer on). Returns three layers in one call: (1) `importantMemories` — user-curated canonical facts ('Keep this' entries). PREFER these for direct fact questions like 'what is X's ID', 'when does Y expire', 'who is my Z'. Each hit has a `summary` and `source_entry_ids[]` you should cite. (2) `entries` — vector + keyword ranked entries for broader context. (3) `concepts` — related concept names. Use this for most queries.",
+      "Full semantic retrieval across every brain the user can read (their own + brains they're a member or viewer on). Returns three layers in one call: (1) `importantMemories` — user-curated canonical facts ('Keep this' entries). PREFER these for direct fact questions like 'what is X's ID', 'when does Y expire', 'who is my Z'. Each hit has a `summary` and `source_entry_ids[]` you should cite. (2) `entries` — vector + keyword ranked entries for broader context. (3) `concepts` — related concept names. Use this for most queries. For comprehensive 'list all', 'who are my', 'all my X' style questions, set limit to 40 or 50 so nothing gets truncated.",
     parameters: {
       type: "object",
       properties: {
         query: { type: "string", description: "Natural language question or topic to search for" },
-        limit: { type: "number", description: "Max entries to return (1–50, default 15)" },
+        limit: {
+          type: "number",
+          description:
+            "Max entries to return (1–50, default 25). Bump to 40+ for comprehensive 'list all' queries.",
+        },
       },
       required: ["query"],
     },
@@ -257,7 +261,7 @@ async function execTool(
         args.query,
         userId,
         GEMINI_API_KEY,
-        Math.min(Math.max(1, args.limit || 15), 50),
+        Math.min(Math.max(1, args.limit || 25), 50),
         { requestId, surface: "chat-tool", brainId },
       ),
       findLockedSecretTitles(args.query, brainId, 5),

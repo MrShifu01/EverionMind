@@ -487,18 +487,26 @@ html:not(.dark) {
 }
 
 .inkwell-sheet-scrim {
-  position: absolute;
+  /* Fixed so the scrim fills the whole viewport, not just bronze-screen
+     — needed now that the sheet is full-screen and detached from its
+     bronze-screen ancestor. */
+  position: fixed;
   inset: 0;
   background: var(--scrim, oklch(6% 0.008 250 / 0.72));
   z-index: 70;
   animation: fade-up 240ms ease both;
 }
 .inkwell-sheet {
-  position: absolute;
+  /* Full-screen sheet pinned to the visual viewport, not bronze-screen.
+     Top sits just below the iOS status bar. Bottom anchors to the
+     visual viewport bottom — (100vh - --vvh) is the keyboard's height
+     when one is open, so the chat input never slides under the keyboard.
+     --vvh is kept in sync by MobileHome's visualViewport effect. */
+  position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
-  max-height: calc(var(--vvh, 100dvh) * 0.65);
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  bottom: calc(100vh - var(--vvh, 100vh));
   background: var(--surface);
   border-top: 1px solid var(--line-soft);
   border-radius: 22px 22px 0 0;
