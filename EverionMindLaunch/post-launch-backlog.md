@@ -29,6 +29,21 @@ Phase 2A (queue state + daily quota + claim worker) shipped 2026-05-06 (commit `
 
 ---
 
+## Cross-device sync — Supabase Realtime push (deferred from 2026-05-13)
+
+What shipped (commit `35f4435`): foreground refetch on `visibilitychange`, `pageshow.persisted`, and `online` events, debounced 10s. Covers ~95% of cross-device UX — desktop → phone deletes and inserts propagate within one refetch cycle on app resume. Matches the pattern Notion, Linear, and Bear use as their default.
+
+What's NOT shipped: real-time push. The previous `postgres_changes` subscription on `entries` was responsible for ~65% of total Supabase DB time (WAL decoder + publication-tables lookup per reconnect, even for subscribers whose UI didn't consume the events). It was ripped out and replaced with a 15s pending-enrichment poll (`useEntryRealtime`). Cross-device deletes / inserts now rely on the foreground refetch above.
+
+- [ ] **Re-enable Realtime, scoped narrowly.** Subscribe only to the active brain (`filter: brain_id=eq.<active>`) and only while the tab is visible (drop the channel on `visibilitychange → hidden`, restore on visible). Far smaller decode + publication cost than the previous broadcast-to-all-subscribers shape — only the rows in the user's currently-viewed brain are decoded, only while they're looking at them. Combine with the foreground refetch as a fallback for missed events during reconnects.
+- **Trigger:** when one of these becomes true —
+  - **Shared brains ship** (real-time collaboration ratchets up the "is this current?" anxiety; lag between collaborators editing is a felt bug, not a polite delay).
+  - **Capture Phase 2B fire-fast lands** (entry returns `state='pending'` instantly, worker drains async — UI needs Realtime to flip P/I/C chips green when worker completes, otherwise users see red dots for ~30-60s with no feedback). This is the more likely first trigger; already noted under Enrichment Phase 2B above.
+  - **User feedback that the 10s foreground debounce feels slow** (multi-device power users who flip between desktop and phone within seconds and expect instant propagation).
+- **Cost shape:** under "scoped to active brain only" the DB time should be a small fraction of the original ~65%. Worst-case estimate: a power user with 5000 entries actively editing for an hour produces ~50 mutations, each decoded once and broadcast to one subscriber → ~50 messages. Compared to the previous shape (every subscriber decoded every mutation across all brains they had any access to, even with the channel idle).
+
+---
+
 ## Month 1-2 features (from ROADMAP § Month 1-2)
 
 Day-7 retention loop. Build only after the launch checklist closes and the first cohort is in.
