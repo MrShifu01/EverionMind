@@ -482,6 +482,7 @@ export default function MobileHome({
               isConnecting={isConnecting}
               isSpeaking={liveSession.status === "speaking"}
               isThinking={thinking}
+              liveActive={liveActive}
               onPointerDown={onPointerDown}
               onPointerUp={onPointerUp}
               onPointerCancel={onPointerCancel}
@@ -499,7 +500,7 @@ export default function MobileHome({
         )}
       </div>
 
-      {isAsk && !sheetOpen && (
+      {isAsk && !sheetOpen && !showVoiceUi && (
         <button
           type="button"
           aria-label="Open chat"
@@ -914,6 +915,7 @@ function Inkwell({
   isConnecting,
   isSpeaking,
   isThinking,
+  liveActive,
   onPointerDown,
   onPointerUp,
   onPointerCancel,
@@ -926,12 +928,15 @@ function Inkwell({
   isConnecting: boolean;
   isSpeaking: boolean;
   isThinking: boolean;
+  liveActive: boolean;
   onPointerDown: (e: React.PointerEvent) => void;
   onPointerUp: () => void;
   onPointerCancel: () => void;
   caption: string;
 }) {
   const size = 220;
+  // Live voice swaps the ? for a stop square once the session is live.
+  const showStop = mode === "ask" && liveActive;
   const glyph = mode === "add" ? "+" : "?";
   // Plus reads visually smaller AND thinner than the question mark at
   // the same pt size — bump both font-size and weight just for "+".
@@ -1045,26 +1050,47 @@ function Inkwell({
             />
           </>
         )}
-        <span
-          className="f-serif"
-          style={{
-            position: "relative",
-            zIndex: 1,
-            fontSize: glyphFontSize,
-            color: BTN_GLYPH,
-            fontWeight: glyphFontWeight,
-            lineHeight: 1,
-            // Engraved feel: overlay-blend the glyph against the steel
-            // gradient (top of glyph darkens vs the brighter metal),
-            // plus a 1px dark above + 1px highlight below "letterpress"
-            // shadow for the recessed-channel cue.
-            mixBlendMode: "overlay",
-            textShadow: `0 -1px 0 color-mix(in oklch, ${BTN_DEEP} 70%, transparent), 0 1px 0 color-mix(in oklch, white 30%, transparent)`,
-            animation: isConnecting ? "glyph-loading 1.2s ease-in-out infinite" : undefined,
-          }}
-        >
-          {glyph}
-        </span>
+        {showStop ? (
+          // Engraved stop square — same overlay-blend + letterpress
+          // shadow as the text glyph, just a div instead of a span.
+          <span
+            aria-hidden
+            style={{
+              position: "relative",
+              zIndex: 1,
+              width: 36,
+              height: 36,
+              borderRadius: 4,
+              background: BTN_GLYPH,
+              mixBlendMode: "overlay",
+              boxShadow: `0 -1px 0 color-mix(in oklch, ${BTN_DEEP} 70%, transparent), 0 1px 0 color-mix(in oklch, white 30%, transparent)`,
+            }}
+          />
+        ) : (
+          <span
+            className="f-serif"
+            style={{
+              position: "relative",
+              zIndex: 1,
+              fontSize: glyphFontSize,
+              color: BTN_GLYPH,
+              fontWeight: glyphFontWeight,
+              lineHeight: 1,
+              // Engraved feel: overlay-blend the glyph against the steel
+              // gradient (top of glyph darkens vs the brighter metal),
+              // plus a 1px dark above + 1px highlight below "letterpress"
+              // shadow for the recessed-channel cue.
+              mixBlendMode: "overlay",
+              textShadow: `0 -1px 0 color-mix(in oklch, ${BTN_DEEP} 70%, transparent), 0 1px 0 color-mix(in oklch, white 30%, transparent)`,
+              // Loading: gentle clockwise rotation on the glyph instead
+              // of the previous opacity pulse (user feedback).
+              animation: isConnecting ? "glyph-rotate 2s linear infinite" : undefined,
+              transformOrigin: "50% 50%",
+            }}
+          >
+            {glyph}
+          </span>
+        )}
       </button>
       <div
         className="f-mono"

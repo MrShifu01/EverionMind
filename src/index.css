@@ -423,19 +423,16 @@ html:not(.dark) {
     transform: translateY(0);
   }
 }
-/* Loading pulse for the engraved glyph while a Live voice session is
-   connecting. Subtle opacity + tiny scale breathe — calmer than the
-   old orb-connect-bounce, and lives on the glyph instead of the
-   whole button so the metallic face stays steady. */
-@keyframes glyph-loading {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
+/* Loading rotation for the engraved glyph while a Live voice session
+   is connecting. Slow clockwise spin on the glyph itself — engraved
+   shadows go along for the ride, so it reads as the recessed glyph
+   itself turning, not just a flat icon. */
+@keyframes glyph-rotate {
+  from {
+    transform: rotate(0deg);
   }
-  50% {
-    opacity: 0.45;
-    transform: scale(0.92);
+  to {
+    transform: rotate(360deg);
   }
 }
 
