@@ -477,6 +477,12 @@ export default function MobileHome({
               transform: showVoiceUi ? "scale(0.55)" : "scale(1)",
               transformOrigin: "top center",
               transition: "transform 320ms cubic-bezier(0.16, 1, 0.3, 1)",
+              // view-transition-name lets the orb participate in any
+              // future shared-element morphs that involve it (e.g.
+              // home → full-screen live voice route). The current
+              // idle ↔ live scale is handled by the CSS transition
+              // above; this name is composability prep.
+              viewTransitionName: "voice-orb",
             }}
           >
             <Inkwell
