@@ -229,6 +229,25 @@ function EverionContent({
     };
   }, [saveError, setSaveError]);
 
+  // Keep --vvh in sync with the visual viewport for the entire signed-in
+  // shell so any modal that needs to lift above the soft keyboard
+  // (CaptureSheet, ChatSheet) can read a live value regardless of
+  // which view is mounted.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const setVvh = () => {
+      document.documentElement.style.setProperty("--vvh", `${vv.height}px`);
+    };
+    setVvh();
+    vv.addEventListener("resize", setVvh);
+    vv.addEventListener("scroll", setVvh);
+    return () => {
+      vv.removeEventListener("resize", setVvh);
+      vv.removeEventListener("scroll", setVvh);
+    };
+  }, []);
+
   useEffect(() => {
     if (!lastAction || lastAction.type !== "delete") return;
     const id = toast("Entry deleted", {
