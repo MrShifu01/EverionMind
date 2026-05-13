@@ -258,15 +258,18 @@ html[class*="family-"] body {
   z-index: 51;
   left: 0;
   right: 0;
-  /* Anchor to the VISUAL viewport bottom, not the layout viewport.
-     (100vh - --vvh) is the keyboard's height when one is open, so the
-     sheet's textarea always sits above it. --vvh is kept in sync by
-     MobileHome's visualViewport effect; falls back to 100vh if the
-     effect isn't mounted. */
-  bottom: calc(100vh - var(--vvh, 100vh));
+  /* Anchored at the screen bottom so the white bg always reaches the
+     edge — no gap between the sheet and the keyboard. Content is
+     pushed above the keyboard via padding-bottom: (100vh - --vvh) =
+     keyboard height. iOS reports its visualViewport with extras (home
+     indicator, predictive bar) eaten so anchoring to vvh-bottom
+     leaves a visible strip of the home view behind; padding-from-edge
+     hides it cleanly. */
+  bottom: 0;
   width: 100%;
   max-height: 90vh;
-  max-height: calc(var(--vvh, 90dvh) - env(safe-area-inset-top, 0px));
+  max-height: calc(90dvh - env(safe-area-inset-top, 0px));
+  padding-bottom: calc(100vh - var(--vvh, 100vh));
   border-radius: 28px 28px 0 0;
   transform: translateY(var(--capture-y, 100%));
 }
