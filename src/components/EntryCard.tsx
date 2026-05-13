@@ -233,6 +233,10 @@ export const EntryCard = memo(function EntryCard({
         onTouchEnd={onTouchEnd}
         aria-label={`Open entry: ${e.title}`}
         aria-selected={selectMode ? selected : undefined}
+        // data-entry-id lets the DetailModal close handler look this card
+        // up via querySelector and re-apply view-transition-name for the
+        // reverse morph (modal -> card).
+        data-entry-id={e.id}
         {...(isPinned ? { "data-pinned": "true" } : {})}
         {...(importance > 0 ? { "data-importance": String(importance) } : {})}
         className={`entry-card ${isCritical ? "entry-card--critical" : isPinned ? "entry-card--pinned" : ""} group press relative cursor-pointer`}

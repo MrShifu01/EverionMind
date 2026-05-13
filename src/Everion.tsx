@@ -1162,7 +1162,30 @@ function EverionContent({
             {selected && (
               <DetailModal
                 entry={selected}
-                onClose={() => setSelected(null)}
+                onClose={() => {
+                  // Reverse shared-element morph: hand the
+                  // `view-transition-name: entry-${id}` from the modal
+                  // back to the source card so the modal visually
+                  // collapses into the card it came from.
+                  //
+                  // Order matters — the name is assigned to the card
+                  // INSIDE the startViewTransition callback so the
+                  // BEFORE snapshot has only the modal carrying the
+                  // name (the JSX-declared one on DetailModal.Content),
+                  // and the AFTER snapshot has only the card (set
+                  // imperatively below, persists because JSX doesn't
+                  // override view-transition-name on the card).
+                  const entryId = selected.id;
+                  const card = document.querySelector(
+                    `[data-entry-id="${entryId}"]`,
+                  ) as HTMLElement | null;
+                  startViewTransition(() => {
+                    if (card) {
+                      card.style.viewTransitionName = `entry-${entryId}`;
+                    }
+                    setSelected(null);
+                  });
+                }}
                 onDelete={handleDelete}
                 onUpdate={handleUpdate}
                 canWrite={canWrite}
@@ -1201,7 +1224,13 @@ function EverionContent({
             <CaptureSheet
               isOpen={appShell.showCapture}
               onClose={() => {
-                appShell.setShowCapture(false);
+                // Wrap the unmount in startViewTransition so the
+                // `view-transition-name: capture-surface` on the sheet
+                // morphs back into the FloatingCaptureButton FAB that
+                // re-mounts below it. Matching name on both sides; the
+                // browser captures sheet position → FAB pill position
+                // and animates between them.
+                startViewTransition(() => appShell.setShowCapture(false));
               }}
               onCreated={(e) => {
                 handleCreated(e);

@@ -15,6 +15,7 @@
 
 import { useMemo, useState } from "react";
 import type { Entry } from "../types";
+import { startViewTransition } from "../lib/viewTransitions";
 
 const ACCENT = "var(--ember)";
 
@@ -147,11 +148,11 @@ export default function MemoryViewAtelier({
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <FilterRail
         filter={filter}
-        setFilter={setFilter}
+        setFilter={(f) => startViewTransition(() => setFilter(f))}
         viewMode={viewMode}
-        setViewMode={setViewMode}
+        setViewMode={(v) => startViewTransition(() => setViewMode(v))}
         sort={sort}
-        setSort={setSort}
+        setSort={(s) => startViewTransition(() => setSort(s))}
         searchInput={searchInput}
         onSearchChange={onSearchChange}
       />
@@ -594,6 +595,7 @@ function MemoryCard({
   return (
     <article
       onClick={onClick}
+      data-entry-id={entry.id}
       style={{
         position: "relative",
         padding: compact ? "13px 14px" : "16px 18px",
