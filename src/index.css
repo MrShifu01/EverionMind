@@ -497,20 +497,20 @@ html:not(.dark) {
   animation: fade-up 240ms ease both;
 }
 .inkwell-sheet {
-  /* Full-screen sheet pinned to the visual viewport, not bronze-screen.
-     Top sits just below the iOS status bar. Bottom anchors to the
-     visual viewport bottom — (100vh - --vvh) is the keyboard's height
-     when one is open, so the chat input never slides under the keyboard.
+  /* Full-screen sheet. Background fills the WHOLE viewport from below
+     the status bar to the screen bottom so the home view never shows
+     through, and the content is pushed up via padding-bottom by the
+     keyboard's height (100vh - --vvh) so the chat input stays above it.
      --vvh is kept in sync by MobileHome's visualViewport effect. */
   position: fixed;
   left: 0;
   right: 0;
   top: calc(env(safe-area-inset-top, 0px) + 8px);
-  bottom: calc(100vh - var(--vvh, 100vh));
+  bottom: 0;
   background: var(--surface);
   border-top: 1px solid var(--line-soft);
   border-radius: 22px 22px 0 0;
-  padding: 14px 16px calc(22px + env(safe-area-inset-bottom, 0px));
+  padding: 14px 16px calc(22px + env(safe-area-inset-bottom, 0px) + (100vh - var(--vvh, 100vh)));
   z-index: 71;
   box-shadow: var(--lift-3);
   display: flex;
