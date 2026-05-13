@@ -1172,13 +1172,59 @@ function ChatSheet({
   brainReady: boolean;
   pending: PendingShape;
 }) {
+  const dragStartY = useRef(0);
+  const [dragging, setDragging] = useState(false);
+  const [dragY, setDragY] = useState(0);
+  const SWIPE_CLOSE_THRESHOLD = 100;
+
+  function onGripPointerDown(e: React.PointerEvent) {
+    dragStartY.current = e.clientY;
+    setDragging(true);
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+  }
+  function onGripPointerMove(e: React.PointerEvent) {
+    if (!dragging) return;
+    const dy = e.clientY - dragStartY.current;
+    setDragY(dy > 0 ? dy : 0);
+  }
+  function onGripPointerEnd() {
+    if (!dragging) return;
+    setDragging(false);
+    if (dragY > SWIPE_CLOSE_THRESHOLD) {
+      onClose();
+    }
+    setDragY(0);
+  }
+
   if (!open) return null;
   const canSend = input.trim().length > 0 && !loading && brainReady;
   return (
     <>
       <div className="inkwell-sheet-scrim" onClick={onClose} aria-hidden />
-      <div className="inkwell-sheet">
-        <div className="inkwell-sheet-grip" />
+      <div
+        className="inkwell-sheet"
+        style={{
+          transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
+          transition: dragging ? "none" : "transform 220ms ease",
+        }}
+      >
+        <div
+          onPointerDown={onGripPointerDown}
+          onPointerMove={onGripPointerMove}
+          onPointerUp={onGripPointerEnd}
+          onPointerCancel={onGripPointerEnd}
+          aria-label="Drag to close"
+          style={{
+            // Big invisible tap zone around the visible grip line so a
+            // swipe-down anywhere near the top of the sheet closes it.
+            padding: "12px 0",
+            margin: "-12px -16px 0",
+            touchAction: "none",
+            cursor: "grab",
+          }}
+        >
+          <div className="inkwell-sheet-grip" />
+        </div>
         <div
           style={{
             display: "flex",
