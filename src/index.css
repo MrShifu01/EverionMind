@@ -510,7 +510,8 @@ html:not(.dark) {
   background: var(--surface);
   border-top: 1px solid var(--line-soft);
   border-radius: 22px 22px 0 0;
-  padding: 14px 16px calc(22px + env(safe-area-inset-bottom, 0px) + (100vh - var(--vvh, 100vh)));
+  padding: 14px 16px
+    max(0px, calc(env(safe-area-inset-bottom, 0px) + (100vh - var(--vvh, 100vh)) - 28px));
   z-index: 71;
   box-shadow: var(--lift-3);
   display: flex;
