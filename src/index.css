@@ -501,12 +501,12 @@ html:not(.dark) {
 .inkwell-sheet-scrim {
   /* Fixed so the scrim fills the whole viewport, not just bronze-screen
      — needed now that the sheet is full-screen and detached from its
-     bronze-screen ancestor. */
+     bronze-screen ancestor. Opacity is driven by React state on the
+     same element so it fades in/out in step with the sheet transform. */
   position: fixed;
   inset: 0;
   background: var(--scrim, oklch(6% 0.008 250 / 0.72));
   z-index: 70;
-  animation: fade-up 240ms ease both;
 }
 .inkwell-sheet {
   /* Full-screen sheet. Background fills the WHOLE viewport from below

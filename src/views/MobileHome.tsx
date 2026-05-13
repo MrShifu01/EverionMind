@@ -1419,6 +1419,55 @@ function ChatSheet({
   const [dragY, setDragY] = useState(0);
   const SWIPE_CLOSE_THRESHOLD = 100;
 
+  // Two-phase mount so we can run an exit animation. `rendered` keeps
+  // the JSX in the DOM, `visible` controls the slide-down transform.
+  const [rendered, setRendered] = useState(open);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    if (open) {
+      setRendered(true);
+      // Two rAFs: first commits initial translateY(100%), second
+      // flips to 0 so the browser actually transitions between them.
+      let raf2 = 0;
+      const raf1 = requestAnimationFrame(() => {
+        raf2 = requestAnimationFrame(() => {
+          setVisible(true);
+          // Focus the textarea as soon as it's mounted. iOS may not
+          // pop the keyboard programmatically, but desktop + Android
+          // get instant typing.
+          sheetInputRef.current?.focus();
+        });
+      });
+      return () => {
+        cancelAnimationFrame(raf1);
+        cancelAnimationFrame(raf2);
+      };
+    }
+    if (!rendered) return;
+    setVisible(false);
+    const t = window.setTimeout(() => setRendered(false), 360);
+    return () => window.clearTimeout(t);
+    // rendered intentionally excluded — re-running on rendered change
+    // would race the exit timer with itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Lock the page scroll while the sheet is rendered so flicks behind
+  // the modal don't bleed through to the home view.
+  useEffect(() => {
+    if (!rendered) return;
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = body.style.overflow;
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    return () => {
+      html.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
+    };
+  }, [rendered]);
+
   function onGripPointerDown(e: React.PointerEvent) {
     dragStartY.current = e.clientY;
     setDragging(true);
@@ -1438,16 +1487,28 @@ function ChatSheet({
     setDragY(0);
   }
 
-  if (!open) return null;
+  if (!rendered) return null;
   const canSend = input.trim().length > 0 && !loading && brainReady;
+  // Compose transform: drag delta wins; otherwise slide-up/down via visible.
+  const transform =
+    dragY > 0 ? `translateY(${dragY}px)` : visible ? "translateY(0)" : "translateY(100%)";
+  const transition = dragging ? "none" : "transform 360ms cubic-bezier(0.22, 1, 0.36, 1)";
   return (
     <>
-      <div className="inkwell-sheet-scrim" onClick={onClose} aria-hidden />
+      <div
+        className="inkwell-sheet-scrim"
+        onClick={onClose}
+        aria-hidden
+        style={{
+          opacity: visible ? 1 : 0,
+          transition: "opacity 280ms ease",
+        }}
+      />
       <div
         className="inkwell-sheet"
         style={{
-          transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
-          transition: dragging ? "none" : "transform 220ms ease",
+          transform,
+          transition,
         }}
       >
         <div

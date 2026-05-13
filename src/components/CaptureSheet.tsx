@@ -123,20 +123,32 @@ export default function CaptureSheet({
       requestAnimationFrame(() => {
         setVisible(true);
       });
-      // Defer textarea autofocus until AFTER the sheet's 360ms slide-up
-      // animation finishes. iOS Safari pops the keyboard on focus and
-      // starts its own ~250ms slide-up — overlapping that with the sheet
-      // animation made iOS swallow touch events for the first second or
-      // two after open, so the user's swipe-to-close gesture didn't
-      // register until both transitions were done. 420ms gives the sheet
-      // animation time to settle before the keyboard kicks in. The
-      // user can still tap the textarea manually before that to focus
-      // immediately if they want to type sooner than the timer fires.
+      // Focus the textarea after the sheet has just enough time to be
+      // mounted + the slide-up has started. Was 420ms (waited for the
+      // full 360ms animation + buffer to avoid iOS touch-swallow during
+      // overlapping sheet+keyboard slide-up); user feedback wants to
+      // start typing immediately, so we drop to 60ms — short enough to
+      // feel instant, late enough that the sheet's first paint has
+      // committed so iOS lines the keyboard up cleanly.
       const focusTimer = window.setTimeout(() => {
         textareaRef.current?.focus();
-      }, 420);
+      }, 60);
+      // Lock background scroll for the duration of the sheet so flicks
+      // outside the visible chrome don't bleed into the home view
+      // beneath. We deliberately avoided this earlier because iOS
+      // Safari can shift the URL bar when body becomes
+      // overflow:hidden, but background scroll bleed is a worse
+      // regression than that minor jump.
+      const html = document.documentElement;
+      const body = document.body;
+      const prevHtmlOverflow = html.style.overflow;
+      const prevBodyOverflow = body.style.overflow;
+      html.style.overflow = "hidden";
+      body.style.overflow = "hidden";
       return () => {
         window.clearTimeout(focusTimer);
+        html.style.overflow = prevHtmlOverflow;
+        body.style.overflow = prevBodyOverflow;
       };
     } else {
       setVisible(false);
