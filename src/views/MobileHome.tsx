@@ -1415,6 +1415,7 @@ function ChatSheet({
   pending: PendingShape;
 }) {
   const dragStartY = useRef(0);
+  const sheetRef = useRef<HTMLDivElement | null>(null);
   const [dragging, setDragging] = useState(false);
   const [dragY, setDragY] = useState(0);
   const SWIPE_CLOSE_THRESHOLD = 100;
@@ -1464,6 +1465,17 @@ function ChatSheet({
     };
   }, [rendered]);
 
+  useEffect(() => {
+    if (!rendered) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [rendered, onClose]);
+
   function onGripPointerDown(e: React.PointerEvent) {
     dragStartY.current = e.clientY;
     setDragging(true);
@@ -1486,9 +1498,13 @@ function ChatSheet({
   if (!rendered) return null;
   const canSend = input.trim().length > 0 && !loading && brainReady;
   // Compose transform: drag delta wins; otherwise slide-up/down via visible.
-  const transform =
-    dragY > 0 ? `translateY(${dragY}px)` : visible ? "translateY(0)" : "translateY(100%)";
-  const transition = dragging ? "none" : "transform 360ms var(--ease-emphasized)";
+  // X uses --inkwell-sheet-x (defaults to -50% for desktop centering;
+  // mobile CSS overrides to 0 so left:12/right:12 anchors the sheet
+  // edge-to-edge without the -50% translate fighting it).
+  const sheetY = dragY > 0 ? `${dragY}px` : visible ? "0px" : "110vh";
+  const sheetScale = dragY > 0 || visible ? 1 : 0.985;
+  const transform = `translate3d(var(--inkwell-sheet-x, -50%), ${sheetY}, 0) scale(${sheetScale})`;
+  const transition = dragging ? "none" : "transform 320ms var(--ease-emphasized)";
   return (
     <>
       <div
@@ -1501,7 +1517,12 @@ function ChatSheet({
         }}
       />
       <div
+        ref={sheetRef}
         className="inkwell-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="inkwell-chat-title"
+        tabIndex={-1}
         style={{
           transform,
           transition,
@@ -1533,16 +1554,16 @@ function ChatSheet({
           }}
         >
           <div
-            className="f-mono"
+            id="inkwell-chat-title"
+            className="f-sans"
             style={{
               display: "inline-flex",
               alignItems: "center",
               gap: 6,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: 600,
-              letterSpacing: "0.12em",
-              color: "var(--ember)",
-              textTransform: "uppercase",
+              letterSpacing: "0.01em",
+              color: "var(--ink)",
             }}
           >
             <span
@@ -1551,10 +1572,9 @@ function ChatSheet({
                 height: 5,
                 borderRadius: "50%",
                 background: "var(--ember)",
-                boxShadow: "0 0 8px var(--ember)",
               }}
             />
-            <span>ASKING</span>
+            <span>Ask Everion</span>
           </div>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             {messages.length > 0 && (
@@ -1567,7 +1587,8 @@ function ChatSheet({
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 6,
-                  height: 26,
+                  height: 36,
+                  minHeight: 36,
                   padding: "0 10px 0 8px",
                   borderRadius: 999,
                   background: "var(--surface-low)",
@@ -1601,9 +1622,10 @@ function ChatSheet({
               aria-label="Close chat"
               className="press"
               style={{
-                width: 28,
-                height: 28,
-                borderRadius: 8,
+                width: 44,
+                height: 44,
+                minHeight: 44,
+                borderRadius: 10,
                 background: "transparent",
                 border: "1px solid var(--line-soft)",
                 color: "var(--ink-faint)",
@@ -1730,9 +1752,9 @@ function ChatSheet({
             aria-label="Send"
             className="press"
             style={{
-              width: 36,
-              height: 36,
-              minHeight: 36,
+              width: 44,
+              height: 44,
+              minHeight: 44,
               borderRadius: "50%",
               background: canSend ? "var(--ember)" : "var(--surface-low)",
               color: canSend ? "var(--ember-ink)" : "var(--ink-faint)",

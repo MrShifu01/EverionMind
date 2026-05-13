@@ -455,4 +455,18 @@ html[class*="family-"] body {
   .capture-sheet {
     translate: none !important;
   }
+
+  /* Ask sheet (inkwell-sheet) on mobile: pin edge-to-edge so the inline
+     transform doesn't try to center it via translate3d(-50%, ...). React
+     reads --inkwell-sheet-x from CSS — desktop fallback is -50% (centers
+     against left:50%), mobile overrides to 0px so the sheet sits flush
+     between left:12px and right:12px. Without this the -50% shift kept
+     parking the sheet 50% to the right (left edge at viewport centre). */
+  .inkwell-sheet {
+    --inkwell-sheet-x: 0px;
+    left: 12px !important;
+    right: 12px !important;
+    width: auto !important;
+    max-width: none !important;
+  }
 }
