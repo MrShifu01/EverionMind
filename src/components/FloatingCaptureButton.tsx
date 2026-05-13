@@ -1,4 +1,5 @@
 import { Button } from "./ui/button";
+import { startViewTransition } from "../lib/viewTransitions";
 
 interface FloatingCaptureButtonProps {
   onClick: () => void;
@@ -10,7 +11,7 @@ export default function FloatingCaptureButton({ onClick }: FloatingCaptureButton
   const mod = /Mac|iPhone|iPad|iPod/.test(navigator.platform) ? "⌘" : "Ctrl";
   return (
     <Button
-      onClick={onClick}
+      onClick={() => startViewTransition(onClick)}
       aria-label="Capture something"
       title="Capture (Ctrl+K)"
       variant="outline"
@@ -23,6 +24,10 @@ export default function FloatingCaptureButton({ onClick }: FloatingCaptureButton
         boxShadow: "var(--lift-2)",
         paddingLeft: 18,
         paddingRight: 10,
+        // Shared-element morph to CaptureSheet (matching name applied to
+        // the capture sheet's outer wrapper in CaptureSheet.tsx). Browser
+        // morphs this pill into the sheet's bottom-anchored container.
+        viewTransitionName: "capture-surface",
       }}
     >
       <svg

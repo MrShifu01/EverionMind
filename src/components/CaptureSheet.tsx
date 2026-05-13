@@ -423,6 +423,10 @@ export default function CaptureSheet({
               background: "var(--surface-high)",
               border: "1px solid var(--line)",
               boxShadow: "var(--lift-3)",
+              // Shared-element morph from the desktop FloatingCaptureButton
+              // ("capture..." pill in the bottom-right corner). Browser
+              // morphs the pill's position/size into this sheet.
+              viewTransitionName: "capture-surface",
               ["--capture-y" as string]: dragY > 0 ? `${dragY}px` : visible ? "0px" : "100%",
               transition:
                 dragY > 0
