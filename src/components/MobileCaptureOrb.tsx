@@ -136,9 +136,9 @@ export default function MobileCaptureOrb({
   const k = size / REF_SIZE;
   const ringInset = Math.round(REF_RING_INSET * k);
   const buttonInset = Math.round(REF_BUTTON_INSET * k);
-  // Plus reads visually smaller than the question mark at the same
-  // pt size, so render it a touch larger.
-  const refGlyphFont = glyph === "+" ? 44 : REF_GLYPH_FONT;
+  // Plus reads MUCH smaller than the question mark at the same
+  // pt size on the mini orb — render it at 2x the proportional size.
+  const refGlyphFont = glyph === "+" ? 88 : REF_GLYPH_FONT;
   const glyphFont = Math.round(refGlyphFont * k);
   const rimInsetBlur = Math.max(1, Math.round(REF_RIM_INSET_SHADOW_BLUR * k));
   const rimInsetY = Math.round(REF_RIM_INSET_SHADOW_Y * k);
@@ -200,7 +200,13 @@ export default function MobileCaptureOrb({
           data-pressed={pressed ? "true" : "false"}
           style={{
             position: "absolute",
-            inset: buttonInset,
+            // Nudge the brass button up by 1px (top -1, bottom +1).
+            // Without this it reads as sitting slightly low inside the
+            // ring on the mini orb, making the whole stack look uneven.
+            top: buttonInset - 1,
+            right: buttonInset,
+            bottom: buttonInset + 1,
+            left: buttonInset,
             borderRadius: "50%",
             background: `radial-gradient(circle at 50% 30%,
               color-mix(in oklch, ${BTN_ACCENT} 55%, ${BTN_DEEP}) 0%,
