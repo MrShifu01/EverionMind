@@ -933,9 +933,10 @@ function Inkwell({
 }) {
   const size = 220;
   const glyph = mode === "add" ? "+" : "?";
-  // Plus reads visually smaller than the question mark at the same
-  // pt size, so render it a touch larger.
-  const glyphFontSize = mode === "add" ? 44 : 36;
+  // Plus reads visually smaller AND thinner than the question mark at
+  // the same pt size — bump both font-size and weight just for "+".
+  const glyphFontSize = mode === "add" ? 60 : 36;
+  const glyphFontWeight = mode === "add" ? 600 : 300;
   return (
     <div style={{ position: "relative", width: size, height: size }}>
       <div
@@ -1053,7 +1054,7 @@ function Inkwell({
             zIndex: 1,
             fontSize: glyphFontSize,
             color: BTN_GLYPH,
-            fontWeight: 300,
+            fontWeight: glyphFontWeight,
             lineHeight: 1,
             // Engraved feel: overlay-blend the glyph against the steel
             // gradient (top of glyph darkens vs the brighter metal),
