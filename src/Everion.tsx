@@ -110,8 +110,8 @@ function lazyRetry(fn: () => Promise<any>) {
 
 const DetailModal = lazyRetry(() => import("./views/DetailModal"));
 const VaultView = lazyRetry(() => import("./views/VaultView"));
-const ChatView = lazyRetry(() => import("./views/ChatView"));
 const ChatViewColloquy = lazyRetry(() => import("./views/ChatViewColloquy"));
+const ChatViewMobile = lazyRetry(() => import("./views/ChatViewMobile"));
 const VaultRevealModal = lazyRetry(() => import("./components/VaultRevealModal"));
 function Loader() {
   return (
@@ -951,7 +951,11 @@ function EverionContent({
               >
                 <Suspense fallback={<Loader />}>
                   {isMobile ? (
-                    <ChatView brainId={activeBrain?.id} onNavigate={navigateView} />
+                    <ChatViewMobile
+                      brainId={activeBrain?.id}
+                      brainName={activeBrain?.name}
+                      onNavigate={navigateView}
+                    />
                   ) : (
                     <ChatViewColloquy
                       brainId={activeBrain?.id}
