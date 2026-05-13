@@ -46,7 +46,7 @@ import {
 import { sbHeaders } from "./sbHeaders.js";
 import { googleAiFetch, googleAiModelUrl } from "./googleAi.js";
 import { geminiFallbackChain } from "./geminiModels.js";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 
 const SB_URL = process.env.SUPABASE_URL!;
 const SB_HDR = sbHeaders();
@@ -56,9 +56,12 @@ const CaptureResultSchema = z
     type: z.string().max(80).optional(),
     title: z.string().max(500).optional(),
     content: z.string().max(20_000).optional(),
+    tags: z.array(z.string()).max(20).optional(),
     metadata: z.record(z.string(), z.unknown()).optional(),
   })
   .passthrough();
+
+type CaptureResult = z.infer<typeof CaptureResultSchema>;
 
 const ConceptItemSchema = z
   .object({
@@ -154,6 +157,28 @@ function parseAIJSONArray(raw: string): unknown[] | null {
   return Array.isArray(obj) ? obj : null;
 }
 
+export function parseCaptureResults(raw: string): CaptureResult[] {
+  const text = raw
+    .replace(/```(?:json)?\s*/gi, "")
+    .replace(/```/g, "")
+    .trim();
+  const match = text.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
+  const candidate = match ? match[1] : text;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(candidate);
+  } catch {
+    const single = parseAIJSON(raw);
+    parsed = single ? [single] : [];
+  }
+  const arr = Array.isArray(parsed) ? parsed : parsed && typeof parsed === "object" ? [parsed] : [];
+  return arr
+    .map((item) => CaptureResultSchema.safeParse(item))
+    .filter((result) => result.success)
+    .map((result) => result.data)
+    .filter((item) => !!(item.type || item.title || item.content));
+}
+
 interface Entry {
   id: string;
   title: string;
@@ -164,9 +189,11 @@ interface Entry {
   embedded_at: string | null;
   embedding_status: string | null;
   status: string | null;
+  created_at?: string | null;
 }
 
-const ENTRY_FIELDS = "id,title,content,type,tags,metadata,embedded_at,embedding_status,status";
+const ENTRY_FIELDS =
+  "id,title,content,type,tags,metadata,embedded_at,embedding_status,status,created_at";
 
 async function fetchEntry(entryId: string, userId: string): Promise<Entry | null> {
   const r = await fetch(
@@ -182,12 +209,14 @@ async function patchMetadata(
   entryId: string,
   userId: string,
   metadata: Record<string, any>,
-  typeChange?: { type: string; tags: string[] } | null,
+  entryPatch?: { type?: string; tags?: string[] } | null,
 ): Promise<void> {
   const body: Record<string, unknown> = { metadata };
-  if (typeChange) {
-    body.type = typeChange.type;
-    body.tags = typeChange.tags;
+  if (entryPatch?.type) {
+    body.type = entryPatch.type;
+  }
+  if (entryPatch?.tags) {
+    body.tags = entryPatch.tags;
   }
   await fetch(
     `${SB_URL}/rest/v1/entries?id=eq.${encodeURIComponent(entryId)}&user_id=eq.${encodeURIComponent(userId)}`,
@@ -197,6 +226,122 @@ async function patchMetadata(
       body: JSON.stringify(body),
     },
   );
+}
+
+const ENTRY_PATCH_KEY = "__entryPatch";
+
+interface EntryPatch {
+  type?: string;
+  tags?: string[];
+}
+
+type StepMetadata = Record<string, any> & { [ENTRY_PATCH_KEY]?: EntryPatch };
+
+function attachEntryPatch(metadata: Record<string, any>, patch: EntryPatch | null): StepMetadata {
+  if (!patch || (!patch.type && !patch.tags)) return metadata;
+  return { ...metadata, [ENTRY_PATCH_KEY]: patch };
+}
+
+export function normalizeCaptureTypeForStorage(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const raw = value.trim().toLowerCase();
+  if (!raw) return null;
+  const normalized = raw
+    .replace(/[_\s]+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .slice(0, 50);
+  if (!normalized) return null;
+  if (normalized === "vault" || normalized === "vault-item" || normalized === "secret-item") {
+    return "secret";
+  }
+  if (normalized === "memory") return "note";
+  if (normalized === "url" || normalized === "link" || normalized === "web-article") {
+    return "article";
+  }
+  return normalized;
+}
+
+function normalizeTagsForStorage(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    if (typeof item !== "string") continue;
+    const tag = item.trim().toLowerCase().replace(/^#/, "").slice(0, 40);
+    if (tag) seen.add(tag);
+    if (seen.size >= 20) break;
+  }
+  return Array.from(seen);
+}
+
+function mergeTags(existing: string[] | null | undefined, incoming: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const tag of [...(existing ?? []), ...incoming]) {
+    if (typeof tag !== "string") continue;
+    const clean = tag.trim().toLowerCase().replace(/^#/, "").slice(0, 40);
+    if (!clean || seen.has(clean)) continue;
+    seen.add(clean);
+    out.push(clean);
+    if (out.length >= 20) break;
+  }
+  return out;
+}
+
+export function deriveCaptureKind(
+  type: string | null | undefined,
+  metadata: Record<string, unknown> = {},
+): "article" | "contact" | "list" | "memory" | "vault" | "reminder" {
+  const t = normalizeCaptureTypeForStorage(type) ?? "note";
+  if (t === "secret") return "vault";
+  if (t === "article") return "article";
+  if (t === "list") return "list";
+  if (
+    t === "reminder" ||
+    t === "task" ||
+    t === "todo" ||
+    t === "event" ||
+    t === "someday" ||
+    typeof metadata.scheduled_for === "string" ||
+    typeof metadata.due_date === "string" ||
+    typeof metadata.deadline === "string" ||
+    typeof metadata.renewal_date === "string"
+  ) {
+    return "reminder";
+  }
+  if (
+    t === "contact" ||
+    t === "person" ||
+    t === "director" ||
+    t === "employee" ||
+    t === "contractor" ||
+    typeof metadata.cellphone === "string" ||
+    typeof metadata.phone === "string" ||
+    typeof metadata.email === "string" ||
+    typeof metadata.contact_name === "string"
+  ) {
+    return "contact";
+  }
+  return "memory";
+}
+
+function needsImportTypeClassification(entry: Entry, meta: Record<string, any>): boolean {
+  const isImport = typeof meta.import_source === "string" || typeof meta.import_hash === "string";
+  const current = normalizeCaptureTypeForStorage(entry.type) ?? "note";
+  return (
+    isImport &&
+    (current === "note" || current === "other" || current === "memory") &&
+    typeof meta.capture_kind !== "string" &&
+    meta.enrichment?.type_classified !== true
+  );
+}
+
+function shouldApplyParsedType(entry: Entry, meta: Record<string, any>, nextType: string): boolean {
+  if (meta.enrichment?.parsed === true && !needsImportTypeClassification(entry, meta)) return false;
+  const current = normalizeCaptureTypeForStorage(entry.type) ?? "note";
+  if (nextType === current) return false;
+  if (current === "note" || current === "other" || current === "memory") return true;
+  if (typeof meta.import_source === "string" || typeof meta.import_hash === "string") return true;
+  return nextType === "secret";
 }
 
 // ── Step: parse ─────────────────────────────────────────────────────────────
@@ -247,8 +392,7 @@ function buildEnrichText(
 ): string {
   const meta = entry.metadata ?? {};
   const fullText = typeof meta.full_text === "string" ? meta.full_text : "";
-  const attachmentText =
-    typeof meta.attachment_text === "string" ? meta.attachment_text : "";
+  const attachmentText = typeof meta.attachment_text === "string" ? meta.attachment_text : "";
 
   const parts: string[] = [];
   if (entry.title) parts.push(`Title: ${entry.title}`);
@@ -263,13 +407,118 @@ function buildEnrichText(
   return parts.join("\n\n").slice(0, maxLen);
 }
 
-async function stepParse(entry: Entry, cfg: AICall): Promise<Record<string, any> | null> {
+function derivedEntryHash(sourceId: string, entry: CaptureResult): string {
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        sourceId,
+        title: entry.title ?? "",
+        content: entry.content ?? "",
+        type: entry.type ?? "",
+      }),
+    )
+    .digest("hex")
+    .slice(0, 24);
+}
+
+async function derivedEntryExists(
+  userId: string,
+  brainId: string,
+  derivedHash: string,
+): Promise<boolean> {
+  const r = await fetch(
+    `${SB_URL}/rest/v1/entries?user_id=eq.${encodeURIComponent(userId)}&brain_id=eq.${encodeURIComponent(brainId)}&metadata->>derived_hash=eq.${encodeURIComponent(derivedHash)}&select=id&limit=1`,
+    { headers: SB_HDR },
+  );
+  if (!r.ok) return false;
+  const rows: Array<{ id: string }> = await r.json().catch(() => []);
+  return rows.length > 0;
+}
+
+async function insertDerivedParseEntries(
+  source: Entry,
+  userId: string,
+  entries: CaptureResult[],
+): Promise<number> {
+  if (!entries.length) return 0;
+  const brainId = await fetchBrainIdForEntry(source.id);
+  if (!brainId) return 0;
+
+  let inserted = 0;
+  for (let i = 0; i < entries.length; i++) {
+    const item = entries[i]!;
+    const title = typeof item.title === "string" ? item.title.trim().slice(0, 200) : "";
+    const content = typeof item.content === "string" ? item.content.trim().slice(0, 50_000) : "";
+    if (!title && !content) continue;
+    const type = normalizeCaptureTypeForStorage(item.type) ?? "note";
+    const itemMeta =
+      item.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata)
+        ? ({ ...item.metadata } as Record<string, unknown>)
+        : {};
+    const captureKind = deriveCaptureKind(type, itemMeta);
+    const hash = derivedEntryHash(source.id, item);
+    if (await derivedEntryExists(userId, brainId, hash)) continue;
+
+    const enrichment =
+      itemMeta.enrichment &&
+      typeof itemMeta.enrichment === "object" &&
+      !Array.isArray(itemMeta.enrichment)
+        ? (itemMeta.enrichment as Record<string, unknown>)
+        : {};
+    const metadata = {
+      ...itemMeta,
+      capture_kind: itemMeta.capture_kind ?? captureKind,
+      derived_from: [source.id],
+      derived_hash: hash,
+      split_source: "parse",
+      split_index: i + 1,
+      source_title: source.title,
+      ...(type === "secret" ? { vault_review_required: true } : {}),
+      enrichment: { ...enrichment, parsed: true, type_classified: true },
+    };
+
+    const r = await fetch(`${SB_URL}/rest/v1/entries`, {
+      method: "POST",
+      headers: { ...SB_HDR, Prefer: "return=minimal" },
+      body: JSON.stringify({
+        user_id: userId,
+        brain_id: brainId,
+        title: title || content.slice(0, 80) || "Derived entry",
+        content,
+        type,
+        tags: normalizeTagsForStorage(item.tags),
+        metadata,
+        enrichment_state: type === "secret" || type === "persona" ? "done" : "pending",
+      }),
+    });
+    if (r.ok || r.status === 409) {
+      if (r.ok) inserted++;
+      continue;
+    }
+    console.warn(
+      `[enrich:parse-split] insert failed for ${source.id}: HTTP ${r.status} ${(await r.text().catch(() => "")).slice(0, 200)}`,
+    );
+  }
+  return inserted;
+}
+
+async function stepParse(
+  entry: Entry,
+  cfg: AICall,
+  userId: string,
+): Promise<Record<string, any> | null> {
   const meta = { ...(entry.metadata ?? {}) };
   // Reads the union of title + content + metadata.full_text + attachment_text
   // so emails where the meat lives in the PDF still get useful structured
   // extraction and aren't classified by their "see attached" body alone.
   const body = buildEnrichText({ ...entry, metadata: meta }, 10000);
-  if (!body) return { ...meta, enrichment: { ...(meta.enrichment ?? {}), parsed: true } };
+  if (!body) {
+    return {
+      ...meta,
+      capture_kind: meta.capture_kind ?? deriveCaptureKind(entry.type, meta),
+      enrichment: { ...(meta.enrichment ?? {}), parsed: true, type_classified: true },
+    };
+  }
 
   // Anchor relative dates. Without this header the LLM guesses what "today"
   // means and silently mis-stamps due_date / deadline / event_date. The
@@ -285,10 +534,10 @@ async function stepParse(entry: Entry, cfg: AICall): Promise<Record<string, any>
   const aiRaw = await callAI(cfg, SERVER_PROMPTS.CAPTURE, raw, { maxTokens: 1500, json: true });
   if (!aiRaw) return null; // LLM failure — leave the flag unset
 
-  const candidate = parseAIJSON(aiRaw);
-  const parsed = candidate ? CaptureResultSchema.safeParse(candidate) : null;
-  if (parsed?.success && (parsed.data.type || parsed.data.title || parsed.data.content)) {
-    const { confidence: _c, ...rawAIMeta } = parsed.data.metadata ?? {};
+  const parsedEntries = parseCaptureResults(aiRaw);
+  const primary = parsedEntries[0];
+  if (primary && (primary.type || primary.title || primary.content)) {
+    const { confidence: _c, ...rawAIMeta } = primary.metadata ?? {};
 
     // First parse vs re-parse. The flag `meta.enrichment.parsed` flips to
     // true at the end of this step. On the FIRST pass the user has not
@@ -297,7 +546,8 @@ async function stepParse(entry: Entry, cfg: AICall): Promise<Record<string, any>
     // from the content. On every subsequent re-parse — cron, daily rescan,
     // settings → Run Now — AI is locked out of those fields entirely so
     // it cannot overwrite a date the user just typed in the UI.
-    const isFirstParse = !meta.enrichment?.parsed;
+    const importNeedsClassification = needsImportTypeClassification(entry, meta);
+    const isFirstParse = !meta.enrichment?.parsed || importNeedsClassification;
 
     // Strip user-owned + already-set keys before merging. AI fills in MISSING
     // fields only — it can never overwrite a user-set value, and it can never
@@ -308,6 +558,15 @@ async function stepParse(entry: Entry, cfg: AICall): Promise<Record<string, any>
       if (USER_OWNED_KEYS.has(k) && !isFirstParse) continue;
       if (meta[k] !== undefined && meta[k] !== null && meta[k] !== "") continue;
       safeAIMeta[k] = v;
+    }
+
+    const parsedType = normalizeCaptureTypeForStorage(primary.type);
+    const captureKind = deriveCaptureKind(parsedType ?? entry.type ?? "note", {
+      ...safeAIMeta,
+      ...meta,
+    });
+    if (safeAIMeta.capture_kind === undefined && meta.capture_kind === undefined) {
+      safeAIMeta.capture_kind = captureKind;
     }
 
     // Date sanity guard — pairwise consistency between extracted fields.
@@ -326,7 +585,8 @@ async function stepParse(entry: Entry, cfg: AICall): Promise<Record<string, any>
     // from safeAIMeta (never blow away user-set data already on meta).
     const dateValue = (k: string): string | null => {
       const fromAI = safeAIMeta[k];
-      if (typeof fromAI === "string" && /^\d{4}-\d{2}-\d{2}/.test(fromAI)) return fromAI.slice(0, 10);
+      if (typeof fromAI === "string" && /^\d{4}-\d{2}-\d{2}/.test(fromAI))
+        return fromAI.slice(0, 10);
       const fromMeta = meta[k];
       if (typeof fromMeta === "string" && /^\d{4}-\d{2}-\d{2}/.test(fromMeta))
         return fromMeta.slice(0, 10);
@@ -364,22 +624,46 @@ async function stepParse(entry: Entry, cfg: AICall): Promise<Record<string, any>
     // over content for source=gmail (see EntryCard) so the user sees
     // the substantive summary instead of "Good day, please find attached."
     const isGmailSource = meta.source === "gmail";
-    const llmContent =
-      typeof parsed.data.content === "string" ? parsed.data.content.trim() : "";
+    const llmContent = typeof primary.content === "string" ? primary.content.trim() : "";
     if (isGmailSource && llmContent && llmContent.length >= 40) {
       safeAIMeta.ai_summary = llmContent.slice(0, 1500);
     }
 
-    return {
-      ...safeAIMeta,
-      ...meta,
-      // safeAIMeta wrote ai_summary BEFORE the meta spread, so meta wins on
-      // every key except keys not yet in meta — but ai_summary isn't in meta
-      // yet so it lands. Re-assert here to be explicit and survive future
-      // refactors of the order.
-      ...(safeAIMeta.ai_summary ? { ai_summary: safeAIMeta.ai_summary } : {}),
-      enrichment: { ...(meta.enrichment ?? {}), parsed: true },
-    };
+    const parsedTags = normalizeTagsForStorage(primary.tags);
+    const entryPatch: EntryPatch = {};
+    if (parsedType && shouldApplyParsedType(entry, meta, parsedType)) {
+      entryPatch.type = parsedType;
+    }
+    if (parsedTags.length > 0 && isFirstParse) {
+      entryPatch.tags = mergeTags(entry.tags, parsedTags);
+    }
+
+    let splitCount = 0;
+    const splitAlreadyDone = meta.enrichment?.parse_split_done === true;
+    if (isFirstParse && !splitAlreadyDone && parsedEntries.length > 1) {
+      splitCount = await insertDerivedParseEntries(entry, userId, parsedEntries.slice(1));
+    }
+
+    return attachEntryPatch(
+      {
+        ...safeAIMeta,
+        ...meta,
+        // safeAIMeta wrote ai_summary BEFORE the meta spread, so meta wins on
+        // every key except keys not yet in meta — but ai_summary isn't in meta
+        // yet so it lands. Re-assert here to be explicit and survive future
+        // refactors of the order.
+        ...(safeAIMeta.ai_summary ? { ai_summary: safeAIMeta.ai_summary } : {}),
+        enrichment: {
+          ...(meta.enrichment ?? {}),
+          parsed: true,
+          type_classified: true,
+          ...(parsedEntries.length > 1
+            ? { parse_split_done: true, parse_split_count: splitCount }
+            : {}),
+        },
+      },
+      entryPatch,
+    );
   }
   // LLM returned unparseable / off-shape output. The parse step is best-effort
   // enrichment — for typed entries (todo, event, contact) the client already
@@ -388,7 +672,11 @@ async function stepParse(entry: Entry, cfg: AICall): Promise<Record<string, any>
   // this, a fresh todo with empty content sits with the P chip red until the
   // daily cron and never resolves.
   if (entry.title) {
-    return { ...meta, enrichment: { ...(meta.enrichment ?? {}), parsed: true } };
+    return {
+      ...meta,
+      capture_kind: meta.capture_kind ?? deriveCaptureKind(entry.type, meta),
+      enrichment: { ...(meta.enrichment ?? {}), parsed: true, type_classified: true },
+    };
   }
   return null;
 }
@@ -482,9 +770,7 @@ async function fetchEmbedWithRetry(
 ): Promise<Response> {
   const delays = [500, 1500, 3500];
   for (let i = 0; i <= delays.length; i++) {
-    const r = apiKey
-      ? await googleAiFetch(apiKey, url, init, 10_000)
-      : await fetch(url, init);
+    const r = apiKey ? await googleAiFetch(apiKey, url, init, 10_000) : await fetch(url, init);
     if (r.ok) return r;
     const transient = r.status === 429 || r.status === 503;
     if (!transient || i === delays.length) return r;
@@ -732,12 +1018,7 @@ async function stepFactExtract(
     try {
       await upsertCanonicalFact(fact, userId, brainId);
     } catch (err: any) {
-      console.error(
-        "[fact:extract] insert failed",
-        entry.id,
-        fact.memory_key,
-        err?.message ?? err,
-      );
+      console.error("[fact:extract] insert failed", entry.id, fact.memory_key, err?.message ?? err);
     }
   }
 
@@ -938,12 +1219,7 @@ async function stepLLMFactExtract(
     try {
       await upsertCanonicalFact(fact, userId, brainId, "system_llm");
     } catch (err: any) {
-      console.error(
-        "[fact:llm] insert failed",
-        entry.id,
-        fact.memory_key,
-        err?.message ?? err,
-      );
+      console.error("[fact:llm] insert failed", entry.id, fact.memory_key, err?.message ?? err);
     }
   }
   return stamped;
@@ -1155,6 +1431,42 @@ async function recomputeEnrichmentState(entryIds: string[]): Promise<void> {
   }
 }
 
+async function reopenImportClassificationBacklog(
+  userId: string,
+  brainId: string,
+  limit: number,
+): Promise<void> {
+  const r = await fetch(
+    `${SB_URL}/rest/v1/entries?user_id=eq.${encodeURIComponent(userId)}&brain_id=eq.${encodeURIComponent(brainId)}&deleted_at=is.null&type=in.(note,memory,other)&select=id,metadata,enrichment_state&order=created_at.desc&limit=${Math.max(1, Math.min(limit, 500))}`,
+    { headers: SB_HDR },
+  ).catch(() => null);
+  if (!r?.ok) return;
+  const rows: Array<{
+    id: string;
+    metadata: Record<string, any> | null;
+    enrichment_state?: string;
+  }> = await r.json().catch(() => []);
+  const staleIds = rows
+    .filter((row) => {
+      const meta = row.metadata ?? {};
+      const enr = meta.enrichment ?? {};
+      const isImport =
+        typeof meta.import_source === "string" || typeof meta.import_hash === "string";
+      return isImport && typeof meta.capture_kind !== "string" && enr.type_classified !== true;
+    })
+    .map((row) => row.id);
+  if (!staleIds.length) return;
+  const idList = staleIds.map((id) => encodeURIComponent(id)).join(",");
+  await fetch(
+    `${SB_URL}/rest/v1/entries?id=in.(${idList})&user_id=eq.${encodeURIComponent(userId)}`,
+    {
+      method: "PATCH",
+      headers: { ...SB_HDR, Prefer: "return=minimal" },
+      body: JSON.stringify({ enrichment_state: "pending", enrichment_locked_at: null }),
+    },
+  ).catch((err) => console.error("[enrich:reopen-imports]", err));
+}
+
 // ── Public: enrichInline ────────────────────────────────────────────────────
 //
 // Awaited from capture and any other entry-creation site. Runs every step
@@ -1234,6 +1546,15 @@ export async function enrichInline(
   const flags = flagsOf(entry);
   let changed = false;
   let workingMeta = entry.metadata ?? {};
+  let workingType = entry.type;
+  let workingTags = entry.tags ?? [];
+  let workingEntryPatch: EntryPatch | null = null;
+  const currentEntry = (): Entry => ({
+    ...entry,
+    type: workingType,
+    tags: workingTags,
+    metadata: workingMeta,
+  });
   // Track per-run failures so a thrown step still leaves a breadcrumb on the
   // entry (last_error + attempts). Without this a transient 429 looks like
   // "nothing ever happened" — the diagnostic UI can't distinguish "haven't
@@ -1252,7 +1573,14 @@ export async function enrichInline(
     try {
       const next = await fn();
       if (next) {
-        workingMeta = next;
+        const patch = (next as StepMetadata)[ENTRY_PATCH_KEY];
+        const { [ENTRY_PATCH_KEY]: _entryPatch, ...metadataOnly } = next as StepMetadata;
+        workingMeta = metadataOnly;
+        if (patch) {
+          workingEntryPatch = { ...(workingEntryPatch ?? {}), ...patch };
+          if (patch.type) workingType = patch.type;
+          if (patch.tags) workingTags = patch.tags;
+        }
         changed = true;
       } else {
         stepSilentSkips.push(name);
@@ -1269,13 +1597,21 @@ export async function enrichInline(
   // here, so we never re-resolve.
   const llmCfg = earlyProvider;
   if (!flags.parsed) {
-    await runStep("parse", () => stepParse({ ...entry, metadata: workingMeta }, llmCfg));
+    await runStep("parse", () => stepParse(currentEntry(), llmCfg, userId));
   }
-  if (!flags.has_insight) {
-    await runStep("insight", () => stepInsight({ ...entry, metadata: workingMeta }, llmCfg));
+  // If parse reclassified a plaintext/imported row as a vault secret, stop
+  // here. The classification call already happened, but no insight, concept,
+  // persona, fact, or embedding step should read secret content after that.
+  if (workingType === "secret") {
+    if (changed) await patchMetadata(entry.id, userId, workingMeta, workingEntryPatch);
+    await setEnrichmentState(entryId, "done");
+    return changed;
   }
-  if (!flags.concepts_extracted) {
-    await runStep("concepts", () => stepConcepts({ ...entry, metadata: workingMeta }, llmCfg));
+  if (!flagsOf(currentEntry()).has_insight) {
+    await runStep("insight", () => stepInsight(currentEntry(), llmCfg));
+  }
+  if (!flagsOf(currentEntry()).concepts_extracted) {
+    await runStep("concepts", () => stepConcepts(currentEntry(), llmCfg));
   }
 
   // Persona extractor — pulls 0..N short facts from the entry and writes them
@@ -1287,25 +1623,19 @@ export async function enrichInline(
     return null as string | null;
   });
   if (brainId) {
-    await runStep("persona", () =>
-      stepPersonaExtract({ ...entry, metadata: workingMeta }, userId, brainId, null),
-    );
+    await runStep("persona", () => stepPersonaExtract(currentEntry(), userId, brainId, null));
     // Canonical-fact extraction runs after persona so workingMeta already
     // has any parsed metadata fields (phone, id_number, etc.) that landed
     // in stepParse. Writes structured facts to important_memories for
     // Tier 1 fast-path retrieval.
-    await runStep("facts", () =>
-      stepFactExtract({ ...entry, metadata: workingMeta }, userId, brainId),
-    );
+    await runStep("facts", () => stepFactExtract(currentEntry(), userId, brainId));
     // LLM prose fact extraction runs LAST in the fact pipeline so it can
     // see the parsed metadata + persona context the prior steps produced.
     // Catches facts written in content prose that the deterministic walker
     // can't infer (e.g. "Sarah's birthday is July 4" with no birthday
     // metadata field). Writes to important_memories with
     // created_by='system_llm' so the user can audit / bulk-remove.
-    await runStep("llm-facts", () =>
-      stepLLMFactExtract({ ...entry, metadata: workingMeta }, userId, brainId, llmCfg),
-    );
+    await runStep("llm-facts", () => stepLLMFactExtract(currentEntry(), userId, brainId, llmCfg));
   }
 
   // Stamp per-run breadcrumbs even if no step succeeded — without this an
@@ -1319,9 +1649,7 @@ export async function enrichInline(
     const prevEnr = (workingMeta as any).enrichment ?? {};
     const errorMsg = stepErrors.join(" · ").slice(0, 500);
     const skipMsg =
-      stepSilentSkips.length > 0
-        ? `silent skip: ${stepSilentSkips.join(",")}`.slice(0, 200)
-        : null;
+      stepSilentSkips.length > 0 ? `silent skip: ${stepSilentSkips.join(",")}`.slice(0, 200) : null;
     workingMeta = {
       ...workingMeta,
       enrichment: {
@@ -1349,16 +1677,17 @@ export async function enrichInline(
     }
   }
 
-  if (changed) await patchMetadata(entry.id, userId, workingMeta, null);
+  if (changed) await patchMetadata(entry.id, userId, workingMeta, workingEntryPatch);
 
   // Embedding is independent of the LLM provider. Cron callers pass
   // skipEmbed=true so the per-row PATCH is deferred to bulkEmbedBatch
   // (one UPDATE...FROM per chunk via bulk_apply_embeddings RPC).
-  if (!opts.skipEmbed && !flags.embedded && flags.embedding_status !== "failed") {
+  const finalFlags = flagsOf(currentEntry());
+  if (!opts.skipEmbed && !finalFlags.embedded && finalFlags.embedding_status !== "failed") {
     const embedCfg = await resolveEmbedProviderForUser(userId).catch(() => null);
     if (embedCfg) {
       try {
-        await stepEmbed({ ...entry, metadata: workingMeta }, embedCfg);
+        await stepEmbed(currentEntry(), embedCfg);
         changed = true;
       } catch (err: any) {
         console.error(`[enrich:embed]`, entryId, String(err?.message ?? err).slice(0, 200));
@@ -1388,6 +1717,13 @@ export async function enrichBrain(
   batchSize = 50,
   timeBudgetMs = 240_000,
 ): Promise<{ processed: number; remaining: number }> {
+  // Older Google Keep/import rows may have completed the old parse step with
+  // type still stuck at "note". Re-open a bounded slice so the new
+  // classification-first parse can assign capture_kind + corrected type.
+  await reopenImportClassificationBacklog(userId, brainId, batchSize).catch((err: any) =>
+    console.error("[enrich:brain:reopen-imports]", err?.message ?? err),
+  );
+
   // Phase 2A: claim work via the queue RPC. Atomically marks up to
   // batchSize rows as 'processing' (with locked_at = now) and returns
   // their IDs, FOR UPDATE SKIP LOCKED so concurrent workers don't fight.
@@ -1411,8 +1747,9 @@ export async function enrichBrain(
         .catch(() => []);
       claimedIds = rows
         .map((row) =>
-          typeof row === "string" ? row : (row as { claim_pending_enrichments?: string })
-              .claim_pending_enrichments ?? "",
+          typeof row === "string"
+            ? row
+            : ((row as { claim_pending_enrichments?: string }).claim_pending_enrichments ?? ""),
         )
         .filter((id): id is string => typeof id === "string" && id.length > 0);
     } else {

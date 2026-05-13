@@ -26,16 +26,33 @@ interface EnrichmentFlags {
   backfilled: boolean;
 }
 
+function needsImportTypeClassification(entry: Entry): boolean {
+  const meta = entry.metadata ?? {};
+  const enr = meta.enrichment ?? {};
+  const isImport = typeof meta.import_source === "string" || typeof meta.import_hash === "string";
+  const type = String(entry.type || "note")
+    .trim()
+    .toLowerCase();
+  return (
+    isImport &&
+    (type === "note" || type === "memory" || type === "other") &&
+    typeof meta.capture_kind !== "string" &&
+    enr.type_classified !== true
+  );
+}
+
 export function flagsOf(entry: Entry): EnrichmentFlags {
   const meta = entry.metadata ?? {};
   const enr = meta.enrichment ?? {};
   const embeddingStatus = entry.embedding_status ?? null;
   const conceptsCount = Array.isArray(meta.concepts) ? meta.concepts.length : 0;
   const isPersona = entry.type === "persona";
+  const isList = entry.type === "list";
+  const importNeedsClassification = needsImportTypeClassification(entry);
   return {
-    parsed: enr.parsed === true,
-    has_insight: enr.has_insight === true,
-    concepts_extracted: enr.concepts_extracted === true,
+    parsed: isPersona || isList || (enr.parsed === true && !importNeedsClassification),
+    has_insight: isPersona || isList || enr.has_insight === true,
+    concepts_extracted: isPersona || enr.concepts_extracted === true,
     has_concepts: isPersona || conceptsCount > 0,
     concepts_count: conceptsCount,
     embedded: embeddingStatus === "done" || !!entry.embedded_at,

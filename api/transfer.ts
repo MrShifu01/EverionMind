@@ -147,7 +147,9 @@ function normalizeImportMetadata(value: unknown): Record<string, unknown> {
 
   const metadata = value as Record<string, unknown>;
   try {
-    if (Buffer.byteLength(JSON.stringify(metadata), "utf8") <= MAX_METADATA_BYTES) return metadata;
+    if (Buffer.byteLength(JSON.stringify(metadata), "utf8") <= MAX_METADATA_BYTES) {
+      return markImportedMetadataUnparsed(metadata);
+    }
   } catch {
     return {};
   }
@@ -156,10 +158,34 @@ function normalizeImportMetadata(value: unknown): Record<string, unknown> {
   if (typeof metadata.import_hash === "string") {
     trimmed.import_hash = metadata.import_hash.slice(0, 128);
   }
+  if (typeof metadata.import_source === "string") {
+    trimmed.import_source = metadata.import_source.slice(0, 100);
+  }
   if (typeof metadata.source === "string") {
     trimmed.source = metadata.source.slice(0, 100);
   }
-  return trimmed;
+  return markImportedMetadataUnparsed(trimmed);
+}
+
+function markImportedMetadataUnparsed(metadata: Record<string, unknown>): Record<string, unknown> {
+  const isImport =
+    typeof metadata.import_source === "string" || typeof metadata.import_hash === "string";
+  if (!isImport) return metadata;
+
+  const enrichment =
+    metadata.enrichment &&
+    typeof metadata.enrichment === "object" &&
+    !Array.isArray(metadata.enrichment)
+      ? (metadata.enrichment as Record<string, unknown>)
+      : {};
+  if (enrichment.parsed === true) return metadata;
+  return {
+    ...metadata,
+    enrichment: {
+      ...enrichment,
+      parsed: false,
+    },
+  };
 }
 
 /**

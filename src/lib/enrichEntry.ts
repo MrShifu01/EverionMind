@@ -27,11 +27,22 @@ interface StepFlags {
 function readFlags(entry: Entry): StepFlags {
   const e = entry.metadata?.enrichment ?? {};
   const metaKeys = Object.keys(entry.metadata ?? {}).filter((k) => !SKIP_META_KEYS.has(k));
+  const isImport =
+    typeof entry.metadata?.import_source === "string" ||
+    typeof entry.metadata?.import_hash === "string";
+  const importNeedsClassification =
+    isImport &&
+    ["note", "memory", "other"].includes(String(entry.type || "note").toLowerCase()) &&
+    typeof entry.metadata?.capture_kind !== "string" &&
+    e.type_classified !== true;
   return {
     embedded: e.embedded ?? Boolean(entry.embedded_at),
     concepts: (e.concepts_count ?? 0) > 0,
     // explicit false (e.g. Gmail entries) always requires a parse run, even if metaKeys exist
-    parsed: e.parsed !== false && (e.parsed === true || metaKeys.length > 0),
+    parsed:
+      !importNeedsClassification &&
+      e.parsed !== false &&
+      (e.parsed === true || metaKeys.length > 0),
     insight: !!entry.metadata?.ai_insight || e.has_insight === true,
   };
 }
@@ -118,7 +129,7 @@ async function runParseStep(
       const mergedMeta = {
         ...(entry.metadata ?? {}),
         ...newMeta,
-        enrichment: { ...existing, parsed: true },
+        enrichment: { ...existing, parsed: true, type_classified: true },
       };
       const patch = {
         type: result.type,
@@ -131,7 +142,9 @@ async function runParseStep(
 
     if (entry.title && (entry.content || "").length > 10) {
       // AI produced no usable JSON but entry already has enough — mark parsed anyway so we move on
-      const patch = { metadata: mergeEnrichmentFlags(entry, { parsed: true }) };
+      const patch = {
+        metadata: mergeEnrichmentFlags(entry, { parsed: true, type_classified: true }),
+      };
       await onUpdate(entry.id, patch);
       return { entry: { ...entry, metadata: patch.metadata } as Entry };
     }

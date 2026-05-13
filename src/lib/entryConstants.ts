@@ -12,4 +12,10 @@ export const SKIP_META_KEYS = new Set([
   "ai_insight_short",
   "merge_note",
   "audit_flags",
+  "import_hash",
+  "import_source",
+  "original_edited_at",
+  "keep_archived",
+  "attachments_dropped",
+  "attachment_files",
 ]);

@@ -43,6 +43,21 @@ interface EntryShape {
   embedding_status?: string | null;
 }
 
+function needsImportTypeClassification(entry: EntryShape): boolean {
+  const meta = entry.metadata ?? {};
+  const enr = meta.enrichment ?? {};
+  const isImport = typeof meta.import_source === "string" || typeof meta.import_hash === "string";
+  const type = String(entry.type || "note")
+    .trim()
+    .toLowerCase();
+  return (
+    isImport &&
+    (type === "note" || type === "memory" || type === "other") &&
+    typeof meta.capture_kind !== "string" &&
+    enr.type_classified !== true
+  );
+}
+
 export function flagsOf(entry: EntryShape): EnrichmentFlags {
   const meta = entry.metadata ?? {};
   const enr = meta.enrichment ?? {};
@@ -64,8 +79,9 @@ export function flagsOf(entry: EntryShape): EnrichmentFlags {
   // maxDuration comfortable for long imported lists; the previous full
   // pipeline was timing out on 50+ item PDFs.
   const isList = entry.type === "list";
+  const importNeedsClassification = needsImportTypeClassification(entry);
   return {
-    parsed: isPersona || isList || enr.parsed === true,
+    parsed: isPersona || isList || (enr.parsed === true && !importNeedsClassification),
     has_insight: isPersona || isList || enr.has_insight === true,
     concepts_extracted: isPersona || enr.concepts_extracted === true,
     has_concepts: isPersona || conceptsCount > 0,

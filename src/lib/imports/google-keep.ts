@@ -44,6 +44,7 @@ async function convertNote(note: KeepNote): Promise<ImportEntry | null> {
   const metadata: Record<string, unknown> = {
     import_hash: hash,
     import_source: "google_keep",
+    enrichment: { parsed: false },
     ...(editedAt ? { original_edited_at: editedAt } : {}),
     ...(note.isArchived ? { keep_archived: true } : {}),
     ...(attachments.length > 0
