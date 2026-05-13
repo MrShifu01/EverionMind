@@ -38,12 +38,19 @@ html.family-bronze {
   --ember-fixed: oklch(76% 0.105 82);
   --ember-deep-fixed: oklch(34% 0.07 80);
   --ember-ink-fixed: oklch(12% 0.02 80);
+  /* Theme-locked silver — same idea, used by the inkwell orb's center
+     button to render a silver/steel face instead of the brass one.
+     Light top → dark bottom via the existing radial gradient. */
+  --silver-fixed: oklch(80% 0.005 250);
+  --silver-deep-fixed: oklch(34% 0.006 250);
+  --silver-ink-fixed: oklch(14% 0.006 250);
   /* Theme-locked drop shadow paired with the fixed ember tokens — used
      by the orb button so its lift reads the same in light mode. */
   --lift-2-fixed: 0 8px 24px oklch(4% 0.01 250 / 0.5), 0 2px 6px oklch(4% 0.01 250 / 0.3);
-  /* Orb glyph colour — dark on the brass in dark mode, white in light
-     mode (overridden in the .theme-light block below). */
-  --orb-glyph: var(--ember-ink-fixed);
+  /* Orb glyph colour — dark on the silver face. Stays the same in
+     both themes because the silver button is theme-locked so a fixed
+     dark glyph always reads cleanly. */
+  --orb-glyph: var(--silver-ink-fixed);
 
   --moss: oklch(62% 0.07 152);
   --moss-wash: oklch(62% 0.07 152 / 0.12);
@@ -77,9 +84,9 @@ html.family-bronze.theme-light {
   --ember-wash: oklch(54% 0.1 78 / 0.1);
   --ember-deep: oklch(90% 0.05 78);
   --ember-ink: oklch(98% 0.004 250);
-  /* Light-mode orb glyph: soft warm near-white on the brass for
-     legibility — same hue family as the ember tokens, not pure white. */
-  --orb-glyph: oklch(96% 0.012 80);
+  /* No --orb-glyph override here — the silver button face is
+     theme-locked, so the dark glyph from the dark-mode block reads
+     well in light mode too. */
 
   --moss: oklch(42% 0.07 150);
   --moss-wash: oklch(42% 0.07 150 / 0.08);

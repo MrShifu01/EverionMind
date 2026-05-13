@@ -30,13 +30,11 @@ type VoiceTarget = "capture" | "chat" | null;
 
 const HOLD_THRESHOLD_MS = 250;
 const ACCENT = "var(--ember)";
-// Button-only accent — theme-locked so the inner ember well of the
+// Button-only face — theme-locked silver so the inner well of the
 // inkwell stays visually identical in light mode. Rim and ring keep
 // using ACCENT so they still adapt to theme.
-const BTN_ACCENT = "var(--ember-fixed)";
-const BTN_DEEP = "var(--ember-deep-fixed)";
-// Glyph colour DOES adapt to theme — dark on brass in dark mode,
-// white in light mode. Token defined in family-bronze.css.
+const BTN_ACCENT = "var(--silver-fixed)";
+const BTN_DEEP = "var(--silver-deep-fixed)";
 const BTN_GLYPH = "var(--orb-glyph)";
 
 export default function MobileHome({
