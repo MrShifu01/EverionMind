@@ -33,6 +33,38 @@ interface UseGeminiLiveSession {
   closeReason: string;
   start: (opts: StartOpts) => Promise<void>;
   stop: () => void;
+  /** Pre-mint the Live session token + warm the audio worklet HTTP
+   *  cache so a subsequent start() skips the network round-trip. Safe
+   *  to call repeatedly; cache key is voice+brain+systemInstruction
+   *  and lives for ~45s (Google ephemeral tokens are ~60s). */
+  prewarm: (opts: StartOpts) => Promise<void>;
+}
+
+// Cached pre-minted token (module scope so it survives re-renders).
+interface CachedConfig {
+  cfg: SessionConfig;
+  key: string;
+  mintedAt: number;
+}
+let cachedConfig: CachedConfig | null = null;
+const TOKEN_TTL_MS = 45_000;
+
+function cacheKey(opts: StartOpts) {
+  return `${opts.voice}|${opts.brainId}|${opts.systemInstruction ?? ""}`;
+}
+
+function takeFreshCached(opts: StartOpts): SessionConfig | null {
+  if (!cachedConfig) return null;
+  if (cachedConfig.key !== cacheKey(opts)) return null;
+  if (Date.now() - cachedConfig.mintedAt > TOKEN_TTL_MS) {
+    cachedConfig = null;
+    return null;
+  }
+  // Single-use — clear so the same token isn't reused for a second
+  // session (Google ephemeral tokens are scoped to one connection).
+  const cfg = cachedConfig.cfg;
+  cachedConfig = null;
+  return cfg;
 }
 
 // Decode base64 → Float32 for playback. Gemini Live returns 24 kHz mono
@@ -145,26 +177,32 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
       brainIdRef.current = brainId;
 
       let cfg: SessionConfig;
-      try {
-        const r = await authFetch("/api/llm?action=live-session", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ voice, brain_id: brainId, systemInstruction }),
-        });
-        if (!r.ok) {
-          const data = await r.json().catch(() => ({}));
-          const msg =
-            (data as { message?: string; error?: string }).message ||
-            (data as { error?: string }).error ||
-            `HTTP ${r.status}`;
-          throw new Error(`mint:${r.status} ${msg}`);
+      const preMinted = takeFreshCached({ voice, brainId, systemInstruction });
+      if (preMinted) {
+        cfg = preMinted;
+        setLastEvent(`token ok (prewarmed, model=${cfg.model.replace("models/", "")})`);
+      } else {
+        try {
+          const r = await authFetch("/api/llm?action=live-session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ voice, brain_id: brainId, systemInstruction }),
+          });
+          if (!r.ok) {
+            const data = await r.json().catch(() => ({}));
+            const msg =
+              (data as { message?: string; error?: string }).message ||
+              (data as { error?: string }).error ||
+              `HTTP ${r.status}`;
+            throw new Error(`mint:${r.status} ${msg}`);
+          }
+          cfg = (await r.json()) as SessionConfig;
+          setLastEvent(`token ok (model=${cfg.model.replace("models/", "")})`);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "session_failed");
+          setStatus("error");
+          return;
         }
-        cfg = (await r.json()) as SessionConfig;
-        setLastEvent(`token ok (model=${cfg.model.replace("models/", "")})`);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "session_failed");
-        setStatus("error");
-        return;
       }
 
       setLastEvent("requesting mic…");
@@ -440,6 +478,37 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
     [stop],
   );
 
+  const prewarm = useCallback(async (opts: StartOpts) => {
+    // No-op if we already have a fresh cached token for the same key.
+    if (
+      cachedConfig &&
+      cachedConfig.key === cacheKey(opts) &&
+      Date.now() - cachedConfig.mintedAt < TOKEN_TTL_MS
+    ) {
+      return;
+    }
+    // Warm the worklet HTTP cache in parallel with the token mint —
+    // addModule() in start() will then pull from cache instead of
+    // network. Failure here is non-fatal (start will fetch on demand).
+    fetch("/audio-worklets/pcm-recorder.js", { credentials: "same-origin" }).catch(() => {});
+    try {
+      const r = await authFetch("/api/llm?action=live-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          voice: opts.voice,
+          brain_id: opts.brainId,
+          systemInstruction: opts.systemInstruction,
+        }),
+      });
+      if (!r.ok) return;
+      const cfg = (await r.json()) as SessionConfig;
+      cachedConfig = { cfg, key: cacheKey(opts), mintedAt: Date.now() };
+    } catch {
+      // Pre-warm failures silently fall through to a cold start.
+    }
+  }, []);
+
   return {
     status,
     error,
@@ -452,5 +521,6 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
     closeReason,
     start,
     stop,
+    prewarm,
   };
 }

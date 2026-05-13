@@ -90,6 +90,15 @@ export default function MobileHome({
     liveVoiceRef.current = geminiVoice;
   }, [geminiVoice]);
 
+  // Pre-mint the Gemini Live token + warm the audio worklet HTTP cache
+  // when the user enters Ask mode with Live voice on. start() will then
+  // skip the network round-trip and the worklet load, dropping the
+  // visible "connecting" window by a few hundred ms.
+  useEffect(() => {
+    if (mode !== "ask" || !geminiLiveOn || !brainId) return;
+    void liveSession.prewarm({ voice: geminiVoice, brainId });
+  }, [mode, geminiLiveOn, brainId, geminiVoice, liveSession]);
+
   const { messages, loading: chatLoading, send: sendChat, clearHistory } = useChat(brainId);
 
   const handleTranscript = useCallback(
