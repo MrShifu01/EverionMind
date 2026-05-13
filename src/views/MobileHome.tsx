@@ -8,7 +8,6 @@ import { usePendingVoiceActions } from "../hooks/usePendingVoiceActions";
 import { PendingVoiceActionsBanner } from "../components/PendingVoiceActionsBanner";
 import NotificationBell from "../components/NotificationBell";
 import InkwellBrainPill from "../components/InkwellBrainPill";
-import { startViewTransition } from "../lib/viewTransitions";
 import type { AppNotification } from "../hooks/useNotifications";
 
 interface MobileHomeProps {
@@ -335,11 +334,12 @@ export default function MobileHome({
   // NOT pop the chat sheet. Sheet is reserved for actual text-chat history
   // and pending-voice-action confirmations.
   const hasChatContent = messages.length > 0 || pendingActions.pending.length > 0;
-  // sheetExplicitOpen lets the user pop the sheet by tapping the inline
-  // ask field BEFORE there's any content — saves the click-twice-to-send
-  // jank where the inline form's submit also opened the sheet.
-  const [sheetExplicitOpen, setSheetExplicitOpen] = useState(false);
-  const sheetOpen = isAsk && (hasChatContent || sheetExplicitOpen) && !sheetUserDismissed;
+  // ChatSheet now only auto-opens when there's content to show (voice
+  // transcripts dropping into useChat, pending voice actions waiting for
+  // confirmation). User-initiated chat goes through the chat route now
+  // (pill onClick → onNavigate("chat")), so the previous
+  // `sheetExplicitOpen` state was retired.
+  const sheetOpen = isAsk && hasChatContent && !sheetUserDismissed;
 
   useEffect(() => {
     if (sheetOpen) {
@@ -517,23 +517,18 @@ export default function MobileHome({
           aria-label="Open chat"
           disabled={!brainId}
           onClick={() => {
-            // Navigate to the chat view (route) instead of opening the
-            // ChatSheet modal. ChatView's composer carries the matching
-            // `view-transition-name: ask-input`, so the browser morphs
-            // this pill into the composer's input pill — the chat surface
-            // appears to grow from this pill, not slide over it.
-            // The parent (Everion) wraps setView in startViewTransition,
-            // so we don't need to wrap here.
-            if (onNavigate) {
-              onNavigate("chat");
-            } else {
-              // Fallback for surfaces that don't pass onNavigate yet —
-              // keep the legacy modal flow alive so nothing breaks.
-              startViewTransition(() => {
-                setSheetUserDismissed(false);
-                setSheetExplicitOpen(true);
-              });
-            }
+            // Navigate to the chat view (route). ChatView's composer
+            // carries the matching `view-transition-name: ask-input`, so
+            // the browser morphs this pill into the composer's input
+            // pill. The parent (Everion) wraps setView in
+            // startViewTransition.
+            //
+            // onNavigate is always passed by Everion in production —
+            // the prior fallback to setSheetExplicitOpen is gone. The
+            // ChatSheet still mounts for voice-driven auto-content
+            // (hasChatContent path below), but the manual pill-click
+            // path is route-only now.
+            onNavigate?.("chat");
           }}
           style={{
             // Pinned to the visual viewport. -30px shaves the gap below
@@ -620,7 +615,6 @@ export default function MobileHome({
         open={sheetOpen}
         onClose={() => {
           setSheetUserDismissed(true);
-          setSheetExplicitOpen(false);
         }}
         messages={messages}
         loading={chatLoading}
