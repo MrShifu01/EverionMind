@@ -1492,7 +1492,7 @@ function ChatSheet({
   // Compose transform: drag delta wins; otherwise slide-up/down via visible.
   const transform =
     dragY > 0 ? `translateY(${dragY}px)` : visible ? "translateY(0)" : "translateY(100%)";
-  const transition = dragging ? "none" : "transform 360ms cubic-bezier(0.22, 1, 0.36, 1)";
+  const transition = dragging ? "none" : "transform 360ms var(--ease-emphasized)";
   return (
     <>
       <div
@@ -1501,7 +1501,7 @@ function ChatSheet({
         aria-hidden
         style={{
           opacity: visible ? 1 : 0,
-          transition: "opacity 280ms ease",
+          transition: "opacity 280ms var(--ease-emphasized)",
         }}
       />
       <div

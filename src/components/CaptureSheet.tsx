@@ -435,10 +435,15 @@ export default function CaptureSheet({
               transition:
                 dragY > 0
                   ? "none"
-                  : "--capture-y 0.36s cubic-bezier(0.22, 1, 0.36, 1), transform 0.36s cubic-bezier(0.22, 1, 0.36, 1)",
+                  : "--capture-y 0.36s var(--ease-emphasized), transform 0.36s var(--ease-emphasized)",
               display: "flex",
               flexDirection: "column",
               overflow: "hidden",
+              // GPU promotion — keep the slide on its own compositor
+              // layer so the 360ms transition stays buttery on iOS.
+              willChange: "transform",
+              backfaceVisibility: "hidden",
+              WebkitBackfaceVisibility: "hidden" as never,
             }}
           >
             <DialogPrimitive.Title className="sr-only">
