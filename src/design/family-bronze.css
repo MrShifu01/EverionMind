@@ -41,6 +41,9 @@ html.family-bronze {
   /* Theme-locked drop shadow paired with the fixed ember tokens — used
      by the orb button so its lift reads the same in light mode. */
   --lift-2-fixed: 0 8px 24px oklch(4% 0.01 250 / 0.5), 0 2px 6px oklch(4% 0.01 250 / 0.3);
+  /* Orb glyph colour — dark on the brass in dark mode, white in light
+     mode (overridden in the .theme-light block below). */
+  --orb-glyph: var(--ember-ink-fixed);
 
   --moss: oklch(62% 0.07 152);
   --moss-wash: oklch(62% 0.07 152 / 0.12);
@@ -74,6 +77,9 @@ html.family-bronze.theme-light {
   --ember-wash: oklch(54% 0.1 78 / 0.1);
   --ember-deep: oklch(90% 0.05 78);
   --ember-ink: oklch(98% 0.004 250);
+  /* Light-mode orb glyph: soft warm near-white on the brass for
+     legibility — same hue family as the ember tokens, not pure white. */
+  --orb-glyph: oklch(96% 0.012 80);
 
   --moss: oklch(42% 0.07 150);
   --moss-wash: oklch(42% 0.07 150 / 0.08);

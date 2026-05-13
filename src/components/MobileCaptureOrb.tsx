@@ -27,7 +27,9 @@ const ACCENT = "var(--ember)";
 // they still adapt to theme.
 const BTN_ACCENT = "var(--ember-fixed)";
 const BTN_DEEP = "var(--ember-deep-fixed)";
-const BTN_INK = "var(--ember-ink-fixed)";
+// Glyph colour DOES adapt to theme — dark on brass in dark mode,
+// white in light mode. Token defined in family-bronze.css.
+const BTN_GLYPH = "var(--orb-glyph)";
 
 // Home Inkwell reference (size=220). All proportional values below are
 // derived from this so the mini orb is a true 1:1 scale-down — same
@@ -134,7 +136,10 @@ export default function MobileCaptureOrb({
   const k = size / REF_SIZE;
   const ringInset = Math.round(REF_RING_INSET * k);
   const buttonInset = Math.round(REF_BUTTON_INSET * k);
-  const glyphFont = Math.round(REF_GLYPH_FONT * k);
+  // Plus reads visually smaller than the question mark at the same
+  // pt size, so render it a touch larger.
+  const refGlyphFont = glyph === "+" ? 44 : REF_GLYPH_FONT;
+  const glyphFont = Math.round(refGlyphFont * k);
   const rimInsetBlur = Math.max(1, Math.round(REF_RIM_INSET_SHADOW_BLUR * k));
   const rimInsetY = Math.round(REF_RIM_INSET_SHADOW_Y * k);
   const ringInsetBlur = Math.max(1, Math.round(REF_RING_INSET_SHADOW_BLUR * k));
@@ -268,7 +273,7 @@ export default function MobileCaptureOrb({
               position: "relative",
               zIndex: 1,
               fontSize: glyphFont,
-              color: BTN_INK,
+              color: BTN_GLYPH,
               fontWeight: 300,
               lineHeight: 1,
               textShadow: `0 1px 2px color-mix(in oklch, ${BTN_DEEP} 60%, transparent)`,

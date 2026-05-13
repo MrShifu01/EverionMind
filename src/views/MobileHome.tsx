@@ -34,7 +34,9 @@ const ACCENT = "var(--ember)";
 // using ACCENT so they still adapt to theme.
 const BTN_ACCENT = "var(--ember-fixed)";
 const BTN_DEEP = "var(--ember-deep-fixed)";
-const BTN_INK = "var(--ember-ink-fixed)";
+// Glyph colour DOES adapt to theme — dark on brass in dark mode,
+// white in light mode. Token defined in family-bronze.css.
+const BTN_GLYPH = "var(--orb-glyph)";
 
 export default function MobileHome({
   brainId,
@@ -774,6 +776,9 @@ function Inkwell({
 }) {
   const size = 220;
   const glyph = mode === "add" ? "+" : "?";
+  // Plus reads visually smaller than the question mark at the same
+  // pt size, so render it a touch larger.
+  const glyphFontSize = mode === "add" ? 44 : 36;
   return (
     <div style={{ position: "relative", width: size, height: size }}>
       <div
@@ -891,8 +896,8 @@ function Inkwell({
           style={{
             position: "relative",
             zIndex: 1,
-            fontSize: 36,
-            color: BTN_INK,
+            fontSize: glyphFontSize,
+            color: BTN_GLYPH,
             fontWeight: 300,
             lineHeight: 1,
             textShadow: `0 1px 2px color-mix(in oklch, ${BTN_DEEP} 60%, transparent)`,
