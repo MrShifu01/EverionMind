@@ -198,12 +198,12 @@ export default function MobileCaptureOrb({
           data-pressed={pressed ? "true" : "false"}
           style={{
             position: "absolute",
-            // Nudge the button up by 2px (top -2, bottom +2) — without
-            // this it reads as sitting slightly low inside the ring on
-            // the mini orb, making the whole stack look uneven.
-            top: buttonInset - 2,
+            // Nudge the button up by 1.5px — sits visually centered
+            // inside the rim/ring on the mini orb. Subpixel offset is
+            // fine on retina; the browser snaps consistently.
+            top: buttonInset - 1.5,
             right: buttonInset,
-            bottom: buttonInset + 2,
+            bottom: buttonInset + 1.5,
             left: buttonInset,
             borderRadius: "50%",
             background: `radial-gradient(circle at 50% 30%,
@@ -280,7 +280,9 @@ export default function MobileCaptureOrb({
               color: BTN_GLYPH,
               fontWeight: 300,
               lineHeight: 1,
-              textShadow: `0 1px 2px color-mix(in oklch, ${BTN_DEEP} 60%, transparent)`,
+              // Engraved feel — see home Inkwell for rationale.
+              mixBlendMode: "overlay",
+              textShadow: `0 -1px 0 color-mix(in oklch, ${BTN_DEEP} 70%, transparent), 0 1px 0 color-mix(in oklch, white 30%, transparent)`,
             }}
           >
             {glyph}

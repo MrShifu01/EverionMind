@@ -1055,7 +1055,12 @@ function Inkwell({
             color: BTN_GLYPH,
             fontWeight: 300,
             lineHeight: 1,
-            textShadow: `0 1px 2px color-mix(in oklch, ${BTN_DEEP} 60%, transparent)`,
+            // Engraved feel: overlay-blend the glyph against the steel
+            // gradient (top of glyph darkens vs the brighter metal),
+            // plus a 1px dark above + 1px highlight below "letterpress"
+            // shadow for the recessed-channel cue.
+            mixBlendMode: "overlay",
+            textShadow: `0 -1px 0 color-mix(in oklch, ${BTN_DEEP} 70%, transparent), 0 1px 0 color-mix(in oklch, white 30%, transparent)`,
           }}
         >
           {glyph}
