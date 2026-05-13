@@ -444,4 +444,15 @@ html[class*="family-"] body {
     width: 38px;
     height: 4px;
   }
+
+  /* Tailwind v4 sets the modern `translate` CSS property when it sees
+     translate-* utilities, and `translate` applies INDEPENDENTLY from the
+     legacy `transform` property. Any stray `--tw-translate-*` cascade can
+     leave a translate value applied that fights the inline `transform`
+     used to slide these sheets. Force translate to none so only the
+     inline transform centers + animates them. */
+  .inkwell-sheet,
+  .capture-sheet {
+    translate: none !important;
+  }
 }

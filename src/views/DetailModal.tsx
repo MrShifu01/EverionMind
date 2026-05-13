@@ -1665,7 +1665,10 @@ No explanation, no punctuation, just one word.`,
               bottom: 0 !important;
               left: 0 !important;
               right: 0 !important;
+              /* Tailwind v4 uses the modern translate CSS property (not transform) for -translate-x-1/2.
+                 We must kill BOTH or the modal stays shifted -50% horizontally. */
               transform: none !important;
+              translate: none !important;
               width: 100% !important;
               max-width: 100% !important;
               max-height: calc(100dvh - 60px) !important;
