@@ -85,9 +85,14 @@ html.family-bronze.theme-light {
   --ember-wash: oklch(54% 0.1 78 / 0.1);
   --ember-deep: oklch(90% 0.05 78);
   --ember-ink: oklch(98% 0.004 250);
+  /* Light-mode silver overrides — slightly brighter top + much lighter
+     deep so the orb blends with the lighter rim/ring instead of being a
+     dark steel coin. Closer to the original silver palette (80/34) we
+     had before the metallic-punch commit, with a touch more contrast. */
+  --silver-fixed: oklch(90% 0.008 240);
+  --silver-deep-fixed: oklch(46% 0.012 240);
   /* No --orb-glyph override — defaults to the white set in the
-     dark-mode block above. Steel face is theme-locked, so a single
-     white glyph works in both modes. */
+     dark-mode block above. */
 
   --moss: oklch(42% 0.07 150);
   --moss-wash: oklch(42% 0.07 150 / 0.08);
