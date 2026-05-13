@@ -85,7 +85,7 @@ import { syncTimezoneIfChanged } from "./lib/syncTimezone";
 import { supabase } from "./lib/supabase";
 import { trackNavViewActive } from "./lib/events";
 import { AppLockGate } from "./components/AppLockGate";
-import HomeView from "./views/HomeView";
+import HomeViewHearth from "./views/HomeViewHearth";
 
 // Retry dynamic imports once on failure (stale chunk hash after deploy)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1022,16 +1022,11 @@ function EverionContent({
                 name="HomeView"
                 fallback={(error, reset) => <ViewError view="Home" error={error} onReset={reset} />}
               >
-                <HomeView
+                <HomeViewHearth
                   entries={entries}
-                  brainCount={brains.length}
                   brainName={activeBrain?.name}
-                  brainId={activeBrain?.id}
-                  isPersonalBrain={activeBrain?.is_personal === true}
-                  onNavigate={appShell.setView}
                   onOpenCapture={() => appShell.setShowCapture(true)}
-                  onOpenCaptureWith={(text) => appShell.openCapture(text)}
-                  onCreateBrain={() => appShell.setShowCreateBrain(true)}
+                  onNavigate={navigateView}
                   onSelectEntry={handleEntrySelect}
                 />
               </ErrorBoundary>
