@@ -247,17 +247,6 @@ export default function MobileHome({
     isConnecting ||
     askInput.trim().length > 0;
 
-  const [connectTimedOut, setConnectTimedOut] = useState(false);
-  useEffect(() => {
-    if (!isConnecting) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on transition out of connecting
-      setConnectTimedOut(false);
-      return;
-    }
-    const id = window.setTimeout(() => setConnectTimedOut(true), 10_000);
-    return () => window.clearTimeout(id);
-  }, [isConnecting]);
-
   // ── Live voice "thinking" state ──────────────────────────────────
   // The Gemini Live session stays in "listening" status between the user
   // ending their utterance and the model starting its response — there's
@@ -495,7 +484,6 @@ export default function MobileHome({
               isConnecting={isConnecting}
               isSpeaking={liveSession.status === "speaking"}
               isThinking={thinking}
-              connectTimedOut={connectTimedOut}
               onPointerDown={onPointerDown}
               onPointerUp={onPointerUp}
               onPointerCancel={onPointerCancel}
@@ -928,7 +916,6 @@ function Inkwell({
   isConnecting,
   isSpeaking,
   isThinking,
-  connectTimedOut,
   onPointerDown,
   onPointerUp,
   onPointerCancel,
@@ -941,7 +928,6 @@ function Inkwell({
   isConnecting: boolean;
   isSpeaking: boolean;
   isThinking: boolean;
-  connectTimedOut: boolean;
   onPointerDown: (e: React.PointerEvent) => void;
   onPointerUp: () => void;
   onPointerCancel: () => void;
@@ -1013,17 +999,15 @@ function Inkwell({
           WebkitTouchCallout: "none",
           userSelect: "none",
           WebkitUserSelect: "none",
-          animation: connectTimedOut
-            ? "orb-deflate 700ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards"
-            : isConnecting
-              ? "orb-connect-bounce 2.2s ease-in-out infinite"
-              : isSpeaking
-                ? "orb-speak-glow 0.9s ease-in-out infinite"
-                : isThinking
-                  ? "inkwell-breathe 1.0s ease-in-out infinite"
-                  : listening
-                    ? "inkwell-breathe 1.4s ease-in-out infinite"
-                    : "none",
+          animation: isConnecting
+            ? "orb-connect-bounce 2.2s ease-in-out infinite"
+            : isSpeaking
+              ? "orb-speak-glow 0.9s ease-in-out infinite"
+              : isThinking
+                ? "inkwell-breathe 1.0s ease-in-out infinite"
+                : listening
+                  ? "inkwell-breathe 1.4s ease-in-out infinite"
+                  : "none",
         }}
       >
         <span
