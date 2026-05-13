@@ -396,6 +396,13 @@ No explanation, no punctuation, just one word.`,
             bottom: "calc(96px + env(safe-area-inset-bottom))",
             maxHeight:
               "calc(100dvh - 96px - env(safe-area-inset-bottom) - env(safe-area-inset-top))",
+            // Shared-element morph from the clicked EntryCard. EntryCard's
+            // onClick sets `view-transition-name: entry-${id}` imperatively
+            // on the card root just before calling onSelect; the parent
+            // wraps setSelected in startViewTransition. Browser morphs card
+            // -> this modal. On unsupported browsers the property is a no-op
+            // and the design-scaleIn keyframe above is the fallback animation.
+            viewTransitionName: entry?.id ? `entry-${entry.id}` : undefined,
           }}
           onTouchMove={(e) => e.stopPropagation()}
         >

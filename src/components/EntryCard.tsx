@@ -199,12 +199,24 @@ export const EntryCard = memo(function EntryCard({
       {/* Card content — slides left on swipe */}
       <article
         tabIndex={0}
-        onClick={() => {
+        onClick={(ev) => {
           if (isOpen) {
             closeSwipe();
             return;
           }
-          selectMode ? onToggleSelect?.(e.id) : onSelect(e);
+          if (selectMode) {
+            onToggleSelect?.(e.id);
+            return;
+          }
+          // Imperatively mark this card as the View Transitions source.
+          // The parent wraps the resulting setSelected in startViewTransition;
+          // browser captures the BEFORE snapshot with this name on the card,
+          // React's flushSync replaces the inline style on re-render (no name
+          // on the card after), DetailModal renders with the same name, and
+          // the browser morphs card -> modal. On unsupported browsers the
+          // inline style is harmless (view-transition-name is a no-op there).
+          (ev.currentTarget as HTMLElement).style.viewTransitionName = `entry-${e.id}`;
+          onSelect(e);
         }}
         onKeyDown={(ev) => {
           if (ev.key === "Escape") {

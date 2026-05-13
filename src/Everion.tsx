@@ -323,9 +323,14 @@ function EverionContent({
     (entry: Entry) => {
       if (entry.type === "secret") {
         setSelectedVaultEntry(entry);
-      } else {
-        setSelected(entry);
+        return;
       }
+      // EntryCard imperatively set `view-transition-name: entry-${id}` on
+      // its root before calling this. DetailModal renders with the same
+      // name on its Content. startViewTransition snapshots both, browser
+      // morphs the card position/size into the modal's. Falls back to
+      // an instant open on unsupported browsers.
+      startViewTransition(() => setSelected(entry));
     },
     [setSelected],
   );
