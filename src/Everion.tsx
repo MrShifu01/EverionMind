@@ -1,6 +1,7 @@
 import { useMemo, useRef, useEffect, useCallback, useState, lazy, Suspense } from "react";
 import { useTheme } from "./ThemeContext";
 import { authFetch } from "./lib/authFetch";
+import { startViewTransition } from "./lib/viewTransitions";
 import { registerTypeIcon } from "./lib/typeIcons";
 import { useBrain as useBrainHook } from "./hooks/useBrain";
 import { useOfflineSync } from "./hooks/useOfflineSync";
@@ -347,6 +348,17 @@ function EverionContent({
   const visibleNavViews = NAV_VIEWS.filter(
     (v) => !(v.id in FEATURE_FLAGS) || ff(v.id as FeatureFlagKey),
   );
+  // Wrap view changes in the View Transitions API so the browser
+  // cross-fades / slides between routes natively (CSS in index.css
+  // controls the actual motion). Falls back to an instant swap on
+  // unsupported browsers and when prefers-reduced-motion is set.
+  // Equivalent end-state to a direct setView call.
+  const navigateView = useCallback(
+    (next: string | ((prev: string) => string)) => {
+      startViewTransition(() => appShell.setView(next));
+    },
+    [appShell.setView],
+  );
 
   useEffect(() => {
     if (appShell.view in FEATURE_FLAGS && !ff(appShell.view as FeatureFlagKey)) {
@@ -509,7 +521,7 @@ function EverionContent({
         onNavigate={(id) => {
           appShell.setSelected(null);
           appShell.setShowCapture(false);
-          appShell.setView(id);
+          navigateView(id);
         }}
         onCapture={() => appShell.setShowCapture(true)}
         isDark={isDark}
@@ -540,7 +552,7 @@ function EverionContent({
                 )
               }
               onOpenMenu={() => setMoreOpen(true)}
-              onNavigate={appShell.setView}
+              onNavigate={navigateView}
               notifications={notifs.notifications}
               unreadCount={notifs.unreadCount}
               onDismissNotification={notifs.dismiss}
@@ -553,7 +565,7 @@ function EverionContent({
           <DesktopHeader
             searchInput={appShell.searchInput}
             onSearchChange={appShell.setSearchInput}
-            onNavigate={appShell.setView}
+            onNavigate={navigateView}
             isDark={isDark}
             onToggleTheme={toggleTheme}
             notifications={notifs.notifications}
@@ -575,7 +587,7 @@ function EverionContent({
             />
           )}
           {(appShell.view === "memory" || appShell.view === "chat") && (
-            <UsageWarningBanner onNavigate={appShell.setView} />
+            <UsageWarningBanner onNavigate={navigateView} />
           )}
           {failedOps.length > 0 && (
             <div
@@ -602,7 +614,7 @@ function EverionContent({
           <OmniSearch
             entries={allEntries}
             onSelect={handleEntrySelect}
-            onNavigate={appShell.setView}
+            onNavigate={navigateView}
             showGraph={ff("graph")}
             concepts={godNodes.map((c) => ({
               id: c.id,
@@ -615,8 +627,15 @@ function EverionContent({
             id="main-content"
             key={appShell.view}
             ref={setScrollEl}
-            className="animate-view-enter relative flex-1 overflow-y-auto"
+            className="relative flex-1 overflow-y-auto"
             tabIndex={-1}
+            // view-transition-name lets the browser's View Transitions API
+            // morph this element between route changes. CSS in index.css
+            // (`::view-transition-old(root-view)` etc.) controls the
+            // animation. Replaces the previous .animate-view-enter keyframe
+            // which left a transform on this element forever and broke
+            // position:fixed anchoring for descendants (fix 9c5f325).
+            style={{ viewTransitionName: "root-view" }}
           >
             <PullToRefreshIndicator pullDistance={pullDistance} refreshing={refreshing} />
             {appShell.view === "memory" && isMobile && entriesLoaded && entries.length > 0 ? (
@@ -915,7 +934,7 @@ function EverionContent({
                 fallback={(error, reset) => <ViewError view="Chat" error={error} onReset={reset} />}
               >
                 <Suspense fallback={<Loader />}>
-                  <ChatView brainId={activeBrain?.id} onNavigate={appShell.setView} />
+                  <ChatView brainId={activeBrain?.id} onNavigate={navigateView} />
                 </Suspense>
               </ErrorBoundary>
             )}
