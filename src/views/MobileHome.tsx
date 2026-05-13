@@ -1385,6 +1385,96 @@ function MarkdownText({ text }: { text: string }) {
 
 /* ── Chat sheet ─────────────────────────────────────────────────── */
 
+// Diagnostic for "Ask sheet positioned off-screen on mobile". Gated by
+// ?debug=ask URL param. Reads real numbers off the live sheet element —
+// rect, computed style, --inkwell-sheet-x value, offsetParent (catches a
+// containing-block ancestor). Tap to copy as text. Delete after fix lands.
+function AskSheetDiag({ sheetRef }: { sheetRef: React.RefObject<HTMLDivElement | null> }) {
+  const [enabled] = useState(() => {
+    try {
+      const p = new URLSearchParams(window.location.search);
+      if (p.get("debug") === "ask") {
+        localStorage.setItem("everion:debug-ask", "1");
+        return true;
+      }
+      if (p.get("debug") === "off") {
+        localStorage.removeItem("everion:debug-ask");
+        return false;
+      }
+      return localStorage.getItem("everion:debug-ask") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [snap, setSnap] = useState<string>("(reading…)");
+  useEffect(() => {
+    if (!enabled) return;
+    let raf = 0;
+    function read() {
+      const el = sheetRef.current;
+      if (!el) {
+        setSnap("(no sheet ref)");
+        return;
+      }
+      const r = el.getBoundingClientRect();
+      const cs = window.getComputedStyle(el);
+      const op = el.offsetParent as Element | null;
+      const opDesc = op
+        ? `${op.tagName.toLowerCase()}${op.id ? "#" + op.id : ""}${op.className ? "." + String(op.className).split(/\s+/).slice(0, 3).join(".") : ""}`
+        : "null";
+      const xVar = cs.getPropertyValue("--inkwell-sheet-x").trim() || "(unset)";
+      const mmMobile = window.matchMedia("(max-width: 1023px)").matches;
+      const lines = [
+        `vw×vh  ${window.innerWidth}×${window.innerHeight}`,
+        `mq≤1023 ${mmMobile}`,
+        `rect   L${Math.round(r.left)} R${Math.round(window.innerWidth - r.right)} T${Math.round(r.top)} B${Math.round(window.innerHeight - r.bottom)} W${Math.round(r.width)}`,
+        `pos    ${cs.position}`,
+        `L/R/W  ${cs.left} / ${cs.right} / ${cs.width}`,
+        `xform  ${cs.transform.slice(0, 80)}`,
+        `transl ${cs.translate}`,
+        `--x    ${xVar}`,
+        `offP   ${opDesc}`,
+      ];
+      setSnap(lines.join("\n"));
+    }
+    function loop() {
+      read();
+      raf = requestAnimationFrame(loop);
+    }
+    loop();
+    return () => cancelAnimationFrame(raf);
+  }, [enabled, sheetRef]);
+  if (!enabled) return null;
+  return (
+    <div
+      onClick={() => {
+        try {
+          navigator.clipboard?.writeText(snap);
+        } catch {
+          // ignore
+        }
+      }}
+      style={{
+        position: "absolute",
+        top: 4,
+        left: 4,
+        right: 4,
+        zIndex: 9999,
+        padding: "6px 8px",
+        borderRadius: 6,
+        background: "rgba(255, 0, 80, 0.92)",
+        color: "white",
+        font: "10px/1.35 ui-monospace, Menlo, monospace",
+        whiteSpace: "pre",
+        pointerEvents: "auto",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+      }}
+    >
+      {snap}
+    </div>
+  );
+}
+
 type PendingShape = ReturnType<typeof usePendingVoiceActions>;
 
 function ChatSheet({
@@ -1528,6 +1618,7 @@ function ChatSheet({
           transition,
         }}
       >
+        <AskSheetDiag sheetRef={sheetRef} />
         <div
           onPointerDown={onGripPointerDown}
           onPointerMove={onGripPointerMove}
