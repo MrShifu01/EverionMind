@@ -12,7 +12,7 @@ interface Props {
 export default function PullToRefreshIndicator({
   pullDistance,
   refreshing,
-  threshold = 72,
+  threshold = 60,
 }: Props) {
   if (pullDistance <= 0 && !refreshing) return null;
 

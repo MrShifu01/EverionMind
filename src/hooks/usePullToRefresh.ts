@@ -10,9 +10,13 @@ import { useEffect, useRef, useState } from "react";
 // pull gesture, would just intercept mouse drag-selection).
 
 interface Options {
-  threshold?: number; // pixels of pull before commit
+  threshold?: number; // pixels of pull (after deadzone) before commit
   maxDistance?: number; // visual cap after rubber-band
   enabled?: boolean;
+  /** Drag distance the user has to pass before the indicator appears at
+   *  all. Below this we keep pullDistance at 0 so a stray downward swipe
+   *  while reading doesn't flash the refresh pill. */
+  activationDistance?: number;
 }
 
 export function usePullToRefresh(
@@ -24,7 +28,7 @@ export function usePullToRefresh(
   onRefresh: () => Promise<void> | void,
   opts: Options = {},
 ) {
-  const { threshold = 72, maxDistance = 110, enabled = true } = opts;
+  const { threshold = 60, maxDistance = 110, enabled = true, activationDistance = 100 } = opts;
   const [pullDistance, setPullDistance] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -67,8 +71,16 @@ export function usePullToRefresh(
         if (pullRef.current !== 0) setPull(0);
         return;
       }
+      // Activation deadzone — below this the indicator stays hidden so
+      // a stray downward swipe (or scroll-bounce at the top) doesn't
+      // flash the pill.
+      if (dy < activationDistance) {
+        if (pullRef.current !== 0) setPull(0);
+        return;
+      }
+      const effective = dy - activationDistance;
       // Rubber-band past the threshold so the indicator never flies off.
-      const eased = dy < threshold ? dy : threshold + (dy - threshold) * 0.4;
+      const eased = effective < threshold ? effective : threshold + (effective - threshold) * 0.4;
       setPull(Math.min(eased, maxDistance));
     }
 
