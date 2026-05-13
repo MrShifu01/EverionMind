@@ -55,8 +55,11 @@ async function handleChatFeedback({ req, res, user }: HandlerContext): Promise<v
   if (feedback !== 1 && feedback !== -1) {
     throw new ApiError(400, "feedback must be 1 or -1");
   }
-  if (!["high", "medium", "low"].includes(confidence)) {
+  if (typeof confidence !== "string" || !["high", "medium", "low"].includes(confidence)) {
     throw new ApiError(400, "confidence must be high, medium, or low");
+  }
+  if (typeof brain_id !== "string") {
+    throw new ApiError(400, "Invalid brain_id");
   }
   const retrievedIds: string[] = Array.isArray(retrieved_entry_ids)
     ? retrieved_entry_ids.slice(0, 100)
@@ -100,6 +103,9 @@ async function handleMergeFeedback({ req, res, user }: HandlerContext): Promise<
   const { brain_id, titles, note } = bodyObject(req.body);
   if (!note || typeof note !== "string" || note.length < 1 || note.length > 1000) {
     throw new ApiError(400, "note required (max 1000 chars)");
+  }
+  if (typeof brain_id !== "string") {
+    throw new ApiError(400, "Invalid brain_id");
   }
   await requireBrainAccess(user.id, brain_id);
 
@@ -149,6 +155,9 @@ async function handleInsightCorrection({ req, res, user }: HandlerContext): Prom
     correction.length > 1000
   ) {
     throw new ApiError(400, "correction required (max 1000 chars)");
+  }
+  if (typeof brain_id !== "string") {
+    throw new ApiError(400, "Invalid brain_id");
   }
   await requireBrainAccess(user.id, brain_id);
 

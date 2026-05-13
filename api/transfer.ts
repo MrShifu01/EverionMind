@@ -62,6 +62,9 @@ async function handleImport({ req, res, user }: HandlerContext): Promise<void> {
   if (entries.length > IMPORT_LIMIT) {
     throw new ApiError(400, `Too many entries — max ${IMPORT_LIMIT} per import`);
   }
+  if (typeof brain_id !== "string") {
+    throw new ApiError(400, "Invalid brain_id");
+  }
 
   await requireBrainAccess(user.id, brain_id);
 

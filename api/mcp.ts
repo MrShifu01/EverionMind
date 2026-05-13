@@ -753,8 +753,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
 
   // ── tools/call ──
   if (method === "tools/call") {
-    const toolName = params?.name as string;
-    const args = params?.arguments || {};
+    const p = (params ?? {}) as Record<string, unknown>;
+    const toolName = p.name as string;
+    const args = ((p.arguments as Record<string, unknown> | undefined) ?? {}) as Record<
+      string,
+      any
+    >;
     const log = createLogger(reqId, { user_id: userId, tool: toolName });
 
     try {
