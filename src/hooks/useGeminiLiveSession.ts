@@ -163,7 +163,7 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
       setUserTranscript("");
       setAssistantTranscript("");
       setStatus("connecting");
-      setLastEvent("minting token…");
+      setLastEvent("requesting mic + minting token…");
       setChunksOut(0);
       setChunksIn(0);
       setCloseCode(null);
@@ -176,45 +176,54 @@ export function useGeminiLiveSession(): UseGeminiLiveSession {
       // with no brain context — we have to thread it in from the start).
       brainIdRef.current = brainId;
 
-      let cfg: SessionConfig;
+      // Mic + token in parallel. getUserMedia is fired SYNCHRONOUSLY in
+      // the same tick as start() (no awaits before it) so iOS Safari
+      // keeps the user-gesture context alive and pops the permission
+      // prompt instantly — same behaviour as Add mode. Token mint runs
+      // in the background while the user is reading the prompt.
+      const streamPromise = navigator.mediaDevices.getUserMedia({ audio: true });
       const preMinted = takeFreshCached({ voice, brainId, systemInstruction });
-      if (preMinted) {
-        cfg = preMinted;
-        setLastEvent(`token ok (prewarmed, model=${cfg.model.replace("models/", "")})`);
-      } else {
-        try {
-          const r = await authFetch("/api/llm?action=live-session", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ voice, brain_id: brainId, systemInstruction }),
-          });
-          if (!r.ok) {
-            const data = await r.json().catch(() => ({}));
-            const msg =
-              (data as { message?: string; error?: string }).message ||
-              (data as { error?: string }).error ||
-              `HTTP ${r.status}`;
-            throw new Error(`mint:${r.status} ${msg}`);
-          }
-          cfg = (await r.json()) as SessionConfig;
-          setLastEvent(`token ok (model=${cfg.model.replace("models/", "")})`);
-        } catch (e) {
-          setError(e instanceof Error ? e.message : "session_failed");
-          setStatus("error");
-          return;
-        }
-      }
+      const cfgPromise: Promise<SessionConfig> = preMinted
+        ? Promise.resolve(preMinted)
+        : (async () => {
+            const r = await authFetch("/api/llm?action=live-session", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ voice, brain_id: brainId, systemInstruction }),
+            });
+            if (!r.ok) {
+              const data = await r.json().catch(() => ({}));
+              const msg =
+                (data as { message?: string; error?: string }).message ||
+                (data as { error?: string }).error ||
+                `HTTP ${r.status}`;
+              throw new Error(`mint:${r.status} ${msg}`);
+            }
+            return (await r.json()) as SessionConfig;
+          })();
 
-      setLastEvent("requesting mic…");
       let stream: MediaStream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream = await streamPromise;
       } catch (e) {
         setError(e instanceof Error ? e.message : "mic_denied");
         setStatus("error");
         return;
       }
-      setLastEvent("mic granted");
+      setLastEvent("mic granted, awaiting token…");
+
+      let cfg: SessionConfig;
+      try {
+        cfg = await cfgPromise;
+        setLastEvent(
+          `token ok${preMinted ? " (prewarmed)" : ""}, model=${cfg.model.replace("models/", "")}`,
+        );
+      } catch (e) {
+        for (const t of stream.getTracks()) t.stop();
+        setError(e instanceof Error ? e.message : "session_failed");
+        setStatus("error");
+        return;
+      }
       if (stoppedRef.current) {
         for (const t of stream.getTracks()) t.stop();
         return;

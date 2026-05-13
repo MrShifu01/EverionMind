@@ -998,15 +998,13 @@ function Inkwell({
           WebkitTouchCallout: "none",
           userSelect: "none",
           WebkitUserSelect: "none",
-          animation: isConnecting
-            ? "orb-connect-bounce 2.2s ease-in-out infinite"
-            : isSpeaking
-              ? "orb-speak-glow 0.9s ease-in-out infinite"
-              : isThinking
-                ? "inkwell-breathe 1.0s ease-in-out infinite"
-                : listening
-                  ? "inkwell-breathe 1.4s ease-in-out infinite"
-                  : "none",
+          animation: isSpeaking
+            ? "orb-speak-glow 0.9s ease-in-out infinite"
+            : isThinking
+              ? "inkwell-breathe 1.0s ease-in-out infinite"
+              : listening
+                ? "inkwell-breathe 1.4s ease-in-out infinite"
+                : "none",
         }}
       >
         <span
@@ -1062,6 +1060,7 @@ function Inkwell({
             // shadow for the recessed-channel cue.
             mixBlendMode: "overlay",
             textShadow: `0 -1px 0 color-mix(in oklch, ${BTN_DEEP} 70%, transparent), 0 1px 0 color-mix(in oklch, white 30%, transparent)`,
+            animation: isConnecting ? "glyph-loading 1.2s ease-in-out infinite" : undefined,
           }}
         >
           {glyph}
