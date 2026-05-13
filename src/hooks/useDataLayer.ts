@@ -241,6 +241,49 @@ export function useDataLayer({
       .catch(() => {});
   }, [activeBrainId]);
 
+  // Cross-device cache continuity. When the user comes back to the tab /
+  // resumes the app on their phone, refetch so deletes / inserts made on
+  // another device propagate. Without this, soft-deleted entries from a
+  // desktop session still rendered on the phone for hours.
+  //
+  // Debounced: rapid visibility flips (Safari fires visibilitychange a lot
+  // during scrolling, app-switcher previews, etc.) shouldn't trigger a
+  // refetch storm. 10s window covers the common case of glancing away and
+  // back, without leaving the list stale long enough to feel "wrong" when
+  // returning from a meaningful gap.
+  //
+  // The 15s pending-enrichment poll in useEntryRealtime is separate — that
+  // one only refetches `pending` entries on the current device, not the
+  // full list, and doesn't catch cross-device mutations.
+  const lastForegroundRefetchRef = useRef(0);
+  const FOREGROUND_DEBOUNCE_MS = 10_000;
+  useEffect(() => {
+    if (!activeBrainId) return;
+    const maybeRefetch = () => {
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastForegroundRefetchRef.current < FOREGROUND_DEBOUNCE_MS) return;
+      lastForegroundRefetchRef.current = now;
+      void refreshEntries();
+    };
+    const onPageShow = (e: PageTransitionEvent) => {
+      // iOS Safari bfcache restore — pageshow.persisted=true means the page
+      // came out of the back-forward cache without a full reload, so the
+      // list state we have is whatever was frozen when it was suspended.
+      // Force the timer to expire so the refetch always fires here.
+      if (e.persisted) lastForegroundRefetchRef.current = 0;
+      maybeRefetch();
+    };
+    document.addEventListener("visibilitychange", maybeRefetch);
+    window.addEventListener("pageshow", onPageShow);
+    window.addEventListener("online", maybeRefetch);
+    return () => {
+      document.removeEventListener("visibilitychange", maybeRefetch);
+      window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("online", maybeRefetch);
+    };
+  }, [activeBrainId, refreshEntries]);
+
   // Fetch entries + prefetch links when brain changes.
   // prevBrainIdRef guards against clearing entries on initial mount
   // (which would flash-blank the cached list before the API returns).
