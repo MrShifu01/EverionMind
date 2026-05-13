@@ -470,12 +470,14 @@ export default function MobileHome({
             setSheetExplicitOpen(true);
           }}
           style={{
-            // Same fixed-to-visual-viewport pin as before so the iOS
-            // keyboard can never cover it once the sheet opens.
+            // Pinned to the visual viewport. -30px shaves the gap below
+            // it so the button sits closer to the home indicator strip;
+            // max(0px, ...) clamps so it never extends off-screen.
             position: "fixed",
             left: 16,
             right: 16,
-            bottom: "calc(100vh - var(--vvh, 100vh) + var(--edge-bottom-pad, 0px))",
+            bottom:
+              "max(0px, calc(100vh - var(--vvh, 100vh) + var(--edge-bottom-pad, 0px) - 30px))",
             zIndex: 50,
             display: "flex",
             alignItems: "center",
