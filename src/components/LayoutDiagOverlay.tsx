@@ -66,6 +66,7 @@ export default function LayoutDiagOverlay(): JSX.Element | null {
   const [origin] = useState(() => Date.now());
   const [dumpVisible, setDumpVisible] = useState(false);
   const [copyMsg, setCopyMsg] = useState<string>("");
+  const [collapsed, setCollapsed] = useState(false);
   // Pin to visualViewport. Without this, position:fixed anchors to the
   // layout viewport — when the soft keyboard opens and visualViewport
   // translates, the overlay scrolls off with the page and the user can't
@@ -223,7 +224,7 @@ export default function LayoutDiagOverlay(): JSX.Element | null {
         // listener above for PWA / keyboard-open stability.
         top: "28vh",
         left: "50%",
-        marginLeft: -130,
+        marginLeft: collapsed ? -40 : -130,
         zIndex: 2147483647,
         willChange: "transform",
         background: "rgba(0, 0, 0, 0.88)",
@@ -231,17 +232,47 @@ export default function LayoutDiagOverlay(): JSX.Element | null {
         fontFamily: "ui-monospace, Menlo, Consolas, monospace",
         fontSize: 10,
         lineHeight: 1.3,
-        padding: "6px 8px",
+        padding: collapsed ? "3px 6px" : "6px 8px",
         borderRadius: 6,
         border: "1px solid #0f0",
         pointerEvents: "auto",
-        width: 260,
+        width: collapsed ? 80 : 260,
         whiteSpace: "pre",
         userSelect: "text",
         boxShadow: "0 0 24px rgba(0, 255, 0, 0.25)",
       }}
     >
-      {`tag: ${latest.tag}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: collapsed ? 0 : 4,
+        }}
+      >
+        <span style={{ fontWeight: 700 }}>{collapsed ? "diag" : "layout-diag"}</span>
+        <button
+          type="button"
+          onClick={() => setCollapsed((v) => !v)}
+          aria-label={collapsed ? "Expand diagnostic" : "Collapse diagnostic"}
+          style={{
+            background: "transparent",
+            color: "#0f0",
+            border: "1px solid #0f0",
+            borderRadius: 3,
+            padding: "0 6px",
+            fontSize: 11,
+            fontWeight: 700,
+            lineHeight: 1,
+            cursor: "pointer",
+          }}
+        >
+          {collapsed ? "+" : "−"}
+        </button>
+      </div>
+      {collapsed ? null : (
+        <>
+          {`tag: ${latest.tag}
 t:   ${latest.t}ms
 innerH: ${latest.innerH}
 vvH:    ${latest.vvH}
@@ -260,62 +291,67 @@ orb y:  ${latest.orbY}  h:${latest.orbH}
 cmp:    y:${latest.cmpY} h:${latest.cmpH}
         bot:${latest.cmpBottom} gap:${latest.cmpGap}
 hist:   ${history.length}`}
-      <button
-        type="button"
-        onClick={() => {
-          showDump();
-          // Try clipboard write in parallel — succeeds on Safari standalone
-          // if user gesture is fresh; silent failure is fine because the
-          // textarea below renders the same payload for manual selection.
-          const text = history.map((r) => JSON.stringify(r)).join("\n");
-          try {
-            void navigator.clipboard
-              .writeText(text)
-              .then(() => setCopyMsg("clipboard: ok"))
-              .catch((e: Error) => setCopyMsg(`clipboard: ${e.name}`));
-          } catch (e) {
-            setCopyMsg(`clipboard: ${e instanceof Error ? e.name : "fail"}`);
-          }
-        }}
-        style={{
-          marginTop: 4,
-          fontSize: 10,
-          padding: "4px 6px",
-          background: "#0f0",
-          color: "#000",
-          border: "none",
-          borderRadius: 3,
-          width: "100%",
-          fontWeight: 700,
-        }}
-      >
-        show + copy {history.length} events
-      </button>
-      {copyMsg ? <div style={{ marginTop: 2, fontSize: 9, color: "#ff0" }}>{copyMsg}</div> : null}
-      {dumpVisible ? (
-        <textarea
-          readOnly
-          autoFocus
-          onFocus={(e) => e.currentTarget.select()}
-          value={history.map((r) => JSON.stringify(r)).join("\n")}
-          style={{
-            marginTop: 4,
-            width: "100%",
-            height: 120,
-            fontSize: 8,
-            lineHeight: 1.2,
-            fontFamily: "inherit",
-            background: "#001a00",
-            color: "#0f0",
-            border: "1px solid #0f0",
-            borderRadius: 3,
-            padding: 4,
-            userSelect: "text",
-            WebkitUserSelect: "text",
-            whiteSpace: "pre",
-          }}
-        />
-      ) : null}
+          <button
+            type="button"
+            onClick={() => {
+              showDump();
+              // Try clipboard write in parallel — succeeds on Safari standalone
+              // if user gesture is fresh; silent failure is fine because the
+              // textarea below renders the same payload for manual selection.
+              const text = history.map((r) => JSON.stringify(r)).join("\n");
+              try {
+                void navigator.clipboard
+                  .writeText(text)
+                  .then(() => setCopyMsg("clipboard: ok"))
+                  .catch((e: Error) => setCopyMsg(`clipboard: ${e.name}`));
+              } catch (e) {
+                setCopyMsg(`clipboard: ${e instanceof Error ? e.name : "fail"}`);
+              }
+            }}
+            style={{
+              marginTop: 4,
+              fontSize: 10,
+              padding: "4px 6px",
+              background: "#0f0",
+              color: "#000",
+              border: "none",
+              borderRadius: 3,
+              width: "100%",
+              fontWeight: 700,
+            }}
+          >
+            show + copy {history.length} events
+          </button>
+          {copyMsg ? (
+            <div style={{ marginTop: 2, fontSize: 9, color: "#ff0" }}>{copyMsg}</div>
+          ) : null}
+          {dumpVisible ? (
+            // No autofocus — that opens iOS keyboard and shrinks viewport,
+            // shifting the very composer we're trying to measure. User can
+            // tap to focus + long-press to copy manually.
+            <textarea
+              readOnly
+              value={history.map((r) => JSON.stringify(r)).join("\n")}
+              style={{
+                marginTop: 4,
+                width: "100%",
+                height: 120,
+                fontSize: 8,
+                lineHeight: 1.2,
+                fontFamily: "inherit",
+                background: "#001a00",
+                color: "#0f0",
+                border: "1px solid #0f0",
+                borderRadius: 3,
+                padding: 4,
+                userSelect: "text",
+                WebkitUserSelect: "text",
+                whiteSpace: "pre",
+              }}
+            />
+          ) : null}
+        </>
+      )}
     </div>
   );
 }
