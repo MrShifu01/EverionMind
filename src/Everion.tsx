@@ -373,17 +373,19 @@ function EverionContent({
   }, []);
 
   // iOS PWA standalone: body.scrollTop drifts from 0 → 47 during the
-  // first ~300ms after a view transition, despite overflow:hidden +
-  // position:fixed on body. Cause: iOS's internal "scroll to fit"
-  // running on view-transition snapshots that overflow the (initially
-  // under-reported) 797px layout viewport. Once the user focuses an
-  // input, iOS recalibrates to the true 844px and the issue stops.
+  // first ~300ms after a view transition. Cause: iOS's internal
+  // "scroll to fit" running on view-transition snapshots that overflow
+  // the (initially under-reported) 797px layout viewport.
   //
-  // Defensive: actively reset body.scrollTop to 0 on every scroll event
-  // and via rAF for the first 2 seconds of app life. After that, the
-  // post-transition reset inside startViewTransition handles the
-  // remaining edge cases. (Diagnosed 2026-05-14 via LayoutDiagOverlay
-  // readings showing bodySY=47 + cmpGap=47.)
+  // Reset body.scrollTop to 0 via rAF for the first 2 seconds of app
+  // life (covers the navigation-glitch window). Earlier version added
+  // a capture-mode document scroll listener too — that was catching
+  // main-content scroll events and seemed to interfere with iOS's
+  // keyboard "scroll input into view" behavior. Narrowed to a window-
+  // level scroll listener only (body/html scroll, not nested scrollers).
+  // The post-transition reset inside startViewTransition handles
+  // remaining drift after the rAF window expires. (Diagnosed
+  // 2026-05-14 via LayoutDiagOverlay readings.)
   useEffect(() => {
     function reset() {
       if (document.body.scrollTop !== 0) document.body.scrollTop = 0;
@@ -398,11 +400,9 @@ function EverionContent({
     }
     raf = requestAnimationFrame(loop);
     window.addEventListener("scroll", reset, { passive: true });
-    document.addEventListener("scroll", reset, { capture: true, passive: true });
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("scroll", reset);
-      document.removeEventListener("scroll", reset, true);
     };
   }, []);
   const { isAdmin, adminFlags } = useAdminDevMode();

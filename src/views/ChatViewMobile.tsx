@@ -57,6 +57,11 @@ export default function ChatViewMobile({ brainId, brainName, onNavigate }: ChatV
   const [input, setInput] = useState("");
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [voiceLoading, setVoiceLoading] = useState(false);
+  // Hide the empty-state Hero (voice orb + tagline) when the composer
+  // textarea is focused. Keeps the visible area focused on what the user
+  // is typing once they engage. Also makes more room when the soft
+  // keyboard takes the bottom half of the screen.
+  const [composerFocused, setComposerFocused] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -200,7 +205,9 @@ export default function ChatViewMobile({ brainId, brainName, onNavigate }: ChatV
           gap: 18,
         }}
       >
-        {messages.length === 0 && entriesLoaded && entries.length > 0 && <Hero brainId={brainId} />}
+        {messages.length === 0 && entriesLoaded && entries.length > 0 && !composerFocused && (
+          <Hero brainId={brainId} />
+        )}
         {messages.map((m, i) => (
           <Bubble key={i} role={m.role} text={m.content} />
         ))}
@@ -220,6 +227,8 @@ export default function ChatViewMobile({ brainId, brainName, onNavigate }: ChatV
         suggestions={suggestions}
         onSuggestion={(s) => send(s)}
         inputRef={inputRef}
+        onFocus={() => setComposerFocused(true)}
+        onBlur={() => setComposerFocused(false)}
       />
     </div>
   );
@@ -596,6 +605,8 @@ function Composer({
   suggestions,
   onSuggestion,
   inputRef,
+  onFocus,
+  onBlur,
 }: {
   input: string;
   onInputChange: (v: string) => void;
@@ -607,6 +618,8 @@ function Composer({
   suggestions: string[];
   onSuggestion: (s: string) => void;
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
+  onFocus?: () => void;
+  onBlur?: () => void;
 }) {
   // Auto-grow textarea
   useEffect(() => {
@@ -685,6 +698,8 @@ function Composer({
           ref={inputRef}
           value={input}
           onChange={(e) => onInputChange(e.target.value)}
+          onFocus={onFocus}
+          onBlur={onBlur}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
