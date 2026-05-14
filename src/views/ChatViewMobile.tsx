@@ -620,7 +620,11 @@ function Composer({
     <div
       style={{
         flexShrink: 0,
-        padding: `14px 14px max(env(safe-area-inset-bottom, 0px), 14px)`,
+        // Bottom padding intentionally NOT inflated by safe-area-inset-bottom
+        // (matches MobileHome:386 pattern). On iPhone the home indicator
+        // overlays the bottom 34px automatically and adapts contrast; adding
+        // 34px of empty space here would leave a visible gap below the input.
+        padding: `14px 14px 14px`,
         borderTop: "1px solid var(--line-soft)",
         background: "color-mix(in oklch, var(--surface-low) 30%, var(--bg))",
       }}
