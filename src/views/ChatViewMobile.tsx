@@ -74,6 +74,23 @@ export default function ChatViewMobile({ brainId, brainName, onNavigate }: ChatV
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
+  // Layout diagnostic: fire snapshot events on chat mount so the
+  // LayoutDiagOverlay (gated by ?debug=layout) captures composer
+  // position at each navigation. Three samples: synchronous mount,
+  // next animation frame (after layout), and 320ms (after the view
+  // transition animation completes).
+  useEffect(() => {
+    const dispatch = (tag: string) =>
+      window.dispatchEvent(new CustomEvent("everion:diag-snap", { detail: { tag } }));
+    dispatch("chat:mount");
+    const raf = requestAnimationFrame(() => dispatch("chat:raf"));
+    const t = window.setTimeout(() => dispatch("chat:t320"), 320);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(t);
+    };
+  }, []);
+
   const handleSend = useCallback(() => {
     const text = input.trim();
     if (!text || loading || voiceLoading) return;
@@ -618,6 +635,7 @@ function Composer({
 
   return (
     <div
+      data-diag="chat-composer"
       style={{
         flexShrink: 0,
         // Bottom padding intentionally NOT inflated by safe-area-inset-bottom

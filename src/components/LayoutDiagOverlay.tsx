@@ -32,6 +32,17 @@ interface Snapshot {
   taH: number | null;
   orbY: number | null;
   orbH: number | null;
+  // Chat composer tracking — for the "composer position varies across
+  // mount" bug. The composer is data-diag="chat-composer" on the outer
+  // padded div in ChatViewMobile. composerBottom is its bounding-box
+  // bottom, gap is the distance from that to innerH.
+  cmpY: number | null;
+  cmpH: number | null;
+  cmpBottom: number | null;
+  cmpGap: number | null; // innerH - cmpBottom (positive = empty space below)
+  mainH: number | null; // #main-content rect height
+  mainBottom: number | null; // its bottom edge
+  saB: string; // computed safe-area-inset-bottom probe
 }
 
 function isEnabled(): boolean {
@@ -100,6 +111,12 @@ export default function LayoutDiagOverlay(): JSX.Element | null {
 
   useEffect(() => {
     if (!enabled) return;
+    // Probe for safe-area-inset-bottom — there's no JS API; compute via a
+    // throwaway absolutely-positioned div with padding-bottom: env(...).
+    const probe = document.createElement("div");
+    probe.style.cssText =
+      "position:absolute;left:-9999px;top:-9999px;padding-bottom:env(safe-area-inset-bottom);visibility:hidden";
+    document.body.appendChild(probe);
     function snap(tag: string) {
       const vv = window.visualViewport;
       const main = document.getElementById("main-content");
@@ -119,10 +136,15 @@ export default function LayoutDiagOverlay(): JSX.Element | null {
         p = p.parentElement;
       }
       const orb = document.querySelector("button[data-mode]");
+      const cmp = document.querySelector('[data-diag="chat-composer"]');
+      const innerH = window.innerHeight;
+      const cmpR = cmp instanceof HTMLElement ? cmp.getBoundingClientRect() : null;
+      const mainR = main ? main.getBoundingClientRect() : null;
+      const saB = getComputedStyle(probe).paddingBottom;
       const row: Snapshot = {
         t: Date.now() - origin,
         tag,
-        innerH: window.innerHeight,
+        innerH,
         vvH: vv ? Math.round(vv.height) : null,
         vvTop: vv ? Math.round(vv.offsetTop) : null,
         vvScale: vv ? Number(vv.scale.toFixed(3)) : null,
@@ -137,6 +159,13 @@ export default function LayoutDiagOverlay(): JSX.Element | null {
         taH: rect(ta)?.h ?? null,
         orbY: rect(orb)?.y ?? null,
         orbH: rect(orb)?.h ?? null,
+        cmpY: cmpR ? Math.round(cmpR.y) : null,
+        cmpH: cmpR ? Math.round(cmpR.height) : null,
+        cmpBottom: cmpR ? Math.round(cmpR.bottom) : null,
+        cmpGap: cmpR ? Math.round(innerH - cmpR.bottom) : null,
+        mainH: mainR ? Math.round(mainR.height) : null,
+        mainBottom: mainR ? Math.round(mainR.bottom) : null,
+        saB,
       };
       setLatest(row);
       setHistory((h) => [...h.slice(-24), row]);
@@ -170,6 +199,15 @@ export default function LayoutDiagOverlay(): JSX.Element | null {
     }
     main?.addEventListener("scroll", onMainScroll);
 
+    // Custom event: chat view dispatches `everion:diag-snap` with a tag
+    // string in detail.tag on mount and again on next animation frame so
+    // we capture pre-layout and post-layout positions.
+    function onDiagSnap(e: Event) {
+      const ce = e as CustomEvent<{ tag?: string }>;
+      snap(`evt:${ce.detail?.tag ?? "?"}`);
+    }
+    window.addEventListener("everion:diag-snap", onDiagSnap as EventListener);
+
     snap("init");
 
     return () => {
@@ -178,6 +216,8 @@ export default function LayoutDiagOverlay(): JSX.Element | null {
       vv?.removeEventListener("resize", onVvResize);
       vv?.removeEventListener("scroll", onVvScroll);
       main?.removeEventListener("scroll", onMainScroll);
+      window.removeEventListener("everion:diag-snap", onDiagSnap as EventListener);
+      probe.remove();
     };
   }, [enabled, origin]);
 
@@ -197,21 +237,29 @@ export default function LayoutDiagOverlay(): JSX.Element | null {
       ref={overlayRef}
       style={{
         position: "fixed",
-        top: "calc(env(safe-area-inset-top, 0px) + 4px)",
-        right: 4,
-        zIndex: 99999,
+        // Centered horizontally; vertically pinned ~28% from top so the
+        // panel sits in the upper-mid region of viewport and doesn't
+        // obscure either the bottom composer (the thing we're measuring)
+        // or the top header. Pin uses transform via the visualViewport
+        // listener above for PWA / keyboard-open stability.
+        top: "28vh",
+        left: "50%",
+        marginLeft: -130,
+        zIndex: 2147483647,
         willChange: "transform",
-        background: "rgba(0, 0, 0, 0.78)",
+        background: "rgba(0, 0, 0, 0.88)",
         color: "#0f0",
         fontFamily: "ui-monospace, Menlo, Consolas, monospace",
-        fontSize: 9,
-        lineHeight: 1.25,
-        padding: "4px 6px",
-        borderRadius: 4,
+        fontSize: 10,
+        lineHeight: 1.3,
+        padding: "6px 8px",
+        borderRadius: 6,
+        border: "1px solid #0f0",
         pointerEvents: "auto",
-        maxWidth: 220,
+        width: 260,
         whiteSpace: "pre",
         userSelect: "text",
+        boxShadow: "0 0 24px rgba(0, 255, 0, 0.25)",
       }}
     >
       {`tag: ${latest.tag}
@@ -221,13 +269,17 @@ vvH:    ${latest.vvH}
 vvTop:  ${latest.vvTop}
 vvSc:   ${latest.vvScale}
 --vvh:  ${latest.vvhVar}
+sa-bot: ${latest.saB}
 mainSY: ${latest.mainScrollY}
 docSY:  ${latest.docScrollY}
 winSY:  ${latest.windowScrollY}
 bodySY: ${latest.bodyScrollY}
+main:   y/h/b ${latest.mainBottom != null ? `?/${latest.mainH}/${latest.mainBottom}` : "—"}
 mh y:   ${latest.mhY}  h:${latest.mhH}
 ta y:   ${latest.taY}  h:${latest.taH}
 orb y:  ${latest.orbY}  h:${latest.orbH}
+cmp:    y:${latest.cmpY} h:${latest.cmpH}
+        bot:${latest.cmpBottom} gap:${latest.cmpGap}
 hist:   ${history.length}`}
       <button
         type="button"
