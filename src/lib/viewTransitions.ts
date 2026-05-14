@@ -77,6 +77,9 @@ export function startViewTransition(update: () => void): void {
     return;
   }
   const doc = document as DocumentWithVT;
+  // Reset BEFORE we start so the browser captures the "old" snapshot at
+  // scrollTop=0 — otherwise iOS may already have drifted by then.
+  runPostTransition();
   const t = doc.startViewTransition!(() => {
     // React 18+: flushSync forces the setState inside `update` to
     // commit before this callback returns, so the browser's "after"
@@ -86,14 +89,25 @@ export function startViewTransition(update: () => void): void {
       update();
     });
   });
-  // After the transition animation completes, iOS Safari (PWA standalone)
-  // sometimes leaves body.scrollTop > 0 because its internal "scroll to
-  // fit" logic ran on the transition snapshots which extended beyond the
-  // layout viewport. Reset it manually. (Diagnosed 2026-05-14 via
-  // LayoutDiagOverlay: bodySY=47 after first chat:mount transition.)
-  void t.finished.then(runPostTransition).catch(() => {
-    /* skipTransition or aborted — fine */
-  });
+  // During the transition animation, iOS Safari (PWA standalone) can
+  // scroll body to "fit" the snapshots, which makes the rendered page
+  // shift up while the snapshot still tracks the old position — user
+  // perceives a high-start then snap-down at finish. Run an rAF loop
+  // for the duration of the transition that holds body.scrollTop at 0.
+  let raf = 0;
+  let running = true;
+  function loop() {
+    if (!running) return;
+    runPostTransition();
+    raf = requestAnimationFrame(loop);
+  }
+  raf = requestAnimationFrame(loop);
+  const stop = () => {
+    running = false;
+    cancelAnimationFrame(raf);
+    runPostTransition();
+  };
+  void t.finished.then(stop).catch(stop);
 }
 
 function runPostTransition() {
