@@ -64,6 +64,8 @@ export default function LayoutDiagOverlay(): JSX.Element | null {
   const [latest, setLatest] = useState<Snapshot | null>(null);
   const [history, setHistory] = useState<Snapshot[]>([]);
   const [origin] = useState(() => Date.now());
+  const [dumpVisible, setDumpVisible] = useState(false);
+  const [copyMsg, setCopyMsg] = useState<string>("");
   // Pin to visualViewport. Without this, position:fixed anchors to the
   // layout viewport — when the soft keyboard opens and visualViewport
   // translates, the overlay scrolls off with the page and the user can't
@@ -201,13 +203,12 @@ export default function LayoutDiagOverlay(): JSX.Element | null {
 
   if (!enabled || !latest) return null;
 
-  function copyHistory() {
-    const text = history.map((r) => JSON.stringify(r)).join("\n");
-    try {
-      void navigator.clipboard.writeText(text);
-    } catch {
-      // ignore
-    }
+  // Render the JSON dump in a textarea on tap so the user can long-press
+  // to copy on iOS PWA where navigator.clipboard.writeText silently fails
+  // (no clipboard permissions in standalone). Clipboard write attempted
+  // in parallel — confirmation toast shows whichever succeeded.
+  function showDump() {
+    setDumpVisible(true);
   }
 
   return (
@@ -261,20 +262,60 @@ cmp:    y:${latest.cmpY} h:${latest.cmpH}
 hist:   ${history.length}`}
       <button
         type="button"
-        onClick={copyHistory}
+        onClick={() => {
+          showDump();
+          // Try clipboard write in parallel — succeeds on Safari standalone
+          // if user gesture is fresh; silent failure is fine because the
+          // textarea below renders the same payload for manual selection.
+          const text = history.map((r) => JSON.stringify(r)).join("\n");
+          try {
+            void navigator.clipboard
+              .writeText(text)
+              .then(() => setCopyMsg("clipboard: ok"))
+              .catch((e: Error) => setCopyMsg(`clipboard: ${e.name}`));
+          } catch (e) {
+            setCopyMsg(`clipboard: ${e instanceof Error ? e.name : "fail"}`);
+          }
+        }}
         style={{
           marginTop: 4,
-          fontSize: 9,
-          padding: "2px 6px",
+          fontSize: 10,
+          padding: "4px 6px",
           background: "#0f0",
           color: "#000",
           border: "none",
           borderRadius: 3,
           width: "100%",
+          fontWeight: 700,
         }}
       >
-        copy {history.length} events
+        show + copy {history.length} events
       </button>
+      {copyMsg ? <div style={{ marginTop: 2, fontSize: 9, color: "#ff0" }}>{copyMsg}</div> : null}
+      {dumpVisible ? (
+        <textarea
+          readOnly
+          autoFocus
+          onFocus={(e) => e.currentTarget.select()}
+          value={history.map((r) => JSON.stringify(r)).join("\n")}
+          style={{
+            marginTop: 4,
+            width: "100%",
+            height: 120,
+            fontSize: 8,
+            lineHeight: 1.2,
+            fontFamily: "inherit",
+            background: "#001a00",
+            color: "#0f0",
+            border: "1px solid #0f0",
+            borderRadius: 3,
+            padding: 4,
+            userSelect: "text",
+            WebkitUserSelect: "text",
+            whiteSpace: "pre",
+          }}
+        />
+      ) : null}
     </div>
   );
 }
