@@ -371,6 +371,40 @@ function EverionContent({
       vv.removeEventListener("scroll", setVvh);
     };
   }, []);
+
+  // iOS PWA standalone: body.scrollTop drifts from 0 → 47 during the
+  // first ~300ms after a view transition, despite overflow:hidden +
+  // position:fixed on body. Cause: iOS's internal "scroll to fit"
+  // running on view-transition snapshots that overflow the (initially
+  // under-reported) 797px layout viewport. Once the user focuses an
+  // input, iOS recalibrates to the true 844px and the issue stops.
+  //
+  // Defensive: actively reset body.scrollTop to 0 on every scroll event
+  // and via rAF for the first 2 seconds of app life. After that, the
+  // post-transition reset inside startViewTransition handles the
+  // remaining edge cases. (Diagnosed 2026-05-14 via LayoutDiagOverlay
+  // readings showing bodySY=47 + cmpGap=47.)
+  useEffect(() => {
+    function reset() {
+      if (document.body.scrollTop !== 0) document.body.scrollTop = 0;
+      if (document.documentElement.scrollTop !== 0) document.documentElement.scrollTop = 0;
+    }
+    reset();
+    const start = performance.now();
+    let raf = 0;
+    function loop() {
+      reset();
+      if (performance.now() - start < 2000) raf = requestAnimationFrame(loop);
+    }
+    raf = requestAnimationFrame(loop);
+    window.addEventListener("scroll", reset, { passive: true });
+    document.addEventListener("scroll", reset, { capture: true, passive: true });
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", reset);
+      document.removeEventListener("scroll", reset, true);
+    };
+  }, []);
   const { isAdmin, adminFlags } = useAdminDevMode();
   const ff = (key: FeatureFlagKey) => isFeatureEnabled(key, adminFlags);
   const visibleNavViews = NAV_VIEWS.filter(

@@ -73,10 +73,11 @@ function prefersReducedMotion(): boolean {
 export function startViewTransition(update: () => void): void {
   if (!supportsViewTransitions() || prefersReducedMotion()) {
     update();
+    runPostTransition();
     return;
   }
   const doc = document as DocumentWithVT;
-  doc.startViewTransition!(() => {
+  const t = doc.startViewTransition!(() => {
     // React 18+: flushSync forces the setState inside `update` to
     // commit before this callback returns, so the browser's "after"
     // snapshot reflects the new DOM. Without this, the snapshot
@@ -85,4 +86,18 @@ export function startViewTransition(update: () => void): void {
       update();
     });
   });
+  // After the transition animation completes, iOS Safari (PWA standalone)
+  // sometimes leaves body.scrollTop > 0 because its internal "scroll to
+  // fit" logic ran on the transition snapshots which extended beyond the
+  // layout viewport. Reset it manually. (Diagnosed 2026-05-14 via
+  // LayoutDiagOverlay: bodySY=47 after first chat:mount transition.)
+  void t.finished.then(runPostTransition).catch(() => {
+    /* skipTransition or aborted — fine */
+  });
+}
+
+function runPostTransition() {
+  if (typeof document === "undefined") return;
+  if (document.body.scrollTop !== 0) document.body.scrollTop = 0;
+  if (document.documentElement.scrollTop !== 0) document.documentElement.scrollTop = 0;
 }
