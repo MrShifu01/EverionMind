@@ -46,33 +46,11 @@ interface Snapshot {
 }
 
 function isEnabled(): boolean {
-  try {
-    // URL query param overrides localStorage so a phone user can toggle
-    // the overlay just by appending ?debug=layout (or ?debug=off) to any
-    // page URL. The flag is then persisted to localStorage so subsequent
-    // navigations still show the overlay.
-    const params = new URLSearchParams(window.location.search);
-    const debugParam = params.get("debug");
-    if (debugParam === "layout") {
-      try {
-        localStorage.setItem("everion:debug-layout", "1");
-      } catch {
-        // ignore
-      }
-      return true;
-    }
-    if (debugParam === "off") {
-      try {
-        localStorage.removeItem("everion:debug-layout");
-      } catch {
-        // ignore
-      }
-      return false;
-    }
-    return localStorage.getItem("everion:debug-layout") === "1";
-  } catch {
-    return false;
-  }
+  // FORCED ON for the chat-composer position bug investigation (no URL
+  // bar on PWA → can't use ?debug=layout to toggle). Flip back to the
+  // gated implementation (see git history) once the bug is diagnosed
+  // and this file gets deleted along with the data-diag hooks.
+  return true;
 }
 
 function rect(el: Element | null | undefined): { y: number; h: number } | null {
