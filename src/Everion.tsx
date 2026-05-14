@@ -1282,30 +1282,33 @@ function EverionContent({
           )}
           {/* MobileCaptureOrb replaces the old BottomNav across all views.
               On home, MobileHome renders its own larger inkwell so this
-              floating orb is suppressed. Mobile-only — desktop keeps its
-              FloatingCaptureButton (lg:flex). */}
-          {!appShell.showCapture && !(isMobile && appShell.view === "home") && isMobile && (
-            <MobileCaptureOrb
-              onOpenCapture={() => appShell.setShowCapture(true)}
-              onOpenCaptureWith={(text) => appShell.openCapture(text)}
-              onCaptureRaw={(text) => {
-                const t = text.trim();
-                if (!t) return;
-                const title = t.length > 60 ? t.slice(0, 57) + "…" : t;
-                bgQueueDirectSave(
-                  {
-                    title,
-                    content: t,
-                    type: "note",
-                    tags: [],
-                    metadata: { source: "voice_auto" },
-                  },
-                  activeBrain?.id,
-                  handleCreated,
-                );
-              }}
-            />
-          )}
+              floating orb is suppressed. On chat, the composer owns the
+              bottom of the screen — orb would float over it. Mobile-only —
+              desktop keeps its FloatingCaptureButton (lg:flex). */}
+          {!appShell.showCapture &&
+            !(isMobile && (appShell.view === "home" || appShell.view === "chat")) &&
+            isMobile && (
+              <MobileCaptureOrb
+                onOpenCapture={() => appShell.setShowCapture(true)}
+                onOpenCaptureWith={(text) => appShell.openCapture(text)}
+                onCaptureRaw={(text) => {
+                  const t = text.trim();
+                  if (!t) return;
+                  const title = t.length > 60 ? t.slice(0, 57) + "…" : t;
+                  bgQueueDirectSave(
+                    {
+                      title,
+                      content: t,
+                      type: "note",
+                      tags: [],
+                      metadata: { source: "voice_auto" },
+                    },
+                    activeBrain?.id,
+                    handleCreated,
+                  );
+                }}
+              />
+            )}
           <MobileMoreMenu
             isOpen={moreOpen}
             adminFlags={adminFlags}

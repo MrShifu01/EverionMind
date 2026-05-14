@@ -302,7 +302,19 @@ function VoiceOrb({ brainId, size }: { brainId: string | undefined; size: number
   }, [liveOn, brainId, isActive, liveSession, voice]);
 
   return (
-    <div style={{ position: "relative", width: size, height: size }}>
+    <div
+      style={{
+        position: "relative",
+        width: size,
+        height: size,
+        // Shared-element morph: home Inkwell (MobileHome:474) carries the
+        // same `view-transition-name: voice-orb`. Browser morphs between
+        // them on home ↔ chat navigation. Only fires when chat is in
+        // empty state (this Hero rendered); otherwise home's Inkwell
+        // fades in via the default new-only transition.
+        viewTransitionName: "voice-orb",
+      }}
+    >
       {/* Outer ring */}
       <div
         style={{
