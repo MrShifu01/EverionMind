@@ -172,7 +172,7 @@ export default function ChatViewMobile({ brainId, brainName, onNavigate }: ChatV
               textTransform: "uppercase",
             }}
           >
-            ask · colloquy
+            ask
           </div>
           <div
             className="f-serif"
@@ -184,8 +184,9 @@ export default function ChatViewMobile({ brainId, brainName, onNavigate }: ChatV
               marginTop: 1,
             }}
           >
-            <span style={{ fontStyle: "italic", color: ACCENT }}>colloquy</span>
-            {brainName ? <span> · {brainName.toLowerCase()}</span> : null}
+            <span style={{ fontStyle: "italic", color: ACCENT }}>
+              {brainName ? brainName.toLowerCase() : "ask"}
+            </span>
           </div>
         </div>
         <span
@@ -268,7 +269,7 @@ function Hero({ brainId }: { brainId: string | undefined }) {
             textTransform: "uppercase",
           }}
         >
-          a colloquy with your brain
+          ask your brain
         </div>
         <div
           className="f-serif"
@@ -878,7 +879,7 @@ function AiUnavailable({ onNavigate }: { onNavigate?: (view: string) => void }) 
               textTransform: "uppercase",
             }}
           >
-            colloquy is quiet
+            ask is quiet
           </div>
           <div
             className="f-serif"
