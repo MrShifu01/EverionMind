@@ -931,23 +931,19 @@ body:has(.app-shell-fixed) {
      keeps the Ask input visible above the keyboard. The trade-off is
      that on iOS PWA standalone, dvh can under-report the home indicator
      safe-area — handled separately in BottomNav with a fixed-position
-     overlap into env(safe-area-inset-bottom). */
+     overlap into env(safe-area-inset-bottom).
+
+     overflow:hidden alone isn't enough on iOS Safari — body still
+     scrolls intermittently after view transitions, shifting the entire
+     .app-shell-fixed up. Earlier attempt at `position:fixed; inset:0`
+     on body blocked iOS's interactive-widget keyboard resize, hiding
+     the composer behind the keyboard. The body-scroll problem is now
+     handled JS-side (Everion.tsx body-scroll reset + viewTransitions
+     post-finished reset) instead, leaving CSS keyboard-handling intact.
+     (Diagnosed 2026-05-14 via LayoutDiagOverlay.) */
   height: 100dvh;
   overflow: hidden;
-  /* Belt + suspenders: overflow:hidden alone isn't enough on iOS Safari
-     (incl. PWA standalone) — body still scrolls intermittently after
-     view transitions or layout shifts, leaving body.scrollTop > 0 with
-     no way to read it back to 0. That shifts .app-shell-fixed up by the
-     scrolled amount and the bottom composer ends up cropped above the
-     viewport edge. position:fixed pins body to the visual viewport so
-     it physically cannot scroll. (Diagnosed via LayoutDiagOverlay
-     2026-05-14: bodySY observed at 0 → 47 across navigations.) */
   overscroll-behavior: none;
-}
-body:has(.app-shell-fixed) {
-  position: fixed;
-  inset: 0;
-  width: 100%;
 }
 .app-shell-fixed {
   height: 100dvh;
