@@ -23,7 +23,6 @@ import TermsOfService from "./views/TermsOfService";
 import NotFound from "./views/NotFound";
 import { ConsentBanner, getConsentDecision } from "./components/ConsentBanner";
 import UpdatePrompt from "./components/UpdatePrompt";
-import LayoutDiagOverlay from "./components/LayoutDiagOverlay";
 import { initPostHog } from "./lib/posthog";
 import { initCapacitorBridge, hideSplashScreen, isNative } from "./lib/capacitorBridge";
 
@@ -275,9 +274,6 @@ createRoot(document.getElementById("root")!).render(
       <DesignThemeProvider>
         <ThemeProvider>
           <Root />
-          {/* TEMP diagnostic — gated by localStorage flag. Remove once
-              the focus-shoots-above-screen bug is fixed and verified. */}
-          <LayoutDiagOverlay />
         </ThemeProvider>
       </DesignThemeProvider>
     </ErrorBoundary>
