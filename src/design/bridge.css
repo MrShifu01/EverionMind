@@ -349,10 +349,14 @@ html[class*="family-"] body {
      explicit height (not just max-height) makes the white bg reach
      the screen edge even when the inner content is shorter than the
      viewport. The keyboard offset is added to padding-bottom so inner
-     content is pushed above the keyboard. */
+     content is pushed above the keyboard. Uses --kb-inset (set in
+     Everion.tsx from visualViewport math) instead of the old
+     `100vh - var(--vvh)` so all composers share one source of truth
+     and the offset accounts for vv.offsetTop during keyboard
+     animations. */
   height: min(88dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 12px));
   max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 12px);
-  padding-bottom: calc(100vh - var(--vvh, 100vh));
+  padding-bottom: var(--kb-inset, 0px);
   border-radius: 24px 24px 0 0;
   transform: translateY(var(--capture-y, 120vh)) scale(var(--capture-scale, 1));
   transform-origin: bottom center;
