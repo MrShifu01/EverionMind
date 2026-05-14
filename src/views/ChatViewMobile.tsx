@@ -108,6 +108,15 @@ export default function ChatViewMobile({ brainId, brainName, onNavigate }: ChatV
         display: "flex",
         flexDirection: "column",
         background: "var(--bg)",
+        // Lift the composer above the soft keyboard. --kb-inset is set
+        // at the shell level (Everion.tsx) from visualViewport.height +
+        // offsetTop, plus iOS accessory-bar 44px when keyboard open.
+        // iOS PWA standalone doesn't honor interactive-widget=resizes-
+        // content reliably, so 100dvh stays full-screen and the composer
+        // ends up behind the keyboard. Padding-bottom on this flex
+        // column shrinks the children's vertical space; the bottom flex
+        // child (Composer) tracks the new bottom edge automatically.
+        paddingBottom: "var(--kb-inset, 0px)",
       }}
     >
       {/* Header */}
