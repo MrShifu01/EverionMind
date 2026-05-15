@@ -34,12 +34,12 @@ export const FEATURE_FLAGS = {
   vaultPinBiometric: {
     label: "Vault PIN + biometric unlock",
     icon: "🔓",
-    prodEnabled: import.meta.env.VITE_FEATURE_VAULT_PIN_BIOMETRIC === "true",
+    prodEnabled: true,
   },
   appLock: {
     label: "App-level biometric re-auth",
     icon: "📱",
-    prodEnabled: import.meta.env.VITE_FEATURE_APP_LOCK === "true",
+    prodEnabled: true,
   },
 } as const satisfies Record<string, { label: string; icon: string; prodEnabled: boolean }>;
 

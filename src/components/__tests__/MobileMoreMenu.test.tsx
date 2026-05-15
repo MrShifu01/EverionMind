@@ -10,7 +10,7 @@ vi.mock("../../lib/featureFlags", async () => {
     await vi.importActual<typeof import("../../lib/featureFlags")>("../../lib/featureFlags");
   const FEATURE_FLAGS = Object.fromEntries(
     Object.entries(actual.FEATURE_FLAGS).map(([key, val]) => [key, { ...val, prodEnabled: false }]),
-  ) as typeof actual.FEATURE_FLAGS;
+  ) as unknown as typeof actual.FEATURE_FLAGS;
   return {
     ...actual,
     FEATURE_FLAGS,
