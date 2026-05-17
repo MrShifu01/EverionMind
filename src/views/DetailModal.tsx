@@ -336,6 +336,29 @@ No explanation, no punctuation, just one word.`,
   // impurely on every render (React Compiler rule) — modal is ephemeral anyway.
   const [mountedAt] = useState(() => Date.now());
 
+  // Keyboard-aware bottom offset: when editing on mobile the soft keyboard
+  // shrinks the visual viewport. We read the delta and push the modal up so
+  // inputs aren't hidden behind the keyboard.
+  const [kbOffset, setKbOffset] = useState(0);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!editing || !vv) {
+      setKbOffset(0);
+      return;
+    }
+    const update = () => {
+      const kb = window.innerHeight - vv.height - vv.pageTop;
+      setKbOffset(Math.max(0, kb));
+    };
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    update();
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, [editing]);
+
   useEffect(() => {
     return () => {
       if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
@@ -403,7 +426,8 @@ No explanation, no punctuation, just one word.`,
             // -> this modal. On unsupported browsers the property is a no-op
             // and the design-scaleIn keyframe above is the fallback animation.
             viewTransitionName: entry?.id ? `entry-${entry.id}` : undefined,
-          }}
+            "--dm-kb-offset": `${kbOffset}px`,
+          } as React.CSSProperties}
           onTouchMove={(e) => e.stopPropagation()}
         >
           {/* Visually-hidden title + description — Radix Dialog requires
@@ -1669,7 +1693,7 @@ No explanation, no punctuation, just one word.`,
               background: linear-gradient(180deg, color-mix(in oklch, var(--ember) 8%, var(--surface-high)) 0%, var(--surface-high) 20%, var(--surface) 100%) !important;
               border: 1px solid color-mix(in oklch, var(--ember) 22%, var(--line-soft)) !important;
               border-radius: 22px 22px 0 0 !important;
-              bottom: 0 !important;
+              bottom: var(--dm-kb-offset, 0) !important;
               left: 0 !important;
               right: 0 !important;
               /* Tailwind v4 uses the modern translate CSS property (not transform) for -translate-x-1/2.
@@ -1678,7 +1702,7 @@ No explanation, no punctuation, just one word.`,
               translate: none !important;
               width: 100% !important;
               max-width: 100% !important;
-              max-height: calc(100dvh - 60px) !important;
+              max-height: calc(100dvh - 60px - var(--dm-kb-offset, 0px)) !important;
               top: auto !important;
             }
             .detail-modal-content::before {
