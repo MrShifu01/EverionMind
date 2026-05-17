@@ -184,6 +184,17 @@ export default function DetailModal({
   const [editContent, setEditContent] = useState(entry.content ?? "");
   const [editType, setEditType] = useState<string>(entry.type);
   const [editTags] = useState((entry.tags || []).join(", "));
+
+  // Keep view-mode display in sync when the entry prop is updated externally
+  // (e.g. optimistic update from handleUpdate propagates via setSelected).
+  // Skip while editing so in-progress edits aren't blown away.
+  useEffect(() => {
+    if (!editing) {
+      setEditTitle(entry.title);
+      setEditContent(entry.content ?? "");
+      setEditType(entry.type);
+    }
+  }, [entry.title, entry.content, entry.type, editing]);
   const [secretRevealed, setSecretRevealed] = useState(false);
   const [aiTyping, setAiTyping] = useState(false);
   const [aiMsg, setAiMsg] = useState<{ text: string; ok: boolean } | null>(null);
